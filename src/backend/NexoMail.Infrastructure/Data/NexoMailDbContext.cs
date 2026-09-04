@@ -16,6 +16,8 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
         {
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Email).HasMaxLength(320).IsRequired();
+            entity.Property(x => x.DisplayName).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.PasswordHash).HasMaxLength(1024);
             entity.HasIndex(x => x.Email).IsUnique();
         });
         modelBuilder.Entity<MailAccountEntity>(entity =>
@@ -35,6 +37,16 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
     }
 }
 
-public sealed class UserEntity { public Guid Id { get; set; } public string DisplayName { get; set; } = string.Empty; public string Email { get; set; } = string.Empty; public DateTimeOffset CreatedAt { get; set; } public DateTimeOffset? LastLoginAt { get; set; } public bool IsActive { get; set; } = true; }
+public sealed class UserEntity
+{
+    public Guid Id { get; set; }
+    public string DisplayName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string? PasswordHash { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? LastLoginAt { get; set; }
+    public bool IsActive { get; set; } = true;
+}
+
 public sealed class MailAccountEntity { public Guid Id { get; set; } public Guid UserId { get; set; } public MailProviderType Provider { get; set; } public string EmailAddress { get; set; } = string.Empty; public string DisplayName { get; set; } = string.Empty; public string Color { get; set; } = "#0f6b78"; public bool IsActive { get; set; } = true; public DateTimeOffset CreatedAt { get; set; } }
 public sealed class OAuthCredentialEntity { public Guid Id { get; set; } public Guid MailAccountId { get; set; } public string EncryptedRefreshToken { get; set; } = string.Empty; public DateTimeOffset? ExpiresAt { get; set; } public DateTimeOffset UpdatedAt { get; set; } }
