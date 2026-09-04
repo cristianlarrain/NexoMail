@@ -13,7 +13,7 @@ export function AppLayout() {
   useEffect(() => { setSearch(new URLSearchParams(location.search).get('q') ?? '') }, [location.search])
   return <div className="app-shell">
     <aside className={`sidebar ${open ? 'open' : ''} ${collapsed ? 'collapsed' : ''}`}>
-      <div className="brand-row"><div className="brand-mark"><Mail size={18} /></div><span className="brand-name">NexoMail</span><button className="icon-button collapse-button" onClick={() => setCollapsed(!collapsed)} aria-label="Contraer barra lateral"><ChevronLeft size={18} /></button></div>
+      <div className="brand-row"><button className="brand-home" onClick={() => { setOpen(false); navigate('/inbox') }} aria-label="Ir a Bandeja de entrada"><span className="brand-mark"><Mail size={18} /></span><span className="brand-name">NexoMail</span></button><button className="icon-button collapse-button" onClick={() => setCollapsed(!collapsed)} aria-label="Contraer barra lateral"><ChevronLeft size={18} /></button></div>
       <button className="compose-button" onClick={() => navigate('/compose')}><PenLine size={17} /><span>Redactar</span></button>
       <nav aria-label="Navegación principal">
         <NavLink to="/inbox" end className={navClass}><Inbox size={17} /><span>Todas</span></NavLink>
