@@ -6,7 +6,8 @@ export function sanitizeEmailHtml(html: string): string {
     for (const attribute of [...element.attributes]) {
       const name = attribute.name.toLowerCase()
       const value = attribute.value.trim().toLowerCase()
-      if (name.startsWith('on') || name === 'style' || value.startsWith('javascript:') || value.startsWith('data:text/html')) element.removeAttribute(attribute.name)
+      const legacyPresentation = ['bgcolor', 'background', 'color', 'text', 'alink', 'vlink'].includes(name)
+      if (name.startsWith('on') || name === 'style' || legacyPresentation || value.startsWith('javascript:') || value.startsWith('data:text/html')) element.removeAttribute(attribute.name)
     }
     if (element instanceof HTMLImageElement) {
       const source = element.getAttribute('src')?.trim() ?? ''
