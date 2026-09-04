@@ -41,15 +41,20 @@ public sealed class DemoMailProvider : IMailProvider
         if (index >= 0) _messages[index] = _messages[index] with { IsRead = read };
         return Task.CompletedTask;
     }
+
     public Task EmptyFolderAsync(Guid accountId, string folderId, CancellationToken cancellationToken)
     {
         if (folderId == "trash") _messages.RemoveAll(x => x.AccountId == accountId && x.FolderId == "trash");
         return Task.CompletedTask;
     }
-    public Task MoveToTrashAsync(Guid accountId, string messageId, CancellationToken cancellationToken)
+
+    public Task MoveToTrashAsync(Guid accountId, string messageId, CancellationToken cancellationToken) => MoveToFolderAsync(accountId, messageId, "trash", cancellationToken);
+
+    public Task MoveToFolderAsync(Guid accountId, string messageId, string folderId, CancellationToken cancellationToken)
     {
+        if (folderId is not ("inbox" or "trash")) throw new InvalidOperationException("Esta carpeta no admite movimiento de mensajes.");
         var index = _messages.FindIndex(x => x.AccountId == accountId && x.ProviderMessageId == messageId);
-        if (index >= 0) _messages[index] = _messages[index] with { FolderId = "trash" };
+        if (index >= 0) _messages[index] = _messages[index] with { FolderId = folderId };
         return Task.CompletedTask;
     }
 
@@ -77,6 +82,7 @@ public sealed class DemoMailGateway(IEnumerable<IMailProvider> providers) : IMai
     public Task ForwardAsync(Guid accountId, string messageId, ComposeMessage message, CancellationToken cancellationToken) => _demo.ForwardAsync(accountId, messageId, message, cancellationToken);
     public Task MarkReadAsync(Guid accountId, string messageId, bool read, CancellationToken cancellationToken) => _demo.MarkReadAsync(accountId, messageId, read, cancellationToken);
     public Task MoveToTrashAsync(Guid accountId, string messageId, CancellationToken cancellationToken) => _demo.MoveToTrashAsync(accountId, messageId, cancellationToken);
+    public Task MoveToFolderAsync(Guid accountId, string messageId, string folderId, CancellationToken cancellationToken) => _demo.MoveToFolderAsync(accountId, messageId, folderId, cancellationToken);
     public async Task EmptyFolderAsync(Guid? accountId, string folderId, CancellationToken cancellationToken)
     {
         var accounts = accountId.HasValue ? _accounts.Where(x => x.Id == accountId.Value) : _accounts;
