@@ -7,14 +7,15 @@ using NexoMail.Infrastructure.Data;
 
 namespace NexoMail.Infrastructure;
 
-public sealed class MailGateway(IEnumerable<IMailProvider> providers, NexoMailDbContext database) : IMailGateway
+public sealed class MailGateway(IEnumerable<IMailProvider> providers, NexoMailDbContext database, IUserContext userContext) : IMailGateway
 {
     private readonly IReadOnlyDictionary<MailProviderType, IMailProvider> _providers = providers.ToDictionary(x => x.ProviderType);
 
     public async Task<IReadOnlyCollection<MailAccount>> GetAccountsAsync(CancellationToken cancellationToken)
     {
+        var userId = userContext.UserId;
         var accounts = await database.MailAccounts
-            .Where(x => x.UserId == Google.LocalUser.Id && x.IsActive)
+            .Where(x => x.UserId == userId && x.IsActive)
             .Select(x => new MailAccount(x.Id, x.Provider, x.EmailAddress, x.DisplayName, x.Color, x.IsActive))
             .ToArrayAsync(cancellationToken);
         return accounts.OrderBy(x => x.EmailAddress, StringComparer.OrdinalIgnoreCase).ToArray();
@@ -22,7 +23,8 @@ public sealed class MailGateway(IEnumerable<IMailProvider> providers, NexoMailDb
 
     public async Task<MailAccount?> UpdateAccountAsync(Guid accountId, MailAccountSettings settings, CancellationToken cancellationToken)
     {
-        var account = await database.MailAccounts.SingleOrDefaultAsync(x => x.Id == accountId && x.UserId == Google.LocalUser.Id, cancellationToken);
+        var userId = userContext.UserId;
+        var account = await database.MailAccounts.SingleOrDefaultAsync(x => x.Id == accountId && x.UserId == userId, cancellationToken);
         if (account is null) return null;
         account.DisplayName = settings.DisplayName;
         account.Color = settings.Color;
@@ -85,7 +87,15 @@ public sealed class MailGateway(IEnumerable<IMailProvider> providers, NexoMailDb
         await Task.WhenAll(accounts.Select(account => ProviderFor(account).EmptyFolderAsync(account.Id, folderId, cancellationToken)));
     }
 
-    private async Task<MailAccount> AccountAsync(Guid id, CancellationToken ct) => await database.MailAccounts.Where(x => x.Id == id && x.UserId == Google.LocalUser.Id).Select(x => new MailAccount(x.Id, x.Provider, x.EmailAddress, x.DisplayName, x.Color, x.IsActive)).SingleAsync(ct);
+    private async Task<MailAccount> AccountAsync(Guid id, CancellationToken ct)
+    {
+        var userId = userContext.UserId;
+        return await database.MailAccounts
+            .Where(x => x.Id == id && x.UserId == userId && x.IsActive)
+            .Select(x => new MailAccount(x.Id, x.Provider, x.EmailAddress, x.DisplayName, x.Color, x.IsActive))
+            .SingleAsync(ct);
+    }
+
     private IMailProvider ProviderFor(MailAccount account) => _providers.TryGetValue(account.Provider, out var provider) ? provider : throw new NotSupportedException($"El proveedor {account.Provider} aún no está disponible.");
 
     private async Task<PagedResult<MailSummary>?> TryGetMessagesAsync(MailAccount account, MailQuery query, CancellationToken ct)
