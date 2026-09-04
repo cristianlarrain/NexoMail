@@ -24,7 +24,8 @@ public sealed class GmailMailProvider(
         var client = await CreateClientAsync(query.AccountId.Value, cancellationToken);
         var label = FolderLabel(query.FolderId);
         var search = string.IsNullOrWhiteSpace(query.Search) ? string.Empty : $"&q={Uri.EscapeDataString(query.Search)}";
-        using var listResponse = await client.GetAsync($"users/me/messages?labelIds={label}&maxResults={Math.Clamp(query.Take, 1, 50)}{search}", cancellationToken);
+        var page = string.IsNullOrWhiteSpace(query.Cursor) ? string.Empty : $"&pageToken={Uri.EscapeDataString(query.Cursor)}";
+        using var listResponse = await client.GetAsync($"users/me/messages?labelIds={label}&maxResults={Math.Clamp(query.Take, 1, 50)}{search}{page}", cancellationToken);
         listResponse.EnsureSuccessStatusCode();
         using var list = JsonDocument.Parse(await listResponse.Content.ReadAsStreamAsync(cancellationToken));
         if (!list.RootElement.TryGetProperty("messages", out var messages)) return new PagedResult<MailSummary>([]);
@@ -100,6 +101,22 @@ public sealed class GmailMailProvider(
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task MoveToFolderAsync(Guid accountId, string messageId, string folderId, CancellationToken cancellationToken)
+    {
+        if (folderId == "trash")
+        {
+            await MoveToTrashAsync(accountId, messageId, cancellationToken);
+            return;
+        }
+        if (folderId != "inbox") throw new InvalidOperationException("Por ahora NexoMail permite mover mensajes entre Bandeja y Papelera.");
+
+        var client = await CreateClientAsync(accountId, cancellationToken);
+        using var untrash = await client.PostAsync($"users/me/messages/{Uri.EscapeDataString(messageId)}/untrash", null, cancellationToken);
+        if (!untrash.IsSuccessStatusCode && untrash.StatusCode != System.Net.HttpStatusCode.BadRequest) untrash.EnsureSuccessStatusCode();
+        using var response = await client.PostAsJsonAsync($"users/me/messages/{Uri.EscapeDataString(messageId)}/modify", new Dictionary<string, string[]> { ["addLabelIds"] = ["INBOX"] }, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
     public Task EmptyFolderAsync(Guid accountId, string folderId, CancellationToken cancellationToken)
     {
         return Task.FromException(new InvalidOperationException(folderId == "trash"
@@ -151,6 +168,7 @@ public sealed class GmailMailProvider(
         using var response = await client.PostAsJsonAsync("users/me/messages/send", new { raw = ToBase64Url(Encoding.UTF8.GetBytes(raw)), threadId }, cancellationToken);
         response.EnsureSuccessStatusCode();
     }
+
     private static string BuildRfc822(ComposeMessage message, string? inReplyTo = null, string? references = null)
     {
         var attachments = message.Attachments ?? [];
@@ -168,6 +186,7 @@ public sealed class GmailMailProvider(
         }
         return builder.Append($"--{boundary}--\r\n").ToString();
     }
+
     private static string EncodeHeader(string value) => value.All(character => character <= 127) ? value : $"=?UTF-8?B?{Convert.ToBase64String(Encoding.UTF8.GetBytes(value))}?=";
     private static string FolderLabel(string folder) => folder switch { "sent" => "SENT", "drafts" => "DRAFT", "trash" => "TRASH", _ => "INBOX" };
     private static string FolderFromLabels(HashSet<string?> labels) => labels.Contains("SENT") ? "sent" : labels.Contains("DRAFT") ? "drafts" : labels.Contains("TRASH") ? "trash" : "inbox";
@@ -180,6 +199,7 @@ public sealed class GmailMailProvider(
     private static IReadOnlyCollection<MailAddress> ParseAddresses(string raw) => string.IsNullOrWhiteSpace(raw) ? [] : raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(ParseAddress).ToArray();
     private static bool HasAttachment(JsonElement root) => root.TryGetProperty("payload", out var payload) && PayloadHasAttachment(payload);
     private static bool PayloadHasAttachment(JsonElement payload) => payload.TryGetProperty("filename", out var filename) && !string.IsNullOrWhiteSpace(filename.GetString()) || payload.TryGetProperty("parts", out var parts) && parts.EnumerateArray().Any(PayloadHasAttachment);
+
     private static (string Html, IReadOnlyCollection<MailAttachment> Attachments) ParsePayload(JsonElement payload)
     {
         var attachments = new List<MailAttachment>(); var inlineImages = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase); string? html = null; string? plain = null;
@@ -202,6 +222,7 @@ public sealed class GmailMailProvider(
             if (part.TryGetProperty("parts", out var parts)) foreach (var child in parts.EnumerateArray()) Walk(child);
         }
     }
+
     private static bool TryContentId(JsonElement part, out string contentId)
     {
         contentId = string.Empty;
@@ -211,6 +232,7 @@ public sealed class GmailMailProvider(
         contentId = value.GetString()!.Trim().Trim('<', '>');
         return contentId.Length > 0;
     }
+
     private static string FixMojibake(string value)
     {
         for (var pass = 0; pass < 2 && (value.Contains('Ã') || value.Contains('Â')); pass++)
@@ -221,6 +243,7 @@ public sealed class GmailMailProvider(
         }
         return value;
     }
+
     private static string ToBase64Url(byte[] bytes) => Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     private static byte[] FromBase64Url(string value) => Convert.FromBase64String(value.Replace('-', '+').Replace('_', '/') + new string('=', (4 - value.Length % 4) % 4));
 }
