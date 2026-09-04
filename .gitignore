@@ -5,6 +5,13 @@ node_modules/
 dist/
 .env
 appsettings.Development.json
+
+# Base de datos SQLite local de NexoMail y archivos temporales
 nexomail.db
+nexomail.db-shm
+nexomail.db-wal
+*.db-shm
+*.db-wal
+
 *.user
 *.suo
