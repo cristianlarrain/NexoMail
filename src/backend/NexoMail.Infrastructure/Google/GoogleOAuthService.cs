@@ -1,9 +1,10 @@
-using System.Collections.Concurrent;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using NexoMail.Application;
 using NexoMail.Domain;
 using NexoMail.Infrastructure.Data;
 
@@ -13,16 +14,17 @@ public sealed class GoogleOAuthService(
     IHttpClientFactory httpClientFactory,
     IOptions<GmailOptions> options,
     NexoMailDbContext database,
-    ITokenProtector tokenProtector)
+    ITokenProtector tokenProtector,
+    IDataProtectionProvider dataProtectionProvider,
+    IUserContext userContext)
 {
-    private static readonly ConcurrentDictionary<string, byte> PendingStates = new();
     private readonly GmailOptions _options = options.Value;
+    private readonly IDataProtector _stateProtector = dataProtectionProvider.CreateProtector("NexoMail.GoogleOAuth.State.v1");
 
     public string BeginAuthorization()
     {
         EnsureConfigured();
-        var state = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
-        PendingStates.TryAdd(state, 0);
+        var state = CreateState(userContext.UserId);
         var query = new Dictionary<string, string>
         {
             ["client_id"] = _options.ClientId,
@@ -39,7 +41,11 @@ public sealed class GoogleOAuthService(
     public async Task CompleteAuthorizationAsync(string code, string state, CancellationToken cancellationToken)
     {
         EnsureConfigured();
-        if (!PendingStates.TryRemove(state, out _)) throw new InvalidOperationException("La solicitud de conexión ya expiró. Inténtalo nuevamente.");
+        var stateData = ReadState(state);
+        if (stateData.UserId != userContext.UserId)
+            throw new InvalidOperationException("La autorización de Google no corresponde al usuario que inició sesión.");
+        if (DateTimeOffset.UtcNow - stateData.IssuedAt > TimeSpan.FromMinutes(10))
+            throw new InvalidOperationException("La solicitud de conexión a Google expiró. Iníciala nuevamente.");
 
         var tokenClient = httpClientFactory.CreateClient();
         using var response = await tokenClient.PostAsync("https://oauth2.googleapis.com/token", new FormUrlEncodedContent(new Dictionary<string, string>
@@ -60,22 +66,30 @@ public sealed class GoogleOAuthService(
         var email = profileDocument.RootElement.GetProperty("emailAddress").GetString()
             ?? throw new InvalidOperationException("No fue posible determinar la dirección Gmail.");
 
-        if (!await database.Users.AnyAsync(x => x.Id == LocalUser.Id, cancellationToken))
-        {
-            database.Users.Add(new UserEntity
-            {
-                Id = LocalUser.Id,
-                DisplayName = "Usuario local",
-                Email = "local@nexomail.invalid",
-                CreatedAt = DateTimeOffset.UtcNow
-            });
-        }
-        var account = await database.MailAccounts.SingleOrDefaultAsync(x => x.EmailAddress == email && x.Provider == MailProviderType.Gmail, cancellationToken);
+        var userId = userContext.UserId;
+        var account = await database.MailAccounts.SingleOrDefaultAsync(
+            x => x.UserId == userId && x.EmailAddress == email && x.Provider == MailProviderType.Gmail,
+            cancellationToken);
         if (account is null)
         {
-            account = new MailAccountEntity { Id = Guid.NewGuid(), UserId = LocalUser.Id, Provider = MailProviderType.Gmail, EmailAddress = email, DisplayName = "Gmail", Color = "#c6524b", CreatedAt = DateTimeOffset.UtcNow };
+            account = new MailAccountEntity
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                Provider = MailProviderType.Gmail,
+                EmailAddress = email,
+                DisplayName = "Gmail",
+                Color = "#c6524b",
+                CreatedAt = DateTimeOffset.UtcNow,
+                IsActive = true
+            };
             database.MailAccounts.Add(account);
         }
+        else
+        {
+            account.IsActive = true;
+        }
+
         var credential = await database.OAuthCredentials.SingleOrDefaultAsync(x => x.MailAccountId == account.Id, cancellationToken);
         if (credential is null)
         {
@@ -90,16 +104,35 @@ public sealed class GoogleOAuthService(
 
     public string SuccessRedirect() => _options.FrontendUrl + "?connected=google";
     public string FailureRedirect(string reason) => _options.FrontendUrl + "?error=" + Uri.EscapeDataString(reason);
+
+    private string CreateState(Guid userId)
+    {
+        var payload = new GoogleOAuthState(userId, DateTimeOffset.UtcNow, Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16)));
+        return _stateProtector.Protect(JsonSerializer.Serialize(payload));
+    }
+
+    private GoogleOAuthState ReadState(string state)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<GoogleOAuthState>(_stateProtector.Unprotect(state))
+                ?? throw new InvalidOperationException();
+        }
+        catch
+        {
+            throw new InvalidOperationException("La solicitud de conexión a Google no es válida o ya expiró.");
+        }
+    }
+
     private void EnsureConfigured()
     {
         if (string.IsNullOrWhiteSpace(_options.ClientId) || string.IsNullOrWhiteSpace(_options.ClientSecret))
-            throw new InvalidOperationException("Faltan las credenciales Google en User Secrets.");
+            throw new InvalidOperationException("Faltan las credenciales Google en la configuración segura del servidor.");
     }
 
+    private sealed record GoogleOAuthState(Guid UserId, DateTimeOffset IssuedAt, string Nonce);
     private sealed record GoogleTokenResponse(
         [property: JsonPropertyName("access_token")] string AccessToken,
         [property: JsonPropertyName("refresh_token")] string? RefreshToken,
         [property: JsonPropertyName("expires_in")] int ExpiresIn);
 }
-
-public static class LocalUser { public static readonly Guid Id = Guid.Parse("a15ac2a9-ca17-4b60-878a-9d42b9a0d001"); }
