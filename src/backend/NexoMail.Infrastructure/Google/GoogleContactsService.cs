@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using NexoMail.Application;
 using NexoMail.Domain;
 using NexoMail.Infrastructure.Data;
 
@@ -13,13 +14,15 @@ public sealed class GoogleContactsService(
     IHttpClientFactory httpClientFactory,
     NexoMailDbContext database,
     ITokenProtector tokenProtector,
-    IOptions<GmailOptions> options)
+    IOptions<GmailOptions> options,
+    IUserContext userContext)
 {
     public async Task<IReadOnlyCollection<ContactSuggestion>> GetContactsAsync(Guid accountId, string? search, CancellationToken cancellationToken)
     {
-        var account = await database.MailAccounts.SingleOrDefaultAsync(x => x.Id == accountId, cancellationToken);
+        var userId = userContext.UserId;
+        var account = await database.MailAccounts.SingleOrDefaultAsync(x => x.Id == accountId && x.UserId == userId && x.IsActive, cancellationToken);
         if (account is null || account.Provider != MailProviderType.Gmail)
-            throw new InvalidOperationException("Selecciona una cuenta Gmail para consultar sus contactos.");
+            throw new InvalidOperationException("Selecciona una cuenta Gmail válida para consultar sus contactos.");
 
         var client = await CreateClientAsync(accountId, cancellationToken);
         var contacts = await GetPeopleAsync(client, "people/me/connections?personFields=names,emailAddresses&pageSize=1000&sortOrder=LAST_NAME_ASCENDING", "connections", cancellationToken);
@@ -61,8 +64,12 @@ public sealed class GoogleContactsService(
 
     private async Task<HttpClient> CreateClientAsync(Guid accountId, CancellationToken cancellationToken)
     {
-        var credential = await database.OAuthCredentials.SingleOrDefaultAsync(x => x.MailAccountId == accountId, cancellationToken)
-            ?? throw new InvalidOperationException("No existe una credencial OAuth para esta cuenta.");
+        var userId = userContext.UserId;
+        var credential = await database.OAuthCredentials
+            .Where(x => x.MailAccountId == accountId)
+            .Join(database.MailAccounts.Where(x => x.UserId == userId && x.IsActive), credential => credential.MailAccountId, account => account.Id, (credential, _) => credential)
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new InvalidOperationException("No existe una credencial OAuth válida para esta cuenta.");
         var refreshToken = tokenProtector.Unprotect(credential.EncryptedRefreshToken);
         var tokenClient = httpClientFactory.CreateClient();
         using var response = await tokenClient.PostAsync("https://oauth2.googleapis.com/token", new FormUrlEncodedContent(new Dictionary<string, string>
