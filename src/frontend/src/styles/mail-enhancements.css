@@ -1,0 +1,38 @@
+.brand-home { min-width: 0; display: inline-flex; align-items: center; gap: 9px; border: 0; padding: 0; background: transparent; color: var(--foreground); text-align: left; }
+.brand-home:hover .brand-name { color: var(--primary); }
+
+.bulk-actions { min-height: 48px; display: flex; align-items: center; gap: 9px; margin-bottom: 10px; padding: 7px 10px 7px 14px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); box-shadow: var(--shadow); }
+.bulk-actions strong { margin-right: auto; font-size: 13px; }
+
+.message-list-header, .message-row { grid-template-columns: 24px 16px 180px minmax(0, 1fr) 22px 84px 34px; }
+.message-list-header { min-height: 38px; display: grid; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--muted); color: var(--muted-foreground); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.message-row { cursor: pointer; }
+.message-row.selected { background: color-mix(in srgb, var(--primary) 8%, var(--surface)); }
+.message-row:focus-visible { position: relative; z-index: 1; outline: 2px solid var(--primary); outline-offset: -2px; }
+.row-check { width: 24px; height: 34px; display: grid; place-items: center; cursor: default; }
+.row-check input { width: 15px; height: 15px; margin: 0; accent-color: var(--primary); cursor: pointer; }
+.sort-button { min-width: 0; display: inline-flex; align-items: center; gap: 3px; border: 0; padding: 0; background: transparent; color: inherit; font-size: inherit; font-weight: inherit; text-transform: inherit; letter-spacing: inherit; text-align: left; }
+.sort-button:hover, .sort-button.active { color: var(--foreground); }
+.attachment-heading, .attachment-slot { display: grid; place-items: center; color: var(--muted-foreground); }
+.row-delete, .row-restore { width: 30px; height: 30px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--muted-foreground); }
+.row-delete:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger); }
+.row-restore:hover { background: var(--surface-hover); color: var(--primary); }
+.row-delete:disabled, .row-restore:disabled { opacity: .4; cursor: wait; }
+.message-pagination { min-height: 56px; display: flex; align-items: center; justify-content: flex-end; gap: 14px; color: var(--muted-foreground); font-size: 12px; }
+
+.dictation-button.listening { background: color-mix(in srgb, var(--danger) 12%, var(--surface)); color: var(--danger); }
+.dictation-status { display: inline-flex; align-items: center; margin-left: 5px; color: var(--danger); font-size: 12px; font-weight: 650; }
+.dictation-error { margin: 8px 0 0; color: var(--danger); font-size: 12px; }
+
+/* Mail HTML is normalized to the active theme so legacy white backgrounds and gray text remain readable. */
+.message-body, .thread-message { color: var(--foreground); }
+:root[data-theme="dark"] .message-body [bgcolor], :root[data-theme="dark"] .thread-message [bgcolor] { background: transparent !important; }
+:root[data-theme="dark"] .message-body [color], :root[data-theme="dark"] .thread-message [color] { color: inherit !important; }
+.message-body a, .thread-message a { color: var(--primary); }
+
+@media (max-width: 760px) {
+  .message-list-header, .message-row { grid-template-columns: 24px 10px minmax(0, 1fr) 58px 34px; gap: 7px; padding-inline: 10px; }
+  .message-list-header .sort-button:nth-of-type(2), .message-list-header .attachment-heading, .message-row .subject, .message-row .attachment-slot { display: none; }
+  .message-pagination { justify-content: space-between; }
+  .bulk-actions { flex-wrap: wrap; }
+}
