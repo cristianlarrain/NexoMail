@@ -1,14 +1,20 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { ChevronLeft, FileText, Inbox, Mail, Menu, Moon, PenLine, Search, Send, Settings, Sun, Trash2 } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ChevronLeft, FileText, Inbox, LogOut, Mail, Menu, Moon, PenLine, Search, Send, Settings, Sun, Trash2 } from 'lucide-react'
+import { authApi } from '../api/authApi'
 import { mailApi } from '../api/mailApi'
 
 const navClass = ({ isActive }: { isActive: boolean }) => `nav-item ${isActive ? 'active' : ''}`
+function initials(value: string) { return value.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || 'NM' }
+
 export function AppLayout() {
   const [open, setOpen] = useState(false); const [collapsed, setCollapsed] = useState(false); const [theme, setTheme] = useState(() => localStorage.getItem('nexomail-theme') ?? 'light'); const [profileOpen, setProfileOpen] = useState(false); const [search, setSearch] = useState('')
+  const queryClient = useQueryClient()
+  const { data: session } = useQuery({ queryKey: ['session'], queryFn: authApi.me, retry: false, staleTime: 60_000 })
   const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: mailApi.accounts })
   const navigate = useNavigate(); const location = useLocation()
+  const logout = useMutation({ mutationFn: authApi.logout, onSuccess: () => { queryClient.clear(); navigate('/login', { replace: true }) } })
   useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem('nexomail-theme', theme) }, [theme])
   useEffect(() => { setSearch(new URLSearchParams(location.search).get('q') ?? '') }, [location.search])
   return <div className="app-shell">
@@ -29,6 +35,6 @@ export function AppLayout() {
       </nav>
     </aside>
     {open && <button className="backdrop" aria-label="Cerrar menú" onClick={() => setOpen(false)} />}
-    <main className="main-content"><header className="topbar"><button className="icon-button menu-button" onClick={() => setOpen(true)} aria-label="Abrir menú"><Menu size={20} /></button><label className="search"><Search size={17} /><input value={search} onChange={event => setSearch(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') navigate(search.trim() ? `/inbox?q=${encodeURIComponent(search.trim())}` : '/inbox') }} placeholder="Buscar correos y presionar Enter" aria-label="Buscar correos" /></label><button className="avatar" aria-label="Menú de perfil" aria-expanded={profileOpen} onClick={() => setProfileOpen(!profileOpen)}>CR</button>{profileOpen && <div className="profile-menu"><p>Perfil local</p><button onClick={() => { setProfileOpen(false); navigate('/settings/accounts') }}><Settings size={16} /> Configurar cuentas</button><button onClick={() => { setTheme(theme === 'dark' ? 'light' : 'dark'); setProfileOpen(false) }}>{theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}{theme === 'dark' ? 'Usar tema claro' : 'Usar tema oscuro'}</button></div>}</header><Outlet /></main>
+    <main className="main-content"><header className="topbar"><button className="icon-button menu-button" onClick={() => setOpen(true)} aria-label="Abrir menú"><Menu size={20} /></button><label className="search"><Search size={17} /><input value={search} onChange={event => setSearch(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') navigate(search.trim() ? `/inbox?q=${encodeURIComponent(search.trim())}` : '/inbox') }} placeholder="Buscar correos y presionar Enter" aria-label="Buscar correos" /></label><button className="avatar" aria-label="Menú de perfil" aria-expanded={profileOpen} onClick={() => setProfileOpen(!profileOpen)}>{initials(session?.displayName ?? session?.email ?? '')}</button>{profileOpen && <div className="profile-menu"><p><strong>{session?.displayName}</strong><br />{session?.email}</p><button onClick={() => { setProfileOpen(false); navigate('/settings/accounts') }}><Settings size={16} /> Configurar cuentas</button><button onClick={() => { setTheme(theme === 'dark' ? 'light' : 'dark'); setProfileOpen(false) }}>{theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}{theme === 'dark' ? 'Usar tema claro' : 'Usar tema oscuro'}</button><button disabled={logout.isPending} onClick={() => logout.mutate()}><LogOut size={16} /> {logout.isPending ? 'Saliendo…' : 'Cerrar sesión'}</button></div>}</header><Outlet /></main>
   </div>
 }
