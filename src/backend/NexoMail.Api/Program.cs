@@ -71,16 +71,22 @@ api.MapPatch("/mail/accounts/{accountId:guid}", async (IMailGateway gateway, Gui
 api.MapGet("/mail/messages", async (IMailGateway gateway, Guid? accountId, string? folder, int? take, string? search, CancellationToken ct) => Results.Ok(await gateway.GetMessagesAsync(new MailQuery(accountId, folder ?? "inbox", take ?? 50, null, search), ct)));
 api.MapGet("/mail/messages/{accountId:guid}/{messageId}", async (IMailGateway gateway, Guid accountId, string messageId, CancellationToken ct) =>
     await gateway.GetMessageAsync(accountId, messageId, ct) is { } message ? Results.Ok(message) : Results.NotFound());
-api.MapGet("/mail/messages/{accountId:guid}/{messageId}/attachments/{attachmentId}", async (IMailGateway gateway, Guid accountId, string messageId, string attachmentId, bool? download, CancellationToken ct) =>
+api.MapGet("/mail/messages/{accountId:guid}/{messageId}/attachments/{attachmentId}", async (IMailGateway gateway, Guid accountId, string messageId, string attachmentId, string? fileName, bool? download, CancellationToken ct) =>
 {
     try
     {
         var attachment = await gateway.GetAttachmentAsync(accountId, messageId, attachmentId, ct);
+        var safeFileName = Path.GetFileName(string.IsNullOrWhiteSpace(fileName) ? attachment?.FileName ?? "adjunto" : fileName);
+        var contentType = Path.GetExtension(safeFileName).ToLowerInvariant() switch
+        {
+            ".pdf" => "application/pdf", ".png" => "image/png", ".jpg" or ".jpeg" => "image/jpeg", ".gif" => "image/gif", ".webp" => "image/webp",
+            ".txt" or ".log" or ".csv" => "text/plain; charset=utf-8", ".json" => "application/json", ".xml" => "application/xml", _ => attachment?.ContentType ?? "application/octet-stream"
+        };
         return attachment is null
             ? Results.NotFound()
             : download == true
-                ? Results.File(attachment.Content, attachment.ContentType, attachment.FileName, enableRangeProcessing: true)
-                : Results.File(attachment.Content, attachment.ContentType, enableRangeProcessing: true);
+                ? Results.File(attachment.Content, contentType, safeFileName, enableRangeProcessing: true)
+                : Results.File(attachment.Content, contentType, enableRangeProcessing: true);
     }
     catch (InvalidOperationException exception) { return Results.BadRequest(new { error = exception.Message }); }
     catch (HttpRequestException exception) { return Results.Problem($"Gmail no pudo entregar el adjunto ({exception.StatusCode?.ToString() ?? "sin código"}).", statusCode: 502); }

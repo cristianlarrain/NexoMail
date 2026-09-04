@@ -1,4 +1,4 @@
-import type { ComposeMessage, ContactSuggestion, MailAccount, MailMessage, MailSummary, PagedResult } from '../types/mail'
+import type { ComposeMessage, ContactSuggestion, MailAccount, MailAttachment, MailMessage, MailSummary, PagedResult } from '../types/mail'
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api${path}`, { headers: { 'Content-Type': 'application/json', ...init?.headers }, ...init })
@@ -15,7 +15,7 @@ export const mailApi = {
   updateAccount: (accountId: string, settings: { displayName: string; color: string }) => api<MailAccount>(`/mail/accounts/${accountId}`, { method: 'PATCH', body: JSON.stringify(settings) }),
   messages: (accountId?: string, folder = 'inbox', search = '') => api<PagedResult<MailSummary>>(`/mail/messages?folder=${folder}${accountId ? `&accountId=${accountId}` : ''}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ''}`),
   message: (accountId: string, messageId: string) => api<MailMessage>(`/mail/messages/${accountId}/${messageId}`),
-  attachmentUrl: (accountId: string, messageId: string, attachmentId: string, download = false) => `/api/mail/messages/${encodeURIComponent(accountId)}/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}${download ? '?download=true' : ''}`,
+  attachmentUrl: (accountId: string, messageId: string, attachment: MailAttachment, download = false) => `/api/mail/messages/${encodeURIComponent(accountId)}/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachment.id)}?fileName=${encodeURIComponent(attachment.name)}${download ? '&download=true' : ''}`,
   read: (accountId: string, messageId: string, read: boolean) => api<void>(`/mail/messages/${accountId}/${messageId}/read`, { method: 'PATCH', body: JSON.stringify({ read }) }),
   trash: (accountId: string, messageId: string) => api<void>(`/mail/messages/${accountId}/${messageId}/trash`, { method: 'POST' }),
   emptyFolder: (folderId: string, accountId?: string) => api<void>(`/mail/folders/${folderId}/empty${accountId ? `?accountId=${accountId}` : ''}`, { method: 'POST' }),

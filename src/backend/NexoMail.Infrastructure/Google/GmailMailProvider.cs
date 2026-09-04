@@ -51,10 +51,6 @@ public sealed class GmailMailProvider(
 
     public async Task<MailAttachmentContent?> GetAttachmentAsync(Guid accountId, string messageId, string attachmentId, CancellationToken cancellationToken)
     {
-        var message = await GetMessageAsync(accountId, messageId, cancellationToken);
-        var attachment = message?.Attachments.SingleOrDefault(item => item.Id == attachmentId);
-        if (attachment is null) throw new InvalidOperationException("El adjunto no se encontró en el contenido actualizado de este correo.");
-
         var client = await CreateClientAsync(accountId, cancellationToken);
         using var response = await client.GetAsync($"users/me/messages/{Uri.EscapeDataString(messageId)}/attachments/{Uri.EscapeDataString(attachmentId)}", cancellationToken);
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
@@ -62,7 +58,7 @@ public sealed class GmailMailProvider(
         response.EnsureSuccessStatusCode();
         using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
         if (!document.RootElement.TryGetProperty("data", out var data) || string.IsNullOrWhiteSpace(data.GetString())) return null;
-        return new MailAttachmentContent(FromBase64Url(data.GetString()!), attachment.ContentType, attachment.Name);
+        return new MailAttachmentContent(FromBase64Url(data.GetString()!), "application/octet-stream", "adjunto");
     }
 
     public async Task SendAsync(ComposeMessage message, CancellationToken cancellationToken)
