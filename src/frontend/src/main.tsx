@@ -6,6 +6,7 @@ import { router } from './router'
 import './styles/theme.css'
 import './styles/overrides.css'
 import './styles/mail-enhancements.css'
+import './styles/auth.css'
 
 const client = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, retry: 1 } } })
 createRoot(document.getElementById('root')!).render(<StrictMode><QueryClientProvider client={client}><RouterProvider router={router} /></QueryClientProvider></StrictMode>)
