@@ -53,6 +53,11 @@
 .message-reader.with-preview { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, .9fr); align-items: start; gap: 18px; }.message-reading-pane { min-width: 0; }
 .attachment-preview { position: sticky; top: 88px; display: flex; flex-direction: column; min-width: 0; max-height: calc(100vh - 110px); overflow: hidden; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); box-shadow: var(--shadow); }.attachment-preview header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 15px 16px; border-bottom: 1px solid var(--border); }.attachment-preview header strong { display: block; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }.attachment-preview header .eyebrow { margin-bottom: 3px; }.attachment-preview-content { min-height: 320px; flex: 1; display: grid; place-items: center; overflow: auto; background: var(--background); }.attachment-preview-content img { display: block; max-width: 100%; max-height: calc(100vh - 240px); object-fit: contain; }.attachment-preview-content iframe { align-self: stretch; width: 100%; min-height: 520px; border: 0; background: white; }.unsupported-preview { max-width: 290px; padding: 30px; color: var(--muted-foreground); text-align: center; }.unsupported-preview svg { color: var(--primary); }.unsupported-preview h2 { margin: 12px 0 4px; color: var(--foreground); }.unsupported-preview p { margin: 0; font-size: 13px; }.attachment-preview footer { display: flex; justify-content: flex-end; padding: 12px 16px; border-top: 1px solid var(--border); }.attachment-preview footer .primary-button { text-decoration: none; }
 
+.message-navigation { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 24px; }
+.message-navigation .back-link { margin-bottom: 0; }
+.message-navigation-arrows { display: flex; align-items: center; gap: 4px; }
+.message-navigation-arrows .icon-button:disabled { opacity: .35; cursor: default; pointer-events: none; }
+
 @media (min-width: 761px) {
   .mail-view, .settings-page, .compose-page { max-width: none; margin: 0; padding: 22px 28px; }
   .sidebar.collapsed { width: 68px; padding-inline: 9px; overflow: visible; }
