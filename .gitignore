@@ -8,3 +8,10 @@ appsettings.Development.json
 nexomail.db
 *.user
 *.suo
+
+# SQLite runtime files
+*.db-shm
+*.db-wal
+
+# PNPM local cache
+.pnpm-store/
