@@ -1,0 +1,36 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexoMail.Domain", "src\\backend\\NexoMail.Domain\\NexoMail.Domain.csproj", "{E32C8A9E-24B1-4710-9E10-A14A8ECF214D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexoMail.Application", "src\\backend\\NexoMail.Application\\NexoMail.Application.csproj", "{B10D863D-8E42-413C-8950-D18F3F63D6FD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexoMail.Infrastructure", "src\\backend\\NexoMail.Infrastructure\\NexoMail.Infrastructure.csproj", "{D98FCA45-B00A-45DE-B1F5-C3AEF698D42B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexoMail.Api", "src\\backend\\NexoMail.Api\\NexoMail.Api.csproj", "{84290CC4-7343-46D8-BB38-29C20C532CD1}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E32C8A9E-24B1-4710-9E10-A14A8ECF214D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E32C8A9E-24B1-4710-9E10-A14A8ECF214D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E32C8A9E-24B1-4710-9E10-A14A8ECF214D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E32C8A9E-24B1-4710-9E10-A14A8ECF214D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B10D863D-8E42-413C-8950-D18F3F63D6FD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B10D863D-8E42-413C-8950-D18F3F63D6FD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B10D863D-8E42-413C-8950-D18F3F63D6FD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B10D863D-8E42-413C-8950-D18F3F63D6FD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D98FCA45-B00A-45DE-B1F5-C3AEF698D42B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D98FCA45-B00A-45DE-B1F5-C3AEF698D42B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D98FCA45-B00A-45DE-B1F5-C3AEF698D42B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D98FCA45-B00A-45DE-B1F5-C3AEF698D42B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{84290CC4-7343-46D8-BB38-29C20C532CD1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{84290CC4-7343-46D8-BB38-29C20C532CD1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{84290CC4-7343-46D8-BB38-29C20C532CD1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{84290CC4-7343-46D8-BB38-29C20C532CD1}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../NexoMail.Domain/NexoMail.Domain.csproj" />
+  </ItemGroup>
+</Project>

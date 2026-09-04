@@ -1,0 +1,10 @@
+.vs/
+bin/
+obj/
+node_modules/
+dist/
+.env
+appsettings.Development.json
+nexomail.db
+*.user
+*.suo
