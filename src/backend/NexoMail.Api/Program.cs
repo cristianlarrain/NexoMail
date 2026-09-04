@@ -72,7 +72,7 @@ api.MapPatch("/mail/accounts/{accountId:guid}", async (IMailGateway gateway, Gui
     if (color.Length != 7 || color[0] != '#' || !color[1..].All(char.IsAsciiHexDigit)) return Results.BadRequest(new { error = "El color debe tener formato hexadecimal, por ejemplo #c6524b." });
     return await gateway.UpdateAccountAsync(accountId, new MailAccountSettings(displayName, color.ToLowerInvariant()), ct) is { } account ? Results.Ok(account) : Results.NotFound();
 });
-api.MapGet("/mail/messages", async (IMailGateway gateway, Guid? accountId, string? folder, int? take, string? search, CancellationToken ct) => Results.Ok(await gateway.GetMessagesAsync(new MailQuery(accountId, folder ?? "inbox", take ?? 50, null, search), ct)));
+api.MapGet("/mail/messages", async (IMailGateway gateway, Guid? accountId, string? folder, int? take, string? cursor, string? search, CancellationToken ct) => Results.Ok(await gateway.GetMessagesAsync(new MailQuery(accountId, folder ?? "inbox", take ?? 50, cursor, search), ct)));
 api.MapGet("/mail/messages/{accountId:guid}/{messageId}", async (IMailGateway gateway, Guid accountId, string messageId, CancellationToken ct) =>
     await gateway.GetMessageAsync(accountId, messageId, ct) is { } message ? Results.Ok(message) : Results.NotFound());
 api.MapGet("/mail/messages/{accountId:guid}/{messageId}/attachments/{attachmentId}", async (IMailGateway gateway, Guid accountId, string messageId, string attachmentId, string? fileName, bool? download, CancellationToken ct) =>
@@ -97,6 +97,12 @@ api.MapGet("/mail/messages/{accountId:guid}/{messageId}/attachments/{attachmentI
 });
 api.MapPatch("/mail/messages/{accountId:guid}/{messageId}/read", async (IMailGateway gateway, Guid accountId, string messageId, ReadState request, CancellationToken ct) => { await gateway.MarkReadAsync(accountId, messageId, request.Read, ct); return Results.NoContent(); });
 api.MapPost("/mail/messages/{accountId:guid}/{messageId}/trash", async (IMailGateway gateway, Guid accountId, string messageId, CancellationToken ct) => { await gateway.MoveToTrashAsync(accountId, messageId, ct); return Results.NoContent(); });
+api.MapPost("/mail/messages/{accountId:guid}/{messageId}/move", async (IMailGateway gateway, Guid accountId, string messageId, MoveRequest request, CancellationToken ct) =>
+{
+    try { await gateway.MoveToFolderAsync(accountId, messageId, request.FolderId, ct); return Results.NoContent(); }
+    catch (InvalidOperationException exception) { return Results.BadRequest(new { error = exception.Message }); }
+    catch (HttpRequestException exception) { return Results.Problem($"Gmail no pudo mover el correo ({exception.StatusCode?.ToString() ?? "sin código"}).", statusCode: 502); }
+});
 api.MapPost("/mail/folders/{folderId}/empty", async (IMailGateway gateway, string folderId, Guid? accountId, CancellationToken ct) =>
 {
     try { await gateway.EmptyFolderAsync(accountId, folderId, ct); return Results.NoContent(); }
@@ -109,4 +115,5 @@ api.MapPost("/mail/messages/{accountId:guid}/{messageId}/forward", async (IMailG
 app.Run();
 
 public sealed record ReadState(bool Read);
+public sealed record MoveRequest(string FolderId);
 public sealed record ReplyRequest(ComposeMessage Message, bool ReplyAll);
