@@ -91,7 +91,7 @@ export function ComposePage() {
       void queryClient.invalidateQueries({ queryKey: ['control-center'] })
       void queryClient.invalidateQueries({ queryKey: ['control-center-activity'] })
       void queryClient.invalidateQueries({ queryKey: ['messages'] })
-      navigate('/sent', { state: { sent: true } })
+      navigate('/inbox', { state: { sent: true } })
     },
   })
 
