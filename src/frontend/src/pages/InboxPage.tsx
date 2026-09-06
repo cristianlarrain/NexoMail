@@ -3,7 +3,6 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { useLocation, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Archive, ChevronDown, ChevronUp, MailOpen, Paperclip, RefreshCw, Trash2, X } from 'lucide-react'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { ControlCenter } from '../components/ControlCenter'
 import { mailApi } from '../api/mailApi'
 import type { MailSummary } from '../types/mail'
 
@@ -53,11 +52,7 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
 
   const refreshMailbox = useMutation({
     mutationFn: mailApi.refreshMail,
-    onSuccess: async () => {
-      await messagesQuery.refetch()
-      void queryClient.refetchQueries({ queryKey: ['control-center'], type: 'active' })
-      void queryClient.refetchQueries({ queryKey: ['control-center-activity'], type: 'active' })
-    },
+    onSuccess: async () => { await messagesQuery.refetch() },
   })
 
   const emptyTrash = useMutation({
@@ -131,8 +126,6 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
   const contextLabel = accountId ? selectedAccount?.displayName ?? 'Cuenta seleccionada' : 'Todas las cuentas'
   const navigationItems = sortedItems.map(item => ({ accountId: item.accountId, messageId: item.providerMessageId }))
   const returnTo = `${location.pathname}${location.search}`
-  const shouldShowControlCenter = folder === 'inbox' && !search
-  const dashboardReady = shouldShowControlCenter && !messagesQuery.isLoading
   const confirmDetails = confirmation?.kind === 'emptyTrash'
     ? { title: 'Vaciar Papelera', message: 'Esta acción intenta eliminar permanentemente todos los correos de la Papelera.', label: 'Vaciar Papelera', tone: 'danger' as const }
     : confirmation?.kind === 'moveOne'
@@ -184,25 +177,21 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
   const confirmationPending = confirmation?.kind === 'emptyTrash' ? emptyTrash.isPending : moveMessages.isPending
 
   return <section className="mail-view">
-    <div className="view-header"><div><h1>{pageTitle}</h1><p className="view-context">{contextLabel}</p></div><div className="view-actions">{folder === 'trash' && <button className="secondary-button danger-button" disabled={emptyTrash.isPending} onClick={() => setConfirmation({ kind: 'emptyTrash' })}><Trash2 size={16} /> {emptyTrash.isPending ? 'Vaciando…' : 'Vaciar papelera'}</button>}<button className="icon-button" disabled={refreshMailbox.isPending} onClick={refreshAll} aria-label="Actualizar mensajes y centro de control" title="Actualizar"><RefreshCw size={18} className={refreshMailbox.isPending ? 'spin' : ''} /></button></div></div>
+    <div className="view-header"><div><h1>{pageTitle}</h1><p className="view-context">{contextLabel}</p></div><div className="view-actions">{folder === 'trash' && <button className="secondary-button danger-button" disabled={emptyTrash.isPending} onClick={() => setConfirmation({ kind: 'emptyTrash' })}><Trash2 size={16} /> {emptyTrash.isPending ? 'Vaciando…' : 'Vaciar papelera'}</button>}<button className="icon-button" disabled={refreshMailbox.isPending} onClick={refreshAll} aria-label="Actualizar mensajes" title="Actualizar"><RefreshCw size={18} className={refreshMailbox.isPending ? 'spin' : ''} /></button></div></div>
 
-    {shouldShowControlCenter && (dashboardReady
-      ? <ControlCenter accountId={accountId} accountName={selectedAccount?.displayName} />
-      : <section className="control-center control-center-deferred" aria-label="El centro de control cargará después de la bandeja"><div><strong>Centro de control</strong><span>Se cargará después de mostrar los correos.</span></div></section>)}
-
-    {(location.state as { sent?: boolean; trashed?: boolean } | null)?.sent && <div className="success-notice">Correo enviado correctamente. Ya aparece en Enviados.</div>}
+    {(location.state as { sent?: boolean; trashed?: boolean } | null)?.sent && <div className="success-notice">Correo enviado correctamente.</div>}
     {(location.state as { trashed?: boolean } | null)?.trashed && <div className="success-notice">Correo movido a Papelera.</div>}
     {emptyTrash.isSuccess && <div className="success-notice">Papelera vaciada permanentemente.</div>}
     {emptyTrash.isError && <div className="notice">{emptyTrash.error instanceof Error ? emptyTrash.error.message : 'No se pudo vaciar la Papelera. Reintenta.'}</div>}
     {moveMessages.isError && <div className="notice">{moveMessages.error instanceof Error ? moveMessages.error.message : 'No se pudieron mover los correos seleccionados.'}</div>}
     {markReadMessages.isError && <div className="notice">{markReadMessages.error instanceof Error ? markReadMessages.error.message : 'No se pudieron marcar los correos como leídos.'}</div>}
-    {refreshMailbox.isError && <div className="notice">No fue posible actualizar la bandeja completa. Los datos almacenados siguen disponibles y puede reintentar.</div>}
+    {refreshMailbox.isError && <div className="notice">No fue posible actualizar la bandeja. Los datos almacenados siguen disponibles y puede reintentar.</div>}
 
     {selected.size > 0 && <div className="bulk-actions"><strong>{selected.size} seleccionado{selected.size === 1 ? '' : 's'}</strong>{selectedUnreadItems.length > 0 && <button className="secondary-button" onClick={() => markReadMessages.mutate(selectedUnreadItems)} disabled={markReadMessages.isPending || moveMessages.isPending}><MailOpen size={15} /> {markReadMessages.isPending ? 'Marcando…' : `Marcar como leído${selectedUnreadItems.length === 1 ? '' : 's'}`}</button>}<button className="secondary-button" onClick={() => moveSelected(folder === 'trash' ? 'inbox' : 'trash')} disabled={moveMessages.isPending || markReadMessages.isPending}>{folder === 'trash' ? 'Restaurar a Bandeja' : <><Trash2 size={15} /> Mover a Papelera</>}</button><button className="icon-button" onClick={() => setSelected(new Set())} aria-label="Cancelar selección"><X size={17} /></button></div>}
 
     {isUnreadView && selected.size === 0 && items.length > 0 && <div className="unread-management-hint"><MailOpen size={16} /><span>Seleccione varios correos o use el checkbox superior para marcarlos como leídos en una sola acción.</span></div>}
 
-    {messagesQuery.isLoading && <section className="inbox-mail-loading" aria-label="Cargando correos"><div className="inbox-loading-heading"><strong>Cargando correos</strong><span>La lista tiene prioridad; el Centro de Control se completa después.</span></div><MailSkeleton /></section>}
+    {messagesQuery.isLoading && <section className="inbox-mail-loading" aria-label="Cargando correos"><div className="inbox-loading-heading"><strong>Cargando correos</strong><span>Actualizando la bandeja.</span></div><MailSkeleton /></section>}
     {messagesQuery.isError && <div className="notice">No se pudo actualizar una de sus cuentas. <button onClick={() => messagesQuery.refetch()}>Reintentar</button></div>}
     {!messagesQuery.isLoading && items.length === 0 && <div className="empty-state"><Archive size={28} /><h2>No hay mensajes aquí</h2><p>{isUnreadView ? 'No quedan correos sin leer en esta vista.' : 'Los mensajes de esta carpeta aparecerán en este espacio.'}</p></div>}
 
