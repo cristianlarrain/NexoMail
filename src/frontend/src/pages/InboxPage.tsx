@@ -3,6 +3,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { useLocation, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Archive, ChevronDown, ChevronUp, Paperclip, RefreshCw, Trash2, X } from 'lucide-react'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { ControlCenter } from '../components/ControlCenter'
 import { mailApi } from '../api/mailApi'
 import type { MailSummary } from '../types/mail'
 
@@ -138,6 +139,8 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
 
   return <section className="mail-view">
     <div className="view-header"><div><p className="eyebrow">{accountId ? 'Cuenta' : 'Todas las cuentas'}</p><h1>{title}</h1></div><div className="view-actions">{folder === 'trash' && <button className="secondary-button danger-button" disabled={emptyTrash.isPending} onClick={() => setConfirmation({ kind: 'emptyTrash' })}><Trash2 size={16} /> {emptyTrash.isPending ? 'Vaciando…' : 'Vaciar papelera'}</button>}<button className="icon-button" onClick={() => messagesQuery.refetch()} aria-label="Actualizar"><RefreshCw size={18} /></button></div></div>
+
+    {!accountId && folder === 'inbox' && !search && <ControlCenter />}
 
     {(location.state as { sent?: boolean; trashed?: boolean } | null)?.sent && <div className="success-notice">Correo enviado correctamente. Ya aparece en Enviados.</div>}
     {(location.state as { trashed?: boolean } | null)?.trashed && <div className="success-notice">Correo movido a Papelera.</div>}
