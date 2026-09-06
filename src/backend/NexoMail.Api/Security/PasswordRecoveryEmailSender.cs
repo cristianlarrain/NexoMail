@@ -7,6 +7,7 @@ namespace NexoMail.Api.Security;
 public interface IPasswordRecoveryEmailSender
 {
     Task<bool> SendCodeAsync(string recipientEmail, string recipientName, string verificationCode, CancellationToken ct);
+    Task<bool> SendVerificationCodeAsync(string recipientEmail, string recipientName, string verificationCode, CancellationToken ct);
 }
 
 public sealed class RecoveryEmailOptions
@@ -25,12 +26,36 @@ public sealed class SmtpPasswordRecoveryEmailSender(
     IOptions<RecoveryEmailOptions> configuredOptions,
     ILogger<SmtpPasswordRecoveryEmailSender> logger) : IPasswordRecoveryEmailSender
 {
-    public async Task<bool> SendCodeAsync(string recipientEmail, string recipientName, string verificationCode, CancellationToken ct)
+    public Task<bool> SendCodeAsync(string recipientEmail, string recipientName, string verificationCode, CancellationToken ct) =>
+        SendAsync(
+            recipientEmail,
+            recipientName,
+            "Código de recuperación de NexoMail",
+            BuildRecoveryBody(recipientName, verificationCode),
+            "recuperación",
+            ct);
+
+    public Task<bool> SendVerificationCodeAsync(string recipientEmail, string recipientName, string verificationCode, CancellationToken ct) =>
+        SendAsync(
+            recipientEmail,
+            recipientName,
+            "Verifica tu correo en NexoMail",
+            BuildVerificationBody(recipientName, verificationCode),
+            "verificación",
+            ct);
+
+    private async Task<bool> SendAsync(
+        string recipientEmail,
+        string recipientName,
+        string subject,
+        string body,
+        string purpose,
+        CancellationToken ct)
     {
         var options = configuredOptions.Value;
         if (string.IsNullOrWhiteSpace(options.Host) || string.IsNullOrWhiteSpace(options.FromAddress))
         {
-            logger.LogWarning("El correo de recuperación no está configurado. Falta RecoveryEmail:Host o RecoveryEmail:FromAddress.");
+            logger.LogWarning("El correo de {Purpose} no está configurado. Falta RecoveryEmail:Host o RecoveryEmail:FromAddress.", purpose);
             return false;
         }
 
@@ -39,8 +64,8 @@ public sealed class SmtpPasswordRecoveryEmailSender(
             using var message = new MailMessage
             {
                 From = new MailAddress(options.FromAddress, options.FromName),
-                Subject = "Código de recuperación de NexoMail",
-                Body = BuildBody(recipientName, verificationCode),
+                Subject = subject,
+                Body = body,
                 IsBodyHtml = true
             };
             message.To.Add(new MailAddress(recipientEmail, recipientName));
@@ -58,7 +83,7 @@ public sealed class SmtpPasswordRecoveryEmailSender(
 
             ct.ThrowIfCancellationRequested();
             await client.SendMailAsync(message, ct);
-            logger.LogInformation("Código de recuperación enviado por correo a {RecipientEmail}.", recipientEmail);
+            logger.LogInformation("Código de {Purpose} enviado por correo a {RecipientEmail}.", purpose, recipientEmail);
             return true;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -67,15 +92,29 @@ public sealed class SmtpPasswordRecoveryEmailSender(
         }
         catch (Exception exception) when (exception is SmtpException or InvalidOperationException or FormatException)
         {
-            logger.LogError(exception, "No fue posible enviar el correo de recuperación a {RecipientEmail}.", recipientEmail);
+            logger.LogError(exception, "No fue posible enviar el correo de {Purpose} a {RecipientEmail}.", purpose, recipientEmail);
             return false;
         }
     }
 
-    private static string BuildBody(string recipientName, string verificationCode)
+    private static string BuildRecoveryBody(string recipientName, string verificationCode) => BuildBody(
+        recipientName,
+        verificationCode,
+        "Recibimos una solicitud para restablecer la contraseña de tu cuenta NexoMail.",
+        "Si no solicitaste este cambio, puedes ignorar este mensaje. No compartas este código con nadie.");
+
+    private static string BuildVerificationBody(string recipientName, string verificationCode) => BuildBody(
+        recipientName,
+        verificationCode,
+        "Gracias por crear tu cuenta NexoMail. Para activarla, confirma que esta dirección de correo te pertenece.",
+        "Si no creaste una cuenta NexoMail con este correo, puedes ignorar este mensaje.");
+
+    private static string BuildBody(string recipientName, string verificationCode, string introduction, string footer)
     {
         var safeName = WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(recipientName) ? "usuario" : recipientName);
         var safeCode = WebUtility.HtmlEncode(verificationCode);
+        var safeIntroduction = WebUtility.HtmlEncode(introduction);
+        var safeFooter = WebUtility.HtmlEncode(footer);
         return $"""
             <!doctype html>
             <html lang="es">
@@ -83,11 +122,11 @@ public sealed class SmtpPasswordRecoveryEmailSender(
               <div style="max-width:520px;margin:32px auto;padding:28px;background:#ffffff;border:1px solid #e2e7e8;border-radius:12px">
                 <div style="font-size:20px;font-weight:700;color:#0f6b78;margin-bottom:20px">NexoMail</div>
                 <p>Hola {safeName},</p>
-                <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta NexoMail.</p>
+                <p>{safeIntroduction}</p>
                 <p>Tu código de verificación es:</p>
                 <div style="margin:24px 0;padding:16px;text-align:center;background:#eff3f3;border-radius:9px;font-size:30px;font-weight:700;letter-spacing:8px">{safeCode}</div>
-                <p>Este código vence en <strong>10 minutos</strong> y sólo puede utilizarse para este proceso de recuperación.</p>
-                <p style="color:#687579;font-size:13px">Si no solicitaste este cambio, puedes ignorar este mensaje. No compartas este código con nadie.</p>
+                <p>Este código vence en <strong>10 minutos</strong>.</p>
+                <p style="color:#687579;font-size:13px">{safeFooter}</p>
               </div>
             </body>
             </html>
