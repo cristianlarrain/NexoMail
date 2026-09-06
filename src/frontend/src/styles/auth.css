@@ -41,5 +41,15 @@
 .profile-fields input[readonly] { color: var(--muted-foreground); cursor: default; }
 .profile-email-note { display: flex; align-items: center; gap: 7px; margin: -6px 0 0; color: var(--muted-foreground); font-size: 12px; }
 .profile-footer { display: flex; justify-content: flex-end; padding: 17px 24px; border-top: 1px solid var(--border); }
+.avatar-editor { width: min(100%, 520px); overflow: hidden; border: 1px solid var(--border); border-radius: 13px; background: var(--surface); color: var(--foreground); box-shadow: 0 22px 54px rgb(0 0 0 / .28); }
+.avatar-editor > header { display: flex; align-items: flex-start; justify-content: space-between; padding: 20px 22px 15px; border-bottom: 1px solid var(--border); }
+.avatar-editor-body { display: grid; gap: 20px; padding: 22px; }
+.avatar-crop-preview { width: min(320px, 76vw); aspect-ratio: 1; justify-self: center; overflow: hidden; border: 1px solid var(--border); border-radius: 50%; background: var(--muted); box-shadow: inset 0 0 0 1px rgb(255 255 255 / .12); }
+.avatar-crop-preview canvas { width: 100%; height: 100%; display: block; }
+.avatar-editor-controls { display: grid; gap: 14px; }
+.avatar-editor-controls label { display: grid; gap: 7px; color: var(--muted-foreground); font-size: 12px; font-weight: 650; }
+.avatar-editor-controls label span { display: flex; align-items: center; gap: 6px; }
+.avatar-editor-controls input[type="range"] { width: 100%; accent-color: var(--primary); }
+.avatar-editor > footer { display: flex; justify-content: flex-end; gap: 9px; padding: 16px 22px; border-top: 1px solid var(--border); }
 @media (max-width: 700px) { .profile-avatar-section { align-items: flex-start; }.profile-avatar-actions { align-items: flex-start; flex-direction: column; }.profile-avatar-buttons { justify-content: flex-start; } }
-@media (max-width: 560px) { .auth-page { padding: 16px; }.auth-card { padding: 24px 20px; }.profile-avatar-section { flex-direction: column; }.profile-avatar { width: 84px; height: 84px; flex-basis: 84px; }.profile-avatar-actions { width: 100%; }.profile-footer .primary-button { width: 100%; } }
+@media (max-width: 560px) { .auth-page { padding: 16px; }.auth-card { padding: 24px 20px; }.profile-avatar-section { flex-direction: column; }.profile-avatar { width: 84px; height: 84px; flex-basis: 84px; }.profile-avatar-actions { width: 100%; }.profile-footer .primary-button { width: 100%; }.avatar-editor-body { padding: 18px; }.avatar-editor > footer { padding: 14px 18px; }.avatar-editor > footer .primary-button, .avatar-editor > footer .secondary-button { flex: 1; } }
