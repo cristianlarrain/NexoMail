@@ -50,7 +50,7 @@ public sealed class GmailControlCenterActivityService(
                     totals[day].Sent += count.Sent;
                 }
             }
-            catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException or JsonException)
+            catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException or JsonException or OperationCanceledException)
             {
                 unavailableAccounts++;
             }
