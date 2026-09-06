@@ -11,7 +11,7 @@ export interface MailSummary { providerMessageId: string; accountId: string; sen
 export interface MailMessage extends MailSummary { from: MailAddress; to: MailAddress[]; cc: MailAddress[]; htmlBody: string; attachments: MailAttachment[]; thread?: MailThreadMessage[] }
 export interface PagedResult<T> { items: T[]; nextCursor?: string }
 export interface ComposeMessage { fromAccountId: string; to: string[]; cc: string[]; bcc: string[]; subject: string; htmlBody: string; attachments: OutgoingAttachment[] }
-export interface AiWritingSuggestion { text: string }
+export interface AiWritingSuggestion { text: string; subject?: string | null }
 
 export interface ControlCenterDay { date: string; received: number; sent: number }
 export interface ControlCenterPendingItem {
