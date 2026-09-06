@@ -13,6 +13,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 export const mailApi = {
   accounts: () => api<MailAccount[]>('/mail/accounts'),
   controlCenter: () => api<ControlCenterSnapshot>('/mail/control-center'),
+  updateControlCenterState: (accountId: string, conversationId: string, payload: { messageId: string; action: 'resolved' | 'snoozed'; snoozeHours?: number }) => api<void>(`/mail/control-center/${encodeURIComponent(accountId)}/${encodeURIComponent(conversationId)}/state`, { method: 'PATCH', body: JSON.stringify(payload) }),
   contacts: (accountId: string, search: string) => api<ContactSuggestion[]>(`/mail/contacts?accountId=${encodeURIComponent(accountId)}&search=${encodeURIComponent(search)}`),
   updateAccount: (accountId: string, settings: { displayName: string; color: string }) => api<MailAccount>(`/mail/accounts/${accountId}`, { method: 'PATCH', body: JSON.stringify(settings) }),
   removeAccount: (accountId: string) => api<void>(`/mail/accounts/${accountId}`, { method: 'DELETE' }),
