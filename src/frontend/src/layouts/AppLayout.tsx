@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft, Clock3, FileText, Inbox, LayoutDashboard, LogOut, Mail, Menu, Moon, PenLine, Search, Send, Settings, Sun, Trash2, UserRound } from 'lucide-react'
+import { Archive, ChevronLeft, Clock3, EyeOff, FileText, Inbox, LayoutDashboard, LogOut, Mail, Menu, Moon, PenLine, Search, Send, Settings, ShieldAlert, Sun, Trash2, UserRound } from 'lucide-react'
 import { authApi } from '../api/authApi'
 import { mailApi } from '../api/mailApi'
 import { BackToTopButton } from '../components/BackToTopButton'
@@ -33,8 +33,11 @@ export function AppLayout() {
         {accounts.map(account => <NavLink key={account.id} to={`/account/${account.id}`} className={navClass}><i className="account-dot" style={{ background: account.color }} /><span>{account.displayName}</span></NavLink>)}
         <p className="nav-heading">Carpetas</p>
         <NavLink to="/inbox" className={navClass}><Inbox size={17} /><span>Bandeja</span></NavLink>
+        <NavLink to="/archive" className={navClass}><Archive size={17} /><span>Archivados</span></NavLink>
+        <NavLink to="/ignored" className={navClass}><EyeOff size={17} /><span>Ignorados</span></NavLink>
         <NavLink to="/sent" className={navClass}><Send size={17} /><span>Enviados</span></NavLink>
         <NavLink to="/drafts" className={navClass}><FileText size={17} /><span>Borradores</span></NavLink>
+        <NavLink to="/spam" className={navClass}><ShieldAlert size={17} /><span>Spam</span></NavLink>
         <NavLink to="/trash" className={navClass}><Trash2 size={17} /><span>Papelera</span></NavLink>
         <NavLink to="/settings/accounts" className={navClass}><Settings size={17} /><span>Configurar</span></NavLink>
         <button className="theme-switch" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}><span>{theme === 'dark' ? 'Tema claro' : 'Tema oscuro'}</span><span className="switch" data-on={theme === 'dark'} /></button>
