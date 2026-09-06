@@ -31,6 +31,8 @@ public static class DatabaseBootstrap
                 await AddColumnAsync("ALTER TABLE Users ADD COLUMN PasswordResetTokenHash TEXT NULL;", connection, cancellationToken);
             if (!columns.Contains("PasswordResetTokenExpiresAt"))
                 await AddColumnAsync("ALTER TABLE Users ADD COLUMN PasswordResetTokenExpiresAt TEXT NULL;", connection, cancellationToken);
+            if (!columns.Contains("PasswordResetAttempts"))
+                await AddColumnAsync("ALTER TABLE Users ADD COLUMN PasswordResetAttempts INTEGER NOT NULL DEFAULT 0;", connection, cancellationToken);
         }
         finally
         {
