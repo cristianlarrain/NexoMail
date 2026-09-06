@@ -5,6 +5,7 @@ import { Check, ChevronRight, Clock3, Eye, Inbox, Mail, MessageSquareReply, Paus
 import { useNavigate } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
 import type { ControlCenterPendingItem, ControlCenterSnapshot } from '../types/mail'
+import { ControlCenterActivity } from './ControlCenterActivity'
 
 type ManagementView = 'received' | 'sent' | 'overdue' | null
 
@@ -15,11 +16,6 @@ function ageLabel(value: string) {
   if (hours < 24) return `hace ${hours} h`
   const days = Math.floor(hours / 24)
   return `hace ${days} día${days === 1 ? '' : 's'}`
-}
-
-function dayLabel(value: string) {
-  const date = new Date(`${value}T12:00:00`)
-  return date.toLocaleDateString('es-CL', { weekday: 'short' }).replace('.', '')
 }
 
 function itemKey(item: ControlCenterPendingItem) {
@@ -108,7 +104,6 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
   if (snapshot.isError || !snapshot.data) return <section className="control-center"><div className="control-center-header"><div><p className="eyebrow">Resumen operativo</p><h2>Centro de control</h2></div><button className="icon-button" onClick={() => snapshot.refetch()} aria-label="Reintentar centro de control"><RefreshCw size={17} /></button></div><div className="notice control-center-error">No fue posible actualizar el Centro de Control. <button onClick={() => snapshot.refetch()}>Reintentar</button></div></section>
 
   const data = snapshot.data
-  const maximumActivity = Math.max(1, ...data.activity.flatMap(day => [day.received, day.sent]))
   const updatedAt = new Date(data.generatedAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
   const managementItems = activeView === 'received'
     ? data.pendingItems.filter(item => item.direction === 'received')
@@ -121,7 +116,7 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
 
   return <section className="control-center" aria-labelledby="control-center-title">
     <div className="control-center-header">
-      <div><p className="eyebrow">Resumen operativo · últimos 14 días</p><h2 id="control-center-title">Centro de control</h2><p>{accountId ? `Seguimiento de conversaciones y carga de correo de ${accountName ?? 'esta cuenta'}.` : 'Seguimiento de conversaciones y carga de correo de todas sus cuentas.'}</p></div>
+      <div><p className="eyebrow">Resumen operativo · seguimiento de 14 días</p><h2 id="control-center-title">Centro de control</h2><p>{accountId ? `Seguimiento de conversaciones y carga de correo de ${accountName ?? 'esta cuenta'}.` : 'Seguimiento de conversaciones y carga de correo de todas sus cuentas.'}</p></div>
       <div className="control-center-refresh"><span>Actualizado {updatedAt}</span><button className="icon-button" onClick={() => snapshot.refetch()} disabled={snapshot.isFetching} aria-label="Actualizar centro de control"><RefreshCw size={17} className={snapshot.isFetching ? 'spin' : ''} /></button></div>
     </div>
 
@@ -157,24 +152,7 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
     </article>}
 
     <div className="control-center-grid">
-      <article className="control-panel activity-panel">
-        <header><div><strong>Actividad de 7 días</strong><span>Recibidos y enviados por día</span></div><div className="activity-legend"><span><i className="received" /> Recibidos</span><span><i className="sent" /> Enviados</span></div></header>
-        <div className="activity-chart" aria-label="Actividad de correo de los últimos siete días">
-          {data.activity.map(day => <div className="activity-day" key={day.date}>
-            <div className="activity-bars" title={`${day.received} recibidos · ${day.sent} enviados`}>
-              <i className="received" style={{ height: day.received === 0 ? '3px' : `${Math.max(10, Math.round(day.received / maximumActivity * 100))}%` }} />
-              <i className="sent" style={{ height: day.sent === 0 ? '3px' : `${Math.max(10, Math.round(day.sent / maximumActivity * 100))}%` }} />
-            </div>
-            <span>{dayLabel(day.date)}</span>
-          </div>)}
-        </div>
-        <div className="control-account-strip">
-          {data.accounts.map(account => {
-            const pending = account.receivedWithoutReply + account.sentWithoutResponse
-            return <div className={`control-account-chip ${account.isAvailable ? '' : 'unavailable'}`} key={account.accountId} title={account.isAvailable ? `${pending} pendientes · ${account.unread} sin leer` : 'Cuenta no disponible para el cálculo'}><i style={{ background: account.accountColor }} /><span>{account.accountName}</span><strong>{account.isAvailable ? pending : '—'}</strong></div>
-          })}
-        </div>
-      </article>
+      <ControlCenterActivity accountId={accountId} accounts={data.accounts} />
 
       <article className="control-panel priority-panel">
         <header><div><strong>Seguimiento prioritario</strong><span>Conversaciones pendientes más antiguas</span></div></header>
