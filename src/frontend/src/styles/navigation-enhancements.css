@@ -1,0 +1,39 @@
+.control-center-refresh .icon-button { display: none; }
+
+.back-to-top-button {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 20;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 13px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  color: var(--foreground);
+  box-shadow: 0 7px 24px rgb(0 0 0 / .12);
+  backdrop-filter: blur(10px);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.back-to-top-button:hover {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  background: var(--surface);
+  color: var(--primary);
+}
+
+@media (max-width: 760px) {
+  .back-to-top-button {
+    right: 16px;
+    bottom: 16px;
+    width: 40px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .back-to-top-button span { display: none; }
+}
