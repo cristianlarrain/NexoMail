@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text;
@@ -21,6 +22,9 @@ public sealed class GmailControlCenterService(
     private const int ActivityDays = 7;
     private const int MaximumThreadsPerAccount = 75;
     private const int MaximumConcurrentThreadRequests = 8;
+    private const int MaximumConcurrentAccounts = 2;
+    private static readonly ConcurrentDictionary<Guid, CachedAccessToken> AccessTokens = new();
+    private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> TokenGates = new();
 
     public async Task<ControlCenterSnapshot> GetSnapshotAsync(Guid? accountId, CancellationToken cancellationToken)
     {
@@ -35,10 +39,34 @@ public sealed class GmailControlCenterService(
         if (accountId.HasValue) stateQuery = stateQuery.Where(x => x.AccountId == accountId.Value);
         var states = await stateQuery.ToArrayAsync(cancellationToken);
 
+        var accountIds = accounts.Select(x => x.Id).ToArray();
+        var credentials = accountIds.Length == 0
+            ? new Dictionary<Guid, CredentialSnapshot>()
+            : await database.OAuthCredentials
+                .AsNoTracking()
+                .Where(x => accountIds.Contains(x.MailAccountId))
+                .ToDictionaryAsync(
+                    x => x.MailAccountId,
+                    x => new CredentialSnapshot(x.EncryptedRefreshToken, x.UpdatedAt),
+                    cancellationToken);
+
         var now = DateTimeOffset.UtcNow;
-        var results = new List<AccountResult>(accounts.Length);
-        foreach (var account in accounts)
-            results.Add(await LoadAccountSafelyAsync(account, now, cancellationToken));
+        using var accountGate = new SemaphoreSlim(MaximumConcurrentAccounts);
+        var resultTasks = accounts.Select(async account =>
+        {
+            await accountGate.WaitAsync(cancellationToken);
+            try
+            {
+                return credentials.TryGetValue(account.Id, out var credential)
+                    ? await LoadAccountSafelyAsync(account, credential, now, cancellationToken)
+                    : AccountResult.Unavailable(account);
+            }
+            finally
+            {
+                accountGate.Release();
+            }
+        });
+        var results = await Task.WhenAll(resultTasks);
 
         var available = results.Where(x => x.IsAvailable).ToArray();
         var stateLookup = states.ToDictionary(x => (x.AccountId, x.ConversationId));
@@ -141,11 +169,11 @@ public sealed class GmailControlCenterService(
         item.Since,
         item.IsRead);
 
-    private async Task<AccountResult> LoadAccountSafelyAsync(MailAccountEntity account, DateTimeOffset now, CancellationToken cancellationToken)
+    private async Task<AccountResult> LoadAccountSafelyAsync(MailAccountEntity account, CredentialSnapshot credential, DateTimeOffset now, CancellationToken cancellationToken)
     {
         try
         {
-            return await LoadAccountAsync(account, now, cancellationToken);
+            return await LoadAccountAsync(account, credential, now, cancellationToken);
         }
         catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException or JsonException or OperationCanceledException)
         {
@@ -153,11 +181,14 @@ public sealed class GmailControlCenterService(
         }
     }
 
-    private async Task<AccountResult> LoadAccountAsync(MailAccountEntity account, DateTimeOffset now, CancellationToken cancellationToken)
+    private async Task<AccountResult> LoadAccountAsync(MailAccountEntity account, CredentialSnapshot credential, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        var client = await CreateClientAsync(account.Id, cancellationToken);
-        var unread = await GetUnreadCountAsync(client, cancellationToken);
-        var threadIds = await GetRecentThreadIdsAsync(client, cancellationToken);
+        var client = await CreateClientAsync(account.Id, credential, cancellationToken);
+        var unreadTask = GetUnreadCountAsync(client, cancellationToken);
+        var threadIdsTask = GetRecentThreadIdsAsync(client, cancellationToken);
+        await Task.WhenAll(unreadTask, threadIdsTask);
+        var unread = await unreadTask;
+        var threadIds = await threadIdsTask;
 
         using var gate = new SemaphoreSlim(MaximumConcurrentThreadRequests);
         var threadTasks = threadIds.Select(async threadId =>
@@ -223,28 +254,45 @@ public sealed class GmailControlCenterService(
         return new AccountResult(account.Id, account.DisplayName, account.Color, unread, pending, activity, true);
     }
 
-    private async Task<HttpClient> CreateClientAsync(Guid accountId, CancellationToken cancellationToken)
+    private async Task<HttpClient> CreateClientAsync(Guid accountId, CredentialSnapshot credential, CancellationToken cancellationToken)
     {
-        var credential = await database.OAuthCredentials
-            .AsNoTracking()
-            .SingleOrDefaultAsync(x => x.MailAccountId == accountId, cancellationToken)
-            ?? throw new InvalidOperationException("No existe una credencial OAuth para esta cuenta.");
-
-        var settings = options.Value;
-        var refreshToken = tokenProtector.Unprotect(credential.EncryptedRefreshToken);
-        var tokenClient = httpClientFactory.CreateClient();
-        using var response = await tokenClient.PostAsync("https://oauth2.googleapis.com/token", new FormUrlEncodedContent(new Dictionary<string, string>
+        var now = DateTimeOffset.UtcNow;
+        if (!AccessTokens.TryGetValue(accountId, out var cached) || cached.CredentialUpdatedAt != credential.UpdatedAt || cached.ExpiresAt <= now.AddMinutes(2))
         {
-            ["client_id"] = settings.ClientId,
-            ["client_secret"] = settings.ClientSecret,
-            ["refresh_token"] = refreshToken,
-            ["grant_type"] = "refresh_token"
-        }), cancellationToken);
-        response.EnsureSuccessStatusCode();
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
+            var gate = TokenGates.GetOrAdd(accountId, static _ => new SemaphoreSlim(1, 1));
+            await gate.WaitAsync(cancellationToken);
+            try
+            {
+                now = DateTimeOffset.UtcNow;
+                if (!AccessTokens.TryGetValue(accountId, out cached) || cached.CredentialUpdatedAt != credential.UpdatedAt || cached.ExpiresAt <= now.AddMinutes(2))
+                {
+                    var settings = options.Value;
+                    var refreshToken = tokenProtector.Unprotect(credential.EncryptedRefreshToken);
+                    var tokenClient = httpClientFactory.CreateClient();
+                    using var response = await tokenClient.PostAsync("https://oauth2.googleapis.com/token", new FormUrlEncodedContent(new Dictionary<string, string>
+                    {
+                        ["client_id"] = settings.ClientId,
+                        ["client_secret"] = settings.ClientSecret,
+                        ["refresh_token"] = refreshToken,
+                        ["grant_type"] = "refresh_token"
+                    }), cancellationToken);
+                    response.EnsureSuccessStatusCode();
+                    using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
+                    var accessToken = document.RootElement.TryGetProperty("access_token", out var tokenElement) ? tokenElement.GetString() : null;
+                    if (string.IsNullOrWhiteSpace(accessToken)) throw new InvalidOperationException("Google no entregó un token de acceso válido.");
+                    var expiresIn = document.RootElement.TryGetProperty("expires_in", out var expiresElement) && expiresElement.TryGetInt32(out var seconds) ? seconds : 3600;
+                    cached = new CachedAccessToken(accessToken, now.AddSeconds(Math.Max(60, expiresIn - 120)), credential.UpdatedAt);
+                    AccessTokens[accountId] = cached;
+                }
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
 
         var client = httpClientFactory.CreateClient("Gmail");
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", document.RootElement.GetProperty("access_token").GetString());
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", cached.AccessToken);
         return client;
     }
 
@@ -409,6 +457,8 @@ public sealed class GmailControlCenterService(
         return subject.Length <= 120 ? subject : subject[..117] + "…";
     }
 
+    private sealed record CredentialSnapshot(string EncryptedRefreshToken, DateTimeOffset UpdatedAt);
+    private sealed record CachedAccessToken(string AccessToken, DateTimeOffset ExpiresAt, DateTimeOffset CredentialUpdatedAt);
     private sealed record ThreadData(string Id, IReadOnlyCollection<ThreadMessageData> Messages);
 
     private sealed record ThreadMessageData(
