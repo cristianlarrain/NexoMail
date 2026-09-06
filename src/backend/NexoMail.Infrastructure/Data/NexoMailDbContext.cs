@@ -46,6 +46,7 @@ public sealed class UserEntity
     public string? PasswordHash { get; set; }
     public string? PasswordResetTokenHash { get; set; }
     public DateTimeOffset? PasswordResetTokenExpiresAt { get; set; }
+    public int PasswordResetAttempts { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? LastLoginAt { get; set; }
     public bool IsActive { get; set; } = true;
