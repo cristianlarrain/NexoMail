@@ -13,6 +13,7 @@ namespace NexoMail.Api.Security;
 public static class AuthEndpoints
 {
     private static readonly Guid LegacyLocalUserId = Guid.Parse("a15ac2a9-ca17-4b60-878a-9d42b9a0d001");
+    private const int MaximumRecoveryAttempts = 5;
 
     public static IEndpointRouteBuilder MapNexoMailAuth(this IEndpointRouteBuilder endpoints)
     {
@@ -21,6 +22,7 @@ public static class AuthEndpoints
         auth.MapPost("/register", RegisterAsync);
         auth.MapPost("/login", LoginAsync);
         auth.MapPost("/forgot-password", ForgotPasswordAsync);
+        auth.MapPost("/verify-reset-code", VerifyResetCodeAsync);
         auth.MapPost("/reset-password", ResetPasswordAsync);
         auth.MapPost("/logout", async (HttpContext context) =>
         {
@@ -111,24 +113,68 @@ public static class AuthEndpoints
         ForgotPasswordRequest request,
         NexoMailDbContext database,
         IWebHostEnvironment environment,
+        ILoggerFactory loggerFactory,
         CancellationToken ct)
     {
         var email = request.Email.Trim().ToLowerInvariant();
         var user = await database.Users.SingleOrDefaultAsync(x => x.Email == email && x.IsActive, ct);
-        string? developmentToken = null;
 
         if (user is not null)
         {
-            developmentToken = CreateResetToken();
-            user.PasswordResetTokenHash = HashResetToken(developmentToken);
-            user.PasswordResetTokenExpiresAt = DateTimeOffset.UtcNow.AddMinutes(30);
+            var verificationCode = CreateVerificationCode();
+            user.PasswordResetTokenHash = HashResetToken(verificationCode);
+            user.PasswordResetTokenExpiresAt = DateTimeOffset.UtcNow.AddMinutes(10);
+            user.PasswordResetAttempts = 0;
             await database.SaveChangesAsync(ct);
+
+            if (environment.IsDevelopment())
+                loggerFactory.CreateLogger("NexoMail.PasswordRecovery")
+                    .LogInformation("Código de recuperación NexoMail para {Email}: {VerificationCode}", email, verificationCode);
         }
 
-        const string message = "Si existe una cuenta NexoMail con ese correo, se generaron instrucciones para restablecer la contraseña.";
-        return environment.IsDevelopment() && developmentToken is not null
-            ? Results.Ok(new { message, developmentResetToken = developmentToken })
-            : Results.Ok(new { message });
+        return Results.Ok(new
+        {
+            message = "Si existe una cuenta NexoMail con ese correo, recibirás un código de verificación."
+        });
+    }
+
+    private static async Task<IResult> VerifyResetCodeAsync(
+        VerifyResetCodeRequest request,
+        NexoMailDbContext database,
+        CancellationToken ct)
+    {
+        var email = request.Email.Trim().ToLowerInvariant();
+        var code = request.Code.Trim();
+        var user = await database.Users.SingleOrDefaultAsync(x => x.Email == email && x.IsActive, ct);
+
+        if (user is null || string.IsNullOrWhiteSpace(user.PasswordResetTokenHash) ||
+            user.PasswordResetTokenExpiresAt <= DateTimeOffset.UtcNow ||
+            user.PasswordResetAttempts >= MaximumRecoveryAttempts)
+            return Results.BadRequest(new { error = "El código no es válido o ya expiró." });
+
+        var suppliedHash = HashResetToken(code);
+        var matches = CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(user.PasswordResetTokenHash),
+            Encoding.UTF8.GetBytes(suppliedHash));
+
+        if (!matches)
+        {
+            user.PasswordResetAttempts++;
+            if (user.PasswordResetAttempts >= MaximumRecoveryAttempts)
+            {
+                user.PasswordResetTokenHash = null;
+                user.PasswordResetTokenExpiresAt = null;
+            }
+            await database.SaveChangesAsync(ct);
+            return Results.BadRequest(new { error = "El código no es válido o ya expiró." });
+        }
+
+        var resetToken = CreateResetToken();
+        user.PasswordResetTokenHash = HashResetToken(resetToken);
+        user.PasswordResetTokenExpiresAt = DateTimeOffset.UtcNow.AddMinutes(10);
+        user.PasswordResetAttempts = 0;
+        await database.SaveChangesAsync(ct);
+        return Results.Ok(new { resetToken });
     }
 
     private static async Task<IResult> ResetPasswordAsync(
@@ -143,17 +189,18 @@ public static class AuthEndpoints
 
         var user = await database.Users.SingleOrDefaultAsync(x => x.Email == email && x.IsActive, ct);
         if (user is null || string.IsNullOrWhiteSpace(user.PasswordResetTokenHash) || user.PasswordResetTokenExpiresAt <= DateTimeOffset.UtcNow)
-            return Results.BadRequest(new { error = "El enlace de recuperación no es válido o ya expiró." });
+            return Results.BadRequest(new { error = "La autorización para cambiar la contraseña no es válida o ya expiró." });
 
         var suppliedHash = HashResetToken(request.Token);
         if (!CryptographicOperations.FixedTimeEquals(
                 Encoding.UTF8.GetBytes(user.PasswordResetTokenHash),
                 Encoding.UTF8.GetBytes(suppliedHash)))
-            return Results.BadRequest(new { error = "El enlace de recuperación no es válido o ya expiró." });
+            return Results.BadRequest(new { error = "La autorización para cambiar la contraseña no es válida o ya expiró." });
 
         user.PasswordHash = passwordHasher.HashPassword(user, request.NewPassword);
         user.PasswordResetTokenHash = null;
         user.PasswordResetTokenExpiresAt = null;
+        user.PasswordResetAttempts = 0;
         await database.SaveChangesAsync(ct);
         return Results.NoContent();
     }
@@ -188,6 +235,8 @@ public static class AuthEndpoints
         return null;
     }
 
+    private static string CreateVerificationCode() => RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
+
     private static string CreateResetToken()
     {
         var bytes = RandomNumberGenerator.GetBytes(32);
@@ -220,5 +269,6 @@ public static class AuthEndpoints
 public sealed record RegisterRequest(string DisplayName, string Email, string Password);
 public sealed record LoginRequest(string Email, string Password);
 public sealed record ForgotPasswordRequest(string Email);
+public sealed record VerifyResetCodeRequest(string Email, string Code);
 public sealed record ResetPasswordRequest(string Email, string Token, string NewPassword);
 public sealed record AuthSession(Guid Id, string DisplayName, string Email);
