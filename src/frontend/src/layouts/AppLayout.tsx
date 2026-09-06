@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft, Clock3, FileText, Inbox, LogOut, Mail, Menu, Moon, PenLine, Search, Send, Settings, Sun, Trash2, UserRound } from 'lucide-react'
+import { ChevronLeft, Clock3, FileText, Inbox, LayoutDashboard, LogOut, Mail, Menu, Moon, PenLine, Search, Send, Settings, Sun, Trash2, UserRound } from 'lucide-react'
 import { authApi } from '../api/authApi'
 import { mailApi } from '../api/mailApi'
 import { BackToTopButton } from '../components/BackToTopButton'
@@ -28,6 +28,7 @@ export function AppLayout() {
       <button className="compose-button" onClick={() => navigate('/compose')}><PenLine size={17} /><span>Redactar</span></button>
       <nav aria-label="Navegación principal">
         <NavLink to="/inbox" end className={navClass}><Inbox size={17} /><span>Todas</span></NavLink>
+        <NavLink to="/control-center" className={navClass}><LayoutDashboard size={17} /><span>Centro de control</span></NavLink>
         <p className="nav-heading">Cuentas</p>
         {accounts.map(account => <NavLink key={account.id} to={`/account/${account.id}`} className={navClass}><i className="account-dot" style={{ background: account.color }} /><span>{account.displayName}</span></NavLink>)}
         <p className="nav-heading">Carpetas</p>
