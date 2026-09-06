@@ -68,22 +68,21 @@
 
 .activity-today-button {
   color: var(--primary);
-  padding-inline: 6px;
+  padding-inline: 7px;
 }
 
 .activity-account-selector {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(142px, 1fr));
   gap: 8px;
   padding: 10px 12px;
-  overflow-x: auto;
   border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, var(--muted) 25%, var(--surface));
-  scrollbar-width: thin;
 }
 
 .activity-account-card {
-  min-width: 158px;
-  flex: 1 0 158px;
+  min-width: 0;
+  width: 100%;
   display: grid;
   gap: 8px;
   padding: 9px 10px;
@@ -202,29 +201,30 @@
 
 .activity-chart-scroll {
   width: 100%;
-  overflow-x: auto;
-  scrollbar-width: thin;
+  overflow: hidden;
 }
 
 .activity-plot {
   position: relative;
   width: 100%;
+  min-width: 0;
 }
 
 .activity-chart-dynamic {
   position: relative;
   z-index: 1;
+  width: 100%;
   height: 190px;
-  gap: 6px;
-  padding: 25px 14px 12px;
+  gap: 3px;
+  padding: 25px 12px 12px;
 }
 
 .activity-line-overlay {
   position: absolute;
   z-index: 2;
   top: 24px;
-  left: 14px;
-  width: calc(100% - 28px);
+  left: 12px;
+  width: calc(100% - 24px);
   height: 112px;
   overflow: visible;
   pointer-events: none;
@@ -250,19 +250,22 @@
 .activity-chart-dynamic .activity-day {
   position: relative;
   z-index: 3;
+  min-width: 0;
   grid-template-rows: 132px 20px;
   gap: 7px;
 }
 
 .activity-chart-dynamic .activity-bars {
+  min-width: 0;
   height: 132px;
-  gap: 4px;
+  gap: 3px;
   align-items: flex-end;
 }
 
 .activity-bar-column {
+  min-width: 0;
   height: 132px;
-  min-width: 12px;
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -280,7 +283,8 @@
 }
 
 .activity-bar-column i {
-  width: 12px;
+  width: min(12px, 80%);
+  min-width: 3px;
   min-height: 3px;
   max-height: 112px;
   flex: 0 0 auto;
@@ -294,11 +298,33 @@
 }
 
 .activity-chart-dynamic .activity-day > span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 9px;
   text-transform: capitalize;
+}
+
+.activity-chart-dynamic.days-14 .activity-day > span,
+.activity-chart-dynamic.days-30 .activity-day > span {
+  font-size: 8px;
+}
+
+.activity-chart-dynamic.days-14 .activity-day:nth-child(even) > span {
+  visibility: hidden;
+}
+
+.activity-chart-dynamic.days-30 .activity-day:not(:nth-child(5n + 1)) > span {
+  visibility: hidden;
+}
+
+.activity-chart-dynamic.days-30 .activity-bar-column b {
+  font-size: 7px;
+}
+
+.activity-chart-dynamic.days-30 .activity-bars {
+  gap: 1px;
 }
 
 .activity-legend-footer {
@@ -353,6 +379,10 @@
     justify-content: space-between;
   }
 
+  .activity-account-selector {
+    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  }
+
   .activity-insight-row {
     align-items: flex-start;
     flex-direction: column;
@@ -363,12 +393,12 @@
   }
 
   .activity-chart-dynamic {
-    padding-inline: 9px;
+    padding-inline: 8px;
   }
 
   .activity-line-overlay {
-    left: 9px;
-    width: calc(100% - 18px);
+    left: 8px;
+    width: calc(100% - 16px);
   }
 }
 
@@ -381,8 +411,8 @@
     padding-inline: 7px;
   }
 
-  .activity-account-card {
-    min-width: 145px;
-    flex-basis: 145px;
+  .activity-account-selector {
+    grid-template-columns: 1fr 1fr;
+    padding-inline: 9px;
   }
 }
