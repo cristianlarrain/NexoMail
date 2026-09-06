@@ -182,7 +182,7 @@ oauth.MapGet("/google/callback", async (string? code, string? state, string? err
 
 var mail = api.MapGroup("/mail").RequireAuthorization();
 mail.MapGet("/accounts", async (IMailGateway gateway, CancellationToken ct) => Results.Ok(await gateway.GetAccountsAsync(ct)));
-mail.MapGet("/control-center", async (GmailControlCenterService service, CancellationToken ct) => Results.Ok(await service.GetSnapshotAsync(ct)));
+mail.MapGet("/control-center", async (GmailControlCenterService service, Guid? accountId, CancellationToken ct) => Results.Ok(await service.GetSnapshotAsync(accountId, ct)));
 mail.MapPatch("/control-center/{accountId:guid}/{conversationId}/state", async (GmailControlCenterService service, Guid accountId, string conversationId, ControlCenterStateRequest request, CancellationToken ct) =>
 {
     var action = request.Action.Trim().ToLowerInvariant();
