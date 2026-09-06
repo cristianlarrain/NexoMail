@@ -1,0 +1,9 @@
+.view-header > div:first-child { min-width: 0; }
+.view-context { margin: 5px 0 0; color: var(--muted-foreground); font-size: 12px; font-weight: 500; }
+.control-center-title-line { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.control-center-title-line > span { display: inline-flex; align-items: center; min-height: 22px; padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--muted); color: var(--muted-foreground); font-size: 10px; font-weight: 700; letter-spacing: .015em; }
+.control-center-header > div:first-child > p { margin: 5px 0 0; color: var(--muted-foreground); font-size: 11px; }
+@media (max-width: 560px) {
+  .control-center-title-line { gap: 6px; }
+  .control-center-title-line > span { font-size: 9px; }
+}
