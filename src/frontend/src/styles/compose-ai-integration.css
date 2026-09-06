@@ -47,6 +47,12 @@
 .ai-compose-fields .compose-field input,
 .ai-compose-fields .compose-field select { font-size: 13px; }
 .ai-compose-fields .recipient-field > label { padding-top: 14px; }
+.ai-compose-fields .subject-field label { color: var(--primary); }
+.ai-compose-fields .subject-field input {
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 750;
+}
 .ai-add-copy { margin: 9px 0 8px 62px !important; }
 
 .ai-compose-surface > .ai-writing-assistant {
@@ -59,30 +65,17 @@
 
 .ai-reply-source {
   margin: 0;
-  border-top: 1px solid color-mix(in srgb, var(--primary) 14%, var(--border));
+  border-top: 1px solid color-mix(in srgb, var(--primary) 10%, var(--border));
   border-bottom: 1px solid color-mix(in srgb, var(--primary) 10%, var(--border));
-  background: color-mix(in srgb, var(--muted) 28%, var(--surface));
+  background: color-mix(in srgb, var(--muted) 22%, var(--surface));
 }
-.ai-reply-source-heading {
-  min-height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 7px 20px;
-  border-bottom: 1px solid var(--border);
-}
-.ai-reply-source-heading > div { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.ai-reply-source-heading span { color: var(--primary); font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; }
-.ai-reply-source-heading strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.ai-reply-source-heading small { color: var(--muted-foreground); font-size: 9px; white-space: nowrap; }
 .ai-reply-source-body {
-  max-height: 170px;
+  max-height: 112px;
   overflow: auto;
-  padding: 11px 20px 13px;
-  color: color-mix(in srgb, var(--foreground) 86%, var(--muted-foreground));
-  font-size: 11px;
-  line-height: 1.5;
+  padding: 10px 20px 11px;
+  color: color-mix(in srgb, var(--foreground) 82%, var(--muted-foreground));
+  font-size: 10.5px;
+  line-height: 1.45;
 }
 .ai-reply-source-body > :first-child { margin-top: 0; }
 .ai-reply-source-body > :last-child { margin-bottom: 0; }
@@ -160,6 +153,5 @@
   .ai-compose-footer { padding-inline: 15px; }
   .ai-review-banner { align-items: flex-start; flex-direction: column; padding-inline: 15px; }
   .ai-add-copy { margin-left: 0 !important; }
-  .ai-reply-source-heading { align-items: flex-start; flex-direction: column; gap: 2px; padding-inline: 15px; }
-  .ai-reply-source-body { max-height: 150px; padding-inline: 15px; }
+  .ai-reply-source-body { max-height: 100px; padding-inline: 15px; }
 }
