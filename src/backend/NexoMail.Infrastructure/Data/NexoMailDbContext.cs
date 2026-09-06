@@ -19,6 +19,7 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
             entity.Property(x => x.DisplayName).HasMaxLength(120).IsRequired();
             entity.Property(x => x.PasswordHash).HasMaxLength(1024);
             entity.Property(x => x.PasswordResetTokenHash).HasMaxLength(128);
+            entity.Property(x => x.EmailVerificationTokenHash).HasMaxLength(128);
             entity.Property(x => x.AvatarDataUrl).HasMaxLength(200_000);
             entity.HasIndex(x => x.Email).IsUnique();
         });
@@ -48,6 +49,10 @@ public sealed class UserEntity
     public string? PasswordResetTokenHash { get; set; }
     public DateTimeOffset? PasswordResetTokenExpiresAt { get; set; }
     public int PasswordResetAttempts { get; set; }
+    public bool IsEmailVerified { get; set; } = true;
+    public string? EmailVerificationTokenHash { get; set; }
+    public DateTimeOffset? EmailVerificationTokenExpiresAt { get; set; }
+    public int EmailVerificationAttempts { get; set; }
     public string? AvatarDataUrl { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? LastLoginAt { get; set; }
