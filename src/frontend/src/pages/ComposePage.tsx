@@ -2,12 +2,19 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Bold, ChevronDown, Italic, Link, List, ListOrdered, Mic, MicOff, Paperclip, Send, Sparkles, Underline, X } from 'lucide-react'
+import { ArrowLeft, Bold, ChevronDown, Italic, Link, List, ListOrdered, Mic, MicOff, Paperclip, Send, Sparkles, Underline, X } from 'lucide-react'
 import { AiWritingAssistant } from '../components/AiWritingAssistant'
 import { mailApi } from '../api/mailApi'
 import type { AiWritingSuggestion, MailMessage, OutgoingAttachment } from '../types/mail'
+import { sanitizeEmailHtml } from '../utils/sanitizeEmailHtml'
 
-type ComposeState = { mode?: 'reply' | 'replyAll' | 'forward' | 'followUp'; message?: MailMessage; initialBody?: string }
+type ComposeState = {
+  mode?: 'reply' | 'replyAll' | 'forward' | 'followUp'
+  message?: MailMessage
+  initialBody?: string
+  returnTo?: string
+  returnState?: unknown
+}
 type SpeechResult = { 0?: { transcript?: string } }
 type SpeechRecognitionEventLike = { resultIndex?: number; results: { length: number; [index: number]: SpeechResult } }
 type SpeechRecognitionLike = {
@@ -102,6 +109,19 @@ export function ComposePage() {
     if (editor.current) { editor.current.innerHTML = html; editor.current.focus() }
   }
 
+  function closeComposer() {
+    recognition.current?.stop()
+    if (state.returnTo) {
+      navigate(state.returnTo, { state: state.returnState })
+      return
+    }
+    if (origin) {
+      navigate(`/message/${origin.accountId}/${origin.providerMessageId}`)
+      return
+    }
+    navigate(-1)
+  }
+
   function appendDictation(text: string) {
     const value = text.trim()
     if (!value || !editor.current) return
@@ -157,7 +177,7 @@ export function ComposePage() {
   return <section className="compose-page"><div className={`compose-card ai-compose-card ${!showComposer ? 'ai-first-compose' : ''}`}>
     <header className="ai-compose-header">
       <div className="ai-compose-heading"><span className="ai-compose-mark"><Sparkles size={18} /></span><div><p className="eyebrow">Nexo IA</p><h1>{!origin && !showComposer ? 'Asistente de redacción' : origin ? action : 'Revisar y enviar'}</h1></div></div>
-      <button className="icon-button" onClick={() => navigate(-1)} aria-label="Cerrar"><X size={19} /></button>
+      <button type="button" className="icon-button" onClick={closeComposer} aria-label={origin ? 'Volver al correo' : 'Cerrar'} title={origin ? 'Volver al correo' : 'Cerrar'}>{origin ? <ArrowLeft size={19} /> : <X size={19} />}</button>
     </header>
 
     <form onSubmit={submit}>
@@ -173,6 +193,11 @@ export function ComposePage() {
           {showCc ? <div className="compose-field"><label>CC</label><input value={cc} onChange={e => setCc(e.target.value)} placeholder="copia@dominio.cl" /></div> : <button type="button" className="text-button ai-add-copy" onClick={() => setShowCc(true)}>Agregar CC / CCO</button>}
           <div className="compose-field"><label>Asunto</label><input value={subject} onChange={e => setSubject(e.target.value)} required /></div>
         </div>
+
+        {origin && state.mode !== 'forward' && <section className="ai-reply-source" aria-label="Correo al que respondes">
+          <div className="ai-reply-source-heading"><div><span>{state.mode === 'followUp' ? 'Mensaje de referencia' : 'Correo al que respondes'}</span><strong>{origin.from.name || origin.from.address}</strong></div><small>{new Date(origin.receivedAt).toLocaleString('es-CL')}</small></div>
+          <div className="ai-reply-source-body" dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(origin.htmlBody) }} />
+        </section>}
 
         {showReplyAssistant && origin && <AiWritingAssistant mode="reply" accountId={origin.accountId} messageId={origin.providerMessageId} onUse={useAiProposal} />}
 
