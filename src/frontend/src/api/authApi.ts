@@ -1,3 +1,5 @@
+import { csrfFetch } from './csrfFetch'
+
 export interface RateLimitInfo {
   limit: number
   remaining: number
@@ -54,7 +56,7 @@ function formatDuration(totalSeconds: number) {
 }
 
 async function authRequest<T>(path: string, init?: RequestInit, allowUnauthorized = false): Promise<T | null> {
-  const response = await fetch(`/api/auth${path}`, {
+  const response = await csrfFetch(`/api/auth${path}`, {
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json', ...init?.headers },
     ...init,
