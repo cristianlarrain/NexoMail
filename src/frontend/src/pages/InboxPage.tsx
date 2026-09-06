@@ -104,19 +104,18 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
   const selectedUnreadItems = useMemo(() => selectedItems.filter(item => !item.isRead), [selectedItems])
   const allVisibleSelected = sortedItems.length > 0 && sortedItems.every(item => selected.has(itemKey(item)))
   const isUnreadView = search.trim().toLowerCase() === 'is:unread'
-  const title = isUnreadView
+  const pageTitle = isUnreadView
     ? 'Correos sin leer'
     : search
       ? `Resultados para “${search}”`
-      : accountId
-        ? selectedAccount?.displayName ?? 'Cuenta'
-        : folder === 'inbox'
-          ? 'Bandeja de entrada'
-          : folder === 'sent'
-            ? 'Enviados'
-            : folder === 'drafts'
-              ? 'Borradores'
-              : 'Papelera'
+      : folder === 'inbox'
+        ? 'Bandeja de entrada'
+        : folder === 'sent'
+          ? 'Enviados'
+          : folder === 'drafts'
+            ? 'Borradores'
+            : 'Papelera'
+  const contextLabel = accountId ? selectedAccount?.displayName ?? 'Cuenta seleccionada' : 'Todas las cuentas'
   const navigationItems = sortedItems.map(item => ({ accountId: item.accountId, messageId: item.providerMessageId }))
   const returnTo = `${location.pathname}${location.search}`
   const confirmDetails = confirmation?.kind === 'emptyTrash'
@@ -172,7 +171,7 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
   const confirmationPending = confirmation?.kind === 'emptyTrash' ? emptyTrash.isPending : moveMessages.isPending
 
   return <section className="mail-view">
-    <div className="view-header"><div><p className="eyebrow">{accountId ? 'Cuenta' : 'Todas las cuentas'}</p><h1>{title}</h1></div><div className="view-actions">{folder === 'trash' && <button className="secondary-button danger-button" disabled={emptyTrash.isPending} onClick={() => setConfirmation({ kind: 'emptyTrash' })}><Trash2 size={16} /> {emptyTrash.isPending ? 'Vaciando…' : 'Vaciar papelera'}</button>}<button className="icon-button" onClick={refreshAll} aria-label="Actualizar mensajes y centro de control" title="Actualizar"><RefreshCw size={18} /></button></div></div>
+    <div className="view-header"><div><h1>{pageTitle}</h1><p className="view-context">{contextLabel}</p></div><div className="view-actions">{folder === 'trash' && <button className="secondary-button danger-button" disabled={emptyTrash.isPending} onClick={() => setConfirmation({ kind: 'emptyTrash' })}><Trash2 size={16} /> {emptyTrash.isPending ? 'Vaciando…' : 'Vaciar papelera'}</button>}<button className="icon-button" onClick={refreshAll} aria-label="Actualizar mensajes y centro de control" title="Actualizar"><RefreshCw size={18} /></button></div></div>
 
     {folder === 'inbox' && !search && <ControlCenter accountId={accountId} accountName={selectedAccount?.displayName} />}
 
