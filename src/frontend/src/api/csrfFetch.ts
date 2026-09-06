@@ -6,17 +6,39 @@ function isUnsafeMethod(method?: string) {
   return normalized !== 'GET' && normalized !== 'HEAD' && normalized !== 'OPTIONS' && normalized !== 'TRACE'
 }
 
-function changesAuthenticationState(input: RequestInfo | URL) {
+function requestPath(input: RequestInfo | URL) {
   const value = typeof input === 'string' ? input : input instanceof URL ? input.pathname : input.url
-  return value.endsWith('/api/auth/login') ||
-    value.endsWith('/api/auth/verify-email') ||
-    value.endsWith('/api/auth/logout') ||
-    value.endsWith('/api/auth/reset-password')
+  try {
+    return new URL(value, window.location.origin).pathname
+  } catch {
+    return value
+  }
+}
+
+function changesAuthenticationState(input: RequestInfo | URL) {
+  const path = requestPath(input)
+  return path === '/api/auth/login' ||
+    path === '/api/auth/verify-email' ||
+    path === '/api/auth/signout' ||
+    path === '/api/auth/reset-password'
+}
+
+function requiresActiveSession(input: RequestInfo | URL) {
+  const path = requestPath(input)
+  return path.startsWith('/api/mail') ||
+    path === '/api/auth/me' ||
+    path.startsWith('/api/auth/sessions')
 }
 
 function clearCsrfToken() {
   csrfToken = null
   csrfTokenRequest = null
+}
+
+function redirectToLogin() {
+  clearCsrfToken()
+  if (window.location.pathname !== '/login')
+    window.location.replace('/login')
 }
 
 async function loadCsrfToken(): Promise<string> {
@@ -62,6 +84,9 @@ export async function csrfFetch(input: RequestInfo | URL, init?: RequestInit): P
 
   if (response.ok && changesAuthenticationState(input))
     clearCsrfToken()
+
+  if (response.status === 401 && requiresActiveSession(input))
+    redirectToLogin()
 
   return response
 }
