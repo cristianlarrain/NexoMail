@@ -1,4 +1,4 @@
-/* Navigation polish: one page scroll, opaque header, and a stronger compose action. */
+/* Navigation polish: opaque header, fixed desktop sidebar and a stronger compose action. */
 .topbar {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
@@ -28,15 +28,31 @@
 
 @media (min-width: 761px) {
   .sidebar {
-    position: relative;
-    top: auto;
-    align-self: stretch;
-    min-height: 100vh;
-    height: auto;
-    overflow: visible;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 248px;
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
+    z-index: 4;
+  }
+
+  .main-content {
+    width: calc(100% - 248px);
+    margin-left: 248px;
+    transition: margin-left .18s ease, width .18s ease;
+  }
+
+  .app-shell:has(.sidebar.collapsed) .main-content {
+    width: calc(100% - 68px);
+    margin-left: 68px;
   }
 
   .sidebar.collapsed {
+    position: fixed;
+    width: 68px;
     overflow: visible;
   }
 
@@ -50,6 +66,11 @@
 }
 
 @media (max-width: 760px) {
+  .main-content {
+    width: 100%;
+    margin-left: 0;
+  }
+
   .topbar {
     box-shadow: 0 3px 10px color-mix(in srgb, var(--foreground) 5%, transparent);
   }
