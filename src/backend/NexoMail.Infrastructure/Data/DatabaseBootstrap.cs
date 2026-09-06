@@ -33,6 +33,14 @@ public static class DatabaseBootstrap
                 await AddColumnAsync("ALTER TABLE Users ADD COLUMN PasswordResetTokenExpiresAt TEXT NULL;", connection, cancellationToken);
             if (!columns.Contains("PasswordResetAttempts"))
                 await AddColumnAsync("ALTER TABLE Users ADD COLUMN PasswordResetAttempts INTEGER NOT NULL DEFAULT 0;", connection, cancellationToken);
+            if (!columns.Contains("IsEmailVerified"))
+                await AddColumnAsync("ALTER TABLE Users ADD COLUMN IsEmailVerified INTEGER NOT NULL DEFAULT 1;", connection, cancellationToken);
+            if (!columns.Contains("EmailVerificationTokenHash"))
+                await AddColumnAsync("ALTER TABLE Users ADD COLUMN EmailVerificationTokenHash TEXT NULL;", connection, cancellationToken);
+            if (!columns.Contains("EmailVerificationTokenExpiresAt"))
+                await AddColumnAsync("ALTER TABLE Users ADD COLUMN EmailVerificationTokenExpiresAt TEXT NULL;", connection, cancellationToken);
+            if (!columns.Contains("EmailVerificationAttempts"))
+                await AddColumnAsync("ALTER TABLE Users ADD COLUMN EmailVerificationAttempts INTEGER NOT NULL DEFAULT 0;", connection, cancellationToken);
             if (!columns.Contains("AvatarDataUrl"))
                 await AddColumnAsync("ALTER TABLE Users ADD COLUMN AvatarDataUrl TEXT NULL;", connection, cancellationToken);
         }
