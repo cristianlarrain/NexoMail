@@ -5,6 +5,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using NexoMail.Infrastructure.Data;
 
@@ -21,13 +22,13 @@ public static class AuthEndpoints
     {
         var auth = endpoints.MapGroup("/api/auth");
 
-        auth.MapPost("/register", RegisterAsync);
-        auth.MapPost("/verify-email", VerifyEmailAsync);
-        auth.MapPost("/resend-verification", ResendVerificationAsync);
-        auth.MapPost("/login", LoginAsync);
-        auth.MapPost("/forgot-password", ForgotPasswordAsync);
-        auth.MapPost("/verify-reset-code", VerifyResetCodeAsync);
-        auth.MapPost("/reset-password", ResetPasswordAsync);
+        auth.MapPost("/register", RegisterAsync).RequireRateLimiting("auth-register");
+        auth.MapPost("/verify-email", VerifyEmailAsync).RequireRateLimiting("auth-verify-code");
+        auth.MapPost("/resend-verification", ResendVerificationAsync).RequireRateLimiting("auth-send-code");
+        auth.MapPost("/login", LoginAsync).RequireRateLimiting("auth-login");
+        auth.MapPost("/forgot-password", ForgotPasswordAsync).RequireRateLimiting("auth-send-code");
+        auth.MapPost("/verify-reset-code", VerifyResetCodeAsync).RequireRateLimiting("auth-verify-code");
+        auth.MapPost("/reset-password", ResetPasswordAsync).RequireRateLimiting("auth-verify-code");
         auth.MapPost("/logout", async (HttpContext context) =>
         {
             await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
