@@ -13,6 +13,20 @@ export interface AuthSession {
   avatarDataUrl: string | null
 }
 
+export interface ActiveSession {
+  id: string
+  isCurrent: boolean
+  createdAt: string
+  lastSeenAt: string
+  expiresAt: string
+  ipAddress: string | null
+  userAgent: string | null
+}
+
+export interface RevokeOtherSessionsResponse {
+  revoked: number
+}
+
 export interface RegisterResponse {
   message: string
   rateLimit?: RateLimitInfo
@@ -98,5 +112,8 @@ export const authApi = {
   forgotPassword: (request: { email: string }) => authRequest<ForgotPasswordResponse>('/forgot-password', { method: 'POST', body: JSON.stringify(request) }) as Promise<ForgotPasswordResponse>,
   verifyResetCode: (request: { email: string; code: string }) => authRequest<VerifyResetCodeResponse>('/verify-reset-code', { method: 'POST', body: JSON.stringify(request) }) as Promise<VerifyResetCodeResponse>,
   resetPassword: (request: { email: string; token: string; newPassword: string }) => authRequest<void>('/reset-password', { method: 'POST', body: JSON.stringify(request) }) as Promise<void>,
+  getSessions: () => authRequest<ActiveSession[]>('/sessions/') as Promise<ActiveSession[]>,
+  revokeSession: (sessionId: string) => authRequest<void>(`/sessions/${sessionId}`, { method: 'DELETE' }) as Promise<void>,
+  revokeOtherSessions: () => authRequest<RevokeOtherSessionsResponse>('/sessions/revoke-others', { method: 'POST' }) as Promise<RevokeOtherSessionsResponse>,
   logout: () => authRequest<void>('/signout', { method: 'POST' }) as Promise<void>,
 }
