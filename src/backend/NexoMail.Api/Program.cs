@@ -183,6 +183,20 @@ oauth.MapGet("/google/callback", async (string? code, string? state, string? err
 var mail = api.MapGroup("/mail").RequireAuthorization();
 mail.MapGet("/accounts", async (IMailGateway gateway, CancellationToken ct) => Results.Ok(await gateway.GetAccountsAsync(ct)));
 mail.MapGet("/control-center", async (GmailControlCenterService service, CancellationToken ct) => Results.Ok(await service.GetSnapshotAsync(ct)));
+mail.MapPatch("/control-center/{accountId:guid}/{conversationId}/state", async (GmailControlCenterService service, Guid accountId, string conversationId, ControlCenterStateRequest request, CancellationToken ct) =>
+{
+    var action = request.Action.Trim().ToLowerInvariant();
+    if (string.IsNullOrWhiteSpace(conversationId) || string.IsNullOrWhiteSpace(request.MessageId))
+        return Results.BadRequest(new { error = "La conversación no es válida." });
+    if (action is not ("resolved" or "snoozed"))
+        return Results.BadRequest(new { error = "La acción solicitada no es válida." });
+    if (action == "snoozed" && request.SnoozeHours is < 1 or > 720)
+        return Results.BadRequest(new { error = "El plazo de posposición no es válido." });
+
+    return await service.UpdateStateAsync(accountId, conversationId, request.MessageId, action, request.SnoozeHours, ct)
+        ? Results.NoContent()
+        : Results.NotFound();
+});
 mail.MapGet("/contacts", async (Guid accountId, string? search, GoogleContactsService contacts, CancellationToken ct) =>
 {
     try { return Results.Ok(await contacts.GetContactsAsync(accountId, search, ct)); }
@@ -255,3 +269,4 @@ app.Run();
 public sealed record ReadState(bool Read);
 public sealed record MoveRequest(string FolderId);
 public sealed record ReplyRequest(ComposeMessage Message, bool ReplyAll);
+public sealed record ControlCenterStateRequest(string MessageId, string Action, int? SnoozeHours);
