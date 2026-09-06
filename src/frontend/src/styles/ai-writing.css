@@ -137,6 +137,34 @@
 .ai-body-suggestion textarea { min-height: 170px; padding: 11px; resize: vertical; font-size: 12px; line-height: 1.55; }
 .ai-suggestion-actions { margin-top: 10px; display: flex; justify-content: flex-end; }
 
+.compact-reply-assistant { margin: 0 !important; border-width: 1px 0 0 !important; border-radius: 0 !important; box-shadow: none; }
+.compact-reply-header { padding: 10px 16px 9px; }
+.compact-reply-header .ai-writing-icon { width: 28px; height: 28px; border-radius: 8px; }
+.compact-reply-header .ai-writing-brand strong { font-size: 12px; }
+.ai-reply-compact-body { padding: 12px 16px 13px; }
+.ai-reply-instruction > strong { display: block; margin-bottom: 3px; font-size: 12px; }
+.ai-reply-instruction > p { margin: 0 0 8px; color: var(--muted-foreground); font-size: 10px; line-height: 1.45; }
+.compact-reply-input textarea { min-height: 72px !important; max-height: 140px; }
+.ai-reply-choice-group { display: grid; grid-template-columns: 58px minmax(0, 1fr); align-items: center; gap: 8px; margin-top: 9px; }
+.ai-reply-choice-label { color: var(--muted-foreground); font-size: 9px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.ai-reply-chip-row { display: flex; flex-wrap: wrap; gap: 5px; }
+.ai-reply-chip-row button {
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--foreground);
+  font-size: 9px;
+  font-weight: 700;
+}
+.ai-reply-chip-row button:hover { border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); }
+.ai-reply-chip-row button.active { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 9%, var(--surface)); color: var(--primary); }
+.ai-reply-generate-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 11px; padding-top: 10px; border-top: 1px solid var(--border); }
+.ai-reply-generate-row > span { color: var(--muted-foreground); font-size: 9px; font-weight: 700; }
+.compact-reply-result { margin: 0 16px 14px !important; }
+.compact-reply-result .ai-body-suggestion textarea { min-height: 130px; }
+
 .compose-card.ai-first-compose {
   max-width: 980px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 3%, var(--surface)), var(--surface));
@@ -185,4 +213,7 @@
   .ai-suggestion-actions { justify-content: stretch; }
   .ai-suggestion-actions .primary-button { width: 100%; }
   .ai-review-banner { align-items: flex-start; flex-direction: column; }
+  .ai-reply-choice-group { grid-template-columns: 1fr; gap: 4px; }
+  .ai-reply-generate-row { align-items: stretch; flex-direction: column; }
+  .ai-reply-generate-row .primary-button { width: 100%; }
 }
