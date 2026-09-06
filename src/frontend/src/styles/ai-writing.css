@@ -120,6 +120,7 @@
 .ai-generate-button { min-height: 36px; }
 .ai-assistant-navigation { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 16px 15px 60px; }
 .ai-assistant-navigation button { min-width: 96px; justify-content: center; }
+.ai-manual-link { margin-left: auto; margin-right: auto; min-width: auto !important; font-size: 10px; }
 .ai-writing-error { margin: 0 16px 14px 60px; }
 
 .ai-suggestion.assistant-result { margin: 0 16px 16px 60px; padding: 14px; border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--border)); border-radius: 11px; background: var(--surface); }
@@ -136,6 +137,34 @@
 .ai-body-suggestion textarea { min-height: 170px; padding: 11px; resize: vertical; font-size: 12px; line-height: 1.55; }
 .ai-suggestion-actions { margin-top: 10px; display: flex; justify-content: flex-end; }
 
+.compose-card.ai-first-compose {
+  max-width: 980px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 3%, var(--surface)), var(--surface));
+}
+.compose-card.ai-first-compose > header {
+  border-bottom-color: color-mix(in srgb, var(--primary) 15%, var(--border));
+}
+.compose-card.ai-first-compose form > .ai-writing-assistant {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.ai-review-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+}
+.ai-review-banner > div { display: flex; flex-direction: column; gap: 1px; }
+.ai-review-banner span { color: var(--primary); font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.ai-review-banner strong { font-size: 12px; }
+
 @media (max-width: 760px) {
   .ai-intent-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ai-tone-selector.assistant-tones { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -148,10 +177,12 @@
   .ai-assistant-avatar { width: 28px; height: 28px; }
   .ai-assistant-bubble { border-radius: 12px; }
   .ai-intent-grid { grid-template-columns: 1fr 1fr; }
-  .ai-assistant-navigation { padding: 0 12px 12px; }
+  .ai-assistant-navigation { padding: 0 12px 12px; flex-wrap: wrap; }
+  .ai-manual-link { order: 3; width: 100%; }
   .ai-writing-error,
   .ai-suggestion.assistant-result { margin-left: 12px; margin-right: 12px; }
   .ai-suggestion-heading { flex-direction: column; }
   .ai-suggestion-actions { justify-content: stretch; }
   .ai-suggestion-actions .primary-button { width: 100%; }
+  .ai-review-banner { align-items: flex-start; flex-direction: column; }
 }
