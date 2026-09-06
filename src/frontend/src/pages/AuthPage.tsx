@@ -1,10 +1,40 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Mail } from 'lucide-react'
+import { Eye, EyeOff, Mail } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { authApi } from '../api/authApi'
 
 type AuthMode = 'login' | 'register' | 'forgot' | 'verify' | 'reset'
+
+type PasswordInputProps = {
+  value: string
+  onChange: (value: string) => void
+  autoComplete: string
+  minLength?: number
+  autoFocus?: boolean
+}
+
+function PasswordInput({ value, onChange, autoComplete, minLength, autoFocus }: PasswordInputProps) {
+  const [visible, setVisible] = useState(false)
+  return <span className="password-control">
+    <input
+      type={visible ? 'text' : 'password'}
+      value={value}
+      onChange={event => onChange(event.target.value)}
+      autoComplete={autoComplete}
+      minLength={minLength}
+      required
+      autoFocus={autoFocus}
+    />
+    <button
+      type="button"
+      className="password-toggle"
+      onClick={() => setVisible(current => !current)}
+      aria-label={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+      title={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+    >{visible ? <EyeOff size={18} /> : <Eye size={18} />}</button>
+  </span>
+}
 
 export function AuthPage() {
   const navigate = useNavigate()
@@ -115,8 +145,8 @@ export function AuthPage() {
         <button className="primary-button auth-submit" disabled={verify.isPending || verificationCode.length !== 6}>{verify.isPending ? 'Verificando…' : 'Verificar código'}</button>
       </form> : mode === 'reset' ? <form onSubmit={event => { event.preventDefault(); submitReset() }}>
         <label>Correo<input type="email" value={email} readOnly autoComplete="email" /></label>
-        <label>Nueva contraseña<input type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="new-password" minLength={10} required autoFocus /></label>
-        <label>Repetir contraseña<input type="password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} autoComplete="new-password" minLength={10} required /></label>
+        <label>Nueva contraseña<PasswordInput value={password} onChange={setPassword} autoComplete="new-password" minLength={10} autoFocus /></label>
+        <label>Repetir contraseña<PasswordInput value={confirmPassword} onChange={setConfirmPassword} autoComplete="new-password" minLength={10} /></label>
         <p className="auth-hint">Mínimo 10 caracteres, con mayúsculas, minúsculas y números.</p>
         {password && confirmPassword && password !== confirmPassword && <div className="notice auth-error">Las contraseñas no coinciden.</div>}
         {reset.isError && <div className="notice auth-error">{reset.error instanceof Error ? reset.error.message : 'No fue posible actualizar la contraseña.'}</div>}
@@ -124,7 +154,7 @@ export function AuthPage() {
       </form> : <form onSubmit={event => { event.preventDefault(); submit.mutate() }}>
         {mode === 'register' && <label>Nombre<input value={displayName} onChange={event => setDisplayName(event.target.value)} minLength={2} maxLength={120} autoComplete="name" required /></label>}
         <label>Correo<input type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" required autoFocus /></label>
-        <label>Contraseña<input type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={mode === 'register' ? 10 : undefined} required /></label>
+        <label>Contraseña<PasswordInput value={password} onChange={setPassword} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={mode === 'register' ? 10 : undefined} /></label>
         {mode === 'register' && <p className="auth-hint">Mínimo 10 caracteres, con mayúsculas, minúsculas y números.</p>}
         {recoveryMessage && mode === 'login' && <div className="success-notice auth-error">{recoveryMessage}</div>}
         {submit.isError && <div className="notice auth-error">{submit.error instanceof Error ? submit.error.message : 'No fue posible completar la operación.'}</div>}
