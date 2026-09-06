@@ -18,6 +18,7 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
             entity.Property(x => x.Email).HasMaxLength(320).IsRequired();
             entity.Property(x => x.DisplayName).HasMaxLength(120).IsRequired();
             entity.Property(x => x.PasswordHash).HasMaxLength(1024);
+            entity.Property(x => x.PasswordResetTokenHash).HasMaxLength(128);
             entity.HasIndex(x => x.Email).IsUnique();
         });
         modelBuilder.Entity<MailAccountEntity>(entity =>
@@ -43,6 +44,8 @@ public sealed class UserEntity
     public string DisplayName { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string? PasswordHash { get; set; }
+    public string? PasswordResetTokenHash { get; set; }
+    public DateTimeOffset? PasswordResetTokenExpiresAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? LastLoginAt { get; set; }
     public bool IsActive { get; set; } = true;
