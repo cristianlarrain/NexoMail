@@ -53,7 +53,8 @@ public sealed record MailMessage(
     bool IsRead,
     IReadOnlyCollection<MailAttachment> Attachments,
     string FolderId = "inbox",
-    IReadOnlyCollection<MailThreadMessage>? Thread = null);
+    IReadOnlyCollection<MailThreadMessage>? Thread = null,
+    string? UnsubscribeUrl = null);
 
 public sealed record ComposeMessage(
     Guid FromAccountId,
