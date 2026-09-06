@@ -57,6 +57,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         };
     });
 builder.Services.AddAuthorization();
+builder.Services.AddNexoMailCsrf(builder.Environment);
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -163,10 +164,12 @@ app.Use(async (context, next) =>
 });
 
 app.UseCors();
+app.UseNexoMailCsrf();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapOpenApi();
+app.MapNexoMailCsrf();
 app.MapNexoMailAuth();
 
 var api = app.MapGroup("/api");
