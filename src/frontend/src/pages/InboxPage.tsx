@@ -43,8 +43,22 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
     queryFn: ({ pageParam }) => mailApi.messages(accountId, folder, search, pageParam || undefined),
     initialPageParam: '',
     getNextPageParam: lastPage => lastPage.nextCursor ?? undefined,
-    refetchInterval: 60_000,
+    staleTime: 45_000,
+    gcTime: 10 * 60_000,
+    refetchInterval: 5 * 60_000,
     refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
+  })
+
+  const refreshMailbox = useMutation({
+    mutationFn: mailApi.refreshMail,
+    onSuccess: async () => {
+      await Promise.all([
+        messagesQuery.refetch(),
+        queryClient.refetchQueries({ queryKey: ['control-center'], type: 'active' }),
+        queryClient.refetchQueries({ queryKey: ['control-center-activity'], type: 'active' }),
+      ])
+    },
   })
 
   const emptyTrash = useMutation({
@@ -163,15 +177,13 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
   }
 
   function refreshAll() {
-    void messagesQuery.refetch()
-    void queryClient.invalidateQueries({ queryKey: ['control-center'] })
-    void queryClient.invalidateQueries({ queryKey: ['control-center-activity'] })
+    if (!refreshMailbox.isPending) refreshMailbox.mutate()
   }
 
   const confirmationPending = confirmation?.kind === 'emptyTrash' ? emptyTrash.isPending : moveMessages.isPending
 
   return <section className="mail-view">
-    <div className="view-header"><div><h1>{pageTitle}</h1><p className="view-context">{contextLabel}</p></div><div className="view-actions">{folder === 'trash' && <button className="secondary-button danger-button" disabled={emptyTrash.isPending} onClick={() => setConfirmation({ kind: 'emptyTrash' })}><Trash2 size={16} /> {emptyTrash.isPending ? 'Vaciando…' : 'Vaciar papelera'}</button>}<button className="icon-button" onClick={refreshAll} aria-label="Actualizar mensajes y centro de control" title="Actualizar"><RefreshCw size={18} /></button></div></div>
+    <div className="view-header"><div><h1>{pageTitle}</h1><p className="view-context">{contextLabel}</p></div><div className="view-actions">{folder === 'trash' && <button className="secondary-button danger-button" disabled={emptyTrash.isPending} onClick={() => setConfirmation({ kind: 'emptyTrash' })}><Trash2 size={16} /> {emptyTrash.isPending ? 'Vaciando…' : 'Vaciar papelera'}</button>}<button className="icon-button" disabled={refreshMailbox.isPending} onClick={refreshAll} aria-label="Actualizar mensajes y centro de control" title="Actualizar"><RefreshCw size={18} className={refreshMailbox.isPending ? 'spin' : ''} /></button></div></div>
 
     {folder === 'inbox' && !search && <ControlCenter accountId={accountId} accountName={selectedAccount?.displayName} />}
 
@@ -181,12 +193,13 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
     {emptyTrash.isError && <div className="notice">{emptyTrash.error instanceof Error ? emptyTrash.error.message : 'No se pudo vaciar la Papelera. Reintenta.'}</div>}
     {moveMessages.isError && <div className="notice">{moveMessages.error instanceof Error ? moveMessages.error.message : 'No se pudieron mover los correos seleccionados.'}</div>}
     {markReadMessages.isError && <div className="notice">{markReadMessages.error instanceof Error ? markReadMessages.error.message : 'No se pudieron marcar los correos como leídos.'}</div>}
+    {refreshMailbox.isError && <div className="notice">No fue posible actualizar la bandeja completa. Los datos almacenados siguen disponibles y puede reintentar.</div>}
 
     {selected.size > 0 && <div className="bulk-actions"><strong>{selected.size} seleccionado{selected.size === 1 ? '' : 's'}</strong>{selectedUnreadItems.length > 0 && <button className="secondary-button" onClick={() => markReadMessages.mutate(selectedUnreadItems)} disabled={markReadMessages.isPending || moveMessages.isPending}><MailOpen size={15} /> {markReadMessages.isPending ? 'Marcando…' : `Marcar como leído${selectedUnreadItems.length === 1 ? '' : 's'}`}</button>}<button className="secondary-button" onClick={() => moveSelected(folder === 'trash' ? 'inbox' : 'trash')} disabled={moveMessages.isPending || markReadMessages.isPending}>{folder === 'trash' ? 'Restaurar a Bandeja' : <><Trash2 size={15} /> Mover a Papelera</>}</button><button className="icon-button" onClick={() => setSelected(new Set())} aria-label="Cancelar selección"><X size={17} /></button></div>}
 
     {isUnreadView && selected.size === 0 && items.length > 0 && <div className="unread-management-hint"><MailOpen size={16} /><span>Seleccione varios correos o use el checkbox superior para marcarlos como leídos en una sola acción.</span></div>}
 
-    {messagesQuery.isLoading && <MailSkeleton />}
+    {messagesQuery.isLoading && <section className="inbox-mail-loading" aria-label="Cargando correos"><div className="inbox-loading-heading"><strong>Cargando correos</strong><span>La bandeja aparecerá aquí sin mover el resto del panel.</span></div><MailSkeleton /></section>}
     {messagesQuery.isError && <div className="notice">No se pudo actualizar una de sus cuentas. <button onClick={() => messagesQuery.refetch()}>Reintentar</button></div>}
     {!messagesQuery.isLoading && items.length === 0 && <div className="empty-state"><Archive size={28} /><h2>No hay mensajes aquí</h2><p>{isUnreadView ? 'No quedan correos sin leer en esta vista.' : 'Los mensajes de esta carpeta aparecerán en este espacio.'}</p></div>}
 
@@ -227,4 +240,4 @@ function SortButton({ label, column, active, direction, onSort }: { label: strin
   return <button type="button" className={`sort-button ${isActive ? 'active' : ''}`} onClick={() => onSort(column)}>{label}{isActive ? direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} /> : null}</button>
 }
 
-function MailSkeleton() { return <div className="message-list">{Array.from({ length: 8 }, (_, i) => <div className="skeleton-row" key={i}><span /><span /><span /></div>)}</div> }
+function MailSkeleton() { return <div className="message-list inbox-skeleton-list">{Array.from({ length: 5 }, (_, i) => <div className="skeleton-row" key={i}><span /><span /><span /></div>)}</div> }
