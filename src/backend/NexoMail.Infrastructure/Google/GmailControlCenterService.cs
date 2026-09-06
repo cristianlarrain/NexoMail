@@ -39,8 +39,8 @@ public sealed class GmailControlCenterService(
             .Select(offset => now.UtcDateTime.Date.AddDays(-(ActivityDays - 1 - offset)))
             .Select(day => new ControlCenterDay(
                 day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                available.Sum(x => x.Activity.GetValueOrDefault(day).Received),
-                available.Sum(x => x.Activity.GetValueOrDefault(day).Sent)))
+                available.Sum(x => x.Activity.GetValueOrDefault(day)?.Received ?? 0),
+                available.Sum(x => x.Activity.GetValueOrDefault(day)?.Sent ?? 0)))
             .ToArray();
 
         var priorityItems = pending
