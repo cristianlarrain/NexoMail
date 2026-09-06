@@ -19,6 +19,7 @@ import './styles/compose-ai-integration.css'
 import './styles/message-actions.css'
 import './styles/confirm-dialog.css'
 import './styles/auth.css'
+import './styles/ui-polish.css'
 
 const client = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, retry: 1 } } })
 createRoot(document.getElementById('root')!).render(<StrictMode><QueryClientProvider client={client}><RouterProvider router={router} /></QueryClientProvider></StrictMode>)
