@@ -32,7 +32,7 @@ export function MessagePage() {
   useEffect(() => { if (message && !message.isRead) read.mutate() }, [message])
   useEffect(() => { setPreview(null); setConfirmTrash(false) }, [accountId, messageId])
   if (isLoading || !message) return <section className="mail-view"><div className="reading-skeleton" /></section>
-  const compose = (mode: 'reply' | 'replyAll' | 'forward', initialBody?: string) => navigate('/compose', { state: { mode, message, initialBody } })
+  const compose = (mode: 'reply' | 'replyAll' | 'forward', initialBody?: string) => navigate('/compose', { state: { mode, message, initialBody, returnTo: location.pathname, returnState: navigationState } })
   const goToMessage = (item: MessageNavigationItem | null) => {
     if (!item) return
     navigate(`/message/${item.accountId}/${item.messageId}`, { state: navigationState })
