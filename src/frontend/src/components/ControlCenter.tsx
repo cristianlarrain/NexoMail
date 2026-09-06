@@ -52,9 +52,11 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
   const snapshot = useQuery({
     queryKey,
     queryFn: () => mailApi.controlCenter(accountId),
-    staleTime: 60_000,
-    refetchInterval: 120_000,
+    staleTime: 90_000,
+    gcTime: 10 * 60_000,
+    refetchInterval: 5 * 60_000,
     refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
   })
 
   const manage = useMutation({
