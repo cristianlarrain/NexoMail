@@ -7,6 +7,7 @@ namespace NexoMail.Infrastructure.Data;
 public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> options) : DbContext(options)
 {
     public DbSet<UserEntity> Users => Set<UserEntity>();
+    public DbSet<UserSessionEntity> UserSessions => Set<UserSessionEntity>();
     public DbSet<MailAccountEntity> MailAccounts => Set<MailAccountEntity>();
     public DbSet<OAuthCredentialEntity> OAuthCredentials => Set<OAuthCredentialEntity>();
 
@@ -22,6 +23,15 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
             entity.Property(x => x.EmailVerificationTokenHash).HasMaxLength(128);
             entity.Property(x => x.AvatarDataUrl).HasMaxLength(200_000);
             entity.HasIndex(x => x.Email).IsUnique();
+        });
+        modelBuilder.Entity<UserSessionEntity>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.IpAddress).HasMaxLength(64);
+            entity.Property(x => x.UserAgent).HasMaxLength(512);
+            entity.Property(x => x.SecurityStamp).HasMaxLength(64).IsRequired();
+            entity.HasIndex(x => new { x.UserId, x.RevokedAt });
+            entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<MailAccountEntity>(entity =>
         {
@@ -57,6 +67,19 @@ public sealed class UserEntity
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? LastLoginAt { get; set; }
     public bool IsActive { get; set; } = true;
+}
+
+public sealed class UserSessionEntity
+{
+    public Guid Id { get; set; }
+    public Guid UserId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset LastSeenAt { get; set; }
+    public DateTimeOffset ExpiresAt { get; set; }
+    public DateTimeOffset? RevokedAt { get; set; }
+    public string? IpAddress { get; set; }
+    public string? UserAgent { get; set; }
+    public string SecurityStamp { get; set; } = string.Empty;
 }
 
 public sealed class MailAccountEntity { public Guid Id { get; set; } public Guid UserId { get; set; } public MailProviderType Provider { get; set; } public string EmailAddress { get; set; } = string.Empty; public string DisplayName { get; set; } = string.Empty; public string Color { get; set; } = "#0f6b78"; public bool IsActive { get; set; } = true; public DateTimeOffset CreatedAt { get; set; } }
