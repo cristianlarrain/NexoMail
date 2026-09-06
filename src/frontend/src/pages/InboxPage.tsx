@@ -2,11 +2,16 @@ import { useEffect, useMemo, useState } from 'react'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Archive, ChevronDown, ChevronUp, Paperclip, RefreshCw, Trash2, X } from 'lucide-react'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { mailApi } from '../api/mailApi'
 import type { MailSummary } from '../types/mail'
 
 type SortKey = 'sender' | 'subject' | 'date'
 type SortDirection = 'asc' | 'desc'
+type ConfirmAction =
+  | { kind: 'emptyTrash' }
+  | { kind: 'moveSelected'; target: 'inbox' | 'trash' }
+  | { kind: 'moveOne'; item: MailSummary }
 
 function dateLabel(value: string) {
   const d = new Date(value)
@@ -28,6 +33,7 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [confirmation, setConfirmation] = useState<ConfirmAction | null>(null)
 
   const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: mailApi.accounts })
   const messagesQuery = useInfiniteQuery({
@@ -41,7 +47,7 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
 
   const emptyTrash = useMutation({
     mutationFn: () => mailApi.emptyFolder('trash', accountId),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['messages'] }); void messagesQuery.refetch() },
+    onSuccess: () => { setConfirmation(null); queryClient.invalidateQueries({ queryKey: ['messages'] }); void messagesQuery.refetch() },
   })
 
   const moveMessages = useMutation({
@@ -49,12 +55,13 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
       await Promise.all(items.map(item => mailApi.move(item.accountId, item.providerMessageId, target)))
     },
     onSuccess: () => {
+      setConfirmation(null)
       setSelected(new Set())
       void queryClient.invalidateQueries({ queryKey: ['messages'] })
     },
   })
 
-  useEffect(() => setSelected(new Set()), [accountId, folder, search])
+  useEffect(() => { setSelected(new Set()); setConfirmation(null) }, [accountId, folder, search])
 
   const items = useMemo(() => {
     const seen = new Set<string>()
@@ -83,6 +90,13 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
   const title = search ? `Resultados para “${search}”` : accountId ? accounts.find(a => a.id === accountId)?.displayName ?? 'Cuenta' : folder === 'inbox' ? 'Bandeja de entrada' : folder === 'sent' ? 'Enviados' : folder === 'drafts' ? 'Borradores' : 'Papelera'
   const navigationItems = sortedItems.map(item => ({ accountId: item.accountId, messageId: item.providerMessageId }))
   const returnTo = `${location.pathname}${location.search}`
+  const confirmDetails = confirmation?.kind === 'emptyTrash'
+    ? { title: 'Vaciar Papelera', message: 'Esta acción intenta eliminar permanentemente todos los correos de la Papelera.', label: 'Vaciar Papelera', tone: 'danger' as const }
+    : confirmation?.kind === 'moveOne'
+      ? { title: 'Mover correo a Papelera', message: 'El correo dejará de aparecer en esta bandeja y podrá restaurarse desde Papelera.', label: 'Mover a Papelera', tone: 'danger' as const }
+      : confirmation?.kind === 'moveSelected' && confirmation.target === 'trash'
+        ? { title: 'Mover correos a Papelera', message: `Se moverán ${selectedItems.length} correo${selectedItems.length === 1 ? '' : 's'} a Papelera.`, label: 'Mover a Papelera', tone: 'danger' as const }
+        : { title: 'Restaurar correos', message: `Se restaurarán ${selectedItems.length} correo${selectedItems.length === 1 ? '' : 's'} a la Bandeja de entrada.`, label: 'Restaurar', tone: 'default' as const }
 
   function changeSort(key: SortKey) {
     if (sortKey === key) setSortDirection(current => current === 'asc' ? 'desc' : 'asc')
@@ -110,12 +124,20 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
 
   function moveSelected(target: 'inbox' | 'trash') {
     if (!selectedItems.length) return
-    const action = target === 'trash' ? 'mover a Papelera' : 'restaurar a Bandeja'
-    if (window.confirm(`¿${action.charAt(0).toUpperCase() + action.slice(1)} ${selectedItems.length} correo(s)?`)) moveMessages.mutate({ items: selectedItems, target })
+    setConfirmation({ kind: 'moveSelected', target })
   }
 
+  function confirmCurrentAction() {
+    if (!confirmation) return
+    if (confirmation.kind === 'emptyTrash') emptyTrash.mutate()
+    else if (confirmation.kind === 'moveOne') moveMessages.mutate({ items: [confirmation.item], target: 'trash' })
+    else if (selectedItems.length) moveMessages.mutate({ items: selectedItems, target: confirmation.target })
+  }
+
+  const confirmationPending = confirmation?.kind === 'emptyTrash' ? emptyTrash.isPending : moveMessages.isPending
+
   return <section className="mail-view">
-    <div className="view-header"><div><p className="eyebrow">{accountId ? 'Cuenta' : 'Todas las cuentas'}</p><h1>{title}</h1></div><div className="view-actions">{folder === 'trash' && <button className="secondary-button danger-button" disabled={emptyTrash.isPending} onClick={() => { if (window.confirm('¿Vaciar permanentemente todos los correos de la Papelera?')) emptyTrash.mutate() }}><Trash2 size={16} /> {emptyTrash.isPending ? 'Vaciando…' : 'Vaciar papelera'}</button>}<button className="icon-button" onClick={() => messagesQuery.refetch()} aria-label="Actualizar"><RefreshCw size={18} /></button></div></div>
+    <div className="view-header"><div><p className="eyebrow">{accountId ? 'Cuenta' : 'Todas las cuentas'}</p><h1>{title}</h1></div><div className="view-actions">{folder === 'trash' && <button className="secondary-button danger-button" disabled={emptyTrash.isPending} onClick={() => setConfirmation({ kind: 'emptyTrash' })}><Trash2 size={16} /> {emptyTrash.isPending ? 'Vaciando…' : 'Vaciar papelera'}</button>}<button className="icon-button" onClick={() => messagesQuery.refetch()} aria-label="Actualizar"><RefreshCw size={18} /></button></div></div>
 
     {(location.state as { sent?: boolean; trashed?: boolean } | null)?.sent && <div className="success-notice">Correo enviado correctamente. Ya aparece en Enviados.</div>}
     {(location.state as { trashed?: boolean } | null)?.trashed && <div className="success-notice">Correo movido a Papelera.</div>}
@@ -150,12 +172,14 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
           <span className="subject"><strong>{item.subject}</strong><span> — {item.preview}</span></span>
           <span className="attachment-slot">{item.hasAttachments && <Paperclip size={15} className="attachment-icon" />}</span>
           <time>{dateLabel(item.receivedAt)}</time>
-          {folder !== 'trash' ? <button className="row-delete" title="Mover a Papelera" aria-label={`Mover ${item.subject} a Papelera`} disabled={moveMessages.isPending} onClick={event => { event.stopPropagation(); if (window.confirm('¿Mover este correo a la Papelera?')) moveMessages.mutate({ items: [item], target: 'trash' }) }}><Trash2 size={15} /></button> : <button className="row-restore" title="Restaurar a Bandeja" aria-label={`Restaurar ${item.subject} a Bandeja`} disabled={moveMessages.isPending} onClick={event => { event.stopPropagation(); moveMessages.mutate({ items: [item], target: 'inbox' }) }}>↩</button>}
+          {folder !== 'trash' ? <button className="row-delete" title="Mover a Papelera" aria-label={`Mover ${item.subject} a Papelera`} disabled={moveMessages.isPending} onClick={event => { event.stopPropagation(); setConfirmation({ kind: 'moveOne', item }) }}><Trash2 size={15} /></button> : <button className="row-restore" title="Restaurar a Bandeja" aria-label={`Restaurar ${item.subject} a Bandeja`} disabled={moveMessages.isPending} onClick={event => { event.stopPropagation(); moveMessages.mutate({ items: [item], target: 'inbox' }) }}>↩</button>}
         </div>
       })}
     </div>}
 
     {items.length > 0 && <div className="message-pagination"><span>{items.length} correo{items.length === 1 ? '' : 's'} cargado{items.length === 1 ? '' : 's'}</span>{messagesQuery.hasNextPage && <button className="secondary-button" disabled={messagesQuery.isFetchingNextPage} onClick={() => messagesQuery.fetchNextPage()}>{messagesQuery.isFetchingNextPage ? 'Cargando…' : 'Cargar más correos'}</button>}</div>}
+
+    <ConfirmDialog open={Boolean(confirmation)} title={confirmDetails.title} message={confirmDetails.message} confirmLabel={confirmDetails.label} tone={confirmDetails.tone} pending={confirmationPending} onCancel={() => setConfirmation(null)} onConfirm={confirmCurrentAction} />
   </section>
 }
 
