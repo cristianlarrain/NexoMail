@@ -75,7 +75,11 @@ if (demoMode)
 }
 else
 {
-    builder.Services.AddScoped<IMailProvider, GmailMailProvider>();
+    builder.Services.AddScoped<GmailMailProvider>();
+    builder.Services.AddScoped<IMailProvider>(services => new UserScopedMailProvider(
+        services.GetRequiredService<GmailMailProvider>(),
+        services.GetRequiredService<NexoMailDbContext>(),
+        services.GetRequiredService<IUserContext>()));
     builder.Services.AddScoped<IMailGateway, MailGateway>();
 }
 
