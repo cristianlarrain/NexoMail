@@ -135,7 +135,7 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
         <span aria-hidden="true" />
         <SortButton label="Remitente" column="sender" active={sortKey} direction={sortDirection} onSort={changeSort} />
         <SortButton label="Asunto" column="subject" active={sortKey} direction={sortDirection} onSort={changeSort} />
-        <span className="attachment-heading" aria-label="Adjuntos"><Paperclip size={13} /></span>
+        <span aria-hidden="true" />
         <SortButton label="Fecha" column="date" active={sortKey} direction={sortDirection} onSort={changeSort} />
         <span aria-label="Acciones" />
       </div>
