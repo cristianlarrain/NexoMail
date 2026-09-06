@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using NexoMail.Api.Security;
 using NexoMail.Application;
@@ -10,6 +11,7 @@ using NexoMail.Infrastructure.Data;
 using NexoMail.Infrastructure.Google;
 using Serilog;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 if (builder.Environment.IsDevelopment())
@@ -55,6 +57,58 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         };
     });
 builder.Services.AddAuthorization();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, ct) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json";
+        await context.HttpContext.Response.WriteAsJsonAsync(new
+        {
+            error = "Demasiados intentos. Inténtalo nuevamente en unos minutos."
+        }, ct);
+    };
+
+    options.AddPolicy("auth-login", context => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(5),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
+
+    options.AddPolicy("auth-register", context => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5,
+            Window = TimeSpan.FromMinutes(30),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
+
+    options.AddPolicy("auth-send-code", context => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5,
+            Window = TimeSpan.FromMinutes(15),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
+
+    options.AddPolicy("auth-verify-code", context => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(10),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
+});
 builder.Services.AddScoped<IPasswordHasher<UserEntity>, PasswordHasher<UserEntity>>();
 builder.Services.AddScoped<IUserContext, HttpUserContext>();
 builder.Services.Configure<RecoveryEmailOptions>(builder.Configuration.GetSection(RecoveryEmailOptions.SectionName));
@@ -109,6 +163,7 @@ app.Use(async (context, next) =>
 });
 
 app.UseCors();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapOpenApi();
