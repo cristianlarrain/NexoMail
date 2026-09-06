@@ -1,0 +1,14 @@
+.operations-clock { margin-left: auto; min-width: 250px; height: 38px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 0 11px; border: 1px solid var(--border); border-radius: 9px; background: color-mix(in srgb, var(--surface) 92%, transparent); color: var(--muted-foreground); font-size: 11px; white-space: nowrap; box-shadow: var(--shadow); }
+.operations-clock svg { color: var(--primary); }
+.operations-clock strong { min-width: 70px; color: var(--foreground); font-size: 14px; font-variant-numeric: tabular-nums; letter-spacing: .035em; text-align: right; }
+.operations-date { max-width: 155px; overflow: hidden; text-overflow: ellipsis; }
+.topbar .operations-clock + .avatar { margin-left: 0; }
+@media (max-width: 900px) {
+  .operations-clock { min-width: 104px; padding-inline: 9px; }
+  .operations-date { display: none; }
+}
+@media (max-width: 560px) {
+  .operations-clock { min-width: 88px; gap: 5px; border: 0; background: transparent; box-shadow: none; padding-inline: 2px; }
+  .operations-clock svg { display: none; }
+  .operations-clock strong { min-width: 78px; font-size: 12px; }
+}
