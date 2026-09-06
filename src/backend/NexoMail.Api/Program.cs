@@ -115,6 +115,7 @@ builder.Services.Configure<GmailOptions>(builder.Configuration.GetSection(GmailO
 builder.Services.AddScoped<ITokenProtector, DataProtectionTokenProtector>();
 builder.Services.AddScoped<GoogleOAuthService>();
 builder.Services.AddScoped<GoogleContactsService>();
+builder.Services.AddScoped<GmailControlCenterService>();
 
 var demoMode = builder.Configuration.GetValue("MailProviders:DemoMode", true);
 if (demoMode)
@@ -181,6 +182,7 @@ oauth.MapGet("/google/callback", async (string? code, string? state, string? err
 
 var mail = api.MapGroup("/mail").RequireAuthorization();
 mail.MapGet("/accounts", async (IMailGateway gateway, CancellationToken ct) => Results.Ok(await gateway.GetAccountsAsync(ct)));
+mail.MapGet("/control-center", async (GmailControlCenterService service, CancellationToken ct) => Results.Ok(await service.GetSnapshotAsync(ct)));
 mail.MapGet("/contacts", async (Guid accountId, string? search, GoogleContactsService contacts, CancellationToken ct) =>
 {
     try { return Results.Ok(await contacts.GetContactsAsync(accountId, search, ct)); }
