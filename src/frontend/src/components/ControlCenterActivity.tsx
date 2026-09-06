@@ -74,7 +74,6 @@ export function ControlCenterActivity({ accountId, accounts }: { accountId?: str
   const selectedLabel = selectedAccount?.accountName ?? 'Todas las cuentas'
   const maximumActivity = Math.max(1, ...activity.flatMap(day => [day.received, day.sent]))
   const period = rangeLabel(activityQuery.data?.startDate, activityQuery.data?.endDate)
-  const chartMinWidth = days === 30 ? 1120 : days === 14 ? 650 : 0
   const peakDay = activity.reduce<ControlCenterDay | null>((peak, day) => !peak || day.received + day.sent > peak.received + peak.sent ? day : peak, null)
   const peakTotal = peakDay ? peakDay.received + peakDay.sent : 0
   const receivedLine = linePoints(activity, 'received', maximumActivity)
@@ -96,7 +95,7 @@ export function ControlCenterActivity({ accountId, accounts }: { accountId?: str
         <div className="activity-navigation" aria-label="Navegar períodos">
           <button type="button" className="icon-button" onClick={() => setOffsetDays(current => Math.min(365, current + days))} disabled={offsetDays + days > 365} title="Período anterior" aria-label="Período anterior"><ChevronLeft size={16} /></button>
           <button type="button" className="icon-button" onClick={() => setOffsetDays(current => Math.max(0, current - days))} disabled={offsetDays === 0} title="Período siguiente" aria-label="Período siguiente"><ChevronRight size={16} /></button>
-          {offsetDays > 0 && <button type="button" className="activity-today-button" onClick={() => setOffsetDays(0)}>Actual</button>}
+          {offsetDays > 0 && <button type="button" className="activity-today-button" onClick={() => setOffsetDays(0)} title="Volver al período más reciente">Más reciente</button>}
         </div>
       </div>
     </header>
@@ -121,12 +120,12 @@ export function ControlCenterActivity({ accountId, accounts }: { accountId?: str
     </div>
 
     {activityQuery.isError ? <div className="notice activity-error">No fue posible consultar la actividad de este período.</div> : <div className="activity-chart-scroll">
-      <div className="activity-plot" style={{ minWidth: chartMinWidth || undefined }}>
+      <div className="activity-plot">
         <svg className="activity-line-overlay" viewBox="0 0 1000 120" preserveAspectRatio="none" aria-hidden="true">
           {receivedLine && <polyline className="received" points={receivedLine} />}
           {sentLine && <polyline className="sent" points={sentLine} />}
         </svg>
-        <div className="activity-chart activity-chart-dynamic" style={{ gridTemplateColumns: `repeat(${Math.max(1, activity.length)}, minmax(32px, 1fr))` }} aria-label={`Actividad de ${selectedLabel}: ${period || `${days} días`}`}>
+        <div className={`activity-chart activity-chart-dynamic days-${days}`} style={{ gridTemplateColumns: `repeat(${Math.max(1, activity.length)}, minmax(0, 1fr))` }} aria-label={`Actividad de ${selectedLabel}: ${period || `${days} días`}`}>
           {activity.map(day => <div className="activity-day" key={day.date} title={`${fullDayLabel(day.date)} · ${day.received} recibidos · ${day.sent} enviados`}>
             <div className="activity-bars">
               <span className="activity-bar-column received"><b>{day.received}</b><i style={{ height: day.received === 0 ? '3px' : `${Math.max(10, Math.round(day.received / maximumActivity * 100))}%` }} /></span>
