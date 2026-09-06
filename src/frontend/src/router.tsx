@@ -7,6 +7,7 @@ import { AuthPage } from './pages/AuthPage'
 import { ComposePage } from './pages/ComposePage'
 import { InboxPage } from './pages/InboxPage'
 import { MessagePage } from './pages/MessagePage'
+import { ProfilePage } from './pages/ProfilePage'
 
 export const router = createBrowserRouter([
   { path: '/login', element: <AuthPage /> },
@@ -24,6 +25,7 @@ export const router = createBrowserRouter([
       { path: 'compose', element: <ComposePage /> },
       { path: 'settings', element: <Navigate to="/settings/accounts" replace /> },
       { path: 'settings/accounts', element: <AccountsPage /> },
+      { path: 'settings/profile', element: <ProfilePage /> },
       { path: 'settings/appearance', element: <AppearancePage /> },
     ],
   },
