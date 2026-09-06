@@ -32,9 +32,14 @@ export interface VerifyResetCodeResponse {
 }
 
 function readRateLimit(response: Response): RateLimitInfo | undefined {
-  const limit = Number(response.headers.get('X-RateLimit-Limit'))
-  const remaining = Number(response.headers.get('X-RateLimit-Remaining'))
-  const resetSeconds = Number(response.headers.get('X-RateLimit-Reset-Seconds'))
+  const limitHeader = response.headers.get('X-RateLimit-Limit')
+  const remainingHeader = response.headers.get('X-RateLimit-Remaining')
+  const resetHeader = response.headers.get('X-RateLimit-Reset-Seconds')
+  if (limitHeader === null || remainingHeader === null || resetHeader === null) return undefined
+
+  const limit = Number(limitHeader)
+  const remaining = Number(remainingHeader)
+  const resetSeconds = Number(resetHeader)
   if (!Number.isFinite(limit) || !Number.isFinite(remaining) || !Number.isFinite(resetSeconds)) return undefined
   return { limit, remaining, resetSeconds }
 }
@@ -62,7 +67,8 @@ async function authRequest<T>(path: string, init?: RequestInit, allowUnauthorize
     let message = problem?.detail ?? problem?.error ?? (response.status === 401 ? 'Correo o contraseña incorrectos.' : 'No fue posible completar la operación.')
 
     if (response.status === 429) {
-      const retryAfter = Number(response.headers.get('Retry-After')) || problem?.retryAfterSeconds || rateLimit?.resetSeconds
+      const retryAfterHeader = response.headers.get('Retry-After')
+      const retryAfter = (retryAfterHeader === null ? undefined : Number(retryAfterHeader)) || problem?.retryAfterSeconds || rateLimit?.resetSeconds
       message = retryAfter
         ? `Demasiados intentos. Podrá intentarlo nuevamente en ${formatDuration(retryAfter)}.`
         : 'Demasiados intentos. Inténtelo nuevamente en unos minutos.'
