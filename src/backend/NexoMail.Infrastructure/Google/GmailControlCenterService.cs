@@ -21,18 +21,18 @@ public sealed class GmailControlCenterService(
     private const int MaximumThreadsPerAccount = 75;
     private const int MaximumConcurrentThreadRequests = 8;
 
-    public async Task<ControlCenterSnapshot> GetSnapshotAsync(CancellationToken cancellationToken)
+    public async Task<ControlCenterSnapshot> GetSnapshotAsync(Guid? accountId, CancellationToken cancellationToken)
     {
         var userId = userContext.UserId;
-        var accounts = await database.MailAccounts
+        var accountQuery = database.MailAccounts
             .AsNoTracking()
-            .Where(x => x.UserId == userId && x.IsActive && x.Provider == MailProviderType.Gmail)
-            .OrderBy(x => x.DisplayName)
-            .ToArrayAsync(cancellationToken);
-        var states = await database.ControlCenterStates
-            .AsNoTracking()
-            .Where(x => x.UserId == userId)
-            .ToArrayAsync(cancellationToken);
+            .Where(x => x.UserId == userId && x.IsActive && x.Provider == MailProviderType.Gmail);
+        if (accountId.HasValue) accountQuery = accountQuery.Where(x => x.Id == accountId.Value);
+        var accounts = await accountQuery.OrderBy(x => x.DisplayName).ToArrayAsync(cancellationToken);
+
+        var stateQuery = database.ControlCenterStates.AsNoTracking().Where(x => x.UserId == userId);
+        if (accountId.HasValue) stateQuery = stateQuery.Where(x => x.AccountId == accountId.Value);
+        var states = await stateQuery.ToArrayAsync(cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
         var results = new List<AccountResult>(accounts.Length);
@@ -203,7 +203,7 @@ public sealed class GmailControlCenterService(
                 continue;
             }
 
-            if (latest.Labels.Contains("INBOX") && !IsLikelyAutomated(latest))
+            if (latest.Labels.Contains("INBOX") && !IsNonActionableReceived(latest))
             {
                 pending.Add(new PendingRaw(
                     account.Id,
@@ -316,6 +316,12 @@ public sealed class GmailControlCenterService(
     }
 
     private static string Header(IReadOnlyDictionary<string, string> headers, string name) => headers.TryGetValue(name, out var value) ? value : string.Empty;
+
+    private static bool IsNonActionableReceived(ThreadMessageData message)
+    {
+        if (message.Labels.Contains("CATEGORY_PROMOTIONS") || message.Labels.Contains("CATEGORY_SOCIAL") || message.Labels.Contains("CATEGORY_FORUMS")) return true;
+        return IsLikelyAutomated(message);
+    }
 
     private static bool IsLikelyAutomated(ThreadMessageData message)
     {
