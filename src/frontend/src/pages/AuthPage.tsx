@@ -62,6 +62,7 @@ export function AuthPage() {
       const result = await authApi.register({ displayName, email, password })
       return { kind: 'register' as const, result }
     },
+    onMutate: () => setStatusMessage(''),
     onSuccess: result => {
       if (result.kind === 'login') {
         queryClient.setQueryData(['session'], result.session)
@@ -79,6 +80,7 @@ export function AuthPage() {
 
   const emailVerification = useMutation({
     mutationFn: () => authApi.verifyEmail({ email, code: verificationCode }),
+    onMutate: () => setStatusMessage(''),
     onSuccess: session => {
       queryClient.setQueryData(['session'], session)
       void queryClient.invalidateQueries({ queryKey: ['accounts'] })
@@ -88,6 +90,7 @@ export function AuthPage() {
 
   const resendVerification = useMutation({
     mutationFn: () => authApi.resendVerification({ email }),
+    onMutate: () => setStatusMessage(''),
     onSuccess: result => {
       setStatusMessage(withRequestAllowance(result.message, result.rateLimit))
       setVerificationCode('')
@@ -96,6 +99,7 @@ export function AuthPage() {
 
   const forgot = useMutation({
     mutationFn: () => authApi.forgotPassword({ email }),
+    onMutate: () => setStatusMessage(''),
     onSuccess: result => {
       setStatusMessage(withRequestAllowance(result.message, result.rateLimit))
       setVerificationCode('')
@@ -105,6 +109,7 @@ export function AuthPage() {
 
   const verify = useMutation({
     mutationFn: () => authApi.verifyResetCode({ email, code: verificationCode }),
+    onMutate: () => setStatusMessage(''),
     onSuccess: result => {
       setResetToken(result.resetToken)
       setPassword('')
@@ -115,6 +120,7 @@ export function AuthPage() {
 
   const reset = useMutation({
     mutationFn: () => authApi.resetPassword({ email, token: resetToken, newPassword: password }),
+    onMutate: () => setStatusMessage(''),
     onSuccess: () => {
       setStatusMessage('Contraseña actualizada correctamente. Ya puede iniciar sesión.')
       setPassword('')
@@ -136,8 +142,8 @@ export function AuthPage() {
     setPassword('')
     setConfirmPassword('')
     setVerificationCode('')
+    setStatusMessage('')
     if (next !== 'reset') setResetToken('')
-    if (next !== 'login') setStatusMessage('')
   }
 
   function submitReset() {
