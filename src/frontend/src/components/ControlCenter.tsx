@@ -52,10 +52,10 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
   const snapshot = useQuery({
     queryKey,
     queryFn: () => mailApi.controlCenter(accountId),
-    staleTime: 90_000,
-    gcTime: 10 * 60_000,
-    refetchInterval: 5 * 60_000,
-    refetchIntervalInBackground: false,
+    staleTime: 10 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchInterval: false,
+    refetchOnMount: false,
     refetchOnWindowFocus: false,
   })
 
@@ -82,7 +82,6 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
         }
       })
       setSnoozeTarget(null)
-      void queryClient.invalidateQueries({ queryKey: ['control-center'] })
     },
     onError: error => setActionError(error instanceof Error ? error.message : 'No fue posible actualizar el seguimiento.'),
   })
@@ -92,7 +91,7 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
     setOpeningTarget(key)
     setActionError('')
     try {
-      const message = await queryClient.fetchQuery({ queryKey: ['message', item.accountId, item.messageId], queryFn: () => mailApi.message(item.accountId, item.messageId), staleTime: 30_000 })
+      const message = await queryClient.fetchQuery({ queryKey: ['message', item.accountId, item.messageId], queryFn: () => mailApi.message(item.accountId, item.messageId), staleTime: 5 * 60_000 })
       navigate('/compose', { state: { mode: item.direction === 'received' ? 'reply' : 'followUp', message } })
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'No fue posible abrir la conversación.')
