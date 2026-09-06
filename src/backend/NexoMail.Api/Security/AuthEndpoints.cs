@@ -1,5 +1,7 @@
 using System.Net.Mail;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
@@ -18,6 +20,8 @@ public static class AuthEndpoints
 
         auth.MapPost("/register", RegisterAsync);
         auth.MapPost("/login", LoginAsync);
+        auth.MapPost("/forgot-password", ForgotPasswordAsync);
+        auth.MapPost("/reset-password", ResetPasswordAsync);
         auth.MapPost("/logout", async (HttpContext context) =>
         {
             await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
@@ -103,6 +107,57 @@ public static class AuthEndpoints
         return Results.Ok(ToSession(user));
     }
 
+    private static async Task<IResult> ForgotPasswordAsync(
+        ForgotPasswordRequest request,
+        NexoMailDbContext database,
+        IWebHostEnvironment environment,
+        CancellationToken ct)
+    {
+        var email = request.Email.Trim().ToLowerInvariant();
+        var user = await database.Users.SingleOrDefaultAsync(x => x.Email == email && x.IsActive, ct);
+        string? developmentToken = null;
+
+        if (user is not null)
+        {
+            developmentToken = CreateResetToken();
+            user.PasswordResetTokenHash = HashResetToken(developmentToken);
+            user.PasswordResetTokenExpiresAt = DateTimeOffset.UtcNow.AddMinutes(30);
+            await database.SaveChangesAsync(ct);
+        }
+
+        const string message = "Si existe una cuenta NexoMail con ese correo, se generaron instrucciones para restablecer la contraseña.";
+        return environment.IsDevelopment() && developmentToken is not null
+            ? Results.Ok(new { message, developmentResetToken = developmentToken })
+            : Results.Ok(new { message });
+    }
+
+    private static async Task<IResult> ResetPasswordAsync(
+        ResetPasswordRequest request,
+        NexoMailDbContext database,
+        IPasswordHasher<UserEntity> passwordHasher,
+        CancellationToken ct)
+    {
+        var email = request.Email.Trim().ToLowerInvariant();
+        var passwordValidation = ValidatePassword(request.NewPassword);
+        if (passwordValidation is not null) return Results.BadRequest(new { error = passwordValidation });
+
+        var user = await database.Users.SingleOrDefaultAsync(x => x.Email == email && x.IsActive, ct);
+        if (user is null || string.IsNullOrWhiteSpace(user.PasswordResetTokenHash) || user.PasswordResetTokenExpiresAt <= DateTimeOffset.UtcNow)
+            return Results.BadRequest(new { error = "El enlace de recuperación no es válido o ya expiró." });
+
+        var suppliedHash = HashResetToken(request.Token);
+        if (!CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(user.PasswordResetTokenHash),
+                Encoding.UTF8.GetBytes(suppliedHash)))
+            return Results.BadRequest(new { error = "El enlace de recuperación no es válido o ya expiró." });
+
+        user.PasswordHash = passwordHasher.HashPassword(user, request.NewPassword);
+        user.PasswordResetTokenHash = null;
+        user.PasswordResetTokenExpiresAt = null;
+        await database.SaveChangesAsync(ct);
+        return Results.NoContent();
+    }
+
     private static UserEntity NewUser(string displayName, string email) => new()
     {
         Id = Guid.NewGuid(),
@@ -122,11 +177,24 @@ public static class AuthEndpoints
         }
         catch (FormatException) { return "Ingresa un correo válido."; }
 
+        return ValidatePassword(password);
+    }
+
+    private static string? ValidatePassword(string password)
+    {
         if (password.Length < 10) return "La contraseña debe tener al menos 10 caracteres.";
         if (!password.Any(char.IsUpper) || !password.Any(char.IsLower) || !password.Any(char.IsDigit))
             return "La contraseña debe incluir mayúsculas, minúsculas y números.";
         return null;
     }
+
+    private static string CreateResetToken()
+    {
+        var bytes = RandomNumberGenerator.GetBytes(32);
+        return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+    }
+
+    private static string HashResetToken(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 
     private static async Task SignInAsync(HttpContext context, UserEntity user)
     {
@@ -151,4 +219,6 @@ public static class AuthEndpoints
 
 public sealed record RegisterRequest(string DisplayName, string Email, string Password);
 public sealed record LoginRequest(string Email, string Password);
+public sealed record ForgotPasswordRequest(string Email);
+public sealed record ResetPasswordRequest(string Email, string Token, string NewPassword);
 public sealed record AuthSession(Guid Id, string DisplayName, string Email);
