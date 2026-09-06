@@ -89,7 +89,7 @@ export function ComposePage() {
   useEffect(() => {
     if (!composeReady || !editor.current || !body) return
     editor.current.innerHTML = body
-  }, [composeReady, body])
+  }, [composeReady])
 
   function submit(event: FormEvent) { event.preventDefault(); recognition.current?.stop(); send.mutate() }
   function format(command: string, value?: string) { editor.current?.focus(); document.execCommand(command, false, value); setBody(editor.current?.innerHTML ?? '') }
