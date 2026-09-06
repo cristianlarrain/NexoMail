@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Eye, EyeOff, Mail } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { authApi } from '../api/authApi'
+import { authApi, type RateLimitInfo } from '../api/authApi'
 
 type AuthMode = 'login' | 'register' | 'emailVerify' | 'forgot' | 'verify' | 'reset'
 
@@ -34,6 +34,11 @@ function PasswordInput({ value, onChange, autoComplete, minLength, autoFocus }: 
       title={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
     >{visible ? <EyeOff size={18} /> : <Eye size={18} />}</button>
   </span>
+}
+
+function withRequestAllowance(message: string, rateLimit?: RateLimitInfo) {
+  if (!rateLimit) return message
+  return `${message} Quedan ${rateLimit.remaining} de ${rateLimit.limit} solicitudes disponibles en este período.`
 }
 
 export function AuthPage() {
@@ -84,7 +89,7 @@ export function AuthPage() {
   const resendVerification = useMutation({
     mutationFn: () => authApi.resendVerification({ email }),
     onSuccess: result => {
-      setStatusMessage(result.message)
+      setStatusMessage(withRequestAllowance(result.message, result.rateLimit))
       setVerificationCode('')
     },
   })
@@ -92,7 +97,7 @@ export function AuthPage() {
   const forgot = useMutation({
     mutationFn: () => authApi.forgotPassword({ email }),
     onSuccess: result => {
-      setStatusMessage(result.message)
+      setStatusMessage(withRequestAllowance(result.message, result.rateLimit))
       setVerificationCode('')
       setMode('verify')
     },
