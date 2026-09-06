@@ -13,6 +13,7 @@ export const mailApi = {
   accounts: () => api<MailAccount[]>('/mail/accounts'),
   contacts: (accountId: string, search: string) => api<ContactSuggestion[]>(`/mail/contacts?accountId=${encodeURIComponent(accountId)}&search=${encodeURIComponent(search)}`),
   updateAccount: (accountId: string, settings: { displayName: string; color: string }) => api<MailAccount>(`/mail/accounts/${accountId}`, { method: 'PATCH', body: JSON.stringify(settings) }),
+  removeAccount: (accountId: string) => api<void>(`/mail/accounts/${accountId}`, { method: 'DELETE' }),
   messages: (accountId?: string, folder = 'inbox', search = '', cursor?: string) => api<PagedResult<MailSummary>>(`/mail/messages?folder=${encodeURIComponent(folder)}${accountId ? `&accountId=${encodeURIComponent(accountId)}` : ''}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ''}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
   message: (accountId: string, messageId: string) => api<MailMessage>(`/mail/messages/${accountId}/${messageId}`),
   attachmentUrl: (accountId: string, messageId: string, attachment: MailAttachment, download = false) => `/api/mail/messages/${encodeURIComponent(accountId)}/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachment.id)}?fileName=${encodeURIComponent(attachment.name)}${download ? '&download=true' : ''}`,
