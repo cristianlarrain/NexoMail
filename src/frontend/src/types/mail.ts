@@ -8,7 +8,7 @@ export interface MailAddress { name: string; address: string }
 export interface ContactSuggestion { name: string; emailAddress: string }
 export interface MailThreadMessage { providerMessageId: string; from: MailAddress; htmlBody: string; receivedAt: string; isCurrent: boolean }
 export interface MailSummary { providerMessageId: string; accountId: string; senderName: string; senderAddress: string; subject: string; preview: string; receivedAt: string; isRead: boolean; hasAttachments: boolean; folderId: string }
-export interface MailMessage extends MailSummary { from: MailAddress; to: MailAddress[]; cc: MailAddress[]; htmlBody: string; attachments: MailAttachment[]; thread?: MailThreadMessage[] }
+export interface MailMessage extends MailSummary { from: MailAddress; to: MailAddress[]; cc: MailAddress[]; htmlBody: string; attachments: MailAttachment[]; thread?: MailThreadMessage[]; unsubscribeUrl?: string | null }
 export interface PagedResult<T> { items: T[]; nextCursor?: string }
 export interface ComposeMessage { fromAccountId: string; to: string[]; cc: string[]; bcc: string[]; subject: string; htmlBody: string; attachments: OutgoingAttachment[] }
 export interface AiWritingSuggestion { text: string; subject?: string | null }
@@ -47,12 +47,20 @@ export interface ControlCenterSnapshot {
   unavailableAccounts: number
   generatedAt: string
 }
+export interface ControlCenterAccountActivity {
+  accountId: string
+  accountName: string
+  accountColor: string
+  isAvailable: boolean
+  activity: ControlCenterDay[]
+}
 export interface ControlCenterActivitySnapshot {
   days: 7 | 14 | 30
   offsetDays: number
   startDate: string
   endDate: string
   activity: ControlCenterDay[]
+  accounts: ControlCenterAccountActivity[]
   unavailableAccounts: number
   generatedAt: string
 }
