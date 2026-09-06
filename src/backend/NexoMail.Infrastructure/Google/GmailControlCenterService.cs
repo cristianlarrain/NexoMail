@@ -29,11 +29,23 @@ public sealed class GmailControlCenterService(
             .Where(x => x.UserId == userId && x.IsActive && x.Provider == MailProviderType.Gmail)
             .OrderBy(x => x.DisplayName)
             .ToArrayAsync(cancellationToken);
+        var states = await database.ControlCenterStates
+            .AsNoTracking()
+            .Where(x => x.UserId == userId)
+            .ToArrayAsync(cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
-        var results = await Task.WhenAll(accounts.Select(account => LoadAccountSafelyAsync(account, now, cancellationToken)));
+        var results = new List<AccountResult>(accounts.Length);
+        foreach (var account in accounts)
+            results.Add(await LoadAccountSafelyAsync(account, now, cancellationToken));
+
         var available = results.Where(x => x.IsAvailable).ToArray();
-        var pending = available.SelectMany(x => x.PendingItems).ToArray();
+        var stateLookup = states.ToDictionary(x => (x.AccountId, x.ConversationId));
+        var pending = available
+            .SelectMany(x => x.PendingItems)
+            .Where(item => !IsSuppressed(item, stateLookup, now))
+            .OrderBy(x => x.Since)
+            .ToArray();
 
         var activity = Enumerable.Range(0, ActivityDays)
             .Select(offset => now.UtcDateTime.Date.AddDays(-(ActivityDays - 1 - offset)))
@@ -43,27 +55,14 @@ public sealed class GmailControlCenterService(
                 available.Sum(x => x.Activity.GetValueOrDefault(day)?.Sent ?? 0)))
             .ToArray();
 
-        var priorityItems = pending
-            .OrderBy(x => x.Since)
-            .Take(6)
-            .Select(x => new ControlCenterPendingItem(
-                x.AccountId,
-                x.AccountName,
-                x.AccountColor,
-                x.MessageId,
-                x.Direction,
-                x.Counterpart,
-                x.Subject,
-                x.Since,
-                x.IsRead))
-            .ToArray();
-
+        var priorityItems = pending.Take(6).Select(ToPendingItem).ToArray();
+        var pendingItems = pending.Select(ToPendingItem).ToArray();
         var accountSummaries = results.Select(x => new ControlCenterAccountSummary(
             x.AccountId,
             x.AccountName,
             x.AccountColor,
-            x.PendingItems.Count(item => item.Direction == "received"),
-            x.PendingItems.Count(item => item.Direction == "sent"),
+            pending.Count(item => item.AccountId == x.AccountId && item.Direction == "received"),
+            pending.Count(item => item.AccountId == x.AccountId && item.Direction == "sent"),
             x.Unread,
             x.IsAvailable)).ToArray();
 
@@ -74,10 +73,72 @@ public sealed class GmailControlCenterService(
             pending.Count(x => now - x.Since >= TimeSpan.FromHours(48)),
             activity,
             priorityItems,
+            pendingItems,
             accountSummaries,
             results.Count(x => !x.IsAvailable),
             now);
     }
+
+    public async Task<bool> UpdateStateAsync(Guid accountId, string conversationId, string messageId, string action, int? snoozeHours, CancellationToken cancellationToken)
+    {
+        var userId = userContext.UserId;
+        var accountExists = await database.MailAccounts
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == accountId && x.UserId == userId && x.IsActive, cancellationToken);
+        if (!accountExists) return false;
+
+        var state = await database.ControlCenterStates.SingleOrDefaultAsync(
+            x => x.UserId == userId && x.AccountId == accountId && x.ConversationId == conversationId,
+            cancellationToken);
+        if (state is null)
+        {
+            state = new ControlCenterStateEntity
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                AccountId = accountId,
+                ConversationId = conversationId
+            };
+            database.ControlCenterStates.Add(state);
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        state.LastMessageId = messageId;
+        state.UpdatedAt = now;
+        if (action == "resolved")
+        {
+            state.Status = "resolved";
+            state.SnoozedUntil = null;
+        }
+        else
+        {
+            state.Status = "snoozed";
+            state.SnoozedUntil = now.AddHours(Math.Clamp(snoozeHours ?? 24, 1, 24 * 30));
+        }
+
+        await database.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    private static bool IsSuppressed(PendingRaw item, IReadOnlyDictionary<(Guid AccountId, string ConversationId), ControlCenterStateEntity> states, DateTimeOffset now)
+    {
+        if (!states.TryGetValue((item.AccountId, item.ConversationId), out var state)) return false;
+        if (!string.Equals(state.LastMessageId, item.MessageId, StringComparison.Ordinal)) return false;
+        if (string.Equals(state.Status, "resolved", StringComparison.OrdinalIgnoreCase)) return true;
+        return string.Equals(state.Status, "snoozed", StringComparison.OrdinalIgnoreCase) && state.SnoozedUntil is { } until && until > now;
+    }
+
+    private static ControlCenterPendingItem ToPendingItem(PendingRaw item) => new(
+        item.AccountId,
+        item.AccountName,
+        item.AccountColor,
+        item.MessageId,
+        item.ConversationId,
+        item.Direction,
+        item.Counterpart,
+        item.Subject,
+        item.Since,
+        item.IsRead);
 
     private async Task<AccountResult> LoadAccountSafelyAsync(MailAccountEntity account, DateTimeOffset now, CancellationToken cancellationToken)
     {
@@ -133,6 +194,7 @@ public sealed class GmailControlCenterService(
                     account.DisplayName,
                     account.Color,
                     latest.Id,
+                    thread.Id,
                     "sent",
                     DisplayCounterpart(latest.To),
                     DisplaySubject(latest.Subject),
@@ -148,6 +210,7 @@ public sealed class GmailControlCenterService(
                     account.DisplayName,
                     account.Color,
                     latest.Id,
+                    thread.Id,
                     "received",
                     DisplayCounterpart(latest.From),
                     DisplaySubject(latest.Subject),
@@ -215,7 +278,7 @@ public sealed class GmailControlCenterService(
         if (!response.IsSuccessStatusCode) return null;
         using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
         if (!document.RootElement.TryGetProperty("messages", out var messages)) return null;
-        return new ThreadData(messages.EnumerateArray().Select(ParseMessage).Where(x => x is not null).Select(x => x!).ToArray());
+        return new ThreadData(threadId, messages.EnumerateArray().Select(ParseMessage).Where(x => x is not null).Select(x => x!).ToArray());
     }
 
     private static ThreadMessageData? ParseMessage(JsonElement root)
@@ -278,7 +341,7 @@ public sealed class GmailControlCenterService(
         return subject.Length <= 120 ? subject : subject[..117] + "…";
     }
 
-    private sealed record ThreadData(IReadOnlyCollection<ThreadMessageData> Messages);
+    private sealed record ThreadData(string Id, IReadOnlyCollection<ThreadMessageData> Messages);
 
     private sealed record ThreadMessageData(
         string Id,
@@ -296,6 +359,7 @@ public sealed class GmailControlCenterService(
         string AccountName,
         string AccountColor,
         string MessageId,
+        string ConversationId,
         string Direction,
         string Counterpart,
         string Subject,
