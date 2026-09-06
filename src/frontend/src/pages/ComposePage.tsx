@@ -6,7 +6,7 @@ import { Bold, ChevronDown, Italic, Link, List, ListOrdered, Mic, MicOff, Paperc
 import { mailApi } from '../api/mailApi'
 import type { MailMessage, OutgoingAttachment } from '../types/mail'
 
-type ComposeState = { mode?: 'reply' | 'replyAll' | 'forward'; message?: MailMessage }
+type ComposeState = { mode?: 'reply' | 'replyAll' | 'forward' | 'followUp'; message?: MailMessage }
 type SpeechResult = { 0?: { transcript?: string } }
 type SpeechRecognitionEventLike = { resultIndex?: number; results: { length: number; [index: number]: SpeechResult } }
 type SpeechRecognitionLike = {
@@ -25,11 +25,11 @@ type SpeechWindow = Window & {
 }
 
 export function ComposePage() {
-  const location = useLocation(); const navigate = useNavigate(); const state = (location.state ?? {}) as ComposeState; const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: mailApi.accounts }); const origin = state.message; const [from, setFrom] = useState(origin?.accountId ?? ''); const [to, setTo] = useState(origin && state.mode !== 'forward' ? origin.from.address : ''); const [cc, setCc] = useState(''); const [showCc, setShowCc] = useState(false); const [subject, setSubject] = useState(() => origin ? `${state.mode === 'forward' ? 'Fwd:' : 'Re:'} ${origin.subject}` : ''); const [body, setBody] = useState(''); const [attachments, setAttachments] = useState<OutgoingAttachment[]>([]); const [attachmentError, setAttachmentError] = useState(''); const [recipientFocused, setRecipientFocused] = useState(false); const [listening, setListening] = useState(false); const [dictationError, setDictationError] = useState(''); const editor = useRef<HTMLDivElement>(null); const fileInput = useRef<HTMLInputElement>(null); const recognition = useRef<SpeechRecognitionLike | null>(null)
+  const location = useLocation(); const navigate = useNavigate(); const state = (location.state ?? {}) as ComposeState; const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: mailApi.accounts }); const origin = state.message; const [from, setFrom] = useState(origin?.accountId ?? ''); const [to, setTo] = useState(origin ? state.mode === 'forward' ? '' : state.mode === 'followUp' ? origin.to.map(item => item.address).join(', ') : origin.from.address : ''); const [cc, setCc] = useState(''); const [showCc, setShowCc] = useState(false); const [subject, setSubject] = useState(() => origin ? `${state.mode === 'forward' ? 'Fwd:' : 'Re:'} ${origin.subject}` : ''); const [body, setBody] = useState(''); const [attachments, setAttachments] = useState<OutgoingAttachment[]>([]); const [attachmentError, setAttachmentError] = useState(''); const [recipientFocused, setRecipientFocused] = useState(false); const [listening, setListening] = useState(false); const [dictationError, setDictationError] = useState(''); const editor = useRef<HTMLDivElement>(null); const fileInput = useRef<HTMLInputElement>(null); const recognition = useRef<SpeechRecognitionLike | null>(null)
   const fromAccountId = from || accounts[0]?.id
   const recipientTerm = to.slice(to.lastIndexOf(',') + 1).trim()
   const contacts = useQuery({ queryKey: ['contacts', fromAccountId, recipientTerm], queryFn: () => mailApi.contacts(fromAccountId!, recipientTerm), enabled: Boolean(fromAccountId && recipientFocused && recipientTerm.length >= 2), retry: false })
-  const action = useMemo(() => state.mode === 'reply' ? 'Responder' : state.mode === 'replyAll' ? 'Responder a todos' : state.mode === 'forward' ? 'Reenviar' : 'Enviar', [state.mode])
+  const action = useMemo(() => state.mode === 'reply' ? 'Responder' : state.mode === 'replyAll' ? 'Responder a todos' : state.mode === 'forward' ? 'Reenviar' : state.mode === 'followUp' ? 'Enviar seguimiento' : 'Enviar', [state.mode])
   const send = useMutation({ mutationFn: () => { const payload = { fromAccountId, to: to.split(',').map(v => v.trim()).filter(Boolean), cc: cc.split(',').map(v => v.trim()).filter(Boolean), bcc: [], subject, htmlBody: body || '<p></p>', attachments }; if (origin && state.mode !== 'forward') return mailApi.reply(origin.accountId, origin.providerMessageId, payload, state.mode === 'replyAll'); if (origin && state.mode === 'forward') return mailApi.forward(origin.accountId, origin.providerMessageId, payload); return mailApi.send(payload) }, onSuccess: () => navigate('/sent', { state: { sent: true } }) })
 
   useEffect(() => () => recognition.current?.stop(), [])
