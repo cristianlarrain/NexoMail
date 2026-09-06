@@ -1,5 +1,5 @@
 import { csrfFetch } from './csrfFetch'
-import type { ComposeMessage, ContactSuggestion, ControlCenterSnapshot, MailAccount, MailAttachment, MailMessage, MailSummary, PagedResult } from '../types/mail'
+import type { ComposeMessage, ContactSuggestion, ControlCenterActivitySnapshot, ControlCenterSnapshot, MailAccount, MailAttachment, MailMessage, MailSummary, PagedResult } from '../types/mail'
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await csrfFetch(`/api${path}`, { headers: { 'Content-Type': 'application/json', ...init?.headers }, ...init })
@@ -13,6 +13,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 export const mailApi = {
   accounts: () => api<MailAccount[]>('/mail/accounts'),
   controlCenter: (accountId?: string) => api<ControlCenterSnapshot>(`/mail/control-center${accountId ? `?accountId=${encodeURIComponent(accountId)}` : ''}`),
+  controlCenterActivity: (accountId: string | undefined, days: 7 | 14 | 30, offsetDays: number) => api<ControlCenterActivitySnapshot>(`/mail/control-center/activity?days=${days}&offsetDays=${offsetDays}${accountId ? `&accountId=${encodeURIComponent(accountId)}` : ''}`),
   updateControlCenterState: (accountId: string, conversationId: string, payload: { messageId: string; action: 'resolved' | 'snoozed'; snoozeHours?: number }) => api<void>(`/mail/control-center/${encodeURIComponent(accountId)}/${encodeURIComponent(conversationId)}/state`, { method: 'PATCH', body: JSON.stringify(payload) }),
   contacts: (accountId: string, search: string) => api<ContactSuggestion[]>(`/mail/contacts?accountId=${encodeURIComponent(accountId)}&search=${encodeURIComponent(search)}`),
   updateAccount: (accountId: string, settings: { displayName: string; color: string }) => api<MailAccount>(`/mail/accounts/${accountId}`, { method: 'PATCH', body: JSON.stringify(settings) }),
