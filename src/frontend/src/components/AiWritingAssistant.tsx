@@ -1,19 +1,21 @@
 import { useMemo, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { Check, RefreshCw, Sparkles } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, RefreshCw, Sparkles } from 'lucide-react'
 import { mailApi } from '../api/mailApi'
-import type { AiTone } from '../types/mail'
+import type { AiTone, AiWritingSuggestion } from '../types/mail'
 
 type ReplyProps = {
   mode: 'reply'
   accountId: string
   messageId: string
-  onUse: (text: string) => void
+  onUse: (suggestion: AiWritingSuggestion) => void
 }
 
 type ComposeProps = {
   mode: 'compose'
-  onUse: (text: string) => void
+  recipient: string
+  onRecipientChange: (value: string) => void
+  onUse: (suggestion: AiWritingSuggestion) => void
 }
 
 type Props = ReplyProps | ComposeProps
@@ -53,10 +55,11 @@ const composeIntents: IntentOption[] = [
 
 export function AiWritingAssistant(props: Props) {
   const intents = props.mode === 'reply' ? replyIntents : composeIntents
+  const [step, setStep] = useState(1)
   const [tone, setTone] = useState<AiTone>('profesional')
   const [intent, setIntent] = useState(intents[0].value)
   const [context, setContext] = useState('')
-  const [suggestion, setSuggestion] = useState('')
+  const [suggestion, setSuggestion] = useState<AiWritingSuggestion | null>(null)
 
   const selectedIntent = useMemo(() => intents.find(option => option.value === intent) ?? intents[0], [intent, intents])
   const selectedTone = tones.find(option => option.value === tone) ?? tones[0]
@@ -66,56 +69,110 @@ export function AiWritingAssistant(props: Props) {
       const guidance = [selectedIntent.instruction, context.trim()].filter(Boolean).join('\n\n')
       return props.mode === 'reply'
         ? mailApi.aiReply(props.accountId, props.messageId, tone, guidance)
-        : mailApi.aiDraft(guidance, tone)
+        : mailApi.aiDraft(guidance, tone, props.recipient)
     },
-    onSuccess: result => setSuggestion(result.text),
+    onSuccess: result => setSuggestion(result),
   })
 
-  const canGenerate = props.mode === 'reply' || context.trim().length > 0
+  const canAdvance = props.mode === 'compose'
+    ? step === 1 ? props.recipient.trim().length > 0 : step === 2 ? context.trim().length > 0 : true
+    : true
 
-  return <section className={`ai-writing-assistant ${props.mode}`} aria-label="Asistente de redacción con IA">
+  function next() {
+    if (!canAdvance || step >= 3) return
+    setStep(current => current + 1)
+  }
+
+  function back() {
+    if (step <= 1) return
+    setStep(current => current - 1)
+  }
+
+  return <section className={`ai-writing-assistant assistant-mode ${props.mode}`} aria-label="Asistente de redacción con IA">
     <header className="ai-writing-header">
-      <div className="ai-writing-brand"><span className="ai-writing-icon"><Sparkles size={17} /></span><div><span>Nexo IA</span><strong>{props.mode === 'reply' ? 'Construir una respuesta' : 'Construir un correo'}</strong></div></div>
-      <span className="ai-writing-context-badge">{props.mode === 'reply' ? 'Lee el hilo' : 'Desde una idea'}</span>
+      <div className="ai-writing-brand"><span className="ai-writing-icon"><Sparkles size={17} /></span><div><span>Nexo IA</span><strong>Asistente de redacción</strong></div></div>
+      <span className="ai-writing-context-badge">Paso {step} de 3</span>
     </header>
 
-    <div className="ai-writing-intro">
-      <strong>{props.mode === 'reply' ? '¿Qué quieres lograr con esta respuesta?' : '¿Qué quieres lograr con este correo?'}</strong>
-      <span>{props.mode === 'reply' ? 'NexoMail toma en cuenta el mensaje original y el contexto reciente de la conversación.' : 'Elige una intención y escribe sólo las ideas esenciales. NexoMail las convertirá en un correo completo.'}</span>
+    <div className="ai-assistant-progress" aria-hidden="true">
+      {[1, 2, 3].map(value => <span key={value} className={value <= step ? 'active' : ''} />)}
     </div>
 
-    <div className="ai-intent-grid" role="group" aria-label="Objetivo del mensaje">
-      {intents.map(option => <button type="button" key={option.value} className={`ai-intent-card ${intent === option.value ? 'active' : ''}`} onClick={() => setIntent(option.value)}>
-        <span className="ai-intent-check">{intent === option.value ? <Check size={13} /> : null}</span>
-        <strong>{option.label}</strong>
-        <small>{option.description}</small>
-      </button>)}
-    </div>
-
-    <div className="ai-writing-step">
-      <div className="ai-step-heading"><span>Estilo</span><small>{selectedTone.description}</small></div>
-      <div className="ai-tone-selector" aria-label="Tono de redacción">
-        {tones.map(option => <button type="button" key={option.value} className={tone === option.value ? 'active' : ''} onClick={() => setTone(option.value)}>{option.label}</button>)}
+    {props.mode === 'compose' && step === 1 && <div className="ai-assistant-turn">
+      <span className="ai-assistant-avatar"><Sparkles size={18} /></span>
+      <div className="ai-assistant-bubble">
+        <strong>¿A quién quieres enviar este correo?</strong>
+        <p>Puede ser una dirección, un nombre o varios destinatarios. Este dato también quedará en el campo “Para”.</p>
+        <input value={props.recipient} onChange={event => props.onRecipientChange(event.target.value)} placeholder="Ej.: claudio@empresa.cl o Claudio Astudillo" autoComplete="off" />
       </div>
-    </div>
+    </div>}
 
-    <label className="ai-context-field">
-      <span>{props.mode === 'reply' ? 'Guía adicional' : 'Tu idea en pocas palabras'}</span>
-      <textarea value={context} maxLength={3500} onChange={event => setContext(event.target.value)} placeholder={props.mode === 'reply' ? 'Opcional. Ej.: indicar que revisaré el documento, pero no comprometer una fecha todavía.' : 'Ej.: pedir reunión el martes para revisar avance del proyecto, pendientes y próximos hitos.'} />
-      <small>{props.mode === 'reply' ? 'Puede dejarlo vacío: la IA propondrá una respuesta usando el hilo.' : 'No hace falta redactar bien. Basta con escribir los puntos que quiere comunicar.'}</small>
-    </label>
+    {props.mode === 'reply' && step === 1 && <div className="ai-assistant-turn">
+      <span className="ai-assistant-avatar"><Sparkles size={18} /></span>
+      <div className="ai-assistant-bubble">
+        <strong>Ya leí el correo y el contexto reciente del hilo.</strong>
+        <p>¿Qué quieres lograr con tu respuesta?</p>
+        <IntentGrid intents={intents} selected={intent} onSelect={setIntent} />
+      </div>
+    </div>}
 
-    <div className="ai-generate-row">
-      <div><strong>{selectedIntent.label}</strong><span> · {selectedTone.label}</span></div>
-      <button type="button" className="primary-button ai-generate-button" disabled={!canGenerate || generate.isPending} onClick={() => generate.mutate()}>{suggestion ? <RefreshCw size={15} /> : <Sparkles size={15} />} {generate.isPending ? 'Preparando propuesta…' : suggestion ? 'Crear otra versión' : 'Crear propuesta'}</button>
+    {props.mode === 'compose' && step === 2 && <div className="ai-assistant-turn">
+      <span className="ai-assistant-avatar"><Sparkles size={18} /></span>
+      <div className="ai-assistant-bubble">
+        <strong>¿Qué quieres decir?</strong>
+        <p>Escríbelo en primeras palabras. No hace falta redactarlo bien; basta con la idea.</p>
+        <textarea value={context} maxLength={3500} onChange={event => setContext(event.target.value)} placeholder="Ej.: pedir reunión el martes para revisar avance del proyecto, pendientes y próximos hitos." />
+        <span className="ai-assistant-subquestion">¿Cuál es el objetivo principal?</span>
+        <IntentGrid intents={intents} selected={intent} onSelect={setIntent} />
+      </div>
+    </div>}
+
+    {props.mode === 'reply' && step === 2 && <div className="ai-assistant-turn">
+      <span className="ai-assistant-avatar"><Sparkles size={18} /></span>
+      <div className="ai-assistant-bubble">
+        <strong>¿Quieres agregar alguna indicación?</strong>
+        <p>Es opcional. Si lo dejas vacío, prepararé la respuesta usando sólo el hilo y el objetivo seleccionado.</p>
+        <textarea value={context} maxLength={3500} onChange={event => setContext(event.target.value)} placeholder="Ej.: agradecer, indicar que revisaré el documento y evitar comprometer una fecha todavía." />
+      </div>
+    </div>}
+
+    {step === 3 && <div className="ai-assistant-turn">
+      <span className="ai-assistant-avatar"><Sparkles size={18} /></span>
+      <div className="ai-assistant-bubble">
+        <strong>¿Cómo quieres que suene?</strong>
+        <p>Elige el tono. La propuesta seguirá siendo completamente editable.</p>
+        <div className="ai-tone-selector assistant-tones" aria-label="Tono de redacción">
+          {tones.map(option => <button type="button" key={option.value} className={tone === option.value ? 'active' : ''} onClick={() => setTone(option.value)}><strong>{option.label}</strong><small>{option.description}</small></button>)}
+        </div>
+        <div className="ai-assistant-summary">
+          <span>{selectedIntent.label}</span><span>{selectedTone.label}</span>{props.mode === 'compose' && <span>{props.recipient}</span>}
+        </div>
+        <button type="button" className="primary-button ai-generate-button" disabled={generate.isPending} onClick={() => generate.mutate()}>{suggestion ? <RefreshCw size={15} /> : <Sparkles size={15} />} {generate.isPending ? 'Preparando propuesta…' : suggestion ? 'Crear otra versión' : 'Preparar propuesta'}</button>
+      </div>
+    </div>}
+
+    <div className="ai-assistant-navigation">
+      <button type="button" className="secondary-button" onClick={back} disabled={step === 1}><ArrowLeft size={15} /> Atrás</button>
+      {step < 3 && <button type="button" className="primary-button" onClick={next} disabled={!canAdvance}>Continuar <ArrowRight size={15} /></button>}
     </div>
 
     {generate.isError && <div className="notice ai-writing-error">{generate.error instanceof Error ? generate.error.message : 'No fue posible generar la propuesta.'}</div>}
 
-    {suggestion && <div className="ai-suggestion">
-      <div className="ai-suggestion-heading"><div><span>Propuesta de Nexo IA</span><strong>Revise y ajuste antes de enviar</strong></div><small>La IA nunca envía el correo automáticamente.</small></div>
-      <textarea value={suggestion} onChange={event => setSuggestion(event.target.value)} aria-label="Propuesta generada por IA" />
-      <div className="ai-suggestion-actions"><button type="button" className="primary-button" disabled={!suggestion.trim()} onClick={() => props.onUse(suggestion.trim())}><Check size={15} /> Usar esta propuesta</button></div>
+    {suggestion && <div className="ai-suggestion assistant-result">
+      <div className="ai-suggestion-heading"><div><span>Nexo IA preparó esta propuesta</span><strong>Revise y ajuste antes de enviar</strong></div><small>La IA nunca envía el correo automáticamente.</small></div>
+      {props.mode === 'compose' && <label className="ai-subject-suggestion"><span>Asunto sugerido</span><input value={suggestion.subject ?? ''} onChange={event => setSuggestion(current => current ? { ...current, subject: event.target.value } : current)} /></label>}
+      <label className="ai-body-suggestion"><span>{props.mode === 'reply' ? 'Respuesta sugerida' : 'Mensaje sugerido'}</span><textarea value={suggestion.text} onChange={event => setSuggestion(current => current ? { ...current, text: event.target.value } : current)} /></label>
+      <div className="ai-suggestion-actions"><button type="button" className="primary-button" disabled={!suggestion.text.trim()} onClick={() => props.onUse(suggestion)}><Check size={15} /> Usar esta propuesta</button></div>
     </div>}
   </section>
+}
+
+function IntentGrid({ intents, selected, onSelect }: { intents: IntentOption[]; selected: string; onSelect: (value: string) => void }) {
+  return <div className="ai-intent-grid" role="group" aria-label="Objetivo del mensaje">
+    {intents.map(option => <button type="button" key={option.value} className={`ai-intent-card ${selected === option.value ? 'active' : ''}`} onClick={() => onSelect(option.value)}>
+      <span className="ai-intent-check">{selected === option.value ? <Check size={13} /> : null}</span>
+      <strong>{option.label}</strong>
+      <small>{option.description}</small>
+    </button>)}
+  </div>
 }
