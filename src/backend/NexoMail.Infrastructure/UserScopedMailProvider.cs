@@ -102,6 +102,6 @@ public sealed class UserScopedMailProvider(
                 cancellationToken);
 
         if (!hasAccess)
-            throw new InvalidOperationException("La cuenta de correo no está disponible para el usuario autenticado.");
+            throw new KeyNotFoundException("La cuenta de correo no está disponible.");
     }
 }
