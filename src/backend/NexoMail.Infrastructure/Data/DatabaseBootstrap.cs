@@ -6,9 +6,8 @@ namespace NexoMail.Infrastructure.Data;
 public static class DatabaseBootstrap
 {
     /// <summary>
-    /// Keeps the existing development SQLite database usable while NexoMail moves from the
-    /// original local-user prototype to authenticated users. Fresh databases are created with
-    /// the complete model by EnsureCreated; old databases only need the PasswordHash column.
+    /// Keeps existing development SQLite databases usable while NexoMail evolves its
+    /// authentication model. Fresh databases are created with the complete model by EnsureCreated.
     /// </summary>
     public static async Task EnsureAuthenticationSchemaAsync(NexoMailDbContext database, CancellationToken cancellationToken = default)
     {
@@ -17,31 +16,32 @@ public static class DatabaseBootstrap
         if (shouldClose) await connection.OpenAsync(cancellationToken);
         try
         {
-            await using var inspect = connection.CreateCommand();
-            inspect.CommandText = "PRAGMA table_info('Users');";
-            var hasPasswordHash = false;
-            await using (var reader = await inspect.ExecuteReaderAsync(cancellationToken))
+            var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            await using (var inspect = connection.CreateCommand())
             {
+                inspect.CommandText = "PRAGMA table_info('Users');";
+                await using var reader = await inspect.ExecuteReaderAsync(cancellationToken);
                 while (await reader.ReadAsync(cancellationToken))
-                {
-                    if (string.Equals(reader["name"]?.ToString(), "PasswordHash", StringComparison.OrdinalIgnoreCase))
-                    {
-                        hasPasswordHash = true;
-                        break;
-                    }
-                }
+                    if (reader["name"]?.ToString() is { Length: > 0 } name) columns.Add(name);
             }
 
-            if (!hasPasswordHash)
-            {
-                await using var alter = connection.CreateCommand();
-                alter.CommandText = "ALTER TABLE Users ADD COLUMN PasswordHash TEXT NULL;";
-                await alter.ExecuteNonQueryAsync(cancellationToken);
-            }
+            if (!columns.Contains("PasswordHash"))
+                await AddColumnAsync("ALTER TABLE Users ADD COLUMN PasswordHash TEXT NULL;", connection, cancellationToken);
+            if (!columns.Contains("PasswordResetTokenHash"))
+                await AddColumnAsync("ALTER TABLE Users ADD COLUMN PasswordResetTokenHash TEXT NULL;", connection, cancellationToken);
+            if (!columns.Contains("PasswordResetTokenExpiresAt"))
+                await AddColumnAsync("ALTER TABLE Users ADD COLUMN PasswordResetTokenExpiresAt TEXT NULL;", connection, cancellationToken);
         }
         finally
         {
             if (shouldClose) await connection.CloseAsync();
         }
+    }
+
+    private static async Task AddColumnAsync(string sql, System.Data.Common.DbConnection connection, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 }
