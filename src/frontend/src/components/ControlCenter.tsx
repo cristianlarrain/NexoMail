@@ -101,7 +101,7 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
 
   if (snapshot.isLoading) return <section className="control-center control-center-loading" aria-label="Cargando centro de control"><div className="reading-skeleton" /><div className="control-loading-grid">{Array.from({ length: 4 }, (_, index) => <div className="reading-skeleton" key={index} />)}</div></section>
 
-  if (snapshot.isError || !snapshot.data) return <section className="control-center"><div className="control-center-header"><div><p className="eyebrow">Resumen operativo</p><h2>Centro de control</h2></div><button className="icon-button" onClick={() => snapshot.refetch()} aria-label="Reintentar centro de control"><RefreshCw size={17} /></button></div><div className="notice control-center-error">No fue posible actualizar el Centro de Control. <button onClick={() => snapshot.refetch()}>Reintentar</button></div></section>
+  if (snapshot.isError || !snapshot.data) return <section className="control-center"><div className="control-center-header"><div><h2>Centro de control</h2><p>No fue posible cargar los indicadores.</p></div><button className="icon-button" onClick={() => snapshot.refetch()} aria-label="Reintentar centro de control"><RefreshCw size={17} /></button></div></section>
 
   const data = snapshot.data
   const updatedAt = new Date(data.generatedAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
@@ -113,17 +113,18 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
         ? data.pendingItems.filter(isOverdue)
         : []
   const activeCopy = activeView ? managementCopy(activeView) : null
+  const scopeLabel = accountId ? accountName ?? 'Esta cuenta' : 'Todas las cuentas'
 
   return <section className="control-center" aria-labelledby="control-center-title">
     <div className="control-center-header">
-      <div><p className="eyebrow">Resumen operativo · seguimiento de 14 días</p><h2 id="control-center-title">Centro de control</h2><p>{accountId ? `Seguimiento de conversaciones y carga de correo de ${accountName ?? 'esta cuenta'}.` : 'Seguimiento de conversaciones y carga de correo de todas sus cuentas.'}</p></div>
-      <div className="control-center-refresh"><span>Actualizado {updatedAt}</span><button className="icon-button" onClick={() => snapshot.refetch()} disabled={snapshot.isFetching} aria-label="Actualizar centro de control"><RefreshCw size={17} className={snapshot.isFetching ? 'spin' : ''} /></button></div>
+      <div><div className="control-center-title-line"><h2 id="control-center-title">Centro de control</h2><span>Seguimiento · 14 días</span></div><p>{scopeLabel} · Sólo conversaciones con posible acción pendiente.</p></div>
+      <div className="control-center-refresh"><span>Actualizado {updatedAt}</span></div>
     </div>
 
     {data.unavailableAccounts > 0 && <div className="notice control-center-warning">No se pudo consultar {data.unavailableAccounts} cuenta{data.unavailableAccounts === 1 ? '' : 's'}. Los indicadores muestran las cuentas disponibles.</div>}
 
     <div className="control-metrics">
-      <MetricCard tone="received" icon={<Inbox size={19} />} value={data.receivedWithoutReply} label="Recibidos sin responder" hint="Promociones y avisos masivos se excluyen" active={activeView === 'received'} onClick={() => setActiveView(current => current === 'received' ? null : 'received')} />
+      <MetricCard tone="received" icon={<Inbox size={19} />} value={data.receivedWithoutReply} label="Recibidos sin responder" hint="Promociones y avisos informativos se excluyen" active={activeView === 'received'} onClick={() => setActiveView(current => current === 'received' ? null : 'received')} />
       <MetricCard tone="sent" icon={<Send size={19} />} value={data.sentWithoutResponse} label="Enviados sin respuesta" hint="Usted escribió al final" active={activeView === 'sent'} onClick={() => setActiveView(current => current === 'sent' ? null : 'sent')} />
       <MetricCard tone="unread" icon={<Mail size={19} />} value={data.unread} label="Correos sin leer" hint="Abrir y gestionar en forma masiva" onClick={() => navigate(`${inboxPath}?q=${encodeURIComponent('is:unread')}`)} />
       <MetricCard tone="overdue" icon={<Clock3 size={19} />} value={data.overdue} label="Más de 48 horas" hint="Pendientes que requieren atención" active={activeView === 'overdue'} onClick={() => setActiveView(current => current === 'overdue' ? null : 'overdue')} />
