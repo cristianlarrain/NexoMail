@@ -17,6 +17,7 @@ export interface ControlCenterPendingItem {
   accountName: string
   accountColor: string
   messageId: string
+  conversationId: string
   direction: 'received' | 'sent'
   counterpart: string
   subject: string
@@ -39,6 +40,7 @@ export interface ControlCenterSnapshot {
   overdue: number
   activity: ControlCenterDay[]
   priorityItems: ControlCenterPendingItem[]
+  pendingItems: ControlCenterPendingItem[]
   accounts: ControlCenterAccountSummary[]
   unavailableAccounts: number
   generatedAt: string
