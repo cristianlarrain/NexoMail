@@ -1,0 +1,98 @@
+.message-list-header,
+.message-row {
+  grid-template-columns: 24px 16px 180px minmax(0, 1fr) 22px 84px 68px;
+}
+
+.message-list {
+  overflow: visible;
+}
+
+.message-row {
+  position: relative;
+}
+
+.row-mail-actions {
+  min-width: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+.row-mail-action {
+  width: 29px;
+  height: 29px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted-foreground);
+}
+
+.row-mail-action:hover {
+  background: var(--surface-hover);
+  color: var(--primary);
+}
+
+.row-mail-action:disabled {
+  opacity: .4;
+  cursor: wait;
+}
+
+.row-more-wrap {
+  position: relative;
+}
+
+.row-action-menu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 5px);
+  right: 0;
+  width: 190px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--foreground) 16%, transparent);
+}
+
+.row-action-menu button {
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 7px;
+  padding: 0 9px;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 11px;
+  text-align: left;
+}
+
+.row-action-menu button:hover {
+  background: var(--surface-hover);
+}
+
+.row-action-menu button.danger {
+  color: var(--danger);
+}
+
+@media (max-width: 820px) {
+  .message-list-header,
+  .message-row {
+    grid-template-columns: 24px 12px 140px minmax(0, 1fr) 20px 68px 64px;
+  }
+}
+
+@media (max-width: 620px) {
+  .row-mail-actions {
+    min-width: 60px;
+  }
+
+  .row-action-menu {
+    width: 175px;
+  }
+}
