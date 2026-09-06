@@ -129,7 +129,7 @@ public sealed class GmailMailProvider(
 
     private async Task<MailSummary> GetSummaryAsync(HttpClient client, Guid accountId, string messageId, CancellationToken cancellationToken)
     {
-        using var response = await client.GetAsync($"users/me/messages/{Uri.EscapeDataString(messageId)}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date", cancellationToken);
+        using var response = await client.GetAsync($"users/me/messages/{Uri.EscapeDataString(messageId)}?format=full", cancellationToken);
         response.EnsureSuccessStatusCode();
         using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
         var root = document.RootElement; var headers = Headers(root); var sender = ParseAddress(Header(headers, "From"));
