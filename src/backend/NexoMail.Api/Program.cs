@@ -156,9 +156,9 @@ app.Use(async (context, next) =>
 });
 
 app.UseCors();
-app.UseNexoMailCsrf();
 app.UseRateLimiter();
 app.UseAuthentication();
+app.UseNexoMailCsrf();
 app.UseAuthorization();
 app.MapOpenApi();
 app.MapNexoMailCsrf();
