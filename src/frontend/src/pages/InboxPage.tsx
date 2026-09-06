@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { Archive, ChevronDown, ChevronUp, Paperclip, RefreshCw, Trash2, X } from 'lucide-react'
+import { Archive, ChevronDown, ChevronUp, MailOpen, Paperclip, RefreshCw, Trash2, X } from 'lucide-react'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ControlCenter } from '../components/ControlCenter'
 import { mailApi } from '../api/mailApi'
@@ -37,6 +37,7 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
   const [confirmation, setConfirmation] = useState<ConfirmAction | null>(null)
 
   const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: mailApi.accounts })
+  const selectedAccount = accountId ? accounts.find(account => account.id === accountId) : undefined
   const messagesQuery = useInfiniteQuery({
     queryKey: ['messages', accountId, folder, search],
     queryFn: ({ pageParam }) => mailApi.messages(accountId, folder, search, pageParam || undefined),
@@ -59,6 +60,19 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
       setConfirmation(null)
       setSelected(new Set())
       void queryClient.invalidateQueries({ queryKey: ['messages'] })
+      void queryClient.invalidateQueries({ queryKey: ['control-center'] })
+    },
+  })
+
+  const markReadMessages = useMutation({
+    mutationFn: async (items: MailSummary[]) => {
+      await Promise.all(items.filter(item => !item.isRead).map(item => mailApi.read(item.accountId, item.providerMessageId, true)))
+    },
+    onSuccess: () => {
+      setSelected(new Set())
+      void queryClient.invalidateQueries({ queryKey: ['messages'] })
+      void queryClient.invalidateQueries({ queryKey: ['control-center'] })
+      void messagesQuery.refetch()
     },
   })
 
@@ -87,8 +101,22 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
   }), [items, sortDirection, sortKey])
 
   const selectedItems = useMemo(() => items.filter(item => selected.has(itemKey(item))), [items, selected])
+  const selectedUnreadItems = useMemo(() => selectedItems.filter(item => !item.isRead), [selectedItems])
   const allVisibleSelected = sortedItems.length > 0 && sortedItems.every(item => selected.has(itemKey(item)))
-  const title = search ? `Resultados para “${search}”` : accountId ? accounts.find(a => a.id === accountId)?.displayName ?? 'Cuenta' : folder === 'inbox' ? 'Bandeja de entrada' : folder === 'sent' ? 'Enviados' : folder === 'drafts' ? 'Borradores' : 'Papelera'
+  const isUnreadView = search.trim().toLowerCase() === 'is:unread'
+  const title = isUnreadView
+    ? 'Correos sin leer'
+    : search
+      ? `Resultados para “${search}”`
+      : accountId
+        ? selectedAccount?.displayName ?? 'Cuenta'
+        : folder === 'inbox'
+          ? 'Bandeja de entrada'
+          : folder === 'sent'
+            ? 'Enviados'
+            : folder === 'drafts'
+              ? 'Borradores'
+              : 'Papelera'
   const navigationItems = sortedItems.map(item => ({ accountId: item.accountId, messageId: item.providerMessageId }))
   const returnTo = `${location.pathname}${location.search}`
   const confirmDetails = confirmation?.kind === 'emptyTrash'
@@ -140,19 +168,22 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
   return <section className="mail-view">
     <div className="view-header"><div><p className="eyebrow">{accountId ? 'Cuenta' : 'Todas las cuentas'}</p><h1>{title}</h1></div><div className="view-actions">{folder === 'trash' && <button className="secondary-button danger-button" disabled={emptyTrash.isPending} onClick={() => setConfirmation({ kind: 'emptyTrash' })}><Trash2 size={16} /> {emptyTrash.isPending ? 'Vaciando…' : 'Vaciar papelera'}</button>}<button className="icon-button" onClick={() => messagesQuery.refetch()} aria-label="Actualizar"><RefreshCw size={18} /></button></div></div>
 
-    {!accountId && folder === 'inbox' && !search && <ControlCenter />}
+    {folder === 'inbox' && !search && <ControlCenter accountId={accountId} accountName={selectedAccount?.displayName} />}
 
     {(location.state as { sent?: boolean; trashed?: boolean } | null)?.sent && <div className="success-notice">Correo enviado correctamente. Ya aparece en Enviados.</div>}
     {(location.state as { trashed?: boolean } | null)?.trashed && <div className="success-notice">Correo movido a Papelera.</div>}
     {emptyTrash.isSuccess && <div className="success-notice">Papelera vaciada permanentemente.</div>}
     {emptyTrash.isError && <div className="notice">{emptyTrash.error instanceof Error ? emptyTrash.error.message : 'No se pudo vaciar la Papelera. Reintenta.'}</div>}
     {moveMessages.isError && <div className="notice">{moveMessages.error instanceof Error ? moveMessages.error.message : 'No se pudieron mover los correos seleccionados.'}</div>}
+    {markReadMessages.isError && <div className="notice">{markReadMessages.error instanceof Error ? markReadMessages.error.message : 'No se pudieron marcar los correos como leídos.'}</div>}
 
-    {selected.size > 0 && <div className="bulk-actions"><strong>{selected.size} seleccionado{selected.size === 1 ? '' : 's'}</strong><button className="secondary-button" onClick={() => moveSelected(folder === 'trash' ? 'inbox' : 'trash')} disabled={moveMessages.isPending}>{folder === 'trash' ? 'Restaurar a Bandeja' : <><Trash2 size={15} /> Mover a Papelera</>}</button><button className="icon-button" onClick={() => setSelected(new Set())} aria-label="Cancelar selección"><X size={17} /></button></div>}
+    {selected.size > 0 && <div className="bulk-actions"><strong>{selected.size} seleccionado{selected.size === 1 ? '' : 's'}</strong>{selectedUnreadItems.length > 0 && <button className="secondary-button" onClick={() => markReadMessages.mutate(selectedUnreadItems)} disabled={markReadMessages.isPending || moveMessages.isPending}><MailOpen size={15} /> {markReadMessages.isPending ? 'Marcando…' : `Marcar como leído${selectedUnreadItems.length === 1 ? '' : 's'}`}</button>}<button className="secondary-button" onClick={() => moveSelected(folder === 'trash' ? 'inbox' : 'trash')} disabled={moveMessages.isPending || markReadMessages.isPending}>{folder === 'trash' ? 'Restaurar a Bandeja' : <><Trash2 size={15} /> Mover a Papelera</>}</button><button className="icon-button" onClick={() => setSelected(new Set())} aria-label="Cancelar selección"><X size={17} /></button></div>}
+
+    {isUnreadView && selected.size === 0 && items.length > 0 && <div className="unread-management-hint"><MailOpen size={16} /><span>Seleccione varios correos o use el checkbox superior para marcarlos como leídos en una sola acción.</span></div>}
 
     {messagesQuery.isLoading && <MailSkeleton />}
     {messagesQuery.isError && <div className="notice">No se pudo actualizar una de sus cuentas. <button onClick={() => messagesQuery.refetch()}>Reintentar</button></div>}
-    {!messagesQuery.isLoading && items.length === 0 && <div className="empty-state"><Archive size={28} /><h2>No hay mensajes aquí</h2><p>Los mensajes de esta carpeta aparecerán en este espacio.</p></div>}
+    {!messagesQuery.isLoading && items.length === 0 && <div className="empty-state"><Archive size={28} /><h2>No hay mensajes aquí</h2><p>{isUnreadView ? 'No quedan correos sin leer en esta vista.' : 'Los mensajes de esta carpeta aparecerán en este espacio.'}</p></div>}
 
     {items.length > 0 && <div className="message-list" aria-label="Lista de mensajes">
       <div className="message-list-header">
