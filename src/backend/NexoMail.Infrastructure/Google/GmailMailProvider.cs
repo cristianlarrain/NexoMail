@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
@@ -16,6 +17,11 @@ public sealed class GmailMailProvider(
     ITokenProtector tokenProtector,
     IOptions<GmailOptions> options) : IMailProvider
 {
+    private const int MaximumConcurrentSummaryRequests = 8;
+    private readonly SemaphoreSlim databaseGate = new(1, 1);
+    private static readonly ConcurrentDictionary<Guid, CachedAccessToken> AccessTokens = new();
+    private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> TokenGates = new();
+
     public MailProviderType ProviderType => MailProviderType.Gmail;
 
     public async Task<PagedResult<MailSummary>> GetMessagesAsync(MailQuery query, CancellationToken cancellationToken)
@@ -29,7 +35,17 @@ public sealed class GmailMailProvider(
         listResponse.EnsureSuccessStatusCode();
         using var list = JsonDocument.Parse(await listResponse.Content.ReadAsStreamAsync(cancellationToken));
         if (!list.RootElement.TryGetProperty("messages", out var messages)) return new PagedResult<MailSummary>([]);
-        var summaries = await Task.WhenAll(messages.EnumerateArray().Select(x => GetSummaryAsync(client, query.AccountId.Value, x.GetProperty("id").GetString()!, cancellationToken)));
+
+        using var gate = new SemaphoreSlim(MaximumConcurrentSummaryRequests);
+        var summaryTasks = messages.EnumerateArray().Select(async item =>
+        {
+            var id = item.GetProperty("id").GetString() ?? throw new InvalidOperationException("Gmail devolvió un mensaje sin identificador.");
+            await gate.WaitAsync(cancellationToken);
+            try { return await GetSummaryAsync(client, query.AccountId.Value, id, cancellationToken); }
+            finally { gate.Release(); }
+        });
+        var summaries = await Task.WhenAll(summaryTasks);
+
         return new PagedResult<MailSummary>(summaries.OrderByDescending(x => x.ReceivedAt).ToArray(), list.RootElement.TryGetProperty("nextPageToken", out var next) ? next.GetString() : null);
     }
 
@@ -129,7 +145,8 @@ public sealed class GmailMailProvider(
 
     private async Task<MailSummary> GetSummaryAsync(HttpClient client, Guid accountId, string messageId, CancellationToken cancellationToken)
     {
-        using var response = await client.GetAsync($"users/me/messages/{Uri.EscapeDataString(messageId)}?format=full", cancellationToken);
+        const string fields = "id,labelIds,snippet,internalDate,payload(headers,filename,parts(filename,parts(filename)))";
+        using var response = await client.GetAsync($"users/me/messages/{Uri.EscapeDataString(messageId)}?format=full&fields={Uri.EscapeDataString(fields)}", cancellationToken);
         response.EnsureSuccessStatusCode();
         using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
         var root = document.RootElement; var headers = Headers(root); var sender = ParseAddress(Header(headers, "From"));
@@ -148,18 +165,59 @@ public sealed class GmailMailProvider(
 
     private async Task<HttpClient> CreateClientAsync(Guid accountId, CancellationToken cancellationToken)
     {
-        var credential = await database.OAuthCredentials.SingleOrDefaultAsync(x => x.MailAccountId == accountId, cancellationToken) ?? throw new InvalidOperationException("No existe una credencial OAuth para esta cuenta.");
-        var optionsValue = options.Value;
-        var refreshToken = tokenProtector.Unprotect(credential.EncryptedRefreshToken);
-        var tokenClient = httpClientFactory.CreateClient();
-        using var response = await tokenClient.PostAsync("https://oauth2.googleapis.com/token", new FormUrlEncodedContent(new Dictionary<string, string>
+        CredentialSnapshot credential;
+        await databaseGate.WaitAsync(cancellationToken);
+        try
         {
-            ["client_id"] = optionsValue.ClientId, ["client_secret"] = optionsValue.ClientSecret, ["refresh_token"] = refreshToken, ["grant_type"] = "refresh_token"
-        }), cancellationToken);
-        response.EnsureSuccessStatusCode();
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
+            var entity = await database.OAuthCredentials
+                .AsNoTracking()
+                .SingleOrDefaultAsync(x => x.MailAccountId == accountId, cancellationToken)
+                ?? throw new InvalidOperationException("No existe una credencial OAuth para esta cuenta.");
+            credential = new CredentialSnapshot(entity.EncryptedRefreshToken, entity.UpdatedAt);
+        }
+        finally
+        {
+            databaseGate.Release();
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (!AccessTokens.TryGetValue(accountId, out var cached) || cached.CredentialUpdatedAt != credential.UpdatedAt || cached.ExpiresAt <= now.AddMinutes(2))
+        {
+            var gate = TokenGates.GetOrAdd(accountId, static _ => new SemaphoreSlim(1, 1));
+            await gate.WaitAsync(cancellationToken);
+            try
+            {
+                now = DateTimeOffset.UtcNow;
+                if (!AccessTokens.TryGetValue(accountId, out cached) || cached.CredentialUpdatedAt != credential.UpdatedAt || cached.ExpiresAt <= now.AddMinutes(2))
+                {
+                    var optionsValue = options.Value;
+                    var refreshToken = tokenProtector.Unprotect(credential.EncryptedRefreshToken);
+                    var tokenClient = httpClientFactory.CreateClient();
+                    using var response = await tokenClient.PostAsync("https://oauth2.googleapis.com/token", new FormUrlEncodedContent(new Dictionary<string, string>
+                    {
+                        ["client_id"] = optionsValue.ClientId,
+                        ["client_secret"] = optionsValue.ClientSecret,
+                        ["refresh_token"] = refreshToken,
+                        ["grant_type"] = "refresh_token"
+                    }), cancellationToken);
+                    response.EnsureSuccessStatusCode();
+                    using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
+                    var accessToken = document.RootElement.TryGetProperty("access_token", out var tokenElement) ? tokenElement.GetString() : null;
+                    if (string.IsNullOrWhiteSpace(accessToken)) throw new InvalidOperationException("Google no entregó un token de acceso válido.");
+                    var expiresIn = document.RootElement.TryGetProperty("expires_in", out var expiresElement) && expiresElement.TryGetInt32(out var seconds) ? seconds : 3600;
+                    cached = new CachedAccessToken(accessToken, now.AddSeconds(Math.Max(60, expiresIn - 120)), credential.UpdatedAt);
+                    AccessTokens[accountId] = cached;
+                }
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
+
+        if (!AccessTokens.TryGetValue(accountId, out var finalToken)) throw new InvalidOperationException("No fue posible obtener el token de acceso de Google.");
         var client = httpClientFactory.CreateClient("Gmail");
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", document.RootElement.GetProperty("access_token").GetString());
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", finalToken.AccessToken);
         return client;
     }
 
@@ -246,4 +304,7 @@ public sealed class GmailMailProvider(
 
     private static string ToBase64Url(byte[] bytes) => Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     private static byte[] FromBase64Url(string value) => Convert.FromBase64String(value.Replace('-', '+').Replace('_', '/') + new string('=', (4 - value.Length % 4) % 4));
+
+    private sealed record CredentialSnapshot(string EncryptedRefreshToken, DateTimeOffset UpdatedAt);
+    private sealed record CachedAccessToken(string AccessToken, DateTimeOffset ExpiresAt, DateTimeOffset CredentialUpdatedAt);
 }
