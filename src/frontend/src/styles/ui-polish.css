@@ -1,0 +1,60 @@
+/* Navigation polish: one page scroll, opaque header, and a stronger compose action. */
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--foreground) 5%, transparent);
+  opacity: 1;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  isolation: isolate;
+}
+
+.compose-button {
+  min-height: 46px;
+  height: 46px;
+  margin: 0 4px 20px;
+  border-radius: 10px;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 750;
+  letter-spacing: -.01em;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+.compose-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+@media (min-width: 761px) {
+  .sidebar {
+    position: relative;
+    top: auto;
+    align-self: stretch;
+    min-height: 100vh;
+    height: auto;
+    overflow: visible;
+  }
+
+  .sidebar.collapsed {
+    overflow: visible;
+  }
+
+  .sidebar.collapsed .compose-button {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    margin-inline: 3px;
+    padding: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .topbar {
+    box-shadow: 0 3px 10px color-mix(in srgb, var(--foreground) 5%, transparent);
+  }
+
+  .compose-button {
+    margin-inline: 2px;
+  }
+}
