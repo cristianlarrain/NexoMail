@@ -98,5 +98,5 @@ export const authApi = {
   forgotPassword: (request: { email: string }) => authRequest<ForgotPasswordResponse>('/forgot-password', { method: 'POST', body: JSON.stringify(request) }) as Promise<ForgotPasswordResponse>,
   verifyResetCode: (request: { email: string; code: string }) => authRequest<VerifyResetCodeResponse>('/verify-reset-code', { method: 'POST', body: JSON.stringify(request) }) as Promise<VerifyResetCodeResponse>,
   resetPassword: (request: { email: string; token: string; newPassword: string }) => authRequest<void>('/reset-password', { method: 'POST', body: JSON.stringify(request) }) as Promise<void>,
-  logout: () => authRequest<void>('/logout', { method: 'POST' }) as Promise<void>,
+  logout: () => authRequest<void>('/signout', { method: 'POST' }) as Promise<void>,
 }
