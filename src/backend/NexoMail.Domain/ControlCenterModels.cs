@@ -10,6 +10,7 @@ public sealed record ControlCenterPendingItem(
     string AccountName,
     string AccountColor,
     string MessageId,
+    string ConversationId,
     string Direction,
     string Counterpart,
     string Subject,
@@ -32,6 +33,7 @@ public sealed record ControlCenterSnapshot(
     int Overdue,
     IReadOnlyCollection<ControlCenterDay> Activity,
     IReadOnlyCollection<ControlCenterPendingItem> PriorityItems,
+    IReadOnlyCollection<ControlCenterPendingItem> PendingItems,
     IReadOnlyCollection<ControlCenterAccountSummary> Accounts,
     int UnavailableAccounts,
     DateTimeOffset GeneratedAt);
