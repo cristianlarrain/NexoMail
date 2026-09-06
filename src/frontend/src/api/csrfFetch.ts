@@ -55,7 +55,7 @@ export async function csrfFetch(input: RequestInfo | URL, init?: RequestInit): P
   const unsafe = isUnsafeMethod(init?.method)
   let response = await fetch(input, await buildRequest(init))
 
-  if (response.status === 403 && unsafe) {
+  if (response.status === 403 && response.headers.get('X-NexoMail-CSRF') === 'invalid' && unsafe) {
     clearCsrfToken()
     response = await fetch(input, await buildRequest(init))
   }
