@@ -67,18 +67,29 @@
   white-space: nowrap;
 }
 
+/* Evita los grandes bloques skeleton que se veían detrás del encabezado.
+   Mientras Gmail prepara el dashboard sólo se reserva una franja discreta. */
 .control-center-loading {
-  min-height: 148px;
-  margin-bottom: 14px;
-  padding: 13px;
+  min-height: 48px;
+  margin: 0 0 12px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface);
   box-shadow: var(--shadow);
 }
 
+.control-center-loading > .reading-skeleton:first-child {
+  width: min(260px, 55%);
+  height: 12px;
+  border-radius: 999px;
+}
+
 .control-center-loading .control-loading-grid {
-  margin-top: 10px;
+  display: none;
 }
 
 @media (max-width: 620px) {
@@ -94,5 +105,14 @@
     align-items: flex-start;
     flex-direction: column;
     gap: 1px;
+  }
+
+  .control-center-loading {
+    min-height: 44px;
+    padding-inline: 12px;
+  }
+
+  .control-center-loading > .reading-skeleton:first-child {
+    width: 72%;
   }
 }
