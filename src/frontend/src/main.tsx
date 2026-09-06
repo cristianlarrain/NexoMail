@@ -8,6 +8,7 @@ import './styles/overrides.css'
 import './styles/mail-enhancements.css'
 import './styles/control-activity.css'
 import './styles/unread-management.css'
+import './styles/navigation-enhancements.css'
 import './styles/confirm-dialog.css'
 import './styles/auth.css'
 
