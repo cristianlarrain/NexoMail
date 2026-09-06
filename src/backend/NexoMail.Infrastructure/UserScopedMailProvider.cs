@@ -23,6 +23,9 @@ public sealed class UserScopedMailProvider(
         return await inner.GetMessagesAsync(query, cancellationToken);
     }
 
+    internal Task<PagedResult<MailSummary>> GetMessagesForAuthorizedAccountAsync(MailQuery query, CancellationToken cancellationToken) =>
+        inner.GetMessagesAsync(query, cancellationToken);
+
     public async Task<MailMessage?> GetMessageAsync(Guid accountId, string messageId, CancellationToken cancellationToken)
     {
         await EnsureAccountAccessAsync(accountId, cancellationToken);
