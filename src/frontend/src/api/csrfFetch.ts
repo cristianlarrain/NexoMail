@@ -6,6 +6,19 @@ function isUnsafeMethod(method?: string) {
   return normalized !== 'GET' && normalized !== 'HEAD' && normalized !== 'OPTIONS' && normalized !== 'TRACE'
 }
 
+function changesAuthenticationState(input: RequestInfo | URL) {
+  const value = typeof input === 'string' ? input : input instanceof URL ? input.pathname : input.url
+  return value.endsWith('/api/auth/login') ||
+    value.endsWith('/api/auth/verify-email') ||
+    value.endsWith('/api/auth/logout') ||
+    value.endsWith('/api/auth/reset-password')
+}
+
+function clearCsrfToken() {
+  csrfToken = null
+  csrfTokenRequest = null
+}
+
 async function loadCsrfToken(): Promise<string> {
   if (csrfToken) return csrfToken
   if (csrfTokenRequest) return csrfTokenRequest
@@ -39,12 +52,16 @@ async function buildRequest(init?: RequestInit) {
 }
 
 export async function csrfFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const unsafe = isUnsafeMethod(init?.method)
   let response = await fetch(input, await buildRequest(init))
 
-  if (response.status === 403 && response.headers.get('X-NexoMail-CSRF') === 'invalid' && isUnsafeMethod(init?.method)) {
-    csrfToken = null
+  if (response.status === 403 && unsafe) {
+    clearCsrfToken()
     response = await fetch(input, await buildRequest(init))
   }
+
+  if (response.ok && changesAuthenticationState(input))
+    clearCsrfToken()
 
   return response
 }
