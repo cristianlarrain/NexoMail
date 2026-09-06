@@ -11,6 +11,7 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
     public DbSet<MailAccountEntity> MailAccounts => Set<MailAccountEntity>();
     public DbSet<OAuthCredentialEntity> OAuthCredentials => Set<OAuthCredentialEntity>();
     public DbSet<ControlCenterStateEntity> ControlCenterStates => Set<ControlCenterStateEntity>();
+    public DbSet<IgnoredSenderEntity> IgnoredSenders => Set<IgnoredSenderEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -58,6 +59,14 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
             entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne<MailAccountEntity>().WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
         });
+        modelBuilder.Entity<IgnoredSenderEntity>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.SenderAddress).HasMaxLength(320).IsRequired();
+            entity.HasIndex(x => new { x.UserId, x.AccountId, x.SenderAddress }).IsUnique();
+            entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<MailAccountEntity>().WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
+        });
     }
 }
 
@@ -96,3 +105,4 @@ public sealed class UserSessionEntity
 public sealed class MailAccountEntity { public Guid Id { get; set; } public Guid UserId { get; set; } public MailProviderType Provider { get; set; } public string EmailAddress { get; set; } = string.Empty; public string DisplayName { get; set; } = string.Empty; public string Color { get; set; } = "#0f6b78"; public bool IsActive { get; set; } = true; public DateTimeOffset CreatedAt { get; set; } }
 public sealed class OAuthCredentialEntity { public Guid Id { get; set; } public Guid MailAccountId { get; set; } public string EncryptedRefreshToken { get; set; } = string.Empty; public DateTimeOffset? ExpiresAt { get; set; } public DateTimeOffset UpdatedAt { get; set; } }
 public sealed class ControlCenterStateEntity { public Guid Id { get; set; } public Guid UserId { get; set; } public Guid AccountId { get; set; } public string ConversationId { get; set; } = string.Empty; public string LastMessageId { get; set; } = string.Empty; public string Status { get; set; } = string.Empty; public DateTimeOffset? SnoozedUntil { get; set; } public DateTimeOffset UpdatedAt { get; set; } }
+public sealed class IgnoredSenderEntity { public Guid Id { get; set; } public Guid UserId { get; set; } public Guid AccountId { get; set; } public string SenderAddress { get; set; } = string.Empty; public DateTimeOffset CreatedAt { get; set; } }
