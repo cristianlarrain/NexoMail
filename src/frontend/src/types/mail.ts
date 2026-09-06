@@ -10,3 +10,36 @@ export interface MailSummary { providerMessageId: string; accountId: string; sen
 export interface MailMessage extends MailSummary { from: MailAddress; to: MailAddress[]; cc: MailAddress[]; htmlBody: string; attachments: MailAttachment[]; thread?: MailThreadMessage[] }
 export interface PagedResult<T> { items: T[]; nextCursor?: string }
 export interface ComposeMessage { fromAccountId: string; to: string[]; cc: string[]; bcc: string[]; subject: string; htmlBody: string; attachments: OutgoingAttachment[] }
+
+export interface ControlCenterDay { date: string; received: number; sent: number }
+export interface ControlCenterPendingItem {
+  accountId: string
+  accountName: string
+  accountColor: string
+  messageId: string
+  direction: 'received' | 'sent'
+  counterpart: string
+  subject: string
+  since: string
+  isRead: boolean
+}
+export interface ControlCenterAccountSummary {
+  accountId: string
+  accountName: string
+  accountColor: string
+  receivedWithoutReply: number
+  sentWithoutResponse: number
+  unread: number
+  isAvailable: boolean
+}
+export interface ControlCenterSnapshot {
+  receivedWithoutReply: number
+  sentWithoutResponse: number
+  unread: number
+  overdue: number
+  activity: ControlCenterDay[]
+  priorityItems: ControlCenterPendingItem[]
+  accounts: ControlCenterAccountSummary[]
+  unavailableAccounts: number
+  generatedAt: string
+}
