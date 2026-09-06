@@ -36,6 +36,36 @@ function PasswordInput({ value, onChange, autoComplete, minLength, autoFocus }: 
   </span>
 }
 
+type VerificationCodeInputProps = {
+  value: string
+  onChange: (value: string) => void
+  autoFocus?: boolean
+}
+
+function VerificationCodeInput({ value, onChange, autoFocus = false }: VerificationCodeInputProps) {
+  const digits = Array.from({ length: 6 }, (_, index) => value[index] ?? '')
+  return <span className="verification-code-control">
+    <input
+      className="verification-code-native"
+      value={value}
+      onChange={event => onChange(event.target.value.replace(/\D/g, '').slice(0, 6))}
+      inputMode="numeric"
+      autoComplete="one-time-code"
+      pattern="\d{6}"
+      minLength={6}
+      maxLength={6}
+      aria-label="Código de verificación de 6 dígitos"
+      required
+      autoFocus={autoFocus}
+    />
+    {digits.map((digit, index) => <span
+      key={index}
+      className={`verification-code-box ${digit ? 'filled' : ''} ${index === Math.min(value.length, 5) && value.length < 6 ? 'active' : ''}`}
+      aria-hidden="true"
+    >{digit}</span>)}
+  </span>
+}
+
 function withRequestAllowance(message: string, rateLimit?: RateLimitInfo) {
   if (!rateLimit) return message
   return `${message} Quedan ${rateLimit.remaining} de ${rateLimit.limit} solicitudes disponibles en este período.`
@@ -182,7 +212,7 @@ export function AuthPage() {
 
       {mode === 'emailVerify' ? <form onSubmit={event => { event.preventDefault(); emailVerification.mutate() }}>
         <label>Correo<input type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" required /></label>
-        <label>Código de verificación<input value={verificationCode} onChange={event => setVerificationCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" minLength={6} maxLength={6} required autoFocus /></label>
+        <label>Código de verificación<VerificationCodeInput value={verificationCode} onChange={setVerificationCode} autoFocus /></label>
         {statusMessage && <div className="success-notice auth-error">{statusMessage}</div>}
         {emailVerification.isError && <div className="notice auth-error">{emailVerification.error instanceof Error ? emailVerification.error.message : 'El código no es válido o ya expiró.'}</div>}
         {resendVerification.isError && <div className="notice auth-error">{resendVerification.error instanceof Error ? resendVerification.error.message : 'No fue posible reenviar el código.'}</div>}
@@ -194,7 +224,7 @@ export function AuthPage() {
         <button className="primary-button auth-submit" disabled={forgot.isPending}>{forgot.isPending ? 'Procesando…' : 'Enviar código'}</button>
       </form> : mode === 'verify' ? <form onSubmit={event => { event.preventDefault(); verify.mutate() }}>
         <label>Correo<input type="email" value={email} readOnly autoComplete="email" /></label>
-        <label>Código de verificación<input value={verificationCode} onChange={event => setVerificationCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" minLength={6} maxLength={6} required autoFocus /></label>
+        <label>Código de verificación<VerificationCodeInput value={verificationCode} onChange={setVerificationCode} autoFocus /></label>
         {statusMessage && <div className="success-notice auth-error">{statusMessage}</div>}
         {verify.isError && <div className="notice auth-error">{verify.error instanceof Error ? verify.error.message : 'El código no es válido o ya expiró.'}</div>}
         <button className="primary-button auth-submit" disabled={verify.isPending || verificationCode.length !== 6}>{verify.isPending ? 'Verificando…' : 'Verificar código'}</button>
