@@ -45,7 +45,9 @@
 .control-loading-grid .reading-skeleton { height: 96px; }
 
 .control-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 11px; margin-bottom: 11px; }
-.control-metric { position: relative; min-width: 0; min-height: 105px; display: flex; align-items: flex-start; gap: 12px; padding: 16px; overflow: hidden; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); box-shadow: var(--shadow); }
+.control-metric { position: relative; min-width: 0; min-height: 105px; display: flex; align-items: flex-start; gap: 12px; padding: 16px; overflow: hidden; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); color: var(--foreground); box-shadow: var(--shadow); text-align: left; transition: border-color .16s ease, transform .16s ease, background .16s ease; }
+.control-metric:hover { border-color: color-mix(in srgb, var(--primary) 35%, var(--border)); background: color-mix(in srgb, var(--primary) 2%, var(--surface)); transform: translateY(-1px); }
+.control-metric.active { border-color: color-mix(in srgb, var(--primary) 52%, var(--border)); background: color-mix(in srgb, var(--primary) 5%, var(--surface)); }
 .control-metric::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--primary); }
 .control-metric.sent::before { background: var(--success); }
 .control-metric.unread::before { background: var(--muted-foreground); }
@@ -57,6 +59,31 @@
 .control-metric strong { display: block; margin-top: -2px; font-size: 26px; line-height: 1; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
 .control-metric span { display: block; margin-top: 7px; color: var(--foreground); font-size: 12px; font-weight: 700; line-height: 1.25; }
 .control-metric small { display: block; margin-top: 4px; color: var(--muted-foreground); font-size: 10px; line-height: 1.3; }
+.control-metric-chevron { position: absolute; right: 11px; top: 11px; color: var(--muted-foreground); opacity: .6; }
+.control-metric.active .control-metric-chevron, .control-metric:hover .control-metric-chevron { color: var(--primary); opacity: 1; }
+
+.control-management-panel { margin-bottom: 11px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border)); border-radius: 11px; background: var(--surface); box-shadow: var(--shadow); }
+.control-management-panel > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 15px 17px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--primary) 3%, var(--surface)); }
+.control-management-panel > header strong { display: block; font-size: 14px; }
+.control-management-panel > header span { display: block; max-width: 800px; margin-top: 4px; color: var(--muted-foreground); font-size: 11px; line-height: 1.45; }
+.control-management-error { margin: 12px 14px 0; }
+.management-list { display: grid; }
+.management-row { display: grid; grid-template-columns: 8px minmax(220px, 1fr) auto; align-items: center; gap: 12px; padding: 13px 14px; border-bottom: 1px solid var(--border); }
+.management-row:last-child { border-bottom: 0; }
+.management-main { min-width: 0; }
+.management-heading { min-width: 0; display: flex; align-items: center; gap: 7px; }
+.management-heading strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.management-main > span, .management-main > small { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground); }
+.management-main > span { margin-top: 4px; font-size: 10px; }
+.management-main > small { margin-top: 3px; font-size: 9px; }
+.management-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
+.compact-action { height: 31px; padding-inline: 9px; font-size: 10px; white-space: nowrap; }
+.snooze-options { grid-column: 2 / -1; display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding-top: 2px; color: var(--muted-foreground); font-size: 10px; }
+.snooze-options button { height: 27px; padding: 0 9px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--foreground); font-size: 10px; font-weight: 650; }
+.snooze-options button:hover { border-color: var(--primary); color: var(--primary); }
+.snooze-options button:disabled { opacity: .55; cursor: wait; }
+.management-empty { min-height: 140px; }
+.management-empty svg { justify-self: center; color: var(--success); }
 
 .control-center-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(340px, .8fr); gap: 11px; }
 .control-panel { min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); box-shadow: var(--shadow); }
@@ -97,6 +124,8 @@
 @media (max-width: 1050px) {
   .control-center-grid { grid-template-columns: 1fr; }
   .control-metrics, .control-loading-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .management-row { grid-template-columns: 8px minmax(0, 1fr); }
+  .management-actions, .snooze-options { grid-column: 2; justify-content: flex-start; }
 }
 
 @media (max-width: 760px) {
@@ -106,6 +135,8 @@
   .bulk-actions { flex-wrap: wrap; }
   .control-center-header { align-items: flex-start; }
   .control-center-refresh > span { display: none; }
+  .management-actions { align-items: stretch; }
+  .compact-action { flex: 1 1 auto; }
 }
 
 @media (max-width: 520px) {
@@ -116,4 +147,8 @@
   .activity-legend { display: none; }
   .priority-row { grid-template-columns: 8px minmax(0, 1fr); }
   .priority-age { grid-column: 2; justify-self: start; }
+  .management-actions { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  .management-actions .icon-button { width: 100%; border: 1px solid var(--border); }
+  .snooze-options { flex-wrap: wrap; justify-content: flex-start; }
+  .snooze-options > span { width: 100%; }
 }
