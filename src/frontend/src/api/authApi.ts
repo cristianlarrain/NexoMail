@@ -5,6 +5,14 @@ export interface AuthSession {
   avatarDataUrl: string | null
 }
 
+export interface RegisterResponse {
+  message: string
+}
+
+export interface MessageResponse {
+  message: string
+}
+
 export interface ForgotPasswordResponse {
   message: string
 }
@@ -30,7 +38,9 @@ async function authRequest<T>(path: string, init?: RequestInit, allowUnauthorize
 
 export const authApi = {
   me: () => authRequest<AuthSession>('/me', undefined, true),
-  register: (request: { displayName: string; email: string; password: string }) => authRequest<AuthSession>('/register', { method: 'POST', body: JSON.stringify(request) }) as Promise<AuthSession>,
+  register: (request: { displayName: string; email: string; password: string }) => authRequest<RegisterResponse>('/register', { method: 'POST', body: JSON.stringify(request) }) as Promise<RegisterResponse>,
+  verifyEmail: (request: { email: string; code: string }) => authRequest<AuthSession>('/verify-email', { method: 'POST', body: JSON.stringify(request) }) as Promise<AuthSession>,
+  resendVerification: (request: { email: string }) => authRequest<MessageResponse>('/resend-verification', { method: 'POST', body: JSON.stringify(request) }) as Promise<MessageResponse>,
   login: (request: { email: string; password: string }) => authRequest<AuthSession>('/login', { method: 'POST', body: JSON.stringify(request) }) as Promise<AuthSession>,
   updateProfile: (request: { displayName: string; avatarDataUrl: string | null }) => authRequest<AuthSession>('/me', { method: 'PATCH', body: JSON.stringify(request) }) as Promise<AuthSession>,
   forgotPassword: (request: { email: string }) => authRequest<ForgotPasswordResponse>('/forgot-password', { method: 'POST', body: JSON.stringify(request) }) as Promise<ForgotPasswordResponse>,
