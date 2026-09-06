@@ -45,3 +45,12 @@ export interface ControlCenterSnapshot {
   unavailableAccounts: number
   generatedAt: string
 }
+export interface ControlCenterActivitySnapshot {
+  days: 7 | 14 | 30
+  offsetDays: number
+  startDate: string
+  endDate: string
+  activity: ControlCenterDay[]
+  unavailableAccounts: number
+  generatedAt: string
+}
