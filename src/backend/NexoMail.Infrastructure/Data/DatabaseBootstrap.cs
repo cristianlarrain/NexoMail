@@ -7,7 +7,7 @@ public static class DatabaseBootstrap
 {
     /// <summary>
     /// Keeps existing development SQLite databases usable while NexoMail evolves its
-    /// authentication model. Fresh databases are created with the complete model by EnsureCreated.
+    /// authentication and operational metadata models. Fresh databases are created with the complete model by EnsureCreated.
     /// </summary>
     public static async Task EnsureAuthenticationSchemaAsync(NexoMailDbContext database, CancellationToken cancellationToken = default)
     {
@@ -58,6 +58,21 @@ public static class DatabaseBootstrap
                     CONSTRAINT FK_UserSessions_Users_UserId FOREIGN KEY (UserId) REFERENCES Users (Id) ON DELETE CASCADE
                 );", connection, cancellationToken);
             await ExecuteAsync("CREATE INDEX IF NOT EXISTS IX_UserSessions_UserId_RevokedAt ON UserSessions (UserId, RevokedAt);", connection, cancellationToken);
+
+            await ExecuteAsync(@"
+                CREATE TABLE IF NOT EXISTS ControlCenterStates (
+                    Id TEXT NOT NULL CONSTRAINT PK_ControlCenterStates PRIMARY KEY,
+                    UserId TEXT NOT NULL,
+                    AccountId TEXT NOT NULL,
+                    ConversationId TEXT NOT NULL,
+                    LastMessageId TEXT NOT NULL,
+                    Status TEXT NOT NULL,
+                    SnoozedUntil TEXT NULL,
+                    UpdatedAt TEXT NOT NULL,
+                    CONSTRAINT FK_ControlCenterStates_Users_UserId FOREIGN KEY (UserId) REFERENCES Users (Id) ON DELETE CASCADE,
+                    CONSTRAINT FK_ControlCenterStates_MailAccounts_AccountId FOREIGN KEY (AccountId) REFERENCES MailAccounts (Id) ON DELETE CASCADE
+                );", connection, cancellationToken);
+            await ExecuteAsync("CREATE UNIQUE INDEX IF NOT EXISTS IX_ControlCenterStates_UserId_AccountId_ConversationId ON ControlCenterStates (UserId, AccountId, ConversationId);", connection, cancellationToken);
         }
         finally
         {
