@@ -5,6 +5,7 @@ import { AccountsPage } from './pages/AccountsPage'
 import { AppearancePage } from './pages/AppearancePage'
 import { AuthPage } from './pages/AuthPage'
 import { ComposePage } from './pages/ComposePage'
+import { ControlCenterPage } from './pages/ControlCenterPage'
 import { InboxPage } from './pages/InboxPage'
 import { MessagePage } from './pages/MessagePage'
 import { ProfilePage } from './pages/ProfilePage'
@@ -17,6 +18,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/inbox" replace /> },
       { path: 'inbox', element: <InboxPage /> },
+      { path: 'control-center', element: <ControlCenterPage /> },
       { path: 'account/:accountId', element: <InboxPage /> },
       { path: 'sent', element: <InboxPage folder="sent" /> },
       { path: 'drafts', element: <InboxPage folder="drafts" /> },
