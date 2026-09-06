@@ -106,6 +106,7 @@ builder.Services.AddScoped<IPasswordHasher<UserEntity>, PasswordHasher<UserEntit
 builder.Services.AddScoped<IUserContext, HttpUserContext>();
 builder.Services.Configure<RecoveryEmailOptions>(builder.Configuration.GetSection(RecoveryEmailOptions.SectionName));
 builder.Services.AddScoped<IPasswordRecoveryEmailSender, SmtpPasswordRecoveryEmailSender>();
+NexoMail.Api.AiEndpoints.AddNexoMailAi(builder.Services, builder.Configuration);
 
 var dataProtection = builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NexoMail", "keys")));
@@ -182,6 +183,7 @@ oauth.MapGet("/google/callback", async (string? code, string? state, string? err
 });
 
 var mail = api.MapGroup("/mail").RequireAuthorization();
+NexoMail.Api.AiEndpoints.MapNexoMailAi(mail);
 mail.MapGet("/accounts", async (IMailGateway gateway, CancellationToken ct) => Results.Ok(await gateway.GetAccountsAsync(ct)));
 mail.MapGet("/control-center", async (GmailControlCenterService service, Guid? accountId, CancellationToken ct) => Results.Ok(await service.GetSnapshotAsync(accountId, ct)));
 mail.MapGet("/control-center/activity", async (GmailControlCenterActivityService service, Guid? accountId, int? days, int? offsetDays, CancellationToken ct) => Results.Ok(await service.GetActivityAsync(accountId, days, offsetDays, ct)));
