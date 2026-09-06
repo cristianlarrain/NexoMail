@@ -1,7 +1,8 @@
+import { csrfFetch } from './csrfFetch'
 import type { ComposeMessage, ContactSuggestion, MailAccount, MailAttachment, MailMessage, MailSummary, PagedResult } from '../types/mail'
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`/api${path}`, { headers: { 'Content-Type': 'application/json', ...init?.headers }, ...init })
+  const response = await csrfFetch(`/api${path}`, { headers: { 'Content-Type': 'application/json', ...init?.headers }, ...init })
   if (!response.ok) {
     const problem = await response.json().catch(() => null) as { detail?: string; error?: string } | null
     throw new Error(problem?.detail ?? problem?.error ?? 'No fue posible completar la operación.')
