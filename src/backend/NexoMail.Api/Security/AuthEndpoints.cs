@@ -5,7 +5,6 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using NexoMail.Infrastructure.Data;
 
@@ -22,13 +21,20 @@ public static class AuthEndpoints
     {
         var auth = endpoints.MapGroup("/api/auth");
 
-        auth.MapPost("/register", RegisterAsync).RequireRateLimiting("auth-register");
-        auth.MapPost("/verify-email", VerifyEmailAsync).RequireRateLimiting("auth-verify-code");
-        auth.MapPost("/resend-verification", ResendVerificationAsync).RequireRateLimiting("auth-send-code");
-        auth.MapPost("/login", LoginAsync).RequireRateLimiting("auth-login");
-        auth.MapPost("/forgot-password", ForgotPasswordAsync).RequireRateLimiting("auth-send-code");
-        auth.MapPost("/verify-reset-code", VerifyResetCodeAsync).RequireRateLimiting("auth-verify-code");
-        auth.MapPost("/reset-password", ResetPasswordAsync).RequireRateLimiting("auth-verify-code");
+        auth.MapPost("/register", RegisterAsync)
+            .AddEndpointFilter(new AuthRateLimitFilter("auth-register", 5, TimeSpan.FromMinutes(30)));
+        auth.MapPost("/verify-email", VerifyEmailAsync)
+            .AddEndpointFilter(new AuthRateLimitFilter("auth-verify-code", 10, TimeSpan.FromMinutes(10)));
+        auth.MapPost("/resend-verification", ResendVerificationAsync)
+            .AddEndpointFilter(new AuthRateLimitFilter("auth-send-code", 5, TimeSpan.FromMinutes(15)));
+        auth.MapPost("/login", LoginAsync)
+            .AddEndpointFilter(new AuthRateLimitFilter("auth-login", 10, TimeSpan.FromMinutes(5)));
+        auth.MapPost("/forgot-password", ForgotPasswordAsync)
+            .AddEndpointFilter(new AuthRateLimitFilter("auth-send-code", 5, TimeSpan.FromMinutes(15)));
+        auth.MapPost("/verify-reset-code", VerifyResetCodeAsync)
+            .AddEndpointFilter(new AuthRateLimitFilter("auth-verify-code", 10, TimeSpan.FromMinutes(10)));
+        auth.MapPost("/reset-password", ResetPasswordAsync)
+            .AddEndpointFilter(new AuthRateLimitFilter("auth-verify-code", 10, TimeSpan.FromMinutes(10)));
         auth.MapPost("/logout", async (HttpContext context) =>
         {
             await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
@@ -118,7 +124,7 @@ public static class AuthEndpoints
         if (user is null || user.IsEmailVerified || string.IsNullOrWhiteSpace(user.EmailVerificationTokenHash) ||
             user.EmailVerificationTokenExpiresAt <= DateTimeOffset.UtcNow ||
             user.EmailVerificationAttempts >= MaximumEmailVerificationAttempts)
-            return Results.BadRequest(new { error = "El código no es válido o ya expiró." });
+            return Results.BadRequest(new { error = "El código no es válido o ya expiró. Solicita un código nuevo." });
 
         var suppliedHash = HashToken(code);
         var matches = CryptographicOperations.FixedTimeEquals(
@@ -128,13 +134,21 @@ public static class AuthEndpoints
         if (!matches)
         {
             user.EmailVerificationAttempts++;
-            if (user.EmailVerificationAttempts >= MaximumEmailVerificationAttempts)
+            var remaining = Math.Max(0, MaximumEmailVerificationAttempts - user.EmailVerificationAttempts);
+            if (remaining == 0)
             {
                 user.EmailVerificationTokenHash = null;
                 user.EmailVerificationTokenExpiresAt = null;
             }
             await database.SaveChangesAsync(ct);
-            return Results.BadRequest(new { error = "El código no es válido o ya expiró." });
+            return Results.BadRequest(new
+            {
+                error = remaining > 0
+                    ? $"Código incorrecto. Quedan {remaining} de {MaximumEmailVerificationAttempts} intentos."
+                    : $"Código incorrecto. Se agotaron los {MaximumEmailVerificationAttempts} intentos. Solicita un código nuevo.",
+                codeAttemptsRemaining = remaining,
+                codeAttemptsLimit = MaximumEmailVerificationAttempts
+            });
         }
 
         user.IsEmailVerified = true;
@@ -271,7 +285,7 @@ public static class AuthEndpoints
         if (user is null || string.IsNullOrWhiteSpace(user.PasswordResetTokenHash) ||
             user.PasswordResetTokenExpiresAt <= DateTimeOffset.UtcNow ||
             user.PasswordResetAttempts >= MaximumRecoveryAttempts)
-            return Results.BadRequest(new { error = "El código no es válido o ya expiró." });
+            return Results.BadRequest(new { error = "El código no es válido o ya expiró. Solicita un código nuevo." });
 
         var suppliedHash = HashToken(code);
         var matches = CryptographicOperations.FixedTimeEquals(
@@ -281,13 +295,21 @@ public static class AuthEndpoints
         if (!matches)
         {
             user.PasswordResetAttempts++;
-            if (user.PasswordResetAttempts >= MaximumRecoveryAttempts)
+            var remaining = Math.Max(0, MaximumRecoveryAttempts - user.PasswordResetAttempts);
+            if (remaining == 0)
             {
                 user.PasswordResetTokenHash = null;
                 user.PasswordResetTokenExpiresAt = null;
             }
             await database.SaveChangesAsync(ct);
-            return Results.BadRequest(new { error = "El código no es válido o ya expiró." });
+            return Results.BadRequest(new
+            {
+                error = remaining > 0
+                    ? $"Código incorrecto. Quedan {remaining} de {MaximumRecoveryAttempts} intentos."
+                    : $"Código incorrecto. Se agotaron los {MaximumRecoveryAttempts} intentos. Solicita un código nuevo.",
+                codeAttemptsRemaining = remaining,
+                codeAttemptsLimit = MaximumRecoveryAttempts
+            });
         }
 
         var resetToken = CreateResetToken();
