@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { mailApi } from '../api/mailApi'
 import type { ControlCenterAccountSummary } from '../types/mail'
 
@@ -30,7 +30,9 @@ export function ControlCenterActivity({ accountId, accounts }: { accountId?: str
     queryKey: ['control-center-activity', accountId ?? 'all', days, offsetDays],
     queryFn: () => mailApi.controlCenterActivity(accountId, days, offsetDays),
     staleTime: 5 * 60_000,
+    gcTime: 15 * 60_000,
     retry: 1,
+    refetchOnWindowFocus: false,
   })
 
   const activity = activityQuery.data?.activity ?? []
@@ -54,12 +56,11 @@ export function ControlCenterActivity({ accountId, accounts }: { accountId?: str
           <button type="button" className="icon-button" onClick={() => setOffsetDays(current => Math.min(365, current + days))} disabled={offsetDays + days > 365} title="Período anterior" aria-label="Período anterior"><ChevronLeft size={16} /></button>
           <button type="button" className="icon-button" onClick={() => setOffsetDays(current => Math.max(0, current - days))} disabled={offsetDays === 0} title="Período siguiente" aria-label="Período siguiente"><ChevronRight size={16} /></button>
           {offsetDays > 0 && <button type="button" className="activity-today-button" onClick={() => setOffsetDays(0)}>Actual</button>}
-          <button type="button" className="icon-button" onClick={() => activityQuery.refetch()} disabled={activityQuery.isFetching} title="Actualizar gráfico" aria-label="Actualizar gráfico"><RefreshCw size={15} className={activityQuery.isFetching ? 'spin' : ''} /></button>
         </div>
       </div>
     </header>
 
-    {activityQuery.isError ? <div className="notice activity-error">No fue posible consultar la actividad de este período. <button onClick={() => activityQuery.refetch()}>Reintentar</button></div> : <div className="activity-chart-scroll">
+    {activityQuery.isError ? <div className="notice activity-error">No fue posible consultar la actividad de este período.</div> : <div className="activity-chart-scroll">
       <div className="activity-chart activity-chart-dynamic" style={{ gridTemplateColumns: `repeat(${Math.max(1, activity.length)}, minmax(32px, 1fr))`, minWidth: chartMinWidth || undefined }} aria-label={`Actividad de correo: ${period || `${days} días`}`}>
         {activity.map(day => <div className="activity-day" key={day.date} title={`${day.received} recibidos · ${day.sent} enviados`}>
           <div className="activity-bars">
