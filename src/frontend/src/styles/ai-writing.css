@@ -1,0 +1,45 @@
+.ai-writing-assistant {
+  margin: 22px 0;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--primary) 4%, var(--surface));
+}
+.compose-card .ai-writing-assistant {
+  margin: 14px 0 4px;
+  border-radius: 9px;
+}
+.ai-writing-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ai-writing-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ai-writing-icon { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: color-mix(in srgb, var(--primary) 14%, var(--surface)); color: var(--primary); flex: 0 0 auto; }
+.ai-writing-title > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ai-writing-title strong { font-size: 14px; }
+.ai-writing-title small { color: var(--muted-foreground); font-size: 11px; line-height: 1.4; }
+.ai-tone-selector { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.ai-tone-selector button { min-height: 29px; padding: 0 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--muted-foreground); font-size: 11px; font-weight: 650; }
+.ai-tone-selector button:hover { border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); color: var(--foreground); }
+.ai-tone-selector button.active { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 10%, var(--surface)); color: var(--primary); }
+.ai-context-field { display: flex; flex-direction: column; gap: 6px; margin-top: 13px; }
+.ai-context-field > span { font-size: 11px; font-weight: 650; color: var(--foreground); }
+.ai-context-field textarea, .ai-suggestion textarea { width: 100%; resize: vertical; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--foreground); outline: 0; line-height: 1.55; }
+.ai-context-field textarea { min-height: 66px; padding: 10px 11px; font-size: 12px; }
+.ai-context-field textarea:focus, .ai-suggestion textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 10%, transparent); }
+.ai-generate-row { margin-top: 10px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ai-generate-button { color: var(--primary); }
+.ai-generate-row small { color: var(--muted-foreground); font-size: 10px; }
+.ai-writing-error { margin: 10px 0 0; }
+.ai-suggestion { margin-top: 13px; padding-top: 13px; border-top: 1px solid var(--border); }
+.ai-suggestion-heading { display: flex; align-items: baseline; gap: 8px; margin-bottom: 7px; }
+.ai-suggestion-heading strong { font-size: 12px; }
+.ai-suggestion-heading span { color: var(--muted-foreground); font-size: 10px; }
+.ai-suggestion textarea { min-height: 150px; padding: 11px 12px; font-size: 13px; }
+.ai-suggestion-actions { margin-top: 9px; display: flex; justify-content: flex-end; }
+
+@media (max-width: 560px) {
+  .ai-writing-assistant { padding: 13px; }
+  .ai-tone-selector { gap: 5px; }
+  .ai-tone-selector button { padding: 0 8px; }
+  .ai-generate-row { align-items: flex-start; flex-direction: column; }
+  .ai-suggestion-actions { justify-content: stretch; }
+  .ai-suggestion-actions .primary-button { width: 100%; }
+}
