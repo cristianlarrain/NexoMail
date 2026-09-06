@@ -1,0 +1,131 @@
+.ai-compose-card {
+  border-color: color-mix(in srgb, var(--primary) 22%, var(--border));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 3%, var(--surface)), var(--surface));
+  box-shadow: 0 12px 36px color-mix(in srgb, var(--foreground) 7%, transparent);
+}
+
+.ai-compose-header {
+  min-height: 76px;
+  align-items: center !important;
+  padding: 17px 20px !important;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 9%, var(--surface)), var(--surface));
+}
+.ai-compose-heading { display: flex; align-items: center; gap: 11px; }
+.ai-compose-heading .eyebrow { margin-bottom: 2px; }
+.ai-compose-heading h1 { font-size: 20px; }
+.ai-compose-mark {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 7px 18px color-mix(in srgb, var(--primary) 24%, transparent);
+}
+
+.ai-compose-card form { padding: 0 !important; }
+.ai-compose-surface { overflow: hidden; background: var(--surface); }
+.ai-compose-fields { padding: 12px 20px 2px; background: color-mix(in srgb, var(--primary) 2%, var(--surface)); }
+.ai-compose-section-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 4px;
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+}
+.ai-compose-fields .compose-field {
+  min-height: 46px;
+  gap: 14px;
+  border-bottom-color: color-mix(in srgb, var(--primary) 10%, var(--border));
+}
+.ai-compose-fields .compose-field label { width: 48px; font-weight: 700; }
+.ai-compose-fields .compose-field input,
+.ai-compose-fields .compose-field select { font-size: 13px; }
+.ai-compose-fields .recipient-field > label { padding-top: 14px; }
+.ai-add-copy { margin: 9px 0 8px 62px !important; }
+
+.ai-compose-surface > .ai-writing-assistant {
+  margin: 0;
+  border-width: 1px 0 0;
+  border-radius: 0;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 5%, var(--surface)), var(--surface));
+  box-shadow: none;
+}
+
+.ai-compose-editor {
+  margin: 0;
+  padding: 0 20px 14px;
+  border-top: 1px solid color-mix(in srgb, var(--primary) 16%, var(--border));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 2%, var(--surface)), var(--surface) 36px);
+}
+.ai-compose-editor-heading {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.ai-compose-editor-heading > div { display: flex; align-items: baseline; gap: 7px; }
+.ai-compose-editor-heading span { color: var(--primary); font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.ai-compose-editor-heading strong { font-size: 13px; }
+.ai-compose-editor-heading small { color: var(--muted-foreground); font-size: 10px; }
+.ai-compose-editor .format-toolbar {
+  margin: 0 -4px;
+  padding: 7px 4px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.ai-compose-editor .rich-editor {
+  min-height: 250px;
+  margin-top: 8px;
+  padding: 16px 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 14%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 97%, var(--primary));
+}
+.ai-compose-editor .rich-editor:focus {
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 8%, transparent);
+}
+.ai-compose-editor .outgoing-attachments { padding-top: 10px; }
+
+.ai-compose-footer {
+  min-height: 64px;
+  height: auto !important;
+  padding: 11px 20px;
+  border-top: 1px solid color-mix(in srgb, var(--primary) 15%, var(--border)) !important;
+  background: color-mix(in srgb, var(--primary) 3%, var(--surface));
+}
+.ai-compose-footer .primary-button { min-width: 118px; }
+
+.ai-review-banner {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 20px;
+  border-bottom: 1px solid color-mix(in srgb, var(--primary) 15%, var(--border));
+  background: color-mix(in srgb, var(--primary) 7%, var(--surface));
+}
+.ai-review-banner > div { display: flex; align-items: baseline; gap: 7px; }
+.ai-review-banner span { color: var(--primary); font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+.ai-review-banner strong { font-size: 12px; }
+
+.ai-first-compose .ai-writing-assistant { margin: 0; border: 0; border-radius: 0; }
+
+@media (max-width: 640px) {
+  .ai-compose-header { padding: 14px 15px !important; }
+  .ai-compose-fields { padding-inline: 15px; }
+  .ai-compose-editor { padding-inline: 15px; }
+  .ai-compose-editor-heading { align-items: flex-start; flex-direction: column; justify-content: center; gap: 2px; padding: 9px 0; }
+  .ai-compose-editor-heading > div { display: flex; }
+  .ai-compose-footer { padding-inline: 15px; }
+  .ai-review-banner { align-items: flex-start; flex-direction: column; padding-inline: 15px; }
+  .ai-add-copy { margin-left: 0 !important; }
+}
