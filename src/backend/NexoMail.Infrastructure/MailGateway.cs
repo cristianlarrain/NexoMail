@@ -102,7 +102,13 @@ public sealed class MailGateway(IEnumerable<IMailProvider> providers, NexoMailDb
 
     private async Task<PagedResult<MailSummary>?> TryGetMessagesAsync(MailAccount account, MailQuery query, CancellationToken ct)
     {
-        try { return await ProviderFor(account).GetMessagesAsync(query with { AccountId = account.Id }, ct); }
+        try
+        {
+            var provider = ProviderFor(account);
+            return provider is UserScopedMailProvider scoped
+                ? await scoped.GetMessagesForAuthorizedAccountAsync(query with { AccountId = account.Id }, ct)
+                : await provider.GetMessagesAsync(query with { AccountId = account.Id }, ct);
+        }
         catch (HttpRequestException) { return null; }
         catch (InvalidOperationException) { return null; }
     }
