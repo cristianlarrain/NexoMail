@@ -14,6 +14,7 @@ public static class AuthEndpoints
 {
     private static readonly Guid LegacyLocalUserId = Guid.Parse("a15ac2a9-ca17-4b60-878a-9d42b9a0d001");
     private const int MaximumRecoveryAttempts = 5;
+    private const int MaximumEmailVerificationAttempts = 5;
     private const int MaximumAvatarBytes = 150_000;
 
     public static IEndpointRouteBuilder MapNexoMailAuth(this IEndpointRouteBuilder endpoints)
@@ -21,6 +22,8 @@ public static class AuthEndpoints
         var auth = endpoints.MapGroup("/api/auth");
 
         auth.MapPost("/register", RegisterAsync);
+        auth.MapPost("/verify-email", VerifyEmailAsync);
+        auth.MapPost("/resend-verification", ResendVerificationAsync);
         auth.MapPost("/login", LoginAsync);
         auth.MapPost("/forgot-password", ForgotPasswordAsync);
         auth.MapPost("/verify-reset-code", VerifyResetCodeAsync);
@@ -34,7 +37,7 @@ public static class AuthEndpoints
         auth.MapGet("/me", async (HttpContext context, NexoMailDbContext database, CancellationToken ct) =>
         {
             if (!TryUserId(context.User, out var userId)) return Results.Unauthorized();
-            var user = await database.Users.AsNoTracking().SingleOrDefaultAsync(x => x.Id == userId && x.IsActive, ct);
+            var user = await database.Users.AsNoTracking().SingleOrDefaultAsync(x => x.Id == userId && x.IsActive && x.IsEmailVerified, ct);
             return user is null ? Results.Unauthorized() : Results.Ok(ToSession(user));
         }).RequireAuthorization();
 
@@ -45,10 +48,11 @@ public static class AuthEndpoints
 
     private static async Task<IResult> RegisterAsync(
         RegisterRequest request,
-        HttpContext context,
         NexoMailDbContext database,
         IPasswordHasher<UserEntity> passwordHasher,
+        IPasswordRecoveryEmailSender emailSender,
         IWebHostEnvironment environment,
+        ILoggerFactory loggerFactory,
         CancellationToken ct)
     {
         var displayName = request.DisplayName.Trim();
@@ -83,10 +87,92 @@ public static class AuthEndpoints
         }
 
         user.PasswordHash = passwordHasher.HashPassword(user, request.Password);
+        user.IsEmailVerified = false;
+        user.LastLoginAt = null;
+        var verificationCode = CreateVerificationCode();
+        SetEmailVerificationCode(user, verificationCode);
+        await database.SaveChangesAsync(ct);
+
+        var sent = await emailSender.SendVerificationCodeAsync(user.Email, user.DisplayName, verificationCode, ct);
+        if (!sent && environment.IsDevelopment())
+            loggerFactory.CreateLogger("NexoMail.EmailVerification")
+                .LogInformation("Código de verificación NexoMail para {Email}: {VerificationCode}", email, verificationCode);
+
+        return Results.Ok(new
+        {
+            message = "Cuenta creada. Enviamos un código de verificación a tu correo."
+        });
+    }
+
+    private static async Task<IResult> VerifyEmailAsync(
+        EmailVerificationRequest request,
+        HttpContext context,
+        NexoMailDbContext database,
+        CancellationToken ct)
+    {
+        var email = request.Email.Trim().ToLowerInvariant();
+        var code = request.Code.Trim();
+        var user = await database.Users.SingleOrDefaultAsync(x => x.Email == email && x.IsActive, ct);
+
+        if (user is null || user.IsEmailVerified || string.IsNullOrWhiteSpace(user.EmailVerificationTokenHash) ||
+            user.EmailVerificationTokenExpiresAt <= DateTimeOffset.UtcNow ||
+            user.EmailVerificationAttempts >= MaximumEmailVerificationAttempts)
+            return Results.BadRequest(new { error = "El código no es válido o ya expiró." });
+
+        var suppliedHash = HashToken(code);
+        var matches = CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(user.EmailVerificationTokenHash),
+            Encoding.UTF8.GetBytes(suppliedHash));
+
+        if (!matches)
+        {
+            user.EmailVerificationAttempts++;
+            if (user.EmailVerificationAttempts >= MaximumEmailVerificationAttempts)
+            {
+                user.EmailVerificationTokenHash = null;
+                user.EmailVerificationTokenExpiresAt = null;
+            }
+            await database.SaveChangesAsync(ct);
+            return Results.BadRequest(new { error = "El código no es válido o ya expiró." });
+        }
+
+        user.IsEmailVerified = true;
+        user.EmailVerificationTokenHash = null;
+        user.EmailVerificationTokenExpiresAt = null;
+        user.EmailVerificationAttempts = 0;
         user.LastLoginAt = DateTimeOffset.UtcNow;
         await database.SaveChangesAsync(ct);
         await SignInAsync(context, user);
         return Results.Ok(ToSession(user));
+    }
+
+    private static async Task<IResult> ResendVerificationAsync(
+        EmailOnlyRequest request,
+        NexoMailDbContext database,
+        IPasswordRecoveryEmailSender emailSender,
+        IWebHostEnvironment environment,
+        ILoggerFactory loggerFactory,
+        CancellationToken ct)
+    {
+        var email = request.Email.Trim().ToLowerInvariant();
+        var user = await database.Users.SingleOrDefaultAsync(x => x.Email == email && x.IsActive && !x.IsEmailVerified, ct);
+
+        if (user is not null)
+        {
+            var verificationCode = CreateVerificationCode();
+            SetEmailVerificationCode(user, verificationCode);
+            await database.SaveChangesAsync(ct);
+
+            var sent = await emailSender.SendVerificationCodeAsync(user.Email, user.DisplayName, verificationCode, ct);
+            if (!sent && environment.IsDevelopment())
+                loggerFactory.CreateLogger("NexoMail.EmailVerification")
+                    .LogInformation("Código de verificación NexoMail para {Email}: {VerificationCode}", email, verificationCode);
+        }
+
+        return Results.Ok(new
+        {
+            message = "Si la cuenta está pendiente de verificación, recibirás un nuevo código."
+        });
     }
 
     private static async Task<IResult> LoginAsync(
@@ -103,6 +189,9 @@ public static class AuthEndpoints
 
         var result = passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
         if (result == PasswordVerificationResult.Failed) return Results.Unauthorized();
+        if (!user.IsEmailVerified)
+            return Results.Json(new { error = "Debes verificar tu correo antes de iniciar sesión." }, statusCode: StatusCodes.Status403Forbidden);
+
         if (result == PasswordVerificationResult.SuccessRehashNeeded)
             user.PasswordHash = passwordHasher.HashPassword(user, request.Password);
 
@@ -128,7 +217,7 @@ public static class AuthEndpoints
         if (ValidateAvatar(avatarDataUrl) is { } avatarError)
             return Results.BadRequest(new { error = avatarError });
 
-        var user = await database.Users.SingleOrDefaultAsync(x => x.Id == userId && x.IsActive, ct);
+        var user = await database.Users.SingleOrDefaultAsync(x => x.Id == userId && x.IsActive && x.IsEmailVerified, ct);
         if (user is null) return Results.Unauthorized();
 
         user.DisplayName = displayName;
@@ -147,12 +236,12 @@ public static class AuthEndpoints
         CancellationToken ct)
     {
         var email = request.Email.Trim().ToLowerInvariant();
-        var user = await database.Users.SingleOrDefaultAsync(x => x.Email == email && x.IsActive, ct);
+        var user = await database.Users.SingleOrDefaultAsync(x => x.Email == email && x.IsActive && x.IsEmailVerified, ct);
 
         if (user is not null)
         {
             var verificationCode = CreateVerificationCode();
-            user.PasswordResetTokenHash = HashResetToken(verificationCode);
+            user.PasswordResetTokenHash = HashToken(verificationCode);
             user.PasswordResetTokenExpiresAt = DateTimeOffset.UtcNow.AddMinutes(10);
             user.PasswordResetAttempts = 0;
             await database.SaveChangesAsync(ct);
@@ -176,14 +265,14 @@ public static class AuthEndpoints
     {
         var email = request.Email.Trim().ToLowerInvariant();
         var code = request.Code.Trim();
-        var user = await database.Users.SingleOrDefaultAsync(x => x.Email == email && x.IsActive, ct);
+        var user = await database.Users.SingleOrDefaultAsync(x => x.Email == email && x.IsActive && x.IsEmailVerified, ct);
 
         if (user is null || string.IsNullOrWhiteSpace(user.PasswordResetTokenHash) ||
             user.PasswordResetTokenExpiresAt <= DateTimeOffset.UtcNow ||
             user.PasswordResetAttempts >= MaximumRecoveryAttempts)
             return Results.BadRequest(new { error = "El código no es válido o ya expiró." });
 
-        var suppliedHash = HashResetToken(code);
+        var suppliedHash = HashToken(code);
         var matches = CryptographicOperations.FixedTimeEquals(
             Encoding.UTF8.GetBytes(user.PasswordResetTokenHash),
             Encoding.UTF8.GetBytes(suppliedHash));
@@ -201,7 +290,7 @@ public static class AuthEndpoints
         }
 
         var resetToken = CreateResetToken();
-        user.PasswordResetTokenHash = HashResetToken(resetToken);
+        user.PasswordResetTokenHash = HashToken(resetToken);
         user.PasswordResetTokenExpiresAt = DateTimeOffset.UtcNow.AddMinutes(10);
         user.PasswordResetAttempts = 0;
         await database.SaveChangesAsync(ct);
@@ -218,11 +307,11 @@ public static class AuthEndpoints
         var passwordValidation = ValidatePassword(request.NewPassword);
         if (passwordValidation is not null) return Results.BadRequest(new { error = passwordValidation });
 
-        var user = await database.Users.SingleOrDefaultAsync(x => x.Email == email && x.IsActive, ct);
+        var user = await database.Users.SingleOrDefaultAsync(x => x.Email == email && x.IsActive && x.IsEmailVerified, ct);
         if (user is null || string.IsNullOrWhiteSpace(user.PasswordResetTokenHash) || user.PasswordResetTokenExpiresAt <= DateTimeOffset.UtcNow)
             return Results.BadRequest(new { error = "La autorización para cambiar la contraseña no es válida o ya expiró." });
 
-        var suppliedHash = HashResetToken(request.Token);
+        var suppliedHash = HashToken(request.Token);
         if (!CryptographicOperations.FixedTimeEquals(
                 Encoding.UTF8.GetBytes(user.PasswordResetTokenHash),
                 Encoding.UTF8.GetBytes(suppliedHash)))
@@ -242,8 +331,16 @@ public static class AuthEndpoints
         DisplayName = displayName,
         Email = email,
         CreatedAt = DateTimeOffset.UtcNow,
+        IsEmailVerified = false,
         IsActive = true
     };
+
+    private static void SetEmailVerificationCode(UserEntity user, string verificationCode)
+    {
+        user.EmailVerificationTokenHash = HashToken(verificationCode);
+        user.EmailVerificationTokenExpiresAt = DateTimeOffset.UtcNow.AddMinutes(10);
+        user.EmailVerificationAttempts = 0;
+    }
 
     private static string? Validate(string displayName, string email, string password)
     {
@@ -297,7 +394,7 @@ public static class AuthEndpoints
         return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
 
-    private static string HashResetToken(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+    private static string HashToken(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 
     private static async Task SignInAsync(HttpContext context, UserEntity user)
     {
@@ -322,6 +419,8 @@ public static class AuthEndpoints
 
 public sealed record RegisterRequest(string DisplayName, string Email, string Password);
 public sealed record LoginRequest(string Email, string Password);
+public sealed record EmailOnlyRequest(string Email);
+public sealed record EmailVerificationRequest(string Email, string Code);
 public sealed record ProfileUpdateRequest(string DisplayName, string? AvatarDataUrl);
 public sealed record ForgotPasswordRequest(string Email);
 public sealed record VerifyResetCodeRequest(string Email, string Code);
