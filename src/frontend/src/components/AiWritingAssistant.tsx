@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { ArrowLeft, ArrowRight, Check, RefreshCw, Sparkles } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowLeft, ArrowRight, Check, Mic, MicOff, RefreshCw, Sparkles } from 'lucide-react'
 import type { AiTone, AiWritingSuggestion } from '../types/mail'
 
 type ReplyProps = {
@@ -23,6 +23,24 @@ type IntentOption = {
   value: string
   label: string
   description: string
+}
+
+type VoiceTarget = 'recipient' | 'context'
+type SpeechResult = { 0?: { transcript?: string } }
+type SpeechRecognitionEventLike = { resultIndex?: number; results: { length: number; [index: number]: SpeechResult } }
+type SpeechRecognitionLike = {
+  lang: string
+  continuous: boolean
+  interimResults: boolean
+  start: () => void
+  stop: () => void
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null
+  onend: (() => void) | null
+  onerror: ((event: { error?: string }) => void) | null
+}
+type SpeechWindow = Window & {
+  SpeechRecognition?: new () => SpeechRecognitionLike
+  webkitSpeechRecognition?: new () => SpeechRecognitionLike
 }
 
 const tones: Array<{ value: AiTone; label: string; description: string }> = [
@@ -120,6 +138,9 @@ export function AiWritingAssistant(props: Props) {
   const [intent, setIntent] = useState(intents[0].value)
   const [context, setContext] = useState('')
   const [suggestion, setSuggestion] = useState<AiWritingSuggestion | null>(null)
+  const [listeningTo, setListeningTo] = useState<VoiceTarget | null>(null)
+  const [voiceError, setVoiceError] = useState('')
+  const recognition = useRef<SpeechRecognitionLike | null>(null)
 
   const selectedIntent = useMemo(() => intents.find(option => option.value === intent) ?? intents[0], [intent, intents])
   const selectedTone = tones.find(option => option.value === tone) ?? tones[0]
@@ -127,18 +148,82 @@ export function AiWritingAssistant(props: Props) {
     ? step === 1 ? props.recipient.trim().length > 0 : step === 2 ? context.trim().length > 0 : true
     : true
 
+  useEffect(() => () => recognition.current?.stop(), [])
+
   function next() {
     if (!canAdvance || step >= 3) return
+    recognition.current?.stop()
     setStep(current => current + 1)
   }
 
   function back() {
     if (step <= 1) return
+    recognition.current?.stop()
     setStep(current => current - 1)
   }
 
   function prepareSuggestion() {
+    recognition.current?.stop()
     setSuggestion(mockSuggestion(props.mode, props.mode === 'compose' ? props.recipient : '', intent, tone, context))
+  }
+
+  function appendVoiceText(target: VoiceTarget, text: string) {
+    const value = text.trim()
+    if (!value) return
+
+    if (target === 'recipient' && props.mode === 'compose') {
+      const separator = props.recipient.trim() ? ' ' : ''
+      props.onRecipientChange(`${props.recipient.trimEnd()}${separator}${value}`)
+      return
+    }
+
+    setContext(current => `${current.trimEnd()}${current.trim() ? ' ' : ''}${value}`)
+  }
+
+  function toggleVoice(target: VoiceTarget) {
+    if (listeningTo === target) {
+      recognition.current?.stop()
+      return
+    }
+
+    recognition.current?.stop()
+    const speechWindow = window as SpeechWindow
+    const Recognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition
+    if (!Recognition) {
+      setVoiceError('El dictado por voz no está disponible en este navegador. Use Chrome o Edge actualizado.')
+      return
+    }
+
+    const instance = new Recognition()
+    recognition.current = instance
+    instance.lang = 'es-CL'
+    instance.continuous = true
+    instance.interimResults = false
+    instance.onresult = event => {
+      let transcript = ''
+      for (let index = event.resultIndex ?? 0; index < event.results.length; index++) transcript += `${event.results[index]?.[0]?.transcript ?? ''} `
+      appendVoiceText(target, transcript)
+    }
+    instance.onerror = event => {
+      setVoiceError(event.error === 'not-allowed' || event.error === 'service-not-allowed'
+        ? 'Debe permitir el acceso al micrófono para dictar instrucciones a Nexo IA.'
+        : 'No fue posible continuar con el dictado. Inténtelo nuevamente.')
+      setListeningTo(null)
+    }
+    instance.onend = () => {
+      setListeningTo(null)
+      recognition.current = null
+    }
+
+    try {
+      setVoiceError('')
+      instance.start()
+      setListeningTo(target)
+    } catch {
+      setVoiceError('No fue posible iniciar el micrófono. Inténtelo nuevamente.')
+      setListeningTo(null)
+      recognition.current = null
+    }
   }
 
   return <section className={`ai-writing-assistant assistant-mode ${props.mode}`} aria-label="Asistente de redacción Nexo IA">
@@ -155,8 +240,12 @@ export function AiWritingAssistant(props: Props) {
       <span className="ai-assistant-avatar"><Sparkles size={18} /></span>
       <div className="ai-assistant-bubble">
         <strong>¿A quién quieres dirigir este correo?</strong>
-        <p>Escribe un nombre, una dirección o varios destinatarios. Después podrás revisar y corregir el campo “Para”.</p>
-        <input value={props.recipient} onChange={event => props.onRecipientChange(event.target.value)} placeholder="Ej.: Claudio Astudillo o claudio@empresa.cl" autoComplete="off" />
+        <p>Escribe el destinatario o pulsa el micrófono para decirlo. Después podrás revisar el campo “Para”.</p>
+        <div className="ai-voice-field single-line">
+          <input value={props.recipient} onChange={event => props.onRecipientChange(event.target.value)} placeholder="Ej.: Claudio Astudillo o claudio@empresa.cl" autoComplete="off" />
+          <VoiceButton active={listeningTo === 'recipient'} label="Dictar destinatario" onClick={() => toggleVoice('recipient')} />
+        </div>
+        {listeningTo === 'recipient' && <VoiceStatus />}
       </div>
     </div>}
 
@@ -173,8 +262,12 @@ export function AiWritingAssistant(props: Props) {
       <span className="ai-assistant-avatar"><Sparkles size={18} /></span>
       <div className="ai-assistant-bubble">
         <strong>¿Qué quieres decir?</strong>
-        <p>Escríbelo en primeras palabras. No hace falta redactarlo bien; basta con la idea.</p>
-        <textarea value={context} maxLength={3500} onChange={event => setContext(event.target.value)} placeholder="Ej.: pedir reunión el martes para revisar avance del proyecto, pendientes y próximos hitos." />
+        <p>Escríbelo o simplemente cuéntaselo a Nexo IA con el micrófono. No hace falta ordenar ni redactar bien las ideas.</p>
+        <div className="ai-voice-field multiline">
+          <textarea value={context} maxLength={3500} onChange={event => setContext(event.target.value)} placeholder="Ej.: pedir reunión el martes para revisar avance del proyecto, pendientes y próximos hitos." />
+          <VoiceButton active={listeningTo === 'context'} label="Dictar instrucciones" onClick={() => toggleVoice('context')} />
+        </div>
+        {listeningTo === 'context' && <VoiceStatus />}
         <span className="ai-assistant-subquestion">¿Cuál es el objetivo principal?</span>
         <IntentGrid intents={intents} selected={intent} onSelect={setIntent} />
       </div>
@@ -184,10 +277,16 @@ export function AiWritingAssistant(props: Props) {
       <span className="ai-assistant-avatar"><Sparkles size={18} /></span>
       <div className="ai-assistant-bubble">
         <strong>¿Quieres agregar alguna indicación?</strong>
-        <p>Es opcional. En la versión final, si lo dejas vacío, la propuesta se construirá a partir del hilo.</p>
-        <textarea value={context} maxLength={3500} onChange={event => setContext(event.target.value)} placeholder="Ej.: agradecer, indicar que revisaré el documento y evitar comprometer una fecha todavía." />
+        <p>Puede escribirla o dictarla. En la versión final, si lo deja vacío, la propuesta se construirá a partir del hilo.</p>
+        <div className="ai-voice-field multiline">
+          <textarea value={context} maxLength={3500} onChange={event => setContext(event.target.value)} placeholder="Ej.: agradecer, indicar que revisaré el documento y evitar comprometer una fecha todavía." />
+          <VoiceButton active={listeningTo === 'context'} label="Dictar instrucciones" onClick={() => toggleVoice('context')} />
+        </div>
+        {listeningTo === 'context' && <VoiceStatus />}
       </div>
     </div>}
+
+    {voiceError && <div className="ai-voice-error" role="alert">{voiceError}</div>}
 
     {step === 3 && <div className="ai-assistant-turn">
       <span className="ai-assistant-avatar"><Sparkles size={18} /></span>
@@ -215,6 +314,16 @@ export function AiWritingAssistant(props: Props) {
       <div className="ai-suggestion-actions"><button type="button" className="primary-button" disabled={!suggestion.text.trim()} onClick={() => props.onUse(suggestion)}><Check size={15} /> Usar esta propuesta</button></div>
     </div>}
   </section>
+}
+
+function VoiceButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+  return <button type="button" className={`ai-voice-button ${active ? 'listening' : ''}`} onClick={onClick} aria-label={active ? 'Detener dictado' : label} title={active ? 'Detener dictado' : label}>
+    {active ? <MicOff size={17} /> : <Mic size={17} />}
+  </button>
+}
+
+function VoiceStatus() {
+  return <div className="ai-voice-status"><span className="ai-voice-pulse" /> Escuchando… hable con naturalidad</div>
 }
 
 function IntentGrid({ intents, selected, onSelect }: { intents: IntentOption[]; selected: string; onSelect: (value: string) => void }) {
