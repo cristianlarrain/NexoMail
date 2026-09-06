@@ -141,6 +141,7 @@ public static class AuthEndpoints
     private static async Task<IResult> ForgotPasswordAsync(
         ForgotPasswordRequest request,
         NexoMailDbContext database,
+        IPasswordRecoveryEmailSender recoveryEmailSender,
         IWebHostEnvironment environment,
         ILoggerFactory loggerFactory,
         CancellationToken ct)
@@ -156,7 +157,8 @@ public static class AuthEndpoints
             user.PasswordResetAttempts = 0;
             await database.SaveChangesAsync(ct);
 
-            if (environment.IsDevelopment())
+            var sent = await recoveryEmailSender.SendCodeAsync(user.Email, user.DisplayName, verificationCode, ct);
+            if (!sent && environment.IsDevelopment())
                 loggerFactory.CreateLogger("NexoMail.PasswordRecovery")
                     .LogInformation("Código de recuperación NexoMail para {Email}: {VerificationCode}", email, verificationCode);
         }
