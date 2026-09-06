@@ -73,6 +73,18 @@ public static class DatabaseBootstrap
                     CONSTRAINT FK_ControlCenterStates_MailAccounts_AccountId FOREIGN KEY (AccountId) REFERENCES MailAccounts (Id) ON DELETE CASCADE
                 );", connection, cancellationToken);
             await ExecuteAsync("CREATE UNIQUE INDEX IF NOT EXISTS IX_ControlCenterStates_UserId_AccountId_ConversationId ON ControlCenterStates (UserId, AccountId, ConversationId);", connection, cancellationToken);
+
+            await ExecuteAsync(@"
+                CREATE TABLE IF NOT EXISTS IgnoredSenders (
+                    Id TEXT NOT NULL CONSTRAINT PK_IgnoredSenders PRIMARY KEY,
+                    UserId TEXT NOT NULL,
+                    AccountId TEXT NOT NULL,
+                    SenderAddress TEXT NOT NULL,
+                    CreatedAt TEXT NOT NULL,
+                    CONSTRAINT FK_IgnoredSenders_Users_UserId FOREIGN KEY (UserId) REFERENCES Users (Id) ON DELETE CASCADE,
+                    CONSTRAINT FK_IgnoredSenders_MailAccounts_AccountId FOREIGN KEY (AccountId) REFERENCES MailAccounts (Id) ON DELETE CASCADE
+                );", connection, cancellationToken);
+            await ExecuteAsync("CREATE UNIQUE INDEX IF NOT EXISTS IX_IgnoredSenders_UserId_AccountId_SenderAddress ON IgnoredSenders (UserId, AccountId, SenderAddress);", connection, cancellationToken);
         }
         finally
         {
