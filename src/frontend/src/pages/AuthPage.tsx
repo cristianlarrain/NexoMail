@@ -1,23 +1,21 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Mail } from 'lucide-react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { authApi } from '../api/authApi'
 
-type AuthMode = 'login' | 'register' | 'forgot' | 'reset'
+type AuthMode = 'login' | 'register' | 'forgot' | 'verify' | 'reset'
 
 export function AuthPage() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
-  const initialToken = searchParams.get('token') ?? ''
-  const initialEmail = searchParams.get('email') ?? ''
-  const [mode, setMode] = useState<AuthMode>(initialToken && initialEmail ? 'reset' : 'login')
+  const [mode, setMode] = useState<AuthMode>('login')
   const [displayName, setDisplayName] = useState('')
-  const [email, setEmail] = useState(initialEmail)
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [resetToken, setResetToken] = useState(initialToken)
+  const [verificationCode, setVerificationCode] = useState('')
+  const [resetToken, setResetToken] = useState('')
   const [recoveryMessage, setRecoveryMessage] = useState('')
 
   const submit = useMutation({
@@ -35,10 +33,18 @@ export function AuthPage() {
     mutationFn: () => authApi.forgotPassword({ email }),
     onSuccess: result => {
       setRecoveryMessage(result.message)
-      if (result.developmentResetToken) {
-        setResetToken(result.developmentResetToken)
-        setMode('reset')
-      }
+      setVerificationCode('')
+      setMode('verify')
+    },
+  })
+
+  const verify = useMutation({
+    mutationFn: () => authApi.verifyResetCode({ email, code: verificationCode }),
+    onSuccess: result => {
+      setResetToken(result.resetToken)
+      setPassword('')
+      setConfirmPassword('')
+      setMode('reset')
     },
   })
 
@@ -48,6 +54,7 @@ export function AuthPage() {
       setRecoveryMessage('Contraseña actualizada correctamente. Ya puede iniciar sesión.')
       setPassword('')
       setConfirmPassword('')
+      setVerificationCode('')
       setResetToken('')
       setMode('login')
     },
@@ -57,11 +64,13 @@ export function AuthPage() {
     setMode(next)
     submit.reset()
     forgot.reset()
+    verify.reset()
     reset.reset()
     setPassword('')
     setConfirmPassword('')
+    setVerificationCode('')
     if (next !== 'reset') setResetToken('')
-    if (next !== 'forgot') setRecoveryMessage('')
+    if (next !== 'forgot' && next !== 'verify') setRecoveryMessage('')
   }
 
   function submitReset() {
@@ -69,14 +78,25 @@ export function AuthPage() {
     reset.mutate()
   }
 
-  const heading = mode === 'login' ? 'Iniciar sesión' : mode === 'register' ? 'Crear cuenta' : mode === 'forgot' ? 'Recuperar contraseña' : 'Nueva contraseña'
+  const heading = mode === 'login'
+    ? 'Iniciar sesión'
+    : mode === 'register'
+      ? 'Crear cuenta'
+      : mode === 'forgot'
+        ? 'Recuperar contraseña'
+        : mode === 'verify'
+          ? 'Verificar código'
+          : 'Nueva contraseña'
+
   const description = mode === 'login'
     ? 'Accede a tus cuentas de correo conectadas.'
     : mode === 'register'
       ? 'Crea tu usuario NexoMail y conecta tus propias cuentas.'
       : mode === 'forgot'
         ? 'Ingresa el correo asociado a tu cuenta NexoMail.'
-        : 'Define una nueva contraseña para tu cuenta.'
+        : mode === 'verify'
+          ? 'Ingresa el código de 6 dígitos enviado al correo de tu cuenta.'
+          : 'Define una nueva contraseña para tu cuenta.'
 
   return <main className="auth-page">
     <section className="auth-card">
@@ -85,9 +105,14 @@ export function AuthPage() {
 
       {mode === 'forgot' ? <form onSubmit={event => { event.preventDefault(); forgot.mutate() }}>
         <label>Correo<input type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" required autoFocus /></label>
-        {recoveryMessage && <div className="success-notice auth-error">{recoveryMessage}</div>}
         {forgot.isError && <div className="notice auth-error">{forgot.error instanceof Error ? forgot.error.message : 'No fue posible completar la operación.'}</div>}
-        <button className="primary-button auth-submit" disabled={forgot.isPending}>{forgot.isPending ? 'Procesando…' : 'Continuar'}</button>
+        <button className="primary-button auth-submit" disabled={forgot.isPending}>{forgot.isPending ? 'Procesando…' : 'Enviar código'}</button>
+      </form> : mode === 'verify' ? <form onSubmit={event => { event.preventDefault(); verify.mutate() }}>
+        <label>Correo<input type="email" value={email} readOnly autoComplete="email" /></label>
+        <label>Código de verificación<input value={verificationCode} onChange={event => setVerificationCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" minLength={6} maxLength={6} required autoFocus /></label>
+        {recoveryMessage && <div className="success-notice auth-error">{recoveryMessage}</div>}
+        {verify.isError && <div className="notice auth-error">{verify.error instanceof Error ? verify.error.message : 'El código no es válido o ya expiró.'}</div>}
+        <button className="primary-button auth-submit" disabled={verify.isPending || verificationCode.length !== 6}>{verify.isPending ? 'Verificando…' : 'Verificar código'}</button>
       </form> : mode === 'reset' ? <form onSubmit={event => { event.preventDefault(); submitReset() }}>
         <label>Correo<input type="email" value={email} readOnly autoComplete="email" /></label>
         <label>Nueva contraseña<input type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="new-password" minLength={10} required autoFocus /></label>
