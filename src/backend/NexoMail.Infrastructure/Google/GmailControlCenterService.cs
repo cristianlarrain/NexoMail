@@ -146,7 +146,7 @@ public sealed class GmailControlCenterService(
         {
             return await LoadAccountAsync(account, now, cancellationToken);
         }
-        catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException or JsonException)
+        catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException or JsonException or OperationCanceledException)
         {
             return AccountResult.Unavailable(account);
         }
