@@ -12,6 +12,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const mailApi = {
   accounts: () => api<MailAccount[]>('/mail/accounts'),
+  refreshMail: () => api<void>('/mail/refresh', { method: 'POST' }),
   controlCenter: (accountId?: string) => api<ControlCenterSnapshot>(`/mail/control-center${accountId ? `?accountId=${encodeURIComponent(accountId)}` : ''}`),
   controlCenterActivity: (accountId: string | undefined, days: 7 | 14 | 30, offsetDays: number) => api<ControlCenterActivitySnapshot>(`/mail/control-center/activity?days=${days}&offsetDays=${offsetDays}${accountId ? `&accountId=${encodeURIComponent(accountId)}` : ''}`),
   updateControlCenterState: (accountId: string, conversationId: string, payload: { messageId: string; action: 'resolved' | 'snoozed'; snoozeHours?: number }) => api<void>(`/mail/control-center/${encodeURIComponent(accountId)}/${encodeURIComponent(conversationId)}/state`, { method: 'PATCH', body: JSON.stringify(payload) }),
