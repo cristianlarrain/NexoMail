@@ -12,6 +12,8 @@ import './styles/navigation-enhancements.css'
 import './styles/operations-clock.css'
 import './styles/dashboard-headings.css'
 import './styles/ai-writing.css'
+import './styles/compose-ai-integration.css'
+import './styles/message-actions.css'
 import './styles/confirm-dialog.css'
 import './styles/auth.css'
 
