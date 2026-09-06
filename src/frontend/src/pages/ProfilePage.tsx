@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Camera, Move, Trash2, UserRound, X, ZoomIn } from 'lucide-react'
-import { authApi } from '../api/authApi'
+import { Camera, Clock3, LogOut, Monitor, Move, ShieldCheck, Trash2, UserRound, X, ZoomIn } from 'lucide-react'
+import { authApi, type ActiveSession } from '../api/authApi'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 
 function initials(value: string) {
   return value.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || 'NM'
@@ -27,9 +28,46 @@ function drawCrop(canvas: HTMLCanvasElement, image: HTMLImageElement, zoom: numb
   context.drawImage(image, x, y, width, height)
 }
 
+function browserName(userAgent: string | null) {
+  if (!userAgent) return 'Navegador desconocido'
+  if (/Edg\//.test(userAgent)) return 'Microsoft Edge'
+  if (/OPR\//.test(userAgent)) return 'Opera'
+  if (/Firefox\//.test(userAgent)) return 'Firefox'
+  if (/Chrome\//.test(userAgent)) return 'Google Chrome'
+  if (/Safari\//.test(userAgent)) return 'Safari'
+  return 'Navegador desconocido'
+}
+
+function deviceName(userAgent: string | null) {
+  if (!userAgent) return 'Dispositivo desconocido'
+  if (/iPhone/.test(userAgent)) return 'iPhone'
+  if (/iPad/.test(userAgent)) return 'iPad'
+  if (/Android/.test(userAgent)) return 'Android'
+  if (/Windows/.test(userAgent)) return 'PC con Windows'
+  if (/Macintosh|Mac OS/.test(userAgent)) return 'Mac'
+  if (/Linux/.test(userAgent)) return 'Equipo Linux'
+  return 'Dispositivo desconocido'
+}
+
+function formatDate(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Fecha no disponible'
+  return new Intl.DateTimeFormat('es-CL', { dateStyle: 'medium', timeStyle: 'short' }).format(date)
+}
+
+type SessionAction =
+  | { kind: 'one'; session: ActiveSession }
+  | { kind: 'others' }
+  | null
+
 export function ProfilePage() {
   const queryClient = useQueryClient()
   const { data: session } = useQuery({ queryKey: ['session'], queryFn: authApi.me, retry: false })
+  const { data: sessions = [], isLoading: sessionsLoading, error: sessionsError } = useQuery({
+    queryKey: ['active-sessions'],
+    queryFn: authApi.getSessions,
+    retry: false,
+  })
   const [displayName, setDisplayName] = useState('')
   const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(null)
   const [imageError, setImageError] = useState('')
@@ -37,6 +75,7 @@ export function ProfilePage() {
   const [zoom, setZoom] = useState(1)
   const [positionX, setPositionX] = useState(0)
   const [positionY, setPositionY] = useState(0)
+  const [sessionAction, setSessionAction] = useState<SessionAction>(null)
   const cropImageRef = useRef<HTMLImageElement | null>(null)
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null)
 
@@ -60,6 +99,22 @@ export function ProfilePage() {
     onSuccess: updated => {
       queryClient.setQueryData(['session'], updated)
       setImageError('')
+    },
+  })
+
+  const revokeSession = useMutation({
+    mutationFn: (sessionId: string) => authApi.revokeSession(sessionId),
+    onSuccess: () => {
+      setSessionAction(null)
+      void queryClient.invalidateQueries({ queryKey: ['active-sessions'] })
+    },
+  })
+
+  const revokeOthers = useMutation({
+    mutationFn: authApi.revokeOtherSessions,
+    onSuccess: () => {
+      setSessionAction(null)
+      void queryClient.invalidateQueries({ queryKey: ['active-sessions'] })
     },
   })
 
@@ -114,7 +169,17 @@ export function ProfilePage() {
     }
   }
 
+  function confirmSessionAction() {
+    if (!sessionAction) return
+    if (sessionAction.kind === 'one') revokeSession.mutate(sessionAction.session.id)
+    else revokeOthers.mutate()
+  }
+
   if (!session) return <section className="settings-page"><div className="reading-skeleton" /></section>
+
+  const otherSessionCount = sessions.filter(item => !item.isCurrent).length
+  const sessionMutationError = revokeSession.error ?? revokeOthers.error
+  const sessionMutationPending = revokeSession.isPending || revokeOthers.isPending
 
   return <section className="settings-page profile-page">
     <p className="eyebrow">Configuración</p>
@@ -148,6 +213,28 @@ export function ProfilePage() {
       <footer className="profile-footer"><button className="primary-button" disabled={save.isPending}>{save.isPending ? 'Guardando…' : 'Guardar perfil'}</button></footer>
     </form>
 
+    <div className="profile-section-heading">
+      <div><p className="eyebrow">Seguridad</p><h2>Sesiones activas</h2><p>Revisa dónde está abierta tu cuenta NexoMail y cierra accesos que ya no uses.</p></div>
+      {otherSessionCount > 0 && <button type="button" className="secondary-button danger-button" onClick={() => setSessionAction({ kind: 'others' })}><LogOut size={15} /> Cerrar las demás</button>}
+    </div>
+
+    <section className="settings-card sessions-card" aria-label="Sesiones activas">
+      {sessionsLoading ? <div className="sessions-loading"><div className="reading-skeleton" /></div> : sessionsError ? <div className="sessions-message notice">{sessionsError instanceof Error ? sessionsError.message : 'No fue posible consultar las sesiones activas.'}</div> : sessions.length === 0 ? <div className="sessions-message">No hay sesiones activas para mostrar.</div> : <div className="session-list">
+        {sessions.map(item => <article className={`session-row ${item.isCurrent ? 'current' : ''}`} key={item.id}>
+          <div className="session-device-icon" aria-hidden="true"><Monitor size={20} /></div>
+          <div className="session-details">
+            <div className="session-title-line"><strong>{browserName(item.userAgent)} · {deviceName(item.userAgent)}</strong>{item.isCurrent && <span className="current-session-badge"><ShieldCheck size={13} /> Esta sesión</span>}</div>
+            <div className="session-meta"><span><Clock3 size={13} /> {item.isCurrent ? 'Activa ahora' : `Última actividad: ${formatDate(item.lastSeenAt)}`}</span><span>Inicio: {formatDate(item.createdAt)}</span>{item.ipAddress && <span>IP: {item.ipAddress}</span>}</div>
+          </div>
+          {!item.isCurrent && <button type="button" className="secondary-button session-revoke-button" onClick={() => setSessionAction({ kind: 'one', session: item })}><LogOut size={15} /> Cerrar sesión</button>}
+        </article>)}
+      </div>}
+    </section>
+
+    {revokeSession.isSuccess && <div className="success-notice session-status">La sesión seleccionada fue cerrada.</div>}
+    {revokeOthers.isSuccess && <div className="success-notice session-status">Se cerraron {revokeOthers.data.revoked} sesión{revokeOthers.data.revoked === 1 ? '' : 'es'} adicional{revokeOthers.data.revoked === 1 ? '' : 'es'}.</div>}
+    {sessionMutationError && <div className="notice session-status">{sessionMutationError instanceof Error ? sessionMutationError.message : 'No fue posible cerrar la sesión.'}</div>}
+
     {cropImageSrc && <div className="modal-backdrop" role="presentation">
       <section className="avatar-editor" role="dialog" aria-modal="true" aria-labelledby="avatar-editor-title">
         <header><div><p className="eyebrow">Foto de perfil</p><h2 id="avatar-editor-title">Ajustar foto</h2></div><button type="button" className="icon-button" onClick={cancelCrop} aria-label="Cerrar"><X size={19} /></button></header>
@@ -162,5 +249,19 @@ export function ProfilePage() {
         <footer><button type="button" className="secondary-button" onClick={cancelCrop}>Cancelar</button><button type="button" className="primary-button" onClick={applyCrop}>Usar esta foto</button></footer>
       </section>
     </div>}
+
+    <ConfirmDialog
+      open={sessionAction !== null}
+      title={sessionAction?.kind === 'others' ? 'Cerrar las demás sesiones' : 'Cerrar esta sesión'}
+      message={sessionAction?.kind === 'others'
+        ? `Se cerrarán ${otherSessionCount} sesión${otherSessionCount === 1 ? '' : 'es'} en otros navegadores o dispositivos. Esta sesión permanecerá abierta.`
+        : sessionAction?.kind === 'one'
+          ? `Se cerrará la sesión de ${browserName(sessionAction.session.userAgent)} en ${deviceName(sessionAction.session.userAgent)}.`
+          : ''}
+      confirmLabel={sessionAction?.kind === 'others' ? 'Cerrar las demás' : 'Cerrar sesión'}
+      pending={sessionMutationPending}
+      onConfirm={confirmSessionAction}
+      onCancel={() => { if (!sessionMutationPending) setSessionAction(null) }}
+    />
   </section>
 }
