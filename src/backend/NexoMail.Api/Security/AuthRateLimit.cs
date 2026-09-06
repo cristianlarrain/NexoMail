@@ -58,7 +58,7 @@ public sealed class AuthRateLimitFilter(string policy, int permitLimit, TimeSpan
 
         if (!result.Allowed)
         {
-            httpContext.Response.Headers.RetryAfter = retrySeconds.ToString();
+            httpContext.Response.Headers["Retry-After"] = retrySeconds.ToString();
             return Results.Json(new
             {
                 error = "Demasiados intentos.",
