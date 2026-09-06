@@ -142,6 +142,18 @@ mail.MapPatch("/accounts/{accountId:guid}", async (IMailGateway gateway, Guid ac
     if (color.Length != 7 || color[0] != '#' || !color[1..].All(char.IsAsciiHexDigit)) return Results.BadRequest(new { error = "El color debe tener formato hexadecimal, por ejemplo #c6524b." });
     return await gateway.UpdateAccountAsync(accountId, new MailAccountSettings(displayName, color.ToLowerInvariant()), ct) is { } account ? Results.Ok(account) : Results.NotFound();
 });
+mail.MapDelete("/accounts/{accountId:guid}", async (NexoMailDbContext database, IUserContext userContext, Guid accountId, CancellationToken ct) =>
+{
+    var userId = userContext.UserId;
+    var account = await database.MailAccounts.SingleOrDefaultAsync(x => x.Id == accountId && x.UserId == userId, ct);
+    if (account is null) return Results.NotFound();
+
+    var credentials = await database.OAuthCredentials.Where(x => x.MailAccountId == accountId).ToArrayAsync(ct);
+    if (credentials.Length > 0) database.OAuthCredentials.RemoveRange(credentials);
+    database.MailAccounts.Remove(account);
+    await database.SaveChangesAsync(ct);
+    return Results.NoContent();
+});
 mail.MapGet("/messages", async (IMailGateway gateway, Guid? accountId, string? folder, int? take, string? cursor, string? search, CancellationToken ct) => Results.Ok(await gateway.GetMessagesAsync(new MailQuery(accountId, folder ?? "inbox", take ?? 50, cursor, search), ct)));
 mail.MapGet("/messages/{accountId:guid}/{messageId}", async (IMailGateway gateway, Guid accountId, string messageId, CancellationToken ct) =>
     await gateway.GetMessageAsync(accountId, messageId, ct) is { } message ? Results.Ok(message) : Results.NotFound());
