@@ -43,6 +43,21 @@ public static class DatabaseBootstrap
                 await AddColumnAsync("ALTER TABLE Users ADD COLUMN EmailVerificationAttempts INTEGER NOT NULL DEFAULT 0;", connection, cancellationToken);
             if (!columns.Contains("AvatarDataUrl"))
                 await AddColumnAsync("ALTER TABLE Users ADD COLUMN AvatarDataUrl TEXT NULL;", connection, cancellationToken);
+
+            await ExecuteAsync(@"
+                CREATE TABLE IF NOT EXISTS UserSessions (
+                    Id TEXT NOT NULL CONSTRAINT PK_UserSessions PRIMARY KEY,
+                    UserId TEXT NOT NULL,
+                    CreatedAt TEXT NOT NULL,
+                    LastSeenAt TEXT NOT NULL,
+                    ExpiresAt TEXT NOT NULL,
+                    RevokedAt TEXT NULL,
+                    IpAddress TEXT NULL,
+                    UserAgent TEXT NULL,
+                    SecurityStamp TEXT NOT NULL,
+                    CONSTRAINT FK_UserSessions_Users_UserId FOREIGN KEY (UserId) REFERENCES Users (Id) ON DELETE CASCADE
+                );", connection, cancellationToken);
+            await ExecuteAsync("CREATE INDEX IF NOT EXISTS IX_UserSessions_UserId_RevokedAt ON UserSessions (UserId, RevokedAt);", connection, cancellationToken);
         }
         finally
         {
@@ -50,7 +65,10 @@ public static class DatabaseBootstrap
         }
     }
 
-    private static async Task AddColumnAsync(string sql, System.Data.Common.DbConnection connection, CancellationToken cancellationToken)
+    private static Task AddColumnAsync(string sql, System.Data.Common.DbConnection connection, CancellationToken cancellationToken) =>
+        ExecuteAsync(sql, connection, cancellationToken);
+
+    private static async Task ExecuteAsync(string sql, System.Data.Common.DbConnection connection, CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
         command.CommandText = sql;
