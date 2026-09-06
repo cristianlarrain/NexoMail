@@ -14,6 +14,7 @@ public static class AuthEndpoints
 {
     private static readonly Guid LegacyLocalUserId = Guid.Parse("a15ac2a9-ca17-4b60-878a-9d42b9a0d001");
     private const int MaximumRecoveryAttempts = 5;
+    private const int MaximumAvatarBytes = 150_000;
 
     public static IEndpointRouteBuilder MapNexoMailAuth(this IEndpointRouteBuilder endpoints)
     {
@@ -36,6 +37,8 @@ public static class AuthEndpoints
             var user = await database.Users.AsNoTracking().SingleOrDefaultAsync(x => x.Id == userId && x.IsActive, ct);
             return user is null ? Results.Unauthorized() : Results.Ok(ToSession(user));
         }).RequireAuthorization();
+
+        auth.MapPatch("/me", UpdateProfileAsync).RequireAuthorization();
 
         return endpoints;
     }
@@ -104,6 +107,32 @@ public static class AuthEndpoints
             user.PasswordHash = passwordHasher.HashPassword(user, request.Password);
 
         user.LastLoginAt = DateTimeOffset.UtcNow;
+        await database.SaveChangesAsync(ct);
+        await SignInAsync(context, user);
+        return Results.Ok(ToSession(user));
+    }
+
+    private static async Task<IResult> UpdateProfileAsync(
+        ProfileUpdateRequest request,
+        HttpContext context,
+        NexoMailDbContext database,
+        CancellationToken ct)
+    {
+        if (!TryUserId(context.User, out var userId)) return Results.Unauthorized();
+
+        var displayName = request.DisplayName.Trim();
+        if (displayName.Length is < 2 or > 120)
+            return Results.BadRequest(new { error = "El nombre debe tener entre 2 y 120 caracteres." });
+
+        var avatarDataUrl = string.IsNullOrWhiteSpace(request.AvatarDataUrl) ? null : request.AvatarDataUrl.Trim();
+        if (ValidateAvatar(avatarDataUrl) is { } avatarError)
+            return Results.BadRequest(new { error = avatarError });
+
+        var user = await database.Users.SingleOrDefaultAsync(x => x.Id == userId && x.IsActive, ct);
+        if (user is null) return Results.Unauthorized();
+
+        user.DisplayName = displayName;
+        user.AvatarDataUrl = avatarDataUrl;
         await database.SaveChangesAsync(ct);
         await SignInAsync(context, user);
         return Results.Ok(ToSession(user));
@@ -235,6 +264,29 @@ public static class AuthEndpoints
         return null;
     }
 
+    private static string? ValidateAvatar(string? avatarDataUrl)
+    {
+        if (avatarDataUrl is null) return null;
+        if (avatarDataUrl.Length > 200_000) return "La imagen de perfil es demasiado grande.";
+
+        var allowedPrefix = avatarDataUrl.StartsWith("data:image/jpeg;base64,", StringComparison.OrdinalIgnoreCase) ||
+                            avatarDataUrl.StartsWith("data:image/png;base64,", StringComparison.OrdinalIgnoreCase) ||
+                            avatarDataUrl.StartsWith("data:image/webp;base64,", StringComparison.OrdinalIgnoreCase);
+        if (!allowedPrefix) return "El avatar debe ser una imagen JPG, PNG o WebP.";
+
+        var comma = avatarDataUrl.IndexOf(',');
+        if (comma < 0) return "El avatar no tiene un formato válido.";
+        try
+        {
+            var bytes = Convert.FromBase64String(avatarDataUrl[(comma + 1)..]);
+            return bytes.Length <= MaximumAvatarBytes ? null : "La imagen de perfil es demasiado grande.";
+        }
+        catch (FormatException)
+        {
+            return "El avatar no tiene un formato válido.";
+        }
+    }
+
     private static string CreateVerificationCode() => RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
 
     private static string CreateResetToken()
@@ -263,12 +315,13 @@ public static class AuthEndpoints
     private static bool TryUserId(ClaimsPrincipal principal, out Guid userId) =>
         Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out userId);
 
-    private static AuthSession ToSession(UserEntity user) => new(user.Id, user.DisplayName, user.Email);
+    private static AuthSession ToSession(UserEntity user) => new(user.Id, user.DisplayName, user.Email, user.AvatarDataUrl);
 }
 
 public sealed record RegisterRequest(string DisplayName, string Email, string Password);
 public sealed record LoginRequest(string Email, string Password);
+public sealed record ProfileUpdateRequest(string DisplayName, string? AvatarDataUrl);
 public sealed record ForgotPasswordRequest(string Email);
 public sealed record VerifyResetCodeRequest(string Email, string Code);
 public sealed record ResetPasswordRequest(string Email, string Token, string NewPassword);
-public sealed record AuthSession(Guid Id, string DisplayName, string Email);
+public sealed record AuthSession(Guid Id, string DisplayName, string Email, string? AvatarDataUrl);
