@@ -73,7 +73,7 @@ public static class AiEndpoints
 
             try
             {
-                return Results.Ok(await ai.GenerateDraftAsync(request.Context, request.Tone, ct));
+                return Results.Ok(await ai.GenerateDraftAsync(request.Context, request.Tone, request.Recipient, ct));
             }
             catch (InvalidOperationException exception)
             {
@@ -90,4 +90,4 @@ public static class AiEndpoints
 }
 
 public sealed record AiReplyRequest(string Tone, string? Instruction);
-public sealed record AiDraftRequest(string Context, string Tone);
+public sealed record AiDraftRequest(string Context, string Tone, string? Recipient);
