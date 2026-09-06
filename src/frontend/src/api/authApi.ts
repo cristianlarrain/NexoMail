@@ -2,6 +2,7 @@ export interface AuthSession {
   id: string
   displayName: string
   email: string
+  avatarDataUrl: string | null
 }
 
 export interface ForgotPasswordResponse {
@@ -31,6 +32,7 @@ export const authApi = {
   me: () => authRequest<AuthSession>('/me', undefined, true),
   register: (request: { displayName: string; email: string; password: string }) => authRequest<AuthSession>('/register', { method: 'POST', body: JSON.stringify(request) }) as Promise<AuthSession>,
   login: (request: { email: string; password: string }) => authRequest<AuthSession>('/login', { method: 'POST', body: JSON.stringify(request) }) as Promise<AuthSession>,
+  updateProfile: (request: { displayName: string; avatarDataUrl: string | null }) => authRequest<AuthSession>('/me', { method: 'PATCH', body: JSON.stringify(request) }) as Promise<AuthSession>,
   forgotPassword: (request: { email: string }) => authRequest<ForgotPasswordResponse>('/forgot-password', { method: 'POST', body: JSON.stringify(request) }) as Promise<ForgotPasswordResponse>,
   verifyResetCode: (request: { email: string; code: string }) => authRequest<VerifyResetCodeResponse>('/verify-reset-code', { method: 'POST', body: JSON.stringify(request) }) as Promise<VerifyResetCodeResponse>,
   resetPassword: (request: { email: string; token: string; newPassword: string }) => authRequest<void>('/reset-password', { method: 'POST', body: JSON.stringify(request) }) as Promise<void>,
