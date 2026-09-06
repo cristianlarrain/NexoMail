@@ -90,10 +90,12 @@ public sealed class MailGateway(IEnumerable<IMailProvider> providers, NexoMailDb
     private async Task<MailAccount> AccountAsync(Guid id, CancellationToken ct)
     {
         var userId = userContext.UserId;
-        return await database.MailAccounts
+        var account = await database.MailAccounts
             .Where(x => x.Id == id && x.UserId == userId && x.IsActive)
             .Select(x => new MailAccount(x.Id, x.Provider, x.EmailAddress, x.DisplayName, x.Color, x.IsActive))
-            .SingleAsync(ct);
+            .SingleOrDefaultAsync(ct);
+
+        return account ?? throw new KeyNotFoundException("La cuenta de correo no está disponible.");
     }
 
     private IMailProvider ProviderFor(MailAccount account) => _providers.TryGetValue(account.Provider, out var provider) ? provider : throw new NotSupportedException($"El proveedor {account.Provider} aún no está disponible.");
