@@ -50,6 +50,7 @@ export function ComposePage() {
   const [from, setFrom] = useState(origin?.accountId ?? '')
   const [to, setTo] = useState(origin ? state.mode === 'forward' ? '' : state.mode === 'followUp' ? origin.to.map(item => item.address).join(', ') : origin.from.address : '')
   const [cc, setCc] = useState('')
+  const [bcc, setBcc] = useState('')
   const [showCc, setShowCc] = useState(false)
   const [subject, setSubject] = useState(() => origin ? `${state.mode === 'forward' ? 'Fwd:' : 'Re:'} ${origin.subject}` : '')
   const [body, setBody] = useState(() => state.initialBody ? textToHtml(state.initialBody) : '')
@@ -73,7 +74,15 @@ export function ComposePage() {
 
   const send = useMutation({
     mutationFn: () => {
-      const payload = { fromAccountId, to: to.split(',').map(v => v.trim()).filter(Boolean), cc: cc.split(',').map(v => v.trim()).filter(Boolean), bcc: [], subject, htmlBody: body || '<p></p>', attachments }
+      const payload = {
+        fromAccountId,
+        to: to.split(',').map(v => v.trim()).filter(Boolean),
+        cc: cc.split(',').map(v => v.trim()).filter(Boolean),
+        bcc: bcc.split(',').map(v => v.trim()).filter(Boolean),
+        subject,
+        htmlBody: body || '<p></p>',
+        attachments,
+      }
       if (origin && state.mode !== 'forward') return mailApi.reply(origin.accountId, origin.providerMessageId, payload, state.mode === 'replyAll')
       if (origin && state.mode === 'forward') return mailApi.forward(origin.accountId, origin.providerMessageId, payload)
       return mailApi.send(payload)
@@ -187,22 +196,27 @@ export function ComposePage() {
         {!origin && composeReady && <div className="ai-review-banner"><div><span>Nexo IA</span><strong>Propuesta lista para revisar y enviar</strong></div><button type="button" className="text-button" onClick={() => { setComposeReady(false); setManualCompose(false) }}>Volver al asistente</button></div>}
 
         <div className="ai-compose-fields" aria-label="Datos del correo">
-          <div className="ai-compose-section-label"><Sparkles size={14} /><span>{origin ? 'Contexto del correo' : 'Datos de envío'}</span></div>
+          {!origin && <div className="ai-compose-section-label"><Sparkles size={14} /><span>Datos de envío</span></div>}
           <div className="compose-field"><label>De</label><div className="select-wrap"><select value={from} onChange={e => setFrom(e.target.value)}>{accounts.map(a => <option key={a.id} value={a.id}>{a.displayName} · {a.emailAddress}</option>)}</select><ChevronDown size={16} /></div></div>
           <div className="compose-field recipient-field"><label>Para</label><div className="recipient-control"><input value={to} onChange={e => setTo(e.target.value)} onFocus={() => setRecipientFocused(true)} onBlur={() => window.setTimeout(() => setRecipientFocused(false), 150)} placeholder="Escribe al menos 2 letras para buscar en Contactos" required />{recipientFocused && recipientTerm.length >= 2 && <div className="contact-suggestions">{contacts.isFetching ? <p>Buscando en Contactos de Google…</p> : contacts.isError ? <p className="contact-error">{contacts.error instanceof Error ? contacts.error.message : 'No se pudieron consultar los contactos.'}</p> : contacts.data?.length ? contacts.data.map(contact => <button type="button" key={contact.emailAddress} onMouseDown={event => event.preventDefault()} onClick={() => selectContact(contact.emailAddress)}><strong>{contact.name}</strong><span>{contact.emailAddress}</span></button>) : <p>Sin contactos que coincidan.</p>}</div>}</div></div>
-          {showCc ? <div className="compose-field"><label>CC</label><input value={cc} onChange={e => setCc(e.target.value)} placeholder="copia@dominio.cl" /></div> : <button type="button" className="text-button ai-add-copy" onClick={() => setShowCc(true)}>Agregar CC / CCO</button>}
-          <div className="compose-field"><label>Asunto</label><input value={subject} onChange={e => setSubject(e.target.value)} required /></div>
+          {showCc ? <>
+            <div className="compose-field"><label>CC</label><input value={cc} onChange={e => setCc(e.target.value)} placeholder="copia@dominio.cl" /></div>
+            <div className="compose-field"><label>CCO</label><input value={bcc} onChange={e => setBcc(e.target.value)} placeholder="copia.oculta@dominio.cl" /></div>
+          </> : <button type="button" className="text-button ai-add-copy" onClick={() => setShowCc(true)}>Agregar CC / CCO</button>}
+          <div className="compose-field subject-field"><label>Asunto</label><input value={subject} onChange={e => setSubject(e.target.value)} required /></div>
         </div>
 
-        {origin && state.mode !== 'forward' && <section className="ai-reply-source" aria-label="Correo al que respondes">
-          <div className="ai-reply-source-heading"><div><span>{state.mode === 'followUp' ? 'Mensaje de referencia' : 'Correo al que respondes'}</span><strong>{origin.from.name || origin.from.address}</strong></div><small>{new Date(origin.receivedAt).toLocaleString('es-CL')}</small></div>
+        {origin && state.mode !== 'forward' && <section className="ai-reply-source" aria-label="Mensaje original">
           <div className="ai-reply-source-body" dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(origin.htmlBody) }} />
         </section>}
 
         {showReplyAssistant && origin && <AiWritingAssistant mode="reply" accountId={origin.accountId} messageId={origin.providerMessageId} onUse={useAiProposal} />}
 
         <section className="ai-compose-editor" aria-label="Editor del mensaje">
-          <div className="ai-compose-editor-heading"><div><span>Nexo IA</span><strong>{origin ? 'Tu respuesta' : 'Tu mensaje'}</strong></div><small>Puede editar libremente el texto antes de enviarlo.</small></div>
+          <div className="ai-compose-editor-heading">
+            <div>{origin ? <strong>{body ? 'Respuesta propuesta' : 'Respuesta'}</strong> : <><span>Nexo IA</span><strong>Tu mensaje</strong></>}</div>
+            <small>{origin ? 'Revísala antes de responder.' : 'Puede editar libremente el texto antes de enviarlo.'}</small>
+          </div>
           <div className="format-toolbar" aria-label="Formato"><button type="button" title="Negrita" onMouseDown={e => e.preventDefault()} onClick={() => format('bold')}><Bold size={16} /></button><button type="button" title="Cursiva" onMouseDown={e => e.preventDefault()} onClick={() => format('italic')}><Italic size={16} /></button><button type="button" title="Subrayado" onMouseDown={e => e.preventDefault()} onClick={() => format('underline')}><Underline size={16} /></button><button type="button" title="Lista" onMouseDown={e => e.preventDefault()} onClick={() => format('insertUnorderedList')}><List size={16} /></button><button type="button" title="Lista numerada" onMouseDown={e => e.preventDefault()} onClick={() => format('insertOrderedList')}><ListOrdered size={16} /></button><button type="button" title="Insertar enlace" onMouseDown={e => e.preventDefault()} onClick={() => { const url = window.prompt('Pega una URL segura (https://...)'); if (url?.startsWith('https://')) format('createLink', url) }}><Link size={16} /></button><button type="button" className={`dictation-button ${listening ? 'listening' : ''}`} title={listening ? 'Detener dictado' : 'Dictar mensaje'} aria-label={listening ? 'Detener dictado' : 'Dictar mensaje con micrófono'} onMouseDown={e => e.preventDefault()} onClick={toggleDictation}>{listening ? <MicOff size={16} /> : <Mic size={16} />}</button>{listening && <span className="dictation-status">Escuchando…</span>}</div>
           {dictationError && <p className="dictation-error">{dictationError}</p>}
           <div ref={editor} className="editor rich-editor" contentEditable suppressContentEditableWarning role="textbox" aria-multiline="true" data-placeholder="Escribe tu mensaje o utiliza Nexo IA para preparar una propuesta…" onInput={event => setBody(event.currentTarget.innerHTML)} />
