@@ -29,9 +29,13 @@ public sealed class GmailMailProvider(
         if (!query.AccountId.HasValue) return new PagedResult<MailSummary>([]);
         var client = await CreateClientAsync(query.AccountId.Value, cancellationToken);
         var label = FolderLabel(query.FolderId);
-        var search = string.IsNullOrWhiteSpace(query.Search) ? string.Empty : $"&q={Uri.EscapeDataString(query.Search)}";
+        var folderSearch = query.FolderId == "archive" ? "-label:inbox -label:sent -label:drafts -label:spam -label:trash" : string.Empty;
+        var combinedSearch = string.Join(' ', new[] { folderSearch, query.Search?.Trim() ?? string.Empty }.Where(value => !string.IsNullOrWhiteSpace(value)));
+        var search = string.IsNullOrWhiteSpace(combinedSearch) ? string.Empty : $"&q={Uri.EscapeDataString(combinedSearch)}";
         var page = string.IsNullOrWhiteSpace(query.Cursor) ? string.Empty : $"&pageToken={Uri.EscapeDataString(query.Cursor)}";
-        using var listResponse = await client.GetAsync($"users/me/messages?labelIds={label}&maxResults={Math.Clamp(query.Take, 1, 50)}{search}{page}", cancellationToken);
+        var labelParameter = string.IsNullOrWhiteSpace(label) ? string.Empty : $"labelIds={Uri.EscapeDataString(label)}&";
+        var includeSpamTrash = query.FolderId is "spam" or "trash" ? "&includeSpamTrash=true" : string.Empty;
+        using var listResponse = await client.GetAsync($"users/me/messages?{labelParameter}maxResults={Math.Clamp(query.Take, 1, 50)}{search}{page}{includeSpamTrash}", cancellationToken);
         listResponse.EnsureSuccessStatusCode();
         using var list = JsonDocument.Parse(await listResponse.Content.ReadAsStreamAsync(cancellationToken));
         if (!list.RootElement.TryGetProperty("messages", out var messages)) return new PagedResult<MailSummary>([]);
@@ -124,13 +128,26 @@ public sealed class GmailMailProvider(
             await MoveToTrashAsync(accountId, messageId, cancellationToken);
             return;
         }
-        if (folderId != "inbox") throw new InvalidOperationException("Por ahora NexoMail permite mover mensajes entre Bandeja y Papelera.");
 
         var client = await CreateClientAsync(accountId, cancellationToken);
+        if (folderId == "archive")
+        {
+            using var response = await client.PostAsJsonAsync($"users/me/messages/{Uri.EscapeDataString(messageId)}/modify", new Dictionary<string, string[]> { ["removeLabelIds"] = ["INBOX"] }, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            return;
+        }
+        if (folderId == "spam")
+        {
+            using var response = await client.PostAsJsonAsync($"users/me/messages/{Uri.EscapeDataString(messageId)}/modify", new Dictionary<string, string[]> { ["addLabelIds"] = ["SPAM"], ["removeLabelIds"] = ["INBOX"] }, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            return;
+        }
+        if (folderId != "inbox") throw new InvalidOperationException("NexoMail no reconoce la carpeta de destino solicitada.");
+
         using var untrash = await client.PostAsync($"users/me/messages/{Uri.EscapeDataString(messageId)}/untrash", null, cancellationToken);
         if (!untrash.IsSuccessStatusCode && untrash.StatusCode != System.Net.HttpStatusCode.BadRequest) untrash.EnsureSuccessStatusCode();
-        using var response = await client.PostAsJsonAsync($"users/me/messages/{Uri.EscapeDataString(messageId)}/modify", new Dictionary<string, string[]> { ["addLabelIds"] = ["INBOX"] }, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        using var restore = await client.PostAsJsonAsync($"users/me/messages/{Uri.EscapeDataString(messageId)}/modify", new Dictionary<string, string[]> { ["addLabelIds"] = ["INBOX"], ["removeLabelIds"] = ["SPAM"] }, cancellationToken);
+        restore.EnsureSuccessStatusCode();
     }
 
     public Task EmptyFolderAsync(Guid accountId, string folderId, CancellationToken cancellationToken)
@@ -141,7 +158,14 @@ public sealed class GmailMailProvider(
     }
 
     public Task<IReadOnlyCollection<MailFolder>> GetFoldersAsync(Guid accountId, CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyCollection<MailFolder>>([new("inbox", "Bandeja de entrada", 0), new("sent", "Enviados", 0), new("drafts", "Borradores", 0), new("trash", "Papelera", 0)]);
+        Task.FromResult<IReadOnlyCollection<MailFolder>>([
+            new("inbox", "Bandeja de entrada", 0),
+            new("archive", "Archivados", 0),
+            new("sent", "Enviados", 0),
+            new("drafts", "Borradores", 0),
+            new("spam", "Spam", 0),
+            new("trash", "Papelera", 0)
+        ]);
 
     private async Task<MailSummary> GetSummaryAsync(HttpClient client, Guid accountId, string messageId, CancellationToken cancellationToken)
     {
@@ -160,7 +184,7 @@ public sealed class GmailMailProvider(
         var headers = Headers(root); var sender = ParseAddress(Header(headers, "From")); var labels = root.TryGetProperty("labelIds", out var labelIds) ? labelIds.EnumerateArray().Select(x => x.GetString()).ToHashSet() : [];
         var received = root.TryGetProperty("internalDate", out var timestamp) && long.TryParse(timestamp.GetString(), out var milliseconds) ? DateTimeOffset.FromUnixTimeMilliseconds(milliseconds) : DateTimeOffset.UtcNow;
         var (html, attachments) = ParsePayload(root.GetProperty("payload"));
-        return new MailMessage(root.GetProperty("id").GetString()!, accountId, sender, ParseAddresses(Header(headers, "To")), ParseAddresses(Header(headers, "Cc")), Header(headers, "Subject", "(sin asunto)"), html, root.TryGetProperty("snippet", out var snippet) ? FixMojibake(snippet.GetString() ?? string.Empty) : string.Empty, received, !labels.Contains("UNREAD"), attachments, FolderFromLabels(labels));
+        return new MailMessage(root.GetProperty("id").GetString()!, accountId, sender, ParseAddresses(Header(headers, "To")), ParseAddresses(Header(headers, "Cc")), Header(headers, "Subject", "(sin asunto)"), html, root.TryGetProperty("snippet", out var snippet) ? FixMojibake(snippet.GetString() ?? string.Empty) : string.Empty, received, !labels.Contains("UNREAD"), attachments, FolderFromLabels(labels), null, SafeUnsubscribeUrl(Header(headers, "List-Unsubscribe")));
     }
 
     private async Task<HttpClient> CreateClientAsync(Guid accountId, CancellationToken cancellationToken)
@@ -246,8 +270,8 @@ public sealed class GmailMailProvider(
     }
 
     private static string EncodeHeader(string value) => value.All(character => character <= 127) ? value : $"=?UTF-8?B?{Convert.ToBase64String(Encoding.UTF8.GetBytes(value))}?=";
-    private static string FolderLabel(string folder) => folder switch { "sent" => "SENT", "drafts" => "DRAFT", "trash" => "TRASH", _ => "INBOX" };
-    private static string FolderFromLabels(HashSet<string?> labels) => labels.Contains("SENT") ? "sent" : labels.Contains("DRAFT") ? "drafts" : labels.Contains("TRASH") ? "trash" : "inbox";
+    private static string? FolderLabel(string folder) => folder switch { "sent" => "SENT", "drafts" => "DRAFT", "trash" => "TRASH", "spam" => "SPAM", "archive" => null, _ => "INBOX" };
+    private static string FolderFromLabels(HashSet<string?> labels) => labels.Contains("SENT") ? "sent" : labels.Contains("DRAFT") ? "drafts" : labels.Contains("TRASH") ? "trash" : labels.Contains("SPAM") ? "spam" : labels.Contains("INBOX") ? "inbox" : "archive";
     private static Dictionary<string, string> Headers(JsonElement root) => root.GetProperty("payload").GetProperty("headers").EnumerateArray()
         .Where(x => x.TryGetProperty("name", out _) && x.TryGetProperty("value", out _))
         .GroupBy(x => x.GetProperty("name").GetString()!, StringComparer.OrdinalIgnoreCase)
@@ -255,6 +279,13 @@ public sealed class GmailMailProvider(
     private static string Header(Dictionary<string, string> headers, string name, string fallback = "") => FixMojibake(headers.TryGetValue(name, out var value) ? value : fallback);
     private static MailAddress ParseAddress(string raw) { var match = System.Text.RegularExpressions.Regex.Match(raw, "^(?<name>.*?)\\s*<(?<address>[^>]+)>$"); return match.Success ? new MailAddress(match.Groups["name"].Value.Trim(' ', '\"'), match.Groups["address"].Value) : new MailAddress(raw, raw); }
     private static IReadOnlyCollection<MailAddress> ParseAddresses(string raw) => string.IsNullOrWhiteSpace(raw) ? [] : raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(ParseAddress).ToArray();
+    private static string? SafeUnsubscribeUrl(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        var match = System.Text.RegularExpressions.Regex.Match(raw, @"https://[^>\s,]+", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (!match.Success || !Uri.TryCreate(match.Value, UriKind.Absolute, out var uri) || !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)) return null;
+        return uri.AbsoluteUri;
+    }
     private static bool HasAttachment(JsonElement root) => root.TryGetProperty("payload", out var payload) && PayloadHasAttachment(payload);
     private static bool PayloadHasAttachment(JsonElement payload) => payload.TryGetProperty("filename", out var filename) && !string.IsNullOrWhiteSpace(filename.GetString()) || payload.TryGetProperty("parts", out var parts) && parts.EnumerateArray().Any(PayloadHasAttachment);
 
