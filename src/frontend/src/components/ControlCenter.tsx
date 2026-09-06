@@ -44,16 +44,18 @@ function managementCopy(view: Exclude<ManagementView, null>) {
   return { title: 'Pendientes de más de 48 horas', description: 'Reúne pendientes recibidos y enviados cuya última actividad ocurrió hace 48 horas o más.' }
 }
 
-export function ControlCenter() {
+export function ControlCenter({ accountId, accountName }: { accountId?: string; accountName?: string }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [activeView, setActiveView] = useState<ManagementView>(null)
   const [snoozeTarget, setSnoozeTarget] = useState<string | null>(null)
   const [openingTarget, setOpeningTarget] = useState<string | null>(null)
   const [actionError, setActionError] = useState('')
+  const queryKey = ['control-center', accountId ?? 'all'] as const
+  const inboxPath = accountId ? `/account/${accountId}` : '/inbox'
   const snapshot = useQuery({
-    queryKey: ['control-center'],
-    queryFn: mailApi.controlCenter,
+    queryKey,
+    queryFn: () => mailApi.controlCenter(accountId),
     staleTime: 60_000,
     refetchInterval: 120_000,
     refetchIntervalInBackground: false,
@@ -64,7 +66,7 @@ export function ControlCenter() {
     onMutate: () => setActionError(''),
     onSuccess: (_, variables) => {
       const item = variables.item
-      queryClient.setQueryData<ControlCenterSnapshot>(['control-center'], current => {
+      queryClient.setQueryData<ControlCenterSnapshot>(queryKey, current => {
         if (!current) return current
         const overdueAdjustment = isOverdue(item) ? 1 : 0
         return {
@@ -119,16 +121,16 @@ export function ControlCenter() {
 
   return <section className="control-center" aria-labelledby="control-center-title">
     <div className="control-center-header">
-      <div><p className="eyebrow">Resumen operativo · últimos 14 días</p><h2 id="control-center-title">Centro de control</h2><p>Seguimiento de conversaciones y carga de correo de todas sus cuentas.</p></div>
+      <div><p className="eyebrow">Resumen operativo · últimos 14 días</p><h2 id="control-center-title">Centro de control</h2><p>{accountId ? `Seguimiento de conversaciones y carga de correo de ${accountName ?? 'esta cuenta'}.` : 'Seguimiento de conversaciones y carga de correo de todas sus cuentas.'}</p></div>
       <div className="control-center-refresh"><span>Actualizado {updatedAt}</span><button className="icon-button" onClick={() => snapshot.refetch()} disabled={snapshot.isFetching} aria-label="Actualizar centro de control"><RefreshCw size={17} className={snapshot.isFetching ? 'spin' : ''} /></button></div>
     </div>
 
     {data.unavailableAccounts > 0 && <div className="notice control-center-warning">No se pudo consultar {data.unavailableAccounts} cuenta{data.unavailableAccounts === 1 ? '' : 's'}. Los indicadores muestran las cuentas disponibles.</div>}
 
     <div className="control-metrics">
-      <MetricCard tone="received" icon={<Inbox size={19} />} value={data.receivedWithoutReply} label="Recibidos sin responder" hint="La otra persona escribió al final" active={activeView === 'received'} onClick={() => setActiveView(current => current === 'received' ? null : 'received')} />
+      <MetricCard tone="received" icon={<Inbox size={19} />} value={data.receivedWithoutReply} label="Recibidos sin responder" hint="Promociones y avisos masivos se excluyen" active={activeView === 'received'} onClick={() => setActiveView(current => current === 'received' ? null : 'received')} />
       <MetricCard tone="sent" icon={<Send size={19} />} value={data.sentWithoutResponse} label="Enviados sin respuesta" hint="Usted escribió al final" active={activeView === 'sent'} onClick={() => setActiveView(current => current === 'sent' ? null : 'sent')} />
-      <MetricCard tone="unread" icon={<Mail size={19} />} value={data.unread} label="Correos sin leer" hint="Abrir sólo los no leídos" onClick={() => navigate(`/inbox?q=${encodeURIComponent('is:unread')}`)} />
+      <MetricCard tone="unread" icon={<Mail size={19} />} value={data.unread} label="Correos sin leer" hint="Abrir y gestionar en forma masiva" onClick={() => navigate(`${inboxPath}?q=${encodeURIComponent('is:unread')}`)} />
       <MetricCard tone="overdue" icon={<Clock3 size={19} />} value={data.overdue} label="Más de 48 horas" hint="Pendientes que requieren atención" active={activeView === 'overdue'} onClick={() => setActiveView(current => current === 'overdue' ? null : 'overdue')} />
     </div>
 
@@ -146,7 +148,7 @@ export function ControlCenter() {
               <button type="button" className="primary-button compact-action" disabled={pendingAction} onClick={() => void openComposer(item)}><MessageSquareReply size={14} /> {item.direction === 'received' ? 'Responder' : 'Seguimiento'}</button>
               <button type="button" className="secondary-button compact-action" disabled={pendingAction} onClick={() => setSnoozeTarget(current => current === key ? null : key)}><Pause size={14} /> Posponer</button>
               <button type="button" className="secondary-button compact-action" disabled={pendingAction} onClick={() => manage.mutate({ item, action: 'resolved' })}><Check size={14} /> No requiere {item.direction === 'received' ? 'respuesta' : 'seguimiento'}</button>
-              <button type="button" className="icon-button" disabled={pendingAction} title="Ver correo" aria-label="Ver correo" onClick={() => navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: '/inbox' } })}><Eye size={16} /></button>
+              <button type="button" className="icon-button" disabled={pendingAction} title="Ver correo" aria-label="Ver correo" onClick={() => navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: inboxPath } })}><Eye size={16} /></button>
             </div>
             {snoozeTarget === key && <div className="snooze-options"><span>Volver a mostrar en:</span><button type="button" disabled={manage.isPending} onClick={() => manage.mutate({ item, action: 'snoozed', snoozeHours: 24 })}>1 día</button><button type="button" disabled={manage.isPending} onClick={() => manage.mutate({ item, action: 'snoozed', snoozeHours: 72 })}>3 días</button><button type="button" disabled={manage.isPending} onClick={() => manage.mutate({ item, action: 'snoozed', snoozeHours: 168 })}>7 días</button></div>}
           </div>
@@ -177,7 +179,7 @@ export function ControlCenter() {
       <article className="control-panel priority-panel">
         <header><div><strong>Seguimiento prioritario</strong><span>Conversaciones pendientes más antiguas</span></div></header>
         {data.priorityItems.length === 0 ? <div className="control-empty"><strong>Sin pendientes recientes</strong><span>No hay conversaciones que requieran seguimiento en el período analizado.</span></div> : <div className="priority-list">
-          {data.priorityItems.map(item => <button type="button" className="priority-row" key={itemKey(item)} onClick={() => navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: '/inbox' } })}>
+          {data.priorityItems.map(item => <button type="button" className="priority-row" key={itemKey(item)} onClick={() => navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: inboxPath } })}>
             <i className="account-dot" style={{ background: item.accountColor }} />
             <span className="priority-main"><span className={`priority-direction ${item.direction}`}>{item.direction === 'received' ? 'Responder' : 'Esperando'}</span><strong>{item.subject}</strong><small>{item.direction === 'received' ? 'De' : 'Para'}: {item.counterpart}</small></span>
             <span className="priority-age">{ageLabel(item.since)}<ChevronRight size={15} /></span>
