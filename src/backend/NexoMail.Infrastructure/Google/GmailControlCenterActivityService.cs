@@ -33,9 +33,8 @@ public sealed class GmailControlCenterActivityService(
         if (accountId.HasValue) accountQuery = accountQuery.Where(x => x.Id == accountId.Value);
         var accounts = await accountQuery.OrderBy(x => x.DisplayName).ToArrayAsync(cancellationToken);
 
-        var totals = Enumerable.Range(0, days)
-            .Select(offset => startDay.AddDays(offset))
-            .ToDictionary(day => day, _ => new ActivityCount());
+        var totals = CreateEmptyActivity(startDay, days);
+        var accountActivities = new List<ControlCenterAccountActivity>(accounts.Length);
         var unavailableAccounts = 0;
 
         foreach (var account in accounts)
@@ -49,14 +48,44 @@ public sealed class GmailControlCenterActivityService(
                     totals[day].Received += count.Received;
                     totals[day].Sent += count.Sent;
                 }
+
+                accountActivities.Add(new ControlCenterAccountActivity(
+                    account.Id,
+                    account.DisplayName,
+                    account.Color,
+                    true,
+                    ToDays(accountActivity)));
             }
-            catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException or JsonException or OperationCanceledException)
+            catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException or JsonException)
             {
                 unavailableAccounts++;
+                accountActivities.Add(new ControlCenterAccountActivity(
+                    account.Id,
+                    account.DisplayName,
+                    account.Color,
+                    false,
+                    ToDays(CreateEmptyActivity(startDay, days))));
             }
         }
 
-        var activity = totals
+        return new ControlCenterActivitySnapshot(
+            days,
+            offsetDays,
+            startDay.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            endDay.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ToDays(totals),
+            accountActivities,
+            unavailableAccounts,
+            now);
+    }
+
+    private static Dictionary<DateTime, ActivityCount> CreateEmptyActivity(DateTime startDay, int days) =>
+        Enumerable.Range(0, days)
+            .Select(offset => startDay.AddDays(offset))
+            .ToDictionary(day => day, _ => new ActivityCount());
+
+    private static ControlCenterDay[] ToDays(Dictionary<DateTime, ActivityCount> activity) =>
+        activity
             .OrderBy(x => x.Key)
             .Select(x => new ControlCenterDay(
                 x.Key.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
@@ -64,21 +93,9 @@ public sealed class GmailControlCenterActivityService(
                 x.Value.Sent))
             .ToArray();
 
-        return new ControlCenterActivitySnapshot(
-            days,
-            offsetDays,
-            startDay.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            endDay.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            activity,
-            unavailableAccounts,
-            now);
-    }
-
     private async Task<Dictionary<DateTime, ActivityCount>> LoadActivityAsync(HttpClient client, DateTime startDay, int days, CancellationToken cancellationToken)
     {
-        var result = Enumerable.Range(0, days)
-            .Select(offset => startDay.AddDays(offset))
-            .ToDictionary(day => day, _ => new ActivityCount());
+        var result = CreateEmptyActivity(startDay, days);
         using var gate = new SemaphoreSlim(MaximumConcurrentRequests);
 
         var tasks = result.Keys.Select(async day =>
