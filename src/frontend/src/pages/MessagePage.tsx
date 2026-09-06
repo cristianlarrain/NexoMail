@@ -25,7 +25,7 @@ export function MessagePage() {
   const [preview, setPreview] = useState<MailAttachment | null>(null)
   const { data: message, isLoading } = useQuery({ queryKey: ['message', accountId, messageId], queryFn: () => mailApi.message(accountId, messageId), enabled: Boolean(accountId && messageId) })
   const read = useMutation({ mutationFn: () => mailApi.read(accountId, messageId, true) })
-  const trash = useMutation({ mutationFn: () => mailApi.trash(accountId, messageId), onSuccess: () => navigate('/trash', { state: { trashed: true } }) })
+  const trash = useMutation({ mutationFn: () => mailApi.trash(accountId, messageId), onSuccess: () => navigate('/inbox', { state: { trashed: true } }) })
   useEffect(() => { if (message && !message.isRead) read.mutate() }, [message])
   useEffect(() => { setPreview(null) }, [accountId, messageId])
   if (isLoading || !message) return <section className="mail-view"><div className="reading-skeleton" /></section>
