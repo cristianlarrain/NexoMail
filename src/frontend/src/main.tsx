@@ -11,6 +11,7 @@ import './styles/unread-management.css'
 import './styles/navigation-enhancements.css'
 import './styles/operations-clock.css'
 import './styles/dashboard-headings.css'
+import './styles/ai-writing.css'
 import './styles/confirm-dialog.css'
 import './styles/auth.css'
 
