@@ -175,8 +175,12 @@ public static class UserSessionEndpoints
 
         var now = DateTimeOffset.UtcNow;
         var stamp = NexoMailCookieEvents.CreateSecurityStamp(user.PasswordHash);
-        var active = await database.UserSessions
-            .Where(x => x.UserId == userId && x.RevokedAt == null && x.ExpiresAt > now && x.SecurityStamp == stamp)
+        var storedSessions = await database.UserSessions.AsNoTracking()
+            .Where(x => x.UserId == userId && x.RevokedAt == null && x.SecurityStamp == stamp)
+            .ToArrayAsync(ct);
+
+        var active = storedSessions
+            .Where(x => x.ExpiresAt > now)
             .OrderByDescending(x => x.LastSeenAt)
             .Select(x => new UserSessionResponse(
                 x.Id,
@@ -186,7 +190,7 @@ public static class UserSessionEndpoints
                 x.ExpiresAt,
                 x.IpAddress,
                 x.UserAgent))
-            .ToArrayAsync(ct);
+            .ToArray();
 
         return Results.Ok(active);
     }
