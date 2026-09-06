@@ -22,6 +22,7 @@ public sealed class MailReadCache(IMemoryCache memoryCache)
         var value = await memoryCache.GetOrCreateAsync(cacheKey, async entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = lifetime;
+            entry.Size = 1;
             return await factory(cancellationToken);
         });
 
