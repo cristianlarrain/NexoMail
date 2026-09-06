@@ -163,10 +163,16 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
     else if (selectedItems.length) moveMessages.mutate({ items: selectedItems, target: confirmation.target })
   }
 
+  function refreshAll() {
+    void messagesQuery.refetch()
+    void queryClient.invalidateQueries({ queryKey: ['control-center'] })
+    void queryClient.invalidateQueries({ queryKey: ['control-center-activity'] })
+  }
+
   const confirmationPending = confirmation?.kind === 'emptyTrash' ? emptyTrash.isPending : moveMessages.isPending
 
   return <section className="mail-view">
-    <div className="view-header"><div><p className="eyebrow">{accountId ? 'Cuenta' : 'Todas las cuentas'}</p><h1>{title}</h1></div><div className="view-actions">{folder === 'trash' && <button className="secondary-button danger-button" disabled={emptyTrash.isPending} onClick={() => setConfirmation({ kind: 'emptyTrash' })}><Trash2 size={16} /> {emptyTrash.isPending ? 'Vaciando…' : 'Vaciar papelera'}</button>}<button className="icon-button" onClick={() => messagesQuery.refetch()} aria-label="Actualizar"><RefreshCw size={18} /></button></div></div>
+    <div className="view-header"><div><p className="eyebrow">{accountId ? 'Cuenta' : 'Todas las cuentas'}</p><h1>{title}</h1></div><div className="view-actions">{folder === 'trash' && <button className="secondary-button danger-button" disabled={emptyTrash.isPending} onClick={() => setConfirmation({ kind: 'emptyTrash' })}><Trash2 size={16} /> {emptyTrash.isPending ? 'Vaciando…' : 'Vaciar papelera'}</button>}<button className="icon-button" onClick={refreshAll} aria-label="Actualizar mensajes y centro de control" title="Actualizar"><RefreshCw size={18} /></button></div></div>
 
     {folder === 'inbox' && !search && <ControlCenter accountId={accountId} accountName={selectedAccount?.displayName} />}
 
