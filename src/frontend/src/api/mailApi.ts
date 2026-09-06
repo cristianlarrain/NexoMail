@@ -1,5 +1,5 @@
 import { csrfFetch } from './csrfFetch'
-import type { ComposeMessage, ContactSuggestion, MailAccount, MailAttachment, MailMessage, MailSummary, PagedResult } from '../types/mail'
+import type { ComposeMessage, ContactSuggestion, ControlCenterSnapshot, MailAccount, MailAttachment, MailMessage, MailSummary, PagedResult } from '../types/mail'
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await csrfFetch(`/api${path}`, { headers: { 'Content-Type': 'application/json', ...init?.headers }, ...init })
@@ -12,6 +12,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const mailApi = {
   accounts: () => api<MailAccount[]>('/mail/accounts'),
+  controlCenter: () => api<ControlCenterSnapshot>('/mail/control-center'),
   contacts: (accountId: string, search: string) => api<ContactSuggestion[]>(`/mail/contacts?accountId=${encodeURIComponent(accountId)}&search=${encodeURIComponent(search)}`),
   updateAccount: (accountId: string, settings: { displayName: string; color: string }) => api<MailAccount>(`/mail/accounts/${accountId}`, { method: 'PATCH', body: JSON.stringify(settings) }),
   removeAccount: (accountId: string) => api<void>(`/mail/accounts/${accountId}`, { method: 'DELETE' }),
