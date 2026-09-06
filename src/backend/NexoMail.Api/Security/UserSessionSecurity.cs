@@ -157,6 +157,8 @@ public static class UserSessionEndpoints
 {
     public static IEndpointRouteBuilder MapNexoMailSessions(this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapPost("/api/auth/signout", SignOutAsync).AllowAnonymous();
+
         var sessions = endpoints.MapGroup("/api/auth/sessions").RequireAuthorization();
 
         sessions.MapGet("/", GetSessionsAsync);
@@ -164,6 +166,29 @@ public static class UserSessionEndpoints
         sessions.MapPost("/revoke-others", RevokeOtherSessionsAsync);
 
         return endpoints;
+    }
+
+    private static async Task<IResult> SignOutAsync(HttpContext context, NexoMailDbContext database, CancellationToken ct)
+    {
+        if (NexoMailCookieEvents.TrySessionId(context.User, out var sessionId))
+        {
+            var session = await database.UserSessions.SingleOrDefaultAsync(x => x.Id == sessionId, ct);
+            if (session is not null && session.RevokedAt is null)
+            {
+                session.RevokedAt = DateTimeOffset.UtcNow;
+                await database.SaveChangesAsync(ct);
+            }
+        }
+
+        context.Response.Cookies.Delete("NexoMail.Auth", new CookieOptions
+        {
+            Path = "/",
+            HttpOnly = true,
+            SameSite = SameSiteMode.Lax,
+            Secure = context.Request.IsHttps
+        });
+
+        return Results.NoContent();
     }
 
     private static async Task<IResult> GetSessionsAsync(HttpContext context, NexoMailDbContext database, CancellationToken ct)
@@ -175,11 +200,12 @@ public static class UserSessionEndpoints
 
         var now = DateTimeOffset.UtcNow;
         var stamp = NexoMailCookieEvents.CreateSecurityStamp(user.PasswordHash);
-        var storedSessions = await database.UserSessions.AsNoTracking()
+        var sessions = await database.UserSessions
+            .AsNoTracking()
             .Where(x => x.UserId == userId && x.RevokedAt == null && x.SecurityStamp == stamp)
             .ToArrayAsync(ct);
 
-        var active = storedSessions
+        var active = sessions
             .Where(x => x.ExpiresAt > now)
             .OrderByDescending(x => x.LastSeenAt)
             .Select(x => new UserSessionResponse(
