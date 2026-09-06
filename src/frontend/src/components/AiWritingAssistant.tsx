@@ -227,16 +227,11 @@ export function AiWritingAssistant(props: Props) {
   }
 
   if (props.mode === 'reply') {
-    return <section className="ai-writing-assistant assistant-mode reply compact-reply-assistant" aria-label="Asistente de respuesta Nexo IA">
-      <header className="ai-writing-header compact-reply-header">
-        <div className="ai-writing-brand"><span className="ai-writing-icon"><Sparkles size={17} /></span><div><span>Nexo IA</span><strong>Preparemos tu respuesta</strong></div></div>
-        <span className="ai-writing-context-badge">Prueba local</span>
-      </header>
-
+    return <section className="ai-writing-assistant assistant-mode reply compact-reply-assistant" aria-label="Asistente de respuesta">
       <div className="ai-reply-compact-body">
         <div className="ai-reply-instruction">
           <strong>¿Qué quieres responder?</strong>
-          <p>Escribe unas palabras o dicta la idea. Nexo IA usará esto junto con el correo que estás respondiendo.</p>
+          <p>Escribe unas palabras o dicta la idea. Se usará junto con el mensaje original para preparar la respuesta.</p>
           <div className="ai-voice-field multiline compact-reply-input">
             <textarea value={context} maxLength={3500} onChange={event => setContext(event.target.value)} placeholder="Ej.: agradecer, indicar que revisaré el documento y que responderé cuando tenga los antecedentes." />
             <VoiceButton active={listeningTo === 'context'} label="Dictar respuesta" onClick={() => toggleVoice('context')} />
@@ -260,16 +255,19 @@ export function AiWritingAssistant(props: Props) {
 
         {voiceError && <div className="ai-voice-error" role="alert">{voiceError}</div>}
 
-        <div className="ai-reply-generate-row">
+        {!suggestion && <div className="ai-reply-generate-row">
           <span>{selectedIntent.label} · {selectedTone.label}</span>
-          <button type="button" className="primary-button ai-generate-button" onClick={prepareSuggestion}>{suggestion ? <RefreshCw size={15} /> : <Sparkles size={15} />} {suggestion ? 'Crear otra versión' : 'Generar respuesta'}</button>
-        </div>
+          <button type="button" className="primary-button ai-generate-button" onClick={prepareSuggestion}><Sparkles size={15} /> Generar respuesta</button>
+        </div>}
       </div>
 
       {suggestion && <div className="ai-suggestion assistant-result compact-reply-result">
-        <div className="ai-suggestion-heading"><div><span>Nexo IA preparó esta propuesta</span><strong>Revísala antes de usarla</strong></div><small>Propuesta simulada para validar la experiencia.</small></div>
-        <label className="ai-body-suggestion"><span>Respuesta sugerida</span><textarea value={suggestion.text} onChange={event => setSuggestion(current => current ? { ...current, text: event.target.value } : current)} /></label>
-        <div className="ai-suggestion-actions"><button type="button" className="primary-button" disabled={!suggestion.text.trim()} onClick={() => props.onUse(suggestion)}><Check size={15} /> Usar esta propuesta</button></div>
+        <div className="ai-suggestion-heading"><div><span>Respuesta propuesta</span><strong>Revísala antes de responder</strong></div><small>Puedes usarla, editarla o generar otra alternativa.</small></div>
+        <label className="ai-body-suggestion"><span>Propuesta</span><textarea value={suggestion.text} onChange={event => setSuggestion(current => current ? { ...current, text: event.target.value } : current)} /></label>
+        <div className="ai-suggestion-actions reply-proposal-actions">
+          <button type="button" className="secondary-button" onClick={prepareSuggestion}><RefreshCw size={15} /> Generar otra respuesta</button>
+          <button type="button" className="primary-button" disabled={!suggestion.text.trim()} onClick={() => props.onUse(suggestion)}><Check size={15} /> Usar para responder</button>
+        </div>
       </div>}
     </section>
   }
