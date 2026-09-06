@@ -128,8 +128,8 @@ export function ControlCenterActivity({ accountId, accounts }: { accountId?: str
         <div className={`activity-chart activity-chart-dynamic days-${days}`} style={{ gridTemplateColumns: `repeat(${Math.max(1, activity.length)}, minmax(0, 1fr))` }} aria-label={`Actividad de ${selectedLabel}: ${period || `${days} días`}`}>
           {activity.map(day => <div className="activity-day" key={day.date} title={`${fullDayLabel(day.date)} · ${day.received} recibidos · ${day.sent} enviados`}>
             <div className="activity-bars">
-              <span className="activity-bar-column received"><b>{day.received}</b><i style={{ height: day.received === 0 ? '3px' : `${Math.max(10, Math.round(day.received / maximumActivity * 100))}%` }} /></span>
-              <span className="activity-bar-column sent"><b>{day.sent}</b><i style={{ height: day.sent === 0 ? '3px' : `${Math.max(10, Math.round(day.sent / maximumActivity * 100))}%` }} /></span>
+              <span className="activity-bar-column received">{days === 7 && <b>{day.received}</b>}<i style={{ height: day.received === 0 ? '2px' : `${Math.max(8, Math.round(day.received / maximumActivity * 100))}%` }} /></span>
+              <span className="activity-bar-column sent">{days === 7 && <b>{day.sent}</b>}<i style={{ height: day.sent === 0 ? '2px' : `${Math.max(8, Math.round(day.sent / maximumActivity * 100))}%` }} /></span>
             </div>
             <span>{dayLabel(day.date)}</span>
           </div>)}
@@ -137,6 +137,6 @@ export function ControlCenterActivity({ accountId, accounts }: { accountId?: str
       </div>
     </div>}
 
-    <div className="activity-legend activity-legend-footer"><span><i className="received" /> Recibidos</span><span><i className="sent" /> Enviados</span><span className="activity-line-key">Barras + tendencia</span>{activityQuery.data && activityQuery.data.unavailableAccounts > 0 && <span className="activity-unavailable">{activityQuery.data.unavailableAccounts} cuenta{activityQuery.data.unavailableAccounts === 1 ? '' : 's'} no disponible{activityQuery.data.unavailableAccounts === 1 ? '' : 's'}</span>}</div>
+    <div className="activity-legend activity-legend-footer"><span><i className="received" /> Recibidos</span><span><i className="sent" /> Enviados</span>{activityQuery.data && activityQuery.data.unavailableAccounts > 0 && <span className="activity-unavailable">{activityQuery.data.unavailableAccounts} cuenta{activityQuery.data.unavailableAccounts === 1 ? '' : 's'} no disponible{activityQuery.data.unavailableAccounts === 1 ? '' : 's'}</span>}</div>
   </article>
 }
