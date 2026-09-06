@@ -36,6 +36,7 @@ builder.Services.AddOpenApi();
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddDbContext<NexoMailDbContext>(options => options.UseSqlite(builder.Configuration.GetValue<string>("Database:ConnectionString") ?? "Data Source=nexomail.db"));
 
+builder.Services.AddScoped<NexoMailCookieEvents>();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
@@ -45,16 +46,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Cookie.SecurePolicy = builder.Environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
         options.ExpireTimeSpan = TimeSpan.FromDays(14);
         options.SlidingExpiration = true;
-        options.Events.OnRedirectToLogin = context =>
-        {
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            return Task.CompletedTask;
-        };
-        options.Events.OnRedirectToAccessDenied = context =>
-        {
-            context.Response.StatusCode = StatusCodes.Status403Forbidden;
-            return Task.CompletedTask;
-        };
+        options.EventsType = typeof(NexoMailCookieEvents);
     });
 builder.Services.AddAuthorization();
 builder.Services.AddNexoMailCsrf(builder.Environment);
@@ -171,6 +163,7 @@ app.UseAuthorization();
 app.MapOpenApi();
 app.MapNexoMailCsrf();
 app.MapNexoMailAuth();
+app.MapNexoMailSessions();
 
 var api = app.MapGroup("/api");
 api.MapGet("/health", () => Results.Ok(new { status = "ok", demoMode }));
