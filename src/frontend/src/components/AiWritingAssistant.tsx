@@ -226,9 +226,57 @@ export function AiWritingAssistant(props: Props) {
     }
   }
 
-  return <section className={`ai-writing-assistant assistant-mode ${props.mode}`} aria-label="Asistente de redacción Nexo IA">
+  if (props.mode === 'reply') {
+    return <section className="ai-writing-assistant assistant-mode reply compact-reply-assistant" aria-label="Asistente de respuesta Nexo IA">
+      <header className="ai-writing-header compact-reply-header">
+        <div className="ai-writing-brand"><span className="ai-writing-icon"><Sparkles size={17} /></span><div><span>Nexo IA</span><strong>Preparemos tu respuesta</strong></div></div>
+        <span className="ai-writing-context-badge">Prueba local</span>
+      </header>
+
+      <div className="ai-reply-compact-body">
+        <div className="ai-reply-instruction">
+          <strong>¿Qué quieres responder?</strong>
+          <p>Escribe unas palabras o dicta la idea. Nexo IA usará esto junto con el correo que estás respondiendo.</p>
+          <div className="ai-voice-field multiline compact-reply-input">
+            <textarea value={context} maxLength={3500} onChange={event => setContext(event.target.value)} placeholder="Ej.: agradecer, indicar que revisaré el documento y que responderé cuando tenga los antecedentes." />
+            <VoiceButton active={listeningTo === 'context'} label="Dictar respuesta" onClick={() => toggleVoice('context')} />
+          </div>
+          {listeningTo === 'context' && <VoiceStatus />}
+        </div>
+
+        <div className="ai-reply-choice-group">
+          <span className="ai-reply-choice-label">Objetivo</span>
+          <div className="ai-reply-chip-row" role="group" aria-label="Objetivo de la respuesta">
+            {intents.map(option => <button type="button" key={option.value} className={intent === option.value ? 'active' : ''} title={option.description} onClick={() => setIntent(option.value)}>{option.label}</button>)}
+          </div>
+        </div>
+
+        <div className="ai-reply-choice-group">
+          <span className="ai-reply-choice-label">Tono</span>
+          <div className="ai-reply-chip-row tone-row" role="group" aria-label="Tono de la respuesta">
+            {tones.map(option => <button type="button" key={option.value} className={tone === option.value ? 'active' : ''} title={option.description} onClick={() => setTone(option.value)}>{option.label}</button>)}
+          </div>
+        </div>
+
+        {voiceError && <div className="ai-voice-error" role="alert">{voiceError}</div>}
+
+        <div className="ai-reply-generate-row">
+          <span>{selectedIntent.label} · {selectedTone.label}</span>
+          <button type="button" className="primary-button ai-generate-button" onClick={prepareSuggestion}>{suggestion ? <RefreshCw size={15} /> : <Sparkles size={15} />} {suggestion ? 'Crear otra versión' : 'Generar respuesta'}</button>
+        </div>
+      </div>
+
+      {suggestion && <div className="ai-suggestion assistant-result compact-reply-result">
+        <div className="ai-suggestion-heading"><div><span>Nexo IA preparó esta propuesta</span><strong>Revísala antes de usarla</strong></div><small>Propuesta simulada para validar la experiencia.</small></div>
+        <label className="ai-body-suggestion"><span>Respuesta sugerida</span><textarea value={suggestion.text} onChange={event => setSuggestion(current => current ? { ...current, text: event.target.value } : current)} /></label>
+        <div className="ai-suggestion-actions"><button type="button" className="primary-button" disabled={!suggestion.text.trim()} onClick={() => props.onUse(suggestion)}><Check size={15} /> Usar esta propuesta</button></div>
+      </div>}
+    </section>
+  }
+
+  return <section className="ai-writing-assistant assistant-mode compose" aria-label="Asistente de redacción Nexo IA">
     <header className="ai-writing-header">
-      <div className="ai-writing-brand"><span className="ai-writing-icon"><Sparkles size={17} /></span><div><span>Nexo IA</span><strong>{props.mode === 'reply' ? 'Preparemos tu respuesta' : 'Preparemos tu correo'}</strong></div></div>
+      <div className="ai-writing-brand"><span className="ai-writing-icon"><Sparkles size={17} /></span><div><span>Nexo IA</span><strong>Preparemos tu correo</strong></div></div>
       <span className="ai-writing-context-badge">Prueba local · Paso {step} de 3</span>
     </header>
 
@@ -236,7 +284,7 @@ export function AiWritingAssistant(props: Props) {
       {[1, 2, 3].map(value => <span key={value} className={value <= step ? 'active' : ''} />)}
     </div>
 
-    {props.mode === 'compose' && step === 1 && <div className="ai-assistant-turn">
+    {step === 1 && <div className="ai-assistant-turn">
       <span className="ai-assistant-avatar"><Sparkles size={18} /></span>
       <div className="ai-assistant-bubble">
         <strong>¿A quién quieres dirigir este correo?</strong>
@@ -249,16 +297,7 @@ export function AiWritingAssistant(props: Props) {
       </div>
     </div>}
 
-    {props.mode === 'reply' && step === 1 && <div className="ai-assistant-turn">
-      <span className="ai-assistant-avatar"><Sparkles size={18} /></span>
-      <div className="ai-assistant-bubble">
-        <strong>¿Qué quieres lograr con tu respuesta?</strong>
-        <p>En la versión conectada, Nexo IA leerá el mensaje inicial y el contexto reciente del hilo antes de proponerte la respuesta.</p>
-        <IntentGrid intents={intents} selected={intent} onSelect={setIntent} />
-      </div>
-    </div>}
-
-    {props.mode === 'compose' && step === 2 && <div className="ai-assistant-turn">
+    {step === 2 && <div className="ai-assistant-turn">
       <span className="ai-assistant-avatar"><Sparkles size={18} /></span>
       <div className="ai-assistant-bubble">
         <strong>¿Qué quieres decir?</strong>
@@ -273,19 +312,6 @@ export function AiWritingAssistant(props: Props) {
       </div>
     </div>}
 
-    {props.mode === 'reply' && step === 2 && <div className="ai-assistant-turn">
-      <span className="ai-assistant-avatar"><Sparkles size={18} /></span>
-      <div className="ai-assistant-bubble">
-        <strong>¿Quieres agregar alguna indicación?</strong>
-        <p>Puede escribirla o dictarla. En la versión final, si lo deja vacío, la propuesta se construirá a partir del hilo.</p>
-        <div className="ai-voice-field multiline">
-          <textarea value={context} maxLength={3500} onChange={event => setContext(event.target.value)} placeholder="Ej.: agradecer, indicar que revisaré el documento y evitar comprometer una fecha todavía." />
-          <VoiceButton active={listeningTo === 'context'} label="Dictar instrucciones" onClick={() => toggleVoice('context')} />
-        </div>
-        {listeningTo === 'context' && <VoiceStatus />}
-      </div>
-    </div>}
-
     {voiceError && <div className="ai-voice-error" role="alert">{voiceError}</div>}
 
     {step === 3 && <div className="ai-assistant-turn">
@@ -296,21 +322,21 @@ export function AiWritingAssistant(props: Props) {
         <div className="ai-tone-selector assistant-tones" aria-label="Tono de redacción">
           {tones.map(option => <button type="button" key={option.value} className={tone === option.value ? 'active' : ''} onClick={() => setTone(option.value)}><strong>{option.label}</strong><small>{option.description}</small></button>)}
         </div>
-        <div className="ai-assistant-summary"><span>{selectedIntent.label}</span><span>{selectedTone.label}</span>{props.mode === 'compose' && <span>{props.recipient}</span>}</div>
+        <div className="ai-assistant-summary"><span>{selectedIntent.label}</span><span>{selectedTone.label}</span><span>{props.recipient}</span></div>
         <button type="button" className="primary-button ai-generate-button" onClick={prepareSuggestion}>{suggestion ? <RefreshCw size={15} /> : <Sparkles size={15} />} {suggestion ? 'Crear otra versión' : 'Preparar propuesta'}</button>
       </div>
     </div>}
 
     <div className="ai-assistant-navigation">
       <button type="button" className="secondary-button" onClick={back} disabled={step === 1}><ArrowLeft size={15} /> Atrás</button>
-      {props.mode === 'compose' && props.onManual && <button type="button" className="text-button ai-manual-link" onClick={props.onManual}>Redactar manualmente</button>}
+      {props.onManual && <button type="button" className="text-button ai-manual-link" onClick={props.onManual}>Redactar manualmente</button>}
       {step < 3 && <button type="button" className="primary-button" onClick={next} disabled={!canAdvance}>Continuar <ArrowRight size={15} /></button>}
     </div>
 
     {suggestion && <div className="ai-suggestion assistant-result">
       <div className="ai-suggestion-heading"><div><span>Nexo IA preparó esta propuesta</span><strong>Revísala antes de pasar al envío</strong></div><small>Propuesta simulada para validar la experiencia.</small></div>
-      {props.mode === 'compose' && <label className="ai-subject-suggestion"><span>Asunto sugerido</span><input value={suggestion.subject ?? ''} onChange={event => setSuggestion(current => current ? { ...current, subject: event.target.value } : current)} /></label>}
-      <label className="ai-body-suggestion"><span>{props.mode === 'reply' ? 'Respuesta sugerida' : 'Mensaje sugerido'}</span><textarea value={suggestion.text} onChange={event => setSuggestion(current => current ? { ...current, text: event.target.value } : current)} /></label>
+      <label className="ai-subject-suggestion"><span>Asunto sugerido</span><input value={suggestion.subject ?? ''} onChange={event => setSuggestion(current => current ? { ...current, subject: event.target.value } : current)} /></label>
+      <label className="ai-body-suggestion"><span>Mensaje sugerido</span><textarea value={suggestion.text} onChange={event => setSuggestion(current => current ? { ...current, text: event.target.value } : current)} /></label>
       <div className="ai-suggestion-actions"><button type="button" className="primary-button" disabled={!suggestion.text.trim()} onClick={() => props.onUse(suggestion)}><Check size={15} /> Usar esta propuesta</button></div>
     </div>}
   </section>
