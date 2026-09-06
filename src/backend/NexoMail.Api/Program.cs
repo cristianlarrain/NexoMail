@@ -261,21 +261,33 @@ mail.MapDelete("/accounts/{accountId:guid}", async (NexoMailDbContext database, 
     cache.Invalidate(userContext.UserId.ToString());
     return Results.NoContent();
 });
-mail.MapGet("/messages", async (IMailGateway gateway, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid? accountId, string? folder, int? take, string? cursor, string? search, CancellationToken ct) =>
+mail.MapGet("/messages", async (IMailGateway gateway, NexoMailDbContext database, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid? accountId, string? folder, int? take, string? cursor, string? search, CancellationToken ct) =>
 {
-    var normalizedFolder = folder ?? "inbox";
+    var normalizedFolder = (folder ?? "inbox").Trim().ToLowerInvariant();
+    var providerFolder = normalizedFolder == "ignored" ? "inbox" : normalizedFolder;
     var normalizedTake = take ?? 50;
     var normalizedSearch = search?.Trim() ?? string.Empty;
     var normalizedCursor = cursor ?? string.Empty;
-    var scope = $"{accountId?.ToString("N") ?? "all"}:{normalizedFolder}:{normalizedTake}:{normalizedCursor}:{normalizedSearch}";
+    var scope = $"{accountId?.ToString("N") ?? "all"}:{providerFolder}:{normalizedTake}:{normalizedCursor}:{normalizedSearch}";
     var value = await cache.GetOrCreateAsync(
         userContext.UserId.ToString(),
         "messages",
         scope,
         TimeSpan.FromSeconds(45),
-        token => gateway.GetMessagesAsync(new MailQuery(accountId, normalizedFolder, normalizedTake, cursor, search), token),
+        token => gateway.GetMessagesAsync(new MailQuery(accountId, providerFolder, normalizedTake, cursor, normalizedSearch), token),
         ct);
-    return Results.Ok(value);
+
+    if (normalizedFolder is not ("inbox" or "ignored")) return Results.Ok(value);
+
+    var ignoredQuery = database.IgnoredSenders.AsNoTracking().Where(x => x.UserId == userContext.UserId);
+    if (accountId.HasValue) ignoredQuery = ignoredQuery.Where(x => x.AccountId == accountId.Value);
+    var ignoredRules = await ignoredQuery.Select(x => new { x.AccountId, x.SenderAddress }).ToArrayAsync(ct);
+    var ignored = ignoredRules
+        .Select(rule => $"{rule.AccountId:N}|{rule.SenderAddress.Trim().ToLowerInvariant()}")
+        .ToHashSet(StringComparer.Ordinal);
+    bool IsIgnored(MailSummary item) => ignored.Contains($"{item.AccountId:N}|{item.SenderAddress.Trim().ToLowerInvariant()}");
+    var filtered = normalizedFolder == "ignored" ? value.Items.Where(IsIgnored).ToArray() : value.Items.Where(item => !IsIgnored(item)).ToArray();
+    return Results.Ok(new PagedResult<MailSummary>(filtered, value.NextCursor));
 });
 mail.MapGet("/messages/{accountId:guid}/{messageId}", async (IMailGateway gateway, Guid accountId, string messageId, CancellationToken ct) =>
     await gateway.GetMessageAsync(accountId, messageId, ct) is { } message ? Results.Ok(message) : Results.NotFound());
@@ -315,12 +327,37 @@ mail.MapPost("/messages/{accountId:guid}/{messageId}/move", async (IMailGateway 
 {
     try
     {
-        await gateway.MoveToFolderAsync(accountId, messageId, request.FolderId, ct);
+        await gateway.MoveToFolderAsync(accountId, messageId, request.FolderId.Trim().ToLowerInvariant(), ct);
         cache.Invalidate(userContext.UserId.ToString());
         return Results.NoContent();
     }
     catch (InvalidOperationException exception) { return Results.BadRequest(new { error = exception.Message }); }
     catch (HttpRequestException exception) { return Results.Problem($"Gmail no pudo mover el correo ({exception.StatusCode?.ToString() ?? "sin código"}).", statusCode: 502); }
+});
+mail.MapPost("/ignored-senders/{accountId:guid}", async (NexoMailDbContext database, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid accountId, IgnoreSenderRequest request, CancellationToken ct) =>
+{
+    var sender = request.SenderAddress.Trim().ToLowerInvariant();
+    if (sender.Length is < 3 or > 320 || !sender.Contains('@')) return Results.BadRequest(new { error = "El remitente no es válido." });
+    var accountExists = await database.MailAccounts.AnyAsync(x => x.Id == accountId && x.UserId == userContext.UserId && x.IsActive, ct);
+    if (!accountExists) return Results.NotFound();
+    var exists = await database.IgnoredSenders.AnyAsync(x => x.UserId == userContext.UserId && x.AccountId == accountId && x.SenderAddress == sender, ct);
+    if (!exists)
+    {
+        database.IgnoredSenders.Add(new IgnoredSenderEntity { Id = Guid.NewGuid(), UserId = userContext.UserId, AccountId = accountId, SenderAddress = sender, CreatedAt = DateTimeOffset.UtcNow });
+        await database.SaveChangesAsync(ct);
+    }
+    cache.Invalidate(userContext.UserId.ToString());
+    return Results.NoContent();
+});
+mail.MapDelete("/ignored-senders/{accountId:guid}", async (NexoMailDbContext database, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid accountId, string sender, CancellationToken ct) =>
+{
+    var normalizedSender = sender.Trim().ToLowerInvariant();
+    var rule = await database.IgnoredSenders.SingleOrDefaultAsync(x => x.UserId == userContext.UserId && x.AccountId == accountId && x.SenderAddress == normalizedSender, ct);
+    if (rule is null) return Results.NoContent();
+    database.IgnoredSenders.Remove(rule);
+    await database.SaveChangesAsync(ct);
+    cache.Invalidate(userContext.UserId.ToString());
+    return Results.NoContent();
 });
 mail.MapPost("/folders/{folderId}/empty", async (IMailGateway gateway, NexoMail.Api.MailReadCache cache, IUserContext userContext, string folderId, Guid? accountId, CancellationToken ct) =>
 {
@@ -356,5 +393,6 @@ app.Run();
 
 public sealed record ReadState(bool Read);
 public sealed record MoveRequest(string FolderId);
+public sealed record IgnoreSenderRequest(string SenderAddress);
 public sealed record ReplyRequest(ComposeMessage Message, bool ReplyAll);
 public sealed record ControlCenterStateRequest(string MessageId, string Action, int? SnoozeHours);
