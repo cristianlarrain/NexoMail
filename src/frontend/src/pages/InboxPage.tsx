@@ -36,28 +36,27 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [confirmation, setConfirmation] = useState<ConfirmAction | null>(null)
 
-  const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: mailApi.accounts })
+  const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: mailApi.accounts, staleTime: 10 * 60_000 })
   const selectedAccount = accountId ? accounts.find(account => account.id === accountId) : undefined
   const messagesQuery = useInfiniteQuery({
     queryKey: ['messages', accountId, folder, search],
     queryFn: ({ pageParam }) => mailApi.messages(accountId, folder, search, pageParam || undefined),
     initialPageParam: '',
     getNextPageParam: lastPage => lastPage.nextCursor ?? undefined,
-    staleTime: 45_000,
-    gcTime: 10 * 60_000,
-    refetchInterval: 5 * 60_000,
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchInterval: 10 * 60_000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
+    refetchOnMount: false,
   })
 
   const refreshMailbox = useMutation({
     mutationFn: mailApi.refreshMail,
     onSuccess: async () => {
-      await Promise.all([
-        messagesQuery.refetch(),
-        queryClient.refetchQueries({ queryKey: ['control-center'], type: 'active' }),
-        queryClient.refetchQueries({ queryKey: ['control-center-activity'], type: 'active' }),
-      ])
+      await messagesQuery.refetch()
+      void queryClient.refetchQueries({ queryKey: ['control-center'], type: 'active' })
+      void queryClient.refetchQueries({ queryKey: ['control-center-activity'], type: 'active' })
     },
   })
 
@@ -132,6 +131,8 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
   const contextLabel = accountId ? selectedAccount?.displayName ?? 'Cuenta seleccionada' : 'Todas las cuentas'
   const navigationItems = sortedItems.map(item => ({ accountId: item.accountId, messageId: item.providerMessageId }))
   const returnTo = `${location.pathname}${location.search}`
+  const shouldShowControlCenter = folder === 'inbox' && !search
+  const dashboardReady = shouldShowControlCenter && !messagesQuery.isLoading
   const confirmDetails = confirmation?.kind === 'emptyTrash'
     ? { title: 'Vaciar Papelera', message: 'Esta acción intenta eliminar permanentemente todos los correos de la Papelera.', label: 'Vaciar Papelera', tone: 'danger' as const }
     : confirmation?.kind === 'moveOne'
@@ -185,7 +186,9 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
   return <section className="mail-view">
     <div className="view-header"><div><h1>{pageTitle}</h1><p className="view-context">{contextLabel}</p></div><div className="view-actions">{folder === 'trash' && <button className="secondary-button danger-button" disabled={emptyTrash.isPending} onClick={() => setConfirmation({ kind: 'emptyTrash' })}><Trash2 size={16} /> {emptyTrash.isPending ? 'Vaciando…' : 'Vaciar papelera'}</button>}<button className="icon-button" disabled={refreshMailbox.isPending} onClick={refreshAll} aria-label="Actualizar mensajes y centro de control" title="Actualizar"><RefreshCw size={18} className={refreshMailbox.isPending ? 'spin' : ''} /></button></div></div>
 
-    {folder === 'inbox' && !search && <ControlCenter accountId={accountId} accountName={selectedAccount?.displayName} />}
+    {shouldShowControlCenter && (dashboardReady
+      ? <ControlCenter accountId={accountId} accountName={selectedAccount?.displayName} />
+      : <section className="control-center control-center-deferred" aria-label="El centro de control cargará después de la bandeja"><div><strong>Centro de control</strong><span>Se cargará después de mostrar los correos.</span></div></section>)}
 
     {(location.state as { sent?: boolean; trashed?: boolean } | null)?.sent && <div className="success-notice">Correo enviado correctamente. Ya aparece en Enviados.</div>}
     {(location.state as { trashed?: boolean } | null)?.trashed && <div className="success-notice">Correo movido a Papelera.</div>}
@@ -199,7 +202,7 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
 
     {isUnreadView && selected.size === 0 && items.length > 0 && <div className="unread-management-hint"><MailOpen size={16} /><span>Seleccione varios correos o use el checkbox superior para marcarlos como leídos en una sola acción.</span></div>}
 
-    {messagesQuery.isLoading && <section className="inbox-mail-loading" aria-label="Cargando correos"><div className="inbox-loading-heading"><strong>Cargando correos</strong><span>La bandeja aparecerá aquí sin mover el resto del panel.</span></div><MailSkeleton /></section>}
+    {messagesQuery.isLoading && <section className="inbox-mail-loading" aria-label="Cargando correos"><div className="inbox-loading-heading"><strong>Cargando correos</strong><span>La lista tiene prioridad; el Centro de Control se completa después.</span></div><MailSkeleton /></section>}
     {messagesQuery.isError && <div className="notice">No se pudo actualizar una de sus cuentas. <button onClick={() => messagesQuery.refetch()}>Reintentar</button></div>}
     {!messagesQuery.isLoading && items.length === 0 && <div className="empty-state"><Archive size={28} /><h2>No hay mensajes aquí</h2><p>{isUnreadView ? 'No quedan correos sin leer en esta vista.' : 'Los mensajes de esta carpeta aparecerán en este espacio.'}</p></div>}
 
