@@ -123,12 +123,12 @@ public sealed class AiWritingService(
 
     private static string BuildConversation(MailMessage message)
     {
-        var values = message.Thread is { Count: > 0 }
+        IEnumerable<string> values = message.Thread is { Count: > 0 }
             ? message.Thread
                 .OrderBy(x => x.ReceivedAt)
                 .TakeLast(6)
                 .Select(item => $"{item.From.Name} <{item.From.Address}>:\n{PlainText(item.HtmlBody)}")
-            : [$"{message.From.Name} <{message.From.Address}>:\n{PlainText(message.HtmlBody)}"];
+            : new[] { $"{message.From.Name} <{message.From.Address}>:\n{PlainText(message.HtmlBody)}" };
 
         return Limit(string.Join("\n\n---\n\n", values), MaximumPromptCharacters - 2_000);
     }
