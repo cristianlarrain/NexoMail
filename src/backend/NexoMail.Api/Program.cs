@@ -91,6 +91,21 @@ using (var scope = app.Services.CreateScope())
     await DatabaseBootstrap.EnsureAuthenticationSchemaAsync(database);
 }
 
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (KeyNotFoundException)
+    {
+        if (context.Response.HasStarted) throw;
+        context.Response.Clear();
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        await context.Response.WriteAsJsonAsync(new { error = "Recurso no disponible." });
+    }
+});
+
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
