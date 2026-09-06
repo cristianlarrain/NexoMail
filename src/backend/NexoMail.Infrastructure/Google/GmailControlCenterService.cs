@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -320,7 +321,12 @@ public sealed class GmailControlCenterService(
     private static bool IsNonActionableReceived(ThreadMessageData message)
     {
         if (message.Labels.Contains("CATEGORY_PROMOTIONS") || message.Labels.Contains("CATEGORY_SOCIAL") || message.Labels.Contains("CATEGORY_FORUMS")) return true;
-        return IsLikelyAutomated(message);
+        if (IsLikelyAutomated(message)) return true;
+        if (IsHighConfidenceTransactionalSubject(message.Subject)) return true;
+
+        var updateCategory = message.Labels.Contains("CATEGORY_UPDATES");
+        var notificationSender = HasNotificationSenderSignal(message.From);
+        return (updateCategory || notificationSender) && IsInformationalTransactionalSubject(message.Subject);
     }
 
     private static bool IsLikelyAutomated(ThreadMessageData message)
@@ -332,6 +338,62 @@ public sealed class GmailControlCenterService(
         return message.Precedence.Equals("bulk", StringComparison.OrdinalIgnoreCase) ||
                message.Precedence.Equals("list", StringComparison.OrdinalIgnoreCase) ||
                message.Precedence.Equals("junk", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool HasNotificationSenderSignal(string from)
+    {
+        var value = NormalizeForMatch(from);
+        string[] signals =
+        [
+            "notificaciones@", "notificacion@", "notifications@", "notification@",
+            "alertas@", "alerta@", "alerts@", "alert@",
+            "facturacion@", "facturas@", "billing@", "invoice@", "invoices@",
+            "comprobantes@", "recibos@", "receipts@", "pedidos@", "orders@",
+            "despachos@", "shipping@", "seguridad@", "security@", "avisos@", "updates@"
+        ];
+        return signals.Any(value.Contains);
+    }
+
+    private static bool IsHighConfidenceTransactionalSubject(string subject)
+    {
+        var value = NormalizeForMatch(subject);
+        string[] phrases =
+        [
+            "comprobante de pago", "comprobante de transferencia", "comprobante de compra",
+            "confirmacion de compra", "confirmacion de pago", "confirmacion de transferencia",
+            "compra realizada", "compra aprobada", "pago realizado", "pago recibido", "pago procesado",
+            "transferencia realizada", "transferencia recibida", "factura electronica", "boleta electronica",
+            "recibo de pago", "estado de cuenta", "cartola bancaria", "movimiento en tu cuenta", "movimiento en su cuenta",
+            "pedido confirmado", "orden confirmada", "despacho confirmado", "envio confirmado", "entrega confirmada",
+            "codigo de verificacion", "clave temporal", "inicio de sesion", "alerta de seguridad",
+            "cargo realizado", "abono recibido", "suscripcion renovada"
+        ];
+        return phrases.Any(value.Contains);
+    }
+
+    private static bool IsInformationalTransactionalSubject(string subject)
+    {
+        var value = NormalizeForMatch(subject);
+        string[] terms =
+        [
+            "comprobante", "factura", "boleta", "recibo", "pago", "compra", "pedido", "orden",
+            "despacho", "envio", "entrega", "transferencia", "transaccion", "movimiento", "estado de cuenta",
+            "cartola", "codigo", "verificacion", "seguridad", "alerta", "suscripcion", "resumen de actividad"
+        ];
+        return terms.Any(value.Contains);
+    }
+
+    private static string NormalizeForMatch(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+        var normalized = value.Normalize(NormalizationForm.FormD);
+        var builder = new StringBuilder(normalized.Length);
+        foreach (var character in normalized)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark)
+                builder.Append(char.ToLowerInvariant(character));
+        }
+        return builder.ToString().Normalize(NormalizationForm.FormC);
     }
 
     private static string DisplayCounterpart(string value)
