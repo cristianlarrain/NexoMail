@@ -222,9 +222,12 @@ public static class UserSessionEndpoints
         return Results.Ok(new { revoked = otherSessions.Length });
     }
 
-    private static bool TryUser(ClaimsPrincipal principal, out Guid userId, out Guid sessionId) =>
-        Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out userId) &&
-        NexoMailCookieEvents.TrySessionId(principal, out sessionId);
+    private static bool TryUser(ClaimsPrincipal principal, out Guid userId, out Guid sessionId)
+    {
+        sessionId = Guid.Empty;
+        return Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out userId) &&
+               NexoMailCookieEvents.TrySessionId(principal, out sessionId);
+    }
 }
 
 public sealed record UserSessionResponse(
