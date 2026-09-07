@@ -11,6 +11,14 @@ public static class AiEndpoints
     public static IServiceCollection AddNexoMailAi(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<AiWritingOptions>(configuration.GetSection(AiWritingOptions.SectionName));
+        services.PostConfigure<AiWritingOptions>(options =>
+        {
+            if (string.IsNullOrWhiteSpace(options.ApiKey))
+                options.ApiKey = configuration["OPENAI_API_KEY"] ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(options.Model))
+                options.Model = "gpt-5.6-luna";
+        });
+
         services.AddHttpClient("OpenAI", client =>
         {
             client.BaseAddress = new Uri("https://api.openai.com/v1/");
@@ -39,6 +47,16 @@ public static class AiEndpoints
         ControlCenterTrackingEndpoints.Map(mail);
         DraftEndpoints.Map(mail);
         MetadataIndexEndpoints.Map(mail);
+
+        mail.MapGet("/ai/status", (Microsoft.Extensions.Options.IOptions<AiWritingOptions> options) =>
+        {
+            var settings = options.Value;
+            return Results.Ok(new
+            {
+                configured = !string.IsNullOrWhiteSpace(settings.ApiKey),
+                model = string.IsNullOrWhiteSpace(settings.Model) ? "gpt-5.6-luna" : settings.Model
+            });
+        });
 
         mail.MapPost("/messages/{accountId:guid}/{messageId}/ai-reply", async (
             IMailGateway gateway,
