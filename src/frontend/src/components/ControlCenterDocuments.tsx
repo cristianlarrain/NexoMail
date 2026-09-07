@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Download, FileArchive, FileSpreadsheet, FileText, FileType2, Mail, Search } from 'lucide-react'
+import { Download, Eye, FileArchive, FileSpreadsheet, FileText, FileType2, Mail, Search, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
 import type { DocumentIndexItem, MailAttachment } from '../types/mail'
@@ -22,6 +22,10 @@ function attachmentFrom(item: DocumentIndexItem): MailAttachment {
   return { id: item.attachmentId, name: item.fileName, contentType: item.contentType, size: item.size }
 }
 
+function canPreview(item: DocumentIndexItem) {
+  return item.contentType.startsWith('image/') || item.contentType === 'application/pdf' || /^text\/(plain|csv)|application\/(json|xml)/i.test(item.contentType) || /\.(pdf|txt|csv|json|xml|log|md)$/i.test(item.fileName)
+}
+
 function indexedLabel(value?: string | null) {
   if (!value) return 'Índice pendiente'
   return `Actualizado ${new Date(value).toLocaleString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).replace(/\./g, '')}`
@@ -33,8 +37,15 @@ export function ControlCenterDocuments() {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [page, setPage] = useState(0)
+  const [preview, setPreview] = useState<DocumentIndexItem | null>(null)
 
   useEffect(() => { setPage(0) }, [search, typeFilter])
+  useEffect(() => {
+    if (!preview) return
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setPreview(null) }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [preview])
 
   const query = useQuery({
     queryKey: ['control-center-documents-index', search, typeFilter, page],
@@ -60,6 +71,9 @@ export function ControlCenterDocuments() {
 
   const data = query.data
   const firstIndex = data.indexedMessages === 0
+  const previewAttachment = preview ? attachmentFrom(preview) : null
+  const previewUrl = preview && previewAttachment ? mailApi.attachmentUrl(preview.accountId, preview.messageId, previewAttachment) : ''
+  const previewDownloadUrl = preview && previewAttachment ? mailApi.attachmentUrl(preview.accountId, preview.messageId, previewAttachment, true) : ''
 
   return <section className="documents-control" aria-label="Documentos recibidos">
     <header className="documents-header">
@@ -98,6 +112,7 @@ export function ControlCenterDocuments() {
         </div>
         <time className="document-date" dateTime={item.receivedAt}>{dateLabel(item.receivedAt)}</time>
         <div className="document-actions">
+          <button type="button" className="document-icon-action" title="Previsualizar" aria-label={`Previsualizar ${item.fileName}`} onClick={() => setPreview(item)}><Eye size={14} /></button>
           <button type="button" className="document-icon-action" title="Ver correo" aria-label={`Ver correo de ${item.fileName}`} onClick={() => navigate(`/message/${item.accountId}/${item.messageId}`)}><Mail size={14} /></button>
           <a className="document-icon-action" title="Descargar" aria-label={`Descargar ${item.fileName}`} href={mailApi.attachmentUrl(item.accountId, item.messageId, attachmentFrom(item), true)}><Download size={14} /></a>
         </div>
@@ -110,5 +125,19 @@ export function ControlCenterDocuments() {
       <span>Pág. {page + 1} · {indexedLabel(data.indexedAt)}</span>
       <button type="button" className="secondary-button compact-action" disabled={!data.hasMore || query.isFetching} onClick={() => setPage(current => current + 1)}>Siguiente</button>
     </div>
+
+    {preview && <div className="document-preview-layer" role="dialog" aria-modal="true" aria-label={`Vista previa de ${preview.fileName}`}>
+      <button type="button" className="document-preview-backdrop" aria-label="Cerrar vista previa" onClick={() => setPreview(null)} />
+      <aside className="document-preview-panel">
+        <header>
+          <div><p className="eyebrow">Vista previa</p><strong title={preview.fileName}>{preview.fileName}</strong><small>{preview.senderName} · {dateLabel(preview.receivedAt)}</small></div>
+          <button type="button" className="document-preview-close" onClick={() => setPreview(null)} aria-label="Cerrar vista previa"><X size={17} /></button>
+        </header>
+        <div className="document-preview-content">
+          {preview.contentType.startsWith('image/') ? <img src={previewUrl} alt={preview.fileName} /> : canPreview(preview) ? <iframe src={previewUrl} title={`Vista previa: ${preview.fileName}`} /> : <div className="document-preview-unsupported"><FileText size={34} /><strong>Vista previa no disponible</strong><span>Este formato no puede mostrarse directamente en el navegador.</span><button type="button" className="secondary-button compact-action" onClick={() => { setPreview(null); navigate(`/message/${preview.accountId}/${preview.messageId}`) }}><Mail size={14} /> Ver correo</button></div>}
+        </div>
+        <footer><span>{preview.documentType}</span><a className="primary-button" href={previewDownloadUrl}><Download size={14} /> Descargar</a></footer>
+      </aside>
+    </div>}
   </section>
 }
