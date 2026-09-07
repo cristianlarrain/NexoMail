@@ -7,8 +7,35 @@
   overflow: visible;
 }
 
+/* Denser mailbox rhythm: more messages visible without turning the list into a cramped table. */
+.message-list-header {
+  min-height: 34px;
+  padding-inline: 12px;
+}
+
 .message-row {
   position: relative;
+  min-height: 48px;
+  padding-inline: 12px;
+  font-size: 13px;
+}
+
+.message-row .sender,
+.message-row .subject {
+  line-height: 1.25;
+}
+
+.message-row time {
+  font-size: 11px;
+}
+
+.message-row .row-check {
+  height: 30px;
+}
+
+.inbox-skeleton-list .skeleton-row {
+  height: 48px;
+  padding-inline: 12px;
 }
 
 .row-mail-actions {
@@ -20,8 +47,8 @@
 }
 
 .row-mail-action {
-  width: 29px;
-  height: 29px;
+  width: 27px;
+  height: 27px;
   display: grid;
   place-items: center;
   border: 0;
@@ -131,6 +158,10 @@
 }
 
 @media (max-width: 620px) {
+  .message-row {
+    min-height: 52px;
+  }
+
   .row-mail-actions {
     min-width: 60px;
   }
