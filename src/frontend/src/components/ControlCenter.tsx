@@ -49,6 +49,7 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
   const [actionError, setActionError] = useState('')
   const queryKey = ['control-center', accountId ?? 'all'] as const
   const inboxPath = accountId ? `/account/${accountId}` : '/inbox'
+  const controlCenterPath = '/control-center'
   const snapshot = useQuery({
     queryKey,
     queryFn: () => mailApi.controlCenter(accountId),
@@ -92,7 +93,7 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
     setActionError('')
     try {
       const message = await queryClient.fetchQuery({ queryKey: ['message', item.accountId, item.messageId], queryFn: () => mailApi.message(item.accountId, item.messageId), staleTime: 5 * 60_000 })
-      navigate('/compose', { state: { mode: item.direction === 'received' ? 'reply' : 'followUp', message } })
+      navigate('/compose', { state: { mode: item.direction === 'received' ? 'reply' : 'followUp', message, returnTo: controlCenterPath } })
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'No fue posible abrir la conversación.')
     } finally {
@@ -145,7 +146,7 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
               <button type="button" className="primary-button compact-action" disabled={pendingAction} onClick={() => void openComposer(item)}><MessageSquareReply size={14} /> {item.direction === 'received' ? 'Responder' : 'Seguimiento'}</button>
               <button type="button" className="secondary-button compact-action" disabled={pendingAction} onClick={() => setSnoozeTarget(current => current === key ? null : key)}><Pause size={14} /> Posponer</button>
               <button type="button" className="secondary-button compact-action" disabled={pendingAction} onClick={() => manage.mutate({ item, action: 'resolved' })}><Check size={14} /> No requiere {item.direction === 'received' ? 'respuesta' : 'seguimiento'}</button>
-              <button type="button" className="icon-button" disabled={pendingAction} title="Ver correo" aria-label="Ver correo" onClick={() => navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: inboxPath } })}><Eye size={16} /></button>
+              <button type="button" className="icon-button" disabled={pendingAction} title="Ver correo" aria-label="Ver correo" onClick={() => navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: controlCenterPath, controlCenterItem: item } })}><Eye size={16} /></button>
             </div>
             {snoozeTarget === key && <div className="snooze-options"><span>Volver a mostrar en:</span><button type="button" disabled={manage.isPending} onClick={() => manage.mutate({ item, action: 'snoozed', snoozeHours: 24 })}>1 día</button><button type="button" disabled={manage.isPending} onClick={() => manage.mutate({ item, action: 'snoozed', snoozeHours: 72 })}>3 días</button><button type="button" disabled={manage.isPending} onClick={() => manage.mutate({ item, action: 'snoozed', snoozeHours: 168 })}>7 días</button></div>}
           </div>
@@ -159,7 +160,7 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
       <article className="control-panel priority-panel">
         <header><div><strong>Seguimiento prioritario</strong><span>Conversaciones pendientes más antiguas</span></div></header>
         {data.priorityItems.length === 0 ? <div className="control-empty"><strong>Sin pendientes recientes</strong><span>No hay conversaciones que requieran seguimiento en el período analizado.</span></div> : <div className="priority-list">
-          {data.priorityItems.map(item => <button type="button" className="priority-row" key={itemKey(item)} onClick={() => navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: inboxPath } })}>
+          {data.priorityItems.map(item => <button type="button" className="priority-row" key={itemKey(item)} onClick={() => navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: controlCenterPath, controlCenterItem: item } })}>
             <i className="account-dot" style={{ background: item.accountColor }} />
             <span className="priority-main"><span className={`priority-direction ${item.direction}`}>{item.direction === 'received' ? 'Responder' : 'Esperando'}</span><strong>{item.subject}</strong><small>{item.direction === 'received' ? 'De' : 'Para'}: {item.counterpart}</small></span>
             <span className="priority-age">{ageLabel(item.since)}<ChevronRight size={15} /></span>
