@@ -23,6 +23,8 @@ import './styles/ui-polish.css'
 import './styles/attachment-preview.css'
 import './styles/nexi.css'
 import './styles/brand.css'
+import './styles/landing.css'
+import './styles/landing-commercial.css'
 import './styles/cinematic-dark-theme.css'
 
 const client = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, retry: 1 } } })
