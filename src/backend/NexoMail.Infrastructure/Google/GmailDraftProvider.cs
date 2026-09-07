@@ -49,24 +49,20 @@ public sealed class GmailDraftProvider(
             raw = BuildRfc822(message with { FromAccountId = accountId });
         }
 
-        var draftMessage = string.IsNullOrWhiteSpace(threadId)
-            ? new { raw = ToBase64Url(Encoding.UTF8.GetBytes(raw)) }
-            : null;
-
-        using HttpResponseMessage response;
-        if (draftMessage is not null)
+        var encodedRaw = ToBase64Url(Encoding.UTF8.GetBytes(raw));
+        HttpResponseMessage response;
+        if (string.IsNullOrWhiteSpace(threadId))
         {
-            response = await client.PostAsJsonAsync("users/me/drafts", new { message = draftMessage }, cancellationToken);
+            response = await client.PostAsJsonAsync("users/me/drafts", new
+            {
+                message = new { raw = encodedRaw }
+            }, cancellationToken);
         }
         else
         {
             response = await client.PostAsJsonAsync("users/me/drafts", new
             {
-                message = new
-                {
-                    raw = ToBase64Url(Encoding.UTF8.GetBytes(raw)),
-                    threadId
-                }
+                message = new { raw = encodedRaw, threadId }
             }, cancellationToken);
         }
 
