@@ -39,11 +39,14 @@ type ContactsSnapshot = {
   totalReplies: number
   totalAwaiting: number
   averageResponseMinutes: number | null
+  analyzedSent: number
   truncated: boolean
 }
 
-const MAX_PAGES = 10
-const DETAIL_BATCH_SIZE = 8
+const MAX_SENT_MESSAGES = 20
+const INBOX_PAGES = 2
+const DETAIL_BATCH_SIZE = 5
+const DETAIL_TIMEOUT_MS = 12_000
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase()
@@ -73,24 +76,45 @@ function contactName(name: string, email: string) {
   return clean && normalizeEmail(clean) !== normalizeEmail(email) ? clean : email.split('@')[0]
 }
 
-async function loadFolder(folder: 'sent' | 'inbox', days: 30 | 90) {
+async function withTimeout<T>(promise: Promise<T>, milliseconds: number): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<null>(resolve => {
+    timer = setTimeout(() => resolve(null), milliseconds)
+  })
+  const value = await Promise.race([promise, timeout])
+  if (timer) clearTimeout(timer)
+  return value
+}
+
+async function loadInbox(days: 30 | 90) {
   const items: MailSummary[] = []
   let cursor: string | undefined
   let pages = 0
   do {
-    const page = await mailApi.messages(undefined, folder, `newer_than:${days}d`, cursor)
+    const page = await mailApi.messages(undefined, 'inbox', `newer_than:${days}d`, cursor)
     items.push(...page.items)
     cursor = page.nextCursor
     pages++
-  } while (cursor && pages < MAX_PAGES)
+  } while (cursor && pages < INBOX_PAGES)
   return { items, truncated: Boolean(cursor) }
+}
+
+async function loadRecentSent(days: 30 | 90) {
+  const page = await mailApi.messages(undefined, 'sent', `newer_than:${days}d`)
+  return {
+    items: page.items.slice(0, MAX_SENT_MESSAGES),
+    truncated: Boolean(page.nextCursor) || page.items.length > MAX_SENT_MESSAGES,
+  }
 }
 
 async function loadSentDetails(items: MailSummary[]) {
   const details: MailMessage[] = []
   for (let index = 0; index < items.length; index += DETAIL_BATCH_SIZE) {
     const batch = items.slice(index, index + DETAIL_BATCH_SIZE)
-    const values = await Promise.all(batch.map(item => mailApi.message(item.accountId, item.providerMessageId).catch(() => null)))
+    const values = await Promise.all(batch.map(item => withTimeout(
+      mailApi.message(item.accountId, item.providerMessageId).catch(() => null),
+      DETAIL_TIMEOUT_MS,
+    )))
     details.push(...values.filter((value): value is MailMessage => Boolean(value)))
   }
   return details
@@ -120,8 +144,8 @@ function computeThreadStats(contact: ContactAccumulator, message: MailMessage, o
 async function buildSnapshot(days: 30 | 90): Promise<ContactsSnapshot> {
   const [accounts, sentPage, inboxPage] = await Promise.all([
     mailApi.accounts(),
-    loadFolder('sent', days),
-    loadFolder('inbox', days),
+    loadRecentSent(days),
+    loadInbox(days),
   ])
 
   const accountById = new Map(accounts.map(account => [account.id, account]))
@@ -216,6 +240,7 @@ async function buildSnapshot(days: 30 | 90): Promise<ContactsSnapshot> {
     averageResponseMinutes: allResponseMinutes.length
       ? Math.round(allResponseMinutes.reduce((sum, value) => sum + value, 0) / allResponseMinutes.length)
       : null,
+    analyzedSent: sentDetails.length,
     truncated: sentPage.truncated || inboxPage.truncated,
   }
 }
@@ -258,7 +283,7 @@ export function ControlCenterContacts() {
     })
   }, [query.data?.contacts, search, sort])
 
-  if (query.isLoading) return <section className="contact-control contact-control-loading"><div className="reading-skeleton" /><p>Analizando contactos e interacciones del correo…</p></section>
+  if (query.isLoading) return <section className="contact-control contact-control-loading"><div className="reading-skeleton" /><p>Preparando estadísticas de contactos…</p><small>Analizando una muestra reciente para mantener una carga rápida.</small></section>
   if (query.isError || !query.data) return <section className="contact-control"><div className="notice">No fue posible generar las estadísticas de contactos. <button type="button" className="auth-link" onClick={() => query.refetch()}>Reintentar</button></div></section>
 
   const data = query.data
@@ -279,7 +304,7 @@ export function ControlCenterContacts() {
       <article><Clock3 size={18} /><div><strong>{responseTimeLabel(data.averageResponseMinutes)}</strong><span>Tiempo medio</span></div></article>
     </div>
 
-    {data.truncated && <div className="notice contact-limit-notice">El volumen del período es alto; se analizaron las interacciones más recientes disponibles.</div>}
+    <div className="notice contact-limit-notice">Vista rápida basada en los {data.analyzedSent} correos enviados más recientes disponibles dentro de los últimos {days} días{data.truncated ? '. El resto se omite para evitar una carga excesiva.' : '.'}</div>
 
     <div className="contact-toolbar">
       <label className="contact-search"><Search size={15} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar persona, correo o asunto" /></label>
