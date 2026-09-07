@@ -9,7 +9,7 @@ import type { ControlCenterPendingItem, ControlCenterSnapshot, MailAttachment, M
 import { sanitizeEmailHtml } from '../utils/sanitizeEmailHtml'
 
 type MessageNavigationItem = { accountId: string; messageId: string }
-type MessageNavigationState = { navigationItems?: MessageNavigationItem[]; returnTo?: string; controlCenterItem?: ControlCenterPendingItem }
+type MessageNavigationState = { navigationItems?: MessageNavigationItem[]; returnTo?: string; controlCenterItem?: ControlCenterPendingItem; manualTracking?: boolean }
 
 function canPreview(file: MailAttachment) {
   return file.contentType.startsWith('image/') || file.contentType === 'application/pdf' || /^text\/(plain|csv)|application\/(json|xml)/i.test(file.contentType) || /\.(txt|csv|json|xml|log|md)$/i.test(file.name)
@@ -49,7 +49,7 @@ export function MessagePage() {
   const returnPath = navigationState?.returnTo ?? '/inbox'
   const openedFromIgnored = returnPath.startsWith('/ignored')
   const openedFromControlCenter = returnPath.startsWith('/control-center')
-  const openedManualTracking = controlCenterItem?.conversationId.startsWith('manual:') ?? false
+  const openedManualTracking = navigationState?.manualTracking ?? controlCenterItem?.conversationId.startsWith('manual:') ?? false
 
   function removeMessageFromCachedLists() {
     queryClient.setQueriesData<InfiniteData<PagedResult<MailSummary>>>({ queryKey: ['messages'] }, current => current ? {
@@ -185,6 +185,7 @@ export function MessagePage() {
   const canOrganize = message.folderId !== 'sent' && message.folderId !== 'drafts'
   const canManualTrack = !['drafts', 'trash', 'spam'].includes(message.folderId)
   const isManuallyTracked = trackingState.data?.isTracked ?? openedManualTracking
+  const trackingMutationError = trackMessage.error ?? untrackMessage.error
   const destructiveActionLabel = isDraft ? 'Descartar borrador' : 'Mover a Papelera'
   return <article className={`mail-view message-reader ${preview ? 'with-preview' : ''}`}>
     <section className="message-reading-pane">
@@ -211,7 +212,7 @@ export function MessagePage() {
       {trackMessage.isSuccess && <div className="success-notice">Correo añadido a Seguimiento prioritario.</div>}
       {untrackMessage.isSuccess && <div className="success-notice">Seguimiento manual retirado. El correo no fue movido ni eliminado.</div>}
       {trackingResolved && <div className="success-notice">Conversación retirada del seguimiento automático. El correo no fue movido ni eliminado.</div>}
-      {(trackMessage.isError || untrackMessage.isError) && <div className="notice message-mailbox-error">{(trackMessage.error ?? untrackMessage.error) instanceof Error ? (trackMessage.error ?? untrackMessage.error as Error).message : 'No fue posible actualizar el seguimiento manual.'}</div>}
+      {trackingMutationError && <div className="notice message-mailbox-error">{trackingMutationError instanceof Error ? trackingMutationError.message : 'No fue posible actualizar el seguimiento manual.'}</div>}
       {resolveTracking.isError && <div className="notice message-mailbox-error">{resolveTracking.error instanceof Error ? resolveTracking.error.message : 'No fue posible actualizar el seguimiento.'}</div>}
       {(move.isError || ignore.isError || unignore.isError) && <div className="notice message-mailbox-error">No fue posible completar la acción sobre este correo.</div>}
 
