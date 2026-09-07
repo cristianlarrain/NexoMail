@@ -19,6 +19,7 @@ public static class AiEndpoints
         services.AddScoped<AiWritingService>();
         services.AddScoped<ControlCenterTrackingService>();
         services.AddScoped<GmailDraftProvider>();
+        services.AddScoped<GmailMetadataIndexService>();
         services.AddScoped<IMailDraftProvider>(services => services.GetRequiredService<GmailDraftProvider>());
         services.AddRateLimiter(options => options.AddPolicy("ai-writing", context =>
             RateLimitPartition.GetFixedWindowLimiter(
@@ -37,6 +38,7 @@ public static class AiEndpoints
     {
         ControlCenterTrackingEndpoints.Map(mail);
         DraftEndpoints.Map(mail);
+        MetadataIndexEndpoints.Map(mail);
 
         mail.MapPost("/messages/{accountId:guid}/{messageId}/ai-reply", async (
             IMailGateway gateway,
