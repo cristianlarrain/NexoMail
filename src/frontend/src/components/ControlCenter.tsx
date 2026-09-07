@@ -8,6 +8,7 @@ import type { ControlCenterPendingItem, ControlCenterSnapshot } from '../types/m
 import { ControlCenterActivity } from './ControlCenterActivity'
 
 type ManagementView = 'received' | 'sent' | 'overdue' | null
+type PriorityDisplayItem = { item: ControlCenterPendingItem; automatic: boolean; manual: boolean }
 
 function ageLabel(value: string) {
   const elapsedMinutes = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 60_000))
@@ -20,6 +21,10 @@ function ageLabel(value: string) {
 
 function itemKey(item: ControlCenterPendingItem) {
   return `${item.accountId}:${item.conversationId}:${item.messageId}`
+}
+
+function messageKey(item: ControlCenterPendingItem) {
+  return `${item.accountId}:${item.messageId}`
 }
 
 function isOverdue(item: ControlCenterPendingItem) {
@@ -47,6 +52,7 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
   const [snoozeTarget, setSnoozeTarget] = useState<string | null>(null)
   const [openingTarget, setOpeningTarget] = useState<string | null>(null)
   const [actionError, setActionError] = useState('')
+  const [priorityVisible, setPriorityVisible] = useState(10)
   const queryKey = ['control-center', accountId ?? 'all'] as const
   const inboxPath = accountId ? `/account/${accountId}` : '/inbox'
   const controlCenterPath = '/control-center'
@@ -57,6 +63,13 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
     gcTime: 30 * 60_000,
     refetchInterval: false,
     refetchOnMount: false,
+    refetchOnWindowFocus: false,
+  })
+  const manualTracking = useQuery({
+    queryKey: ['control-center-tracking', accountId ?? 'all'],
+    queryFn: () => mailApi.controlCenterTrackedItems(accountId),
+    staleTime: 0,
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
   })
 
@@ -123,6 +136,16 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
         : []
   const activeCopy = activeView ? managementCopy(activeView) : null
   const scopeLabel = accountId ? accountName ?? 'Esta cuenta' : 'Todas las cuentas'
+  const priorityMap = new Map<string, PriorityDisplayItem>()
+  data.pendingItems.forEach(item => priorityMap.set(messageKey(item), { item, automatic: true, manual: false }))
+  ;(manualTracking.data ?? []).forEach(item => {
+    const key = messageKey(item)
+    const current = priorityMap.get(key)
+    if (current) priorityMap.set(key, { ...current, manual: true })
+    else priorityMap.set(key, { item, automatic: false, manual: true })
+  })
+  const priorityItems = [...priorityMap.values()].sort((left, right) => new Date(left.item.since).getTime() - new Date(right.item.since).getTime())
+  const visiblePriorityItems = priorityItems.slice(0, priorityVisible)
 
   return <section className="control-center" aria-labelledby="control-center-title">
     <div className="control-center-header">
@@ -165,14 +188,17 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
       <ControlCenterActivity accountId={accountId} accounts={data.accounts} />
 
       <article className="control-panel priority-panel">
-        <header><div><strong>Seguimiento prioritario</strong><span>Conversaciones pendientes más antiguas</span></div></header>
-        {data.priorityItems.length === 0 ? <div className="control-empty"><strong>Sin pendientes recientes</strong><span>No hay conversaciones que requieran seguimiento en el período analizado.</span></div> : <div className="priority-list">
-          {data.priorityItems.map(item => <button type="button" className="priority-row" key={itemKey(item)} onClick={() => navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: controlCenterPath, controlCenterItem: item } })}>
-            <i className="account-dot" style={{ background: item.accountColor }} />
-            <span className="priority-main"><span className={`priority-direction ${item.direction}`}>{item.direction === 'received' ? 'Responder' : 'Esperando'}</span><strong>{item.subject}</strong><small>{item.direction === 'received' ? 'De' : 'Para'}: {item.counterpart}</small></span>
-            <span className="priority-age">{ageLabel(item.since)}<ChevronRight size={15} /></span>
-          </button>)}
-        </div>}
+        <header><div><strong>Seguimiento prioritario</strong><span>Automático: últimos 14 días · también incluye correos marcados manualmente</span></div></header>
+        {priorityItems.length === 0 ? <div className="control-empty"><strong>Sin pendientes recientes</strong><span>No hay conversaciones que requieran seguimiento en este momento.</span></div> : <>
+          <div className="priority-list">
+            {visiblePriorityItems.map(({ item, automatic, manual }) => <button type="button" className="priority-row" key={messageKey(item)} onClick={() => navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: controlCenterPath, controlCenterItem: item } })}>
+              <i className="account-dot" style={{ background: item.accountColor }} />
+              <span className="priority-main"><span className={`priority-direction ${item.direction}`}>{item.direction === 'received' ? 'Responder' : 'Esperando'}</span><strong>{item.subject}</strong><small>{item.direction === 'received' ? 'De' : 'Para'}: {item.counterpart} · {manual && automatic ? 'Manual + automático' : manual ? 'Manual' : 'Automático'}</small></span>
+              <span className="priority-age">{ageLabel(item.since)}<ChevronRight size={15} /></span>
+            </button>)}
+          </div>
+          <div className="message-pagination"><span>Mostrando {visiblePriorityItems.length} de {priorityItems.length}</span>{priorityVisible < priorityItems.length && <button type="button" className="secondary-button" onClick={() => setPriorityVisible(current => current + 10)}>Cargar más</button>}</div>
+        </>}
       </article>
     </div>
   </section>
