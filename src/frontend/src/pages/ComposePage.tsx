@@ -258,7 +258,6 @@ export function ComposePage() {
       <form onSubmit={submit}>
         <section className="ai-compose-surface">
           <div className="ai-compose-fields" aria-label="Datos del correo">
-            {!origin && <div className="ai-compose-section-label"><Sparkles size={14} /><span>Datos de envío</span></div>}
             <div className="compose-field">
               <label>De</label>
               <div className="select-wrap">
@@ -289,10 +288,10 @@ export function ComposePage() {
           </section>}
 
           <section className="ai-compose-editor" aria-label="Editor del mensaje">
-            <div className="ai-compose-editor-heading">
-              <div>{origin ? <strong>{body ? 'Respuesta propuesta' : 'Respuesta'}</strong> : <><span>Nexo IA</span><strong>Tu mensaje</strong></>}</div>
-              <small>{origin ? 'Revísala antes de responder.' : 'Escribe tu correo o usa Nexo IA para mejorarlo.'}</small>
-            </div>
+            {origin && <div className="ai-compose-editor-heading">
+              <div><strong>{body ? 'Respuesta propuesta' : 'Respuesta'}</strong></div>
+              <small>Revísala antes de responder.</small>
+            </div>}
             <div className="format-toolbar" aria-label="Formato">
               <button type="button" title="Negrita" onMouseDown={event => event.preventDefault()} onClick={() => format('bold')}><Bold size={16} /></button>
               <button type="button" title="Cursiva" onMouseDown={event => event.preventDefault()} onClick={() => format('italic')}><Italic size={16} /></button>
