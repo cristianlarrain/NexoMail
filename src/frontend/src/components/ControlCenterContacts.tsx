@@ -1,20 +1,20 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Clock3, Mail, MessageSquareReply, Search, Send, Users } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
 
 function responseTimeLabel(minutes: number | null) {
-  if (minutes === null) return 'Sin datos'
+  if (minutes === null) return '—'
   if (minutes < 60) return `${minutes} min`
   const hours = minutes / 60
   if (hours < 24) return `${hours < 10 ? hours.toFixed(1) : Math.round(hours)} h`
   const days = hours / 24
-  return `${days < 10 ? days.toFixed(1) : Math.round(days)} días`
+  return `${days < 10 ? days.toFixed(1) : Math.round(days)} d`
 }
 
 function lastInteractionLabel(value: string) {
-  return new Date(value).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, '')
+  return new Date(value).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' }).replace(/\./g, '')
 }
 
 function indexedLabel(value?: string | null) {
@@ -25,6 +25,7 @@ function indexedLabel(value?: string | null) {
 export function ControlCenterContacts() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const expanded90 = useRef(false)
   const [days, setDays] = useState<30 | 90>(30)
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<'sent' | 'awaiting' | 'response' | 'recent'>('sent')
@@ -45,6 +46,14 @@ export function ControlCenterContacts() {
       ])
     },
   })
+
+  function selectPeriod(next: 30 | 90) {
+    setDays(next)
+    if (next === 90 && (query.data?.indexedMessages ?? 0) > 0 && !expanded90.current && !sync.isPending) {
+      expanded90.current = true
+      sync.mutate(180)
+    }
+  }
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -67,48 +76,53 @@ export function ControlCenterContacts() {
     <header className="contact-control-header">
       <div><p className="eyebrow">Interacción real</p><h2>Contactos</h2></div>
       <div className="contact-period" aria-label="Período de análisis">
-        <button type="button" className={days === 30 ? 'active' : ''} onClick={() => setDays(30)}>30 días</button>
-        <button type="button" className={days === 90 ? 'active' : ''} onClick={() => setDays(90)}>90 días</button>
+        <button type="button" className={days === 30 ? 'active' : ''} onClick={() => selectPeriod(30)}>30 días</button>
+        <button type="button" className={days === 90 ? 'active' : ''} onClick={() => selectPeriod(90)}>90 días</button>
       </div>
     </header>
 
     {firstIndex && <div className="contact-index-empty">
-      <span>No hay metadatos indexados todavía. La vista ya no consulta Gmail automáticamente.</span>
-      <button type="button" className="secondary-button compact-action" disabled={sync.isPending} onClick={() => sync.mutate(25)}>{sync.isPending ? 'Creando índice…' : 'Crear índice'}</button>
+      <span>No hay metadatos indexados todavía.</span>
+      <button type="button" className="secondary-button compact-action" disabled={sync.isPending} onClick={() => sync.mutate(40)}>{sync.isPending ? 'Creando índice…' : 'Crear índice'}</button>
     </div>}
-    {!firstIndex && sync.isPending && <div className="contact-sync-status"><span className="index-loading-dot" aria-hidden="true" />Actualizando metadatos en segundo plano. Puedes seguir usando esta vista.</div>}
+    {!firstIndex && sync.isPending && <div className="contact-sync-status"><span className="index-loading-dot" aria-hidden="true" />{days === 90 ? 'Ampliando el historial a 90 días en segundo plano…' : 'Actualizando metadatos en segundo plano…'}</div>}
     {sync.isError && <div className="notice contact-limit-notice">No fue posible actualizar el índice. Los datos ya indexados siguen disponibles.</div>}
 
     <div className="contact-summary-grid">
-      <article><Users size={15} /><div><strong>{data.contacts.length}</strong><span>Contactos</span></div></article>
-      <article><Send size={15} /><div><strong>{data.totalSent}</strong><span>Enviados</span></div></article>
-      <article><MessageSquareReply size={15} /><div><strong>{data.totalReplies}</strong><span>Respuestas</span></div></article>
-      <article><Mail size={15} /><div><strong>{data.totalAwaiting}</strong><span>Pendientes</span></div></article>
-      <article><Clock3 size={15} /><div><strong>{responseTimeLabel(data.averageResponseMinutes)}</strong><span>Tiempo medio</span></div></article>
+      <article><Users size={14} /><div><strong>{data.contacts.length}</strong><span>Contactos</span></div></article>
+      <article><Send size={14} /><div><strong>{data.totalSent}</strong><span>Enviados</span></div></article>
+      <article><MessageSquareReply size={14} /><div><strong>{data.totalReplies}</strong><span>Respuestas</span></div></article>
+      <article><Mail size={14} /><div><strong>{data.totalAwaiting}</strong><span>Pendientes</span></div></article>
+      <article><Clock3 size={14} /><div><strong>{responseTimeLabel(data.averageResponseMinutes)}</strong><span>Promedio</span></div></article>
     </div>
 
     <div className="contact-toolbar">
-      <label className="contact-search"><Search size={14} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar persona, correo o asunto" /></label>
+      <label className="contact-search"><Search size={13} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar contacto o asunto" /></label>
       <select value={sort} onChange={event => setSort(event.target.value as typeof sort)} aria-label="Ordenar contactos">
         <option value="sent">Más interacción</option><option value="awaiting">Más pendientes</option><option value="response">Respuesta más rápida</option><option value="recent">Más reciente</option>
       </select>
-      <button type="button" className="secondary-button compact-action" disabled={sync.isPending} onClick={() => sync.mutate(80)}>{sync.isPending ? 'Actualizando…' : 'Actualizar índice'}</button>
+      <button type="button" className="secondary-button compact-action" disabled={sync.isPending} onClick={() => sync.mutate(days === 90 ? 180 : 80)}>{sync.isPending ? 'Actualizando…' : 'Actualizar índice'}</button>
     </div>
 
-    <div className="contact-list">
-      {filtered.map(contact => <article className="contact-row-card" key={contact.email}>
+    <div className="contact-list contact-list-dense">
+      {filtered.map(contact => <article className="contact-row-card contact-row-dense" key={contact.email}>
         <button type="button" className="contact-identity" onClick={() => navigate(`/inbox?q=${encodeURIComponent(contact.email)}`)}>
           <span className="contact-avatar">{(contact.name || contact.email).trim().charAt(0).toUpperCase()}</span>
-          <span className="contact-identity-copy"><strong>{contact.name}</strong><small>{contact.email}</small><em>{contact.accounts.join(' · ')}</em></span>
+          <span className="contact-identity-copy"><strong>{contact.name}</strong><small>{contact.email}</small></span>
         </button>
         <div className="contact-row-metrics">
-          <span><small>Env.</small><strong>{contact.sent}</strong></span><span><small>Rec.</small><strong>{contact.received}</strong></span><span><small>Resp.</small><strong className="positive">{contact.replies}</strong></span><span><small>Pend.</small><strong className={contact.awaiting > 0 ? 'attention' : ''}>{contact.awaiting}</strong></span><span><small>Prom.</small><strong>{responseTimeLabel(contact.averageResponseMinutes)}</strong></span>
+          <span title="Enviados"><small>Env.</small><strong>{contact.sent}</strong></span>
+          <span title="Recibidos"><small>Rec.</small><strong>{contact.received}</strong></span>
+          <span title="Respuestas"><small>Resp.</small><strong className="positive">{contact.replies}</strong></span>
+          <span title="Sin respuesta"><small>Pend.</small><strong className={contact.awaiting > 0 ? 'attention' : ''}>{contact.awaiting}</strong></span>
+          <span title="Tiempo medio de respuesta"><small>Prom.</small><strong>{responseTimeLabel(contact.averageResponseMinutes)}</strong></span>
         </div>
-        <div className="contact-row-detail"><div className="contact-subjects"><div>{contact.subjects.slice(0, 2).map(subject => <span key={subject} title={subject}>{subject}</span>)}</div></div><div className="contact-last"><strong>{lastInteractionLabel(contact.lastInteraction)}</strong></div></div>
+        <div className="contact-subject-inline" title={contact.subjects[0] ?? ''}>{contact.subjects[0] ?? 'Sin asunto destacado'}</div>
+        <div className="contact-last"><strong>{lastInteractionLabel(contact.lastInteraction)}</strong></div>
       </article>)}
       {filtered.length === 0 && !sync.isPending && <div className="contact-empty">No hay contactos indexados para este período.</div>}
     </div>
 
-    <p className="contact-footnote">{indexedLabel(data.indexedAt)} · {data.indexedMessages} mensajes indexados · sin almacenar cuerpos ni adjuntos.</p>
+    <p className="contact-footnote">{indexedLabel(data.indexedAt)} · {data.indexedMessages} mensajes indexados · {days} días seleccionados.</p>
   </section>
 }
