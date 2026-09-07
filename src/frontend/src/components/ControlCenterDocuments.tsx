@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, Download, FileArchive, FileSpreadsheet, FileText, FileType2, Mail, RefreshCw, Search, UserRound } from 'lucide-react'
+import { CalendarDays, Download, FileArchive, FileSpreadsheet, FileText, FileType2, Mail, Search, UserRound } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
 import type { DocumentIndexItem, MailAttachment } from '../types/mail'
@@ -57,7 +57,7 @@ export function ControlCenterDocuments() {
   useEffect(() => {
     if (!query.data || query.data.indexedMessages > 0 || initialSyncAttempted.current || sync.isPending) return
     initialSyncAttempted.current = true
-    sync.mutate(50)
+    sync.mutate(25)
   }, [query.data, sync])
 
   const types = useMemo(() => ['all', 'PDF', 'Documento', 'Planilla', 'Presentación', 'Comprimido', 'Texto / datos'], [])
@@ -74,7 +74,7 @@ export function ControlCenterDocuments() {
       <strong>{data.total} documento{data.total === 1 ? '' : 's'}</strong>
     </header>
 
-    {firstIndex && sync.isPending && <div className="notice documents-error">Creando un índice inicial liviano. Esta operación se realiza una sola vez; después la vista abre desde SQLite.</div>}
+    {firstIndex && sync.isPending && <div className="notice documents-error"><span className="index-loading-dot" aria-hidden="true" />Creando índice inicial. Se están leyendo solo metadatos recientes; después esta vista abrirá desde SQLite.</div>}
     {sync.isError && <div className="notice documents-error">No fue posible actualizar el índice. Los datos ya indexados siguen disponibles.</div>}
 
     <div className="documents-toolbar">
@@ -82,7 +82,7 @@ export function ControlCenterDocuments() {
       <select value={typeFilter} onChange={event => setTypeFilter(event.target.value)} aria-label="Filtrar por tipo">
         {types.map(type => <option key={type} value={type}>{type === 'all' ? 'Todos los tipos' : type}</option>)}
       </select>
-      <button type="button" className="secondary-button compact-action" disabled={sync.isPending} onClick={() => sync.mutate(120)}><RefreshCw size={14} className={sync.isPending ? 'spin' : ''} /> {sync.isPending ? 'Actualizando…' : 'Actualizar índice'}</button>
+      <button type="button" className="secondary-button compact-action" disabled={sync.isPending} onClick={() => sync.mutate(120)}>{sync.isPending ? 'Actualizando índice…' : 'Actualizar índice'}</button>
     </div>
 
     <div className="documents-list">
