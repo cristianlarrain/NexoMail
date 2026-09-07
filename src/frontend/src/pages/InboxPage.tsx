@@ -3,6 +3,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteD
 import { useLocation, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Archive, ChevronDown, ChevronUp, Clock3, EyeOff, MailOpen, MoreHorizontal, Paperclip, RefreshCw, ShieldAlert, Trash2, Undo2, X } from 'lucide-react'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { NexiEmptyState } from '../components/nexi/NexiEmptyState'
 import { mailApi } from '../api/mailApi'
 import type { ControlCenterPendingItem, MailSummary, PagedResult } from '../types/mail'
 
@@ -348,9 +349,50 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
     if (!refreshMailbox.isPending) refreshMailbox.mutate()
   }
 
+  function clearSearch() {
+    const next = new URLSearchParams(params)
+    next.delete('q')
+    setParams(next)
+  }
+
   const actionPending = moveMessages.isPending || ignoreSenders.isPending || unignoreSenders.isPending || markReadMessages.isPending
   const confirmationPending = confirmation?.kind === 'emptyTrash' ? emptyTrash.isPending : moveMessages.isPending
   const moveSuccess = moveMessages.isSuccess ? moveMessages.variables : null
+  const emptyTitle = priorityOnly
+    ? 'Todo al día en seguimiento'
+    : isUnreadView
+      ? 'No quedan correos sin leer'
+      : search
+        ? 'No encontré correos'
+        : folder === 'inbox'
+          ? 'Bandeja al día'
+          : folder === 'drafts'
+            ? 'No hay borradores'
+            : folder === 'ignored'
+              ? 'No hay remitentes ignorados'
+              : folder === 'archive'
+                ? 'No hay correos archivados'
+                : folder === 'sent'
+                  ? 'No hay correos enviados'
+                  : folder === 'spam'
+                    ? 'No hay correo en Spam'
+                    : 'La Papelera está vacía'
+  const emptyDescription = priorityOnly
+    ? 'Nexi no encontró conversaciones pendientes de respuesta ni correos marcados manualmente para seguimiento.'
+    : isUnreadView
+      ? 'Nexi no encontró mensajes pendientes de lectura en esta vista.'
+      : search
+        ? `Nexi no encontró mensajes que coincidan con “${search}”.`
+        : folder === 'inbox'
+          ? 'No hay mensajes en esta bandeja en este momento.'
+          : folder === 'ignored'
+            ? 'Los remitentes que decida ignorar aparecerán aquí sin eliminar sus correos.'
+            : 'Los mensajes de esta carpeta aparecerán aquí cuando estén disponibles.'
+  const emptyAction = priorityOnly
+    ? <button type="button" className="secondary-button" onClick={togglePriorityFilter}>Volver a Bandeja</button>
+    : search
+      ? <button type="button" className="secondary-button" onClick={clearSearch}>Limpiar búsqueda</button>
+      : undefined
 
   return <section className="mail-view">
     <div className="view-header"><div><h1>{pageTitle}</h1><p className="view-context">{contextLabel}</p></div><div className="view-actions">{folder === 'inbox' && <button type="button" className={`secondary-button priority-filter-button ${priorityOnly ? 'active' : ''}`} onClick={togglePriorityFilter} aria-pressed={priorityOnly} title="Mostrar sólo los correos que requieren seguimiento"><Clock3 size={16} /><span>Seguimiento prioritario</span>{priorityOnly && <span className="priority-count">{displayItems.length}</span>}</button>}{folder === 'trash' && <button className="secondary-button danger-button" disabled={emptyTrash.isPending} onClick={() => setConfirmation({ kind: 'emptyTrash' })}><Trash2 size={16} /> {emptyTrash.isPending ? 'Vaciando…' : 'Vaciar Papelera'}</button>}<button className="icon-button" disabled={refreshMailbox.isPending} onClick={refreshAll} aria-label="Actualizar mensajes" title="Actualizar"><RefreshCw size={18} className={refreshMailbox.isPending ? 'spin' : ''} /></button></div></div>
@@ -378,7 +420,7 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
 
     {listLoading && <section className="inbox-mail-loading" aria-label="Cargando correos"><div className="inbox-loading-heading"><strong>{priorityOnly ? 'Recuperando seguimiento' : 'Cargando correos'}</strong><span>{priorityOnly ? 'Consultando pendientes y seguimientos manuales.' : 'Actualizando la bandeja.'}</span></div><MailSkeleton /></section>}
     {listError && <div className="notice">{priorityOnly ? 'No fue posible recuperar el seguimiento prioritario.' : 'No se pudo actualizar una de sus cuentas.'} <button onClick={() => priorityOnly ? void Promise.all([prioritySnapshot.refetch(), trackedItemsQuery.refetch()]) : void messagesQuery.refetch()}>Reintentar</button></div>}
-    {!listLoading && displayItems.length === 0 && <div className="empty-state"><Archive size={28} /><h2>{priorityOnly ? 'No hay correos en seguimiento prioritario' : 'No hay mensajes aquí'}</h2><p>{priorityOnly ? 'Los correos pendientes de respuesta o marcados manualmente para seguimiento aparecerán aquí.' : isUnreadView ? 'No quedan correos sin leer en esta vista.' : folder === 'ignored' ? 'Los remitentes que decida ignorar aparecerán aquí sin eliminar sus correos.' : 'Los mensajes de esta carpeta aparecerán en este espacio.'}</p></div>}
+    {!listLoading && !listError && displayItems.length === 0 && <NexiEmptyState title={emptyTitle} description={emptyDescription} action={emptyAction} />}
 
     {displayItems.length > 0 && <div className="message-list" aria-label="Lista de mensajes">
       <div className="message-list-header">
