@@ -126,7 +126,20 @@
   border-top: 1px solid color-mix(in srgb, var(--primary) 15%, var(--border)) !important;
   background: color-mix(in srgb, var(--primary) 3%, var(--surface));
 }
+.ai-compose-footer-left,
+.ai-compose-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ai-compose-footer-actions { margin-left: auto; }
 .ai-compose-footer .primary-button { min-width: 118px; }
+.ai-compose-footer .secondary-button { white-space: nowrap; }
+.compose-discard-button { color: var(--muted-foreground); }
+.compose-discard-button:hover {
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+  color: var(--danger);
+}
 
 .ai-review-banner {
   min-height: 48px;
@@ -150,7 +163,12 @@
   .ai-compose-editor { padding-inline: 15px; }
   .ai-compose-editor-heading { align-items: flex-start; flex-direction: column; justify-content: center; gap: 2px; padding: 9px 0; }
   .ai-compose-editor-heading > div { display: flex; }
-  .ai-compose-footer { padding-inline: 15px; }
+  .ai-compose-footer { align-items: stretch; flex-direction: column; gap: 9px; padding-inline: 15px; }
+  .ai-compose-footer-left,
+  .ai-compose-footer-actions { width: 100%; }
+  .ai-compose-footer-actions { margin-left: 0; }
+  .ai-compose-footer-actions .secondary-button,
+  .ai-compose-footer-actions .primary-button { flex: 1; min-width: 0; }
   .ai-review-banner { align-items: flex-start; flex-direction: column; padding-inline: 15px; }
   .ai-add-copy { margin-left: 0 !important; }
   .ai-reply-source-body { max-height: 100px; padding-inline: 15px; }
