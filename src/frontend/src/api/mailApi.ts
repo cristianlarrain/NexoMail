@@ -31,7 +31,7 @@ export const mailApi = {
   attachmentUrl: (accountId: string, messageId: string, attachment: MailAttachment, download = false) => {
     const base = `/api/mail/messages/${encodeURIComponent(accountId)}/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachment.id)}?fileName=${encodeURIComponent(attachment.name)}${download ? '&download=true' : ''}`
     const isPdf = attachment.contentType === 'application/pdf' || /\.pdf$/i.test(attachment.name)
-    return !download && isPdf ? `${base}#zoom=page-width` : base
+    return !download && isPdf ? `${base}#page=1&view=Fit&zoom=page-fit&navpanes=0` : base
   },
   read: (accountId: string, messageId: string, read: boolean) => api<void>(`/mail/messages/${accountId}/${messageId}/read`, { method: 'PATCH', body: JSON.stringify({ read }) }),
   trash: (accountId: string, messageId: string) => api<void>(`/mail/messages/${accountId}/${messageId}/trash`, { method: 'POST' }),
