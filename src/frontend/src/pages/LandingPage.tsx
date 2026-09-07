@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Bot, Check, Clock3, Gauge, Inbox, Layers3, LockKeyhole, Mail, Moon, ShieldCheck, Sparkles, Sun, Users } from 'lucide-react'
+import { ArrowRight, Bot, Building2, Check, Clock3, Gauge, Inbox, Layers3, LockKeyhole, Mail, Moon, Palette, ShieldCheck, Sparkles, Sun, Users } from 'lucide-react'
 import { NexoMailLogo } from '../components/brand/NexoMailLogo'
 import { NexiVisual } from '../components/nexi/NexiVisual'
 
@@ -9,29 +9,50 @@ const features = [
   { icon: <Gauge size={21} />, title: 'Centro de Control', description: 'Detecte correos sin responder, mensajes enviados sin respuesta, pendientes de más de 48 horas y actividad por cuenta.' },
   { icon: <Clock3 size={21} />, title: 'Seguimiento inteligente', description: 'Marque conversaciones, identifique pendientes y vuelva rápidamente a los correos que requieren una acción.' },
   { icon: <Layers3 size={21} />, title: 'Gestión operativa', description: 'Archive, ignore, marque spam, mueva a papelera, gestione no leídos y trabaje con adjuntos desde un mismo flujo.' },
-  { icon: <Bot size={21} />, title: 'Nexi, su asistente', description: 'Nexi ya interpreta el contexto del correo y el Centro de Control. La siguiente etapa incorporará resúmenes y redacción asistida por IA.' },
+  { icon: <Bot size={21} />, title: 'Nexi, su asistente', description: 'Nexi interpreta el contexto del correo y del Centro de Control para facilitar el seguimiento y las próximas acciones.' },
   { icon: <ShieldCheck size={21} />, title: 'Privacidad desde el diseño', description: 'NexoMail está diseñado para consultar el correo desde los proveedores y evitar almacenar de forma permanente el contenido de los mensajes.' },
 ]
 
 const plans = [
   {
-    name: 'Personal',
-    description: 'Para organizar sus cuentas personales y profesionales desde un solo espacio.',
-    items: ['Bandeja unificada', 'Centro de Control', 'Seguimiento de conversaciones', 'Nexi asistente'],
-    note: 'Modalidad prevista',
+    name: 'Freemium',
+    price: '$0',
+    cadence: 'para siempre',
+    description: 'Para comenzar a centralizar sus cuentas personales sin costo.',
+    items: ['Hasta 2 cuentas de correo', 'Bandeja unificada', 'Enviar, responder y organizar', 'Centro de Control básico', 'Seguimiento esencial'],
+    cta: 'Comenzar gratis',
+    href: '/login?mode=register',
   },
   {
-    name: 'Profesional',
-    description: 'Para usuarios que manejan un volumen mayor de correo y necesitan más automatización.',
-    items: ['Todo lo de Personal', 'Funciones avanzadas de IA', 'Redacción y respuestas asistidas', 'Más cuentas conectadas'],
-    note: 'Próximamente',
+    name: 'Premium',
+    price: '$4.990',
+    cadence: 'CLP / mes',
+    description: 'Para profesionales que necesitan más control, productividad y seguimiento.',
+    items: ['Hasta 10 cuentas de correo', 'Centro de Control completo', 'Estadísticas y seguimientos avanzados', 'Firmas y plantillas', 'Funciones de Nexi e IA'],
+    cta: 'Elegir Premium',
+    href: '/login?mode=register',
     featured: true,
+    badge: 'Más elegido',
   },
   {
-    name: 'Equipos',
-    description: 'Para organizaciones que necesiten una experiencia administrada y escalable.',
-    items: ['Gestión de usuarios', 'Políticas y administración', 'Configuración para organizaciones', 'Funciones colaborativas futuras'],
-    note: 'En hoja de ruta',
+    name: 'Corporativo',
+    price: '$7.990',
+    cadence: 'CLP / usuario / mes',
+    description: 'Para equipos y organizaciones que requieren administración centralizada.',
+    items: ['Todo lo de Premium', 'Gestión de usuarios', 'Roles y políticas', 'Estadísticas de organización', 'Soporte prioritario'],
+    cta: 'Conocer Corporativo',
+    href: '/login?mode=register',
+    note: 'Desde 5 usuarios',
+  },
+  {
+    name: 'White Label',
+    price: 'A medida',
+    cadence: 'cotización personalizada',
+    description: 'Para organizaciones que quieran ofrecer NexoMail bajo su propia identidad.',
+    items: ['Marca y logotipo propios', 'Dominio personalizado', 'Colores e identidad visual', 'Configuración y límites a medida', 'Implementación por EIDOS Digital'],
+    cta: 'Ver White Label',
+    href: '#white-label',
+    whiteLabel: true,
   },
 ]
 
@@ -49,26 +70,26 @@ export function LandingPage() {
       <nav className="landing-links" aria-label="Navegación del sitio">
         <a href="#caracteristicas">Características</a>
         <a href="#nexi">Nexi</a>
-        <a href="#servicios">Servicios</a>
-        <a href="#modalidades">Modalidades</a>
+        <a href="#servicios">Integraciones</a>
+        <a href="#planes">Planes</a>
       </nav>
       <div className="landing-actions">
         <button type="button" className="landing-theme-button" onClick={() => setTheme(current => current === 'dark' ? 'light' : 'dark')} aria-label={theme === 'dark' ? 'Usar tema claro' : 'Usar tema oscuro'}>{theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}</button>
         <Link to="/login" className="landing-login">Iniciar sesión</Link>
-        <Link to="/login" className="landing-primary">Crear cuenta <ArrowRight size={16} /></Link>
+        <Link to="/login?mode=register" className="landing-primary">Crear cuenta gratis <ArrowRight size={16} /></Link>
       </div>
     </header>
 
     <section className="landing-hero">
       <div className="landing-hero-copy">
-        <span className="landing-pill"><Sparkles size={14} /> Una nueva forma de gestionar su correo</span>
-        <h1>Todas sus cuentas.<br /><span>Una sola bandeja.</span></h1>
-        <p>NexoMail reúne su correo, sus pendientes y su seguimiento en una sola interfaz. Menos tiempo buscando mensajes. Más claridad sobre lo que requiere atención.</p>
+        <span className="landing-pill"><Sparkles size={14} /> Correo unificado con control y seguimiento</span>
+        <h1>Todos sus correos.<br /><span>Un solo lugar.</span></h1>
+        <p>NexoMail reúne sus cuentas, sus pendientes y su seguimiento en una sola interfaz. Menos tiempo buscando mensajes. Más claridad sobre lo que requiere atención.</p>
         <div className="landing-hero-actions">
-          <Link to="/login" className="landing-primary large">Comenzar con NexoMail <ArrowRight size={17} /></Link>
-          <a href="#caracteristicas" className="landing-secondary">Ver características</a>
+          <Link to="/login?mode=register" className="landing-primary large">Comenzar gratis <ArrowRight size={17} /></Link>
+          <a href="#planes" className="landing-secondary">Ver planes</a>
         </div>
-        <div className="landing-trust-row"><span><Check size={14} /> Gmail disponible</span><span><LockKeyhole size={14} /> Privacidad por diseño</span><span><Gauge size={14} /> Control operativo real</span></div>
+        <div className="landing-trust-row"><span><Check size={14} /> Gmail disponible</span><span><LockKeyhole size={14} /> Privacidad por diseño</span><span><Gauge size={14} /> Centro de Control</span></div>
       </div>
 
       <div className="landing-product-preview" aria-label="Vista conceptual de NexoMail">
@@ -92,7 +113,7 @@ export function LandingPage() {
     </section>
 
     <section className="landing-section" id="caracteristicas">
-      <div className="landing-section-heading"><span>Producto</span><h2>Correo pensado como un centro de trabajo</h2><p>NexoMail no busca ser otra bandeja de entrada. El objetivo es convertir el correo en una herramienta más clara, medible y fácil de gestionar.</p></div>
+      <div className="landing-section-heading"><span>Producto</span><h2>Correo pensado como un centro de trabajo</h2><p>NexoMail convierte el correo en una herramienta más clara, medible y fácil de gestionar, sin obligarlo a cambiar constantemente entre proveedores.</p></div>
       <div className="landing-feature-grid">{features.map(feature => <article key={feature.title}><i>{feature.icon}</i><h3>{feature.title}</h3><p>{feature.description}</p></article>)}</div>
     </section>
 
@@ -101,12 +122,12 @@ export function LandingPage() {
       <div className="landing-nexi-copy">
         <span className="landing-section-label">Asistente inteligente</span>
         <h2>Nexi entiende dónde está el trabajo pendiente</h2>
-        <p>Actualmente Nexi utiliza información real de NexoMail para identificar conversaciones que requieren atención y facilitar acciones. La integración de IA ampliará esa capacidad sin reemplazar el control del usuario.</p>
+        <p>Nexi utiliza información real de NexoMail para identificar conversaciones que requieren atención y facilitar acciones. Las funciones de IA ampliarán progresivamente esta capacidad sin reemplazar el control del usuario.</p>
         <div className="landing-nexi-capabilities">
           <span><Check size={14} /> Contexto del correo abierto</span>
           <span><Check size={14} /> Pendientes y seguimiento</span>
-          <span><Sparkles size={14} /> Resumen de correos — próxima etapa</span>
-          <span><Sparkles size={14} /> Redacción asistida — próxima etapa</span>
+          <span><Sparkles size={14} /> Resúmenes inteligentes</span>
+          <span><Sparkles size={14} /> Redacción asistida</span>
         </div>
       </div>
     </section>
@@ -125,9 +146,28 @@ export function LandingPage() {
       <div className="landing-steps"><article><b>01</b><h3>Cree su cuenta</h3><p>Su usuario NexoMail mantiene separada su configuración y sus cuentas conectadas.</p></article><article><b>02</b><h3>Conecte sus correos</h3><p>Autorice las cuentas que quiera gestionar desde una sola interfaz.</p></article><article><b>03</b><h3>Trabaje desde NexoMail</h3><p>Lea, responda, haga seguimiento y consulte el Centro de Control.</p></article></div>
     </section>
 
-    <section className="landing-section" id="modalidades">
-      <div className="landing-section-heading"><span>Modalidades</span><h2>Preparado para crecer con cada tipo de usuario</h2><p>Estas modalidades definen la dirección comercial del producto. Los precios y límites se establecerán antes de la publicación comercial.</p></div>
-      <div className="landing-plan-grid">{plans.map(plan => <article key={plan.name} className={plan.featured ? 'featured' : ''}>{plan.featured && <span className="landing-plan-badge">Opción principal</span>}<small>{plan.note}</small><h3>{plan.name}</h3><p>{plan.description}</p><ul>{plan.items.map(item => <li key={item}><Check size={14} />{item}</li>)}</ul><Link to="/login">Crear cuenta <ArrowRight size={15} /></Link></article>)}</div>
+    <section className="landing-section" id="planes">
+      <div className="landing-section-heading"><span>Planes</span><h2>Una modalidad para cada forma de trabajar</h2><p>Comience sin costo, avance a Premium cuando necesite más capacidad o lleve NexoMail a toda su organización.</p></div>
+      <div className="landing-plan-grid landing-commercial-plans">{plans.map(plan => <article key={plan.name} className={`${plan.featured ? 'featured' : ''} ${plan.whiteLabel ? 'white-label-plan' : ''}`}>
+        {plan.badge && <span className="landing-plan-badge">{plan.badge}</span>}
+        {plan.note && <small>{plan.note}</small>}
+        <h3>{plan.name}</h3>
+        <div className="landing-plan-price"><strong>{plan.price}</strong><span>{plan.cadence}</span></div>
+        <p>{plan.description}</p>
+        <ul>{plan.items.map(item => <li key={item}><Check size={14} />{item}</li>)}</ul>
+        {plan.href.startsWith('/') ? <Link to={plan.href}>{plan.cta} <ArrowRight size={15} /></Link> : <a href={plan.href}>{plan.cta} <ArrowRight size={15} /></a>}
+      </article>)}</div>
+      <p className="landing-pricing-note">Los valores corresponden a la propuesta comercial inicial y pueden ajustarse antes del lanzamiento definitivo.</p>
+    </section>
+
+    <section className="landing-section landing-white-label" id="white-label">
+      <div className="landing-white-label-icon"><Palette size={28} /></div>
+      <div>
+        <span className="landing-section-label">White Label</span>
+        <h2>NexoMail, con la identidad de su organización</h2>
+        <p>EIDOS Digital puede implementar una versión personalizada de NexoMail con marca, logotipo, colores, dominio y configuración propios. Está orientada a empresas, proveedores de servicios y organizaciones que quieran ofrecer la plataforma como parte de su propia solución digital.</p>
+      </div>
+      <div className="landing-white-label-points"><span><Building2 size={17} /> Dominio y marca propios</span><span><Palette size={17} /> Identidad visual personalizada</span><span><Users size={17} /> Usuarios y límites configurables</span><span><ShieldCheck size={17} /> Implementación y soporte EIDOS Digital</span></div>
     </section>
 
     <section className="landing-section landing-security">
@@ -137,11 +177,11 @@ export function LandingPage() {
 
     <section className="landing-cta">
       <NexoMailLogo />
-      <h2>Su correo puede ser más simple de gestionar.</h2>
+      <h2>Recupere el control de su correo.</h2>
       <p>Centralice cuentas, pendientes y seguimiento en un solo espacio.</p>
-      <Link to="/login" className="landing-primary large">Probar NexoMail <ArrowRight size={17} /></Link>
+      <Link to="/login?mode=register" className="landing-primary large">Crear cuenta gratis <ArrowRight size={17} /></Link>
     </section>
 
-    <footer className="landing-footer"><NexoMailLogo /><span>Correo unificado · Control · Seguimiento · IA</span><div><a href="#caracteristicas">Características</a><a href="#servicios">Integraciones</a><Link to="/login">Acceso</Link></div></footer>
+    <footer className="landing-footer"><NexoMailLogo /><span>Correo unificado · Control · Seguimiento · IA</span><div><a href="#caracteristicas">Características</a><a href="#planes">Planes</a><a href="#white-label">White Label</a><Link to="/login">Acceso</Link></div></footer>
   </main>
 }
