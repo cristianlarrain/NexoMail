@@ -21,6 +21,7 @@ import './styles/confirm-dialog.css'
 import './styles/auth.css'
 import './styles/ui-polish.css'
 import './styles/attachment-preview.css'
+import './styles/nexi.css'
 
 const client = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, retry: 1 } } })
 createRoot(document.getElementById('root')!).render(<StrictMode><QueryClientProvider client={client}><RouterProvider router={router} /></QueryClientProvider></StrictMode>)
