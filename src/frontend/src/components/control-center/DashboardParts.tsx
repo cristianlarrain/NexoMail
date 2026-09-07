@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ChevronRight, Clock3, Mail, Send } from 'lucide-react'
+import { ChevronRight, Mail, Send } from 'lucide-react'
 import type { ControlCenterAccountActivity, ControlCenterAccountSummary, ControlCenterDay, ControlCenterPendingItem } from '../../types/mail'
 import { NexiInsightCard } from '../nexi/NexiInsightCard'
 import type { NexiInsightPriority } from '../nexi/nexiInsights'
