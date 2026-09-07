@@ -101,6 +101,7 @@
   text-align: left;
 }
 .nexi-panel-summary button:hover { border-color: var(--nexi-border); background: var(--nexi-accent-soft); }
+.nexi-panel-summary button:disabled { opacity: .55; cursor: default; }
 .nexi-panel-summary svg { color: var(--nexi-accent); flex: 0 0 auto; }
 .nexi-panel-summary span { display: flex; flex-direction: column; color: var(--muted-foreground); font-size: 10px; }
 .nexi-panel-summary b { color: var(--foreground); font-size: 20px; line-height: 1.05; font-variant-numeric: tabular-nums; }
@@ -154,10 +155,23 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   text-align: left;
   font-size: 11px;
 }
+.nexi-panel-actions button > span { display: inline-flex; align-items: center; gap: 6px; }
+.nexi-panel-actions button > span svg { color: currentColor; flex: 0 0 auto; }
 .nexi-panel-actions button:not(:disabled):hover { border-color: var(--nexi-border); color: var(--nexi-accent); }
+.nexi-panel-actions button.nexi-action-primary {
+  border-color: color-mix(in srgb, var(--nexi-accent) 48%, var(--border));
+  background: var(--nexi-accent-soft);
+  color: var(--nexi-accent);
+  font-weight: 700;
+}
+.nexi-panel-actions button.nexi-action-primary:not(:disabled):hover {
+  border-color: var(--nexi-accent);
+  background: color-mix(in srgb, var(--nexi-accent) 14%, var(--surface));
+}
 .nexi-panel-actions button:disabled { cursor: default; opacity: .55; }
 .nexi-panel-actions small { color: var(--muted-foreground); font-size: 9px; }
 
