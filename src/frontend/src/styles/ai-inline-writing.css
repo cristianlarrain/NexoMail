@@ -1,100 +1,121 @@
-.ai-inline-writing {
-  margin-top: 10px;
-  border: 1px solid color-mix(in srgb, var(--primary) 26%, var(--border));
-  border-radius: 10px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 4%, var(--surface)), var(--surface));
-  overflow: hidden;
+.ai-compose-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
 }
 
-.ai-inline-header {
-  min-height: 46px;
+.ai-compose-editor-heading { order: 1; }
+.ai-compose-editor .format-toolbar { order: 2; }
+.ai-compose-editor .ai-inline-choice-strip { order: 3; }
+.ai-compose-editor .dictation-error { order: 4; }
+.ai-compose-editor .rich-editor { order: 5; }
+.ai-compose-editor .ai-inline-generation-row { order: 6; }
+.ai-compose-editor .outgoing-attachments { order: 7; }
+.ai-compose-editor .attachment-error { order: 8; }
+
+.ai-inline-writing { display: contents; }
+
+.ai-inline-choice-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
+  gap: 14px;
+  padding: 8px 2px 7px;
+  border-bottom: 1px solid color-mix(in srgb, var(--primary) 11%, var(--border));
+  background: transparent;
+}
+
+.ai-inline-radio-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.ai-inline-radio-group legend {
+  float: left;
+  width: 55px;
+  padding: 4px 7px 0 0;
+  color: var(--muted-foreground);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .045em;
+  text-transform: uppercase;
+}
+.ai-inline-radio-group > div {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px 9px;
+}
+.ai-inline-radio-group label {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted-foreground);
+  font-size: 9px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+.ai-inline-radio-group label:hover,
+.ai-inline-radio-group label.active { color: var(--foreground); }
+.ai-inline-radio-group input[type='radio'] {
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.ai-inline-radio-group label.active span { color: var(--primary); }
+
+.ai-inline-generation-row {
+  min-height: 42px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 8px 10px;
-  border-bottom: 1px solid color-mix(in srgb, var(--primary) 14%, var(--border));
+  gap: 10px;
+  padding: 7px 2px 0;
 }
-.ai-inline-header > div { min-width: 0; display: flex; align-items: center; gap: 8px; }
-.ai-inline-header > div > div { min-width: 0; display: grid; gap: 1px; }
-.ai-inline-header strong { font-size: 11px; }
-.ai-inline-header small { overflow: hidden; color: var(--muted-foreground); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
-.ai-inline-mark { width: 26px; height: 26px; flex: 0 0 26px; display: grid; place-items: center; border-radius: 7px; background: color-mix(in srgb, var(--primary) 11%, var(--surface)); color: var(--primary); }
-.ai-inline-context { flex: 0 0 auto; color: var(--muted-foreground); font-size: 8px; font-weight: 700; }
-
-.ai-inline-controls { padding: 9px 10px 10px; }
-.ai-inline-instruction { display: grid; gap: 5px; }
-.ai-inline-instruction > span,
-.ai-inline-option-row > span { color: var(--muted-foreground); font-size: 8px; font-weight: 800; letter-spacing: .035em; text-transform: uppercase; }
-.ai-inline-instruction textarea {
-  width: 100%;
-  min-height: 58px;
-  max-height: 120px;
-  resize: vertical;
-  padding: 8px 9px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  outline: 0;
-  background: var(--surface);
-  color: var(--foreground);
-  font: inherit;
-  font-size: 10px;
-  line-height: 1.45;
-}
-.ai-inline-instruction textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 9%, transparent); }
-
-.ai-inline-option-row { display: grid; grid-template-columns: 54px minmax(0, 1fr); align-items: center; gap: 7px; margin-top: 7px; }
-.ai-inline-option-row > div { display: flex; flex-wrap: wrap; gap: 4px; }
-.ai-inline-option-row button {
-  min-height: 25px;
-  padding: 3px 7px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--foreground);
+.ai-inline-generation-copy {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted-foreground);
   font-size: 8.5px;
-  font-weight: 700;
+  font-weight: 650;
 }
-.ai-inline-option-row button:hover { border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); }
-.ai-inline-option-row button.active { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 8%, var(--surface)); color: var(--primary); }
-
-.ai-inline-generate { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--border); }
-.ai-inline-generate small { color: var(--muted-foreground); font-size: 8.5px; font-weight: 700; }
-.ai-inline-generate .primary-button { min-height: 30px; padding: 0 10px; font-size: 9px; }
-.ai-inline-error { margin-top: 7px; padding: 7px 8px; border-radius: 6px; background: color-mix(in srgb, var(--danger) 7%, var(--surface)); color: var(--danger); font-size: 9px; }
-
-.ai-inline-result { padding: 9px 10px 10px; border-top: 1px solid color-mix(in srgb, var(--primary) 16%, var(--border)); background: color-mix(in srgb, var(--primary) 2%, var(--surface)); }
-.ai-inline-result-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
-.ai-inline-result-heading > div { display: grid; gap: 1px; }
-.ai-inline-result-heading span { color: var(--primary); font-size: 8px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
-.ai-inline-result-heading strong { font-size: 10px; }
-.ai-inline-result-heading small { color: var(--muted-foreground); font-size: 8px; }
-.ai-inline-result > textarea {
-  width: 100%;
-  min-height: 105px;
-  max-height: 220px;
-  resize: vertical;
-  padding: 8px 9px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  outline: 0;
-  background: var(--surface);
-  color: var(--foreground);
-  font: inherit;
-  font-size: 10px;
-  line-height: 1.5;
+.ai-inline-generation-copy > svg { flex: 0 0 auto; color: var(--primary); }
+.ai-inline-generation-copy > span { white-space: nowrap; }
+.ai-inline-generation-copy > em {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--danger);
+  font-size: 8.5px;
+  font-style: normal;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.ai-inline-result > textarea:focus { border-color: var(--primary); }
-.ai-inline-result-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 7px; }
-.ai-inline-result-actions button { min-height: 29px; padding-block: 0; font-size: 9px; }
+.ai-inline-generation-button {
+  min-height: 31px;
+  flex: 0 0 auto;
+  padding: 0 11px;
+  font-size: 9px;
+}
 
-@media (max-width: 760px) {
-  .ai-inline-header { align-items: flex-start; flex-direction: column; gap: 5px; }
-  .ai-inline-context { padding-left: 34px; }
-  .ai-inline-option-row { grid-template-columns: 1fr; gap: 4px; }
-  .ai-inline-generate { align-items: stretch; flex-direction: column; }
-  .ai-inline-generate .primary-button { width: 100%; }
-  .ai-inline-result-heading { flex-direction: column; }
-  .ai-inline-result-actions { flex-direction: column; }
-  .ai-inline-result-actions button { width: 100%; }
+@media (max-width: 980px) {
+  .ai-inline-choice-strip { grid-template-columns: 1fr; gap: 4px; }
+}
+
+@media (max-width: 640px) {
+  .ai-inline-choice-strip { padding-block: 7px; }
+  .ai-inline-radio-group legend { float: none; width: auto; padding: 0 0 3px; }
+  .ai-inline-radio-group > div { gap: 3px 8px; }
+  .ai-inline-generation-row { align-items: stretch; flex-direction: column; padding-top: 8px; }
+  .ai-inline-generation-copy { min-height: 18px; flex-wrap: wrap; }
+  .ai-inline-generation-copy > span { white-space: normal; }
+  .ai-inline-generation-copy > em { white-space: normal; }
+  .ai-inline-generation-button { width: 100%; justify-content: center; }
 }
