@@ -1,0 +1,167 @@
+using Microsoft.EntityFrameworkCore;
+using NexoMail.Application;
+using NexoMail.Domain;
+using NexoMail.Infrastructure.Data;
+
+namespace NexoMail.Infrastructure;
+
+/// <summary>
+/// Stores only follow-up metadata. Message bodies and attachments remain provider-resident.
+/// </summary>
+public sealed class ControlCenterTrackingService(
+    NexoMailDbContext database,
+    IUserContext userContext,
+    IMailGateway gateway)
+{
+    private const string ManualPrefix = "manual:";
+    private const int MaximumTrackedItems = 100;
+
+    public async Task<bool> IsTrackedAsync(Guid accountId, string messageId, CancellationToken cancellationToken)
+    {
+        var key = ManualKey(messageId);
+        return await database.ControlCenterStates
+            .AsNoTracking()
+            .AnyAsync(x => x.UserId == userContext.UserId
+                && x.AccountId == accountId
+                && x.ConversationId == key
+                && x.Status == "tracked", cancellationToken);
+    }
+
+    public async Task<bool> TrackAsync(Guid accountId, string messageId, CancellationToken cancellationToken)
+    {
+        var accountExists = await database.MailAccounts
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == accountId && x.UserId == userContext.UserId && x.IsActive, cancellationToken);
+        if (!accountExists) return false;
+
+        var message = await gateway.GetMessageAsync(accountId, messageId, cancellationToken);
+        if (message is null) return false;
+        if (message.FolderId is "drafts" or "trash" or "spam")
+            throw new InvalidOperationException("Este correo no puede añadirse a seguimiento desde la carpeta actual.");
+
+        var key = ManualKey(messageId);
+        var state = await database.ControlCenterStates.SingleOrDefaultAsync(
+            x => x.UserId == userContext.UserId && x.AccountId == accountId && x.ConversationId == key,
+            cancellationToken);
+
+        if (state is null)
+        {
+            state = new ControlCenterStateEntity
+            {
+                Id = Guid.NewGuid(),
+                UserId = userContext.UserId,
+                AccountId = accountId,
+                ConversationId = key,
+            };
+            database.ControlCenterStates.Add(state);
+        }
+
+        state.LastMessageId = messageId;
+        state.Status = "tracked";
+        state.SnoozedUntil = null;
+        state.UpdatedAt = DateTimeOffset.UtcNow;
+        await database.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> UntrackAsync(Guid accountId, string messageId, CancellationToken cancellationToken)
+    {
+        var accountExists = await database.MailAccounts
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == accountId && x.UserId == userContext.UserId && x.IsActive, cancellationToken);
+        if (!accountExists) return false;
+
+        var key = ManualKey(messageId);
+        var state = await database.ControlCenterStates.SingleOrDefaultAsync(
+            x => x.UserId == userContext.UserId && x.AccountId == accountId && x.ConversationId == key,
+            cancellationToken);
+        if (state is null) return true;
+
+        database.ControlCenterStates.Remove(state);
+        await database.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<IReadOnlyCollection<ControlCenterPendingItem>> GetTrackedItemsAsync(Guid? accountId, CancellationToken cancellationToken)
+    {
+        var stateQuery = database.ControlCenterStates
+            .AsNoTracking()
+            .Where(x => x.UserId == userContext.UserId
+                && x.Status == "tracked"
+                && x.ConversationId.StartsWith(ManualPrefix));
+        if (accountId.HasValue) stateQuery = stateQuery.Where(x => x.AccountId == accountId.Value);
+
+        var states = await stateQuery
+            .OrderByDescending(x => x.UpdatedAt)
+            .Take(MaximumTrackedItems)
+            .ToArrayAsync(cancellationToken);
+        if (states.Length == 0) return [];
+
+        var accountIds = states.Select(x => x.AccountId).Distinct().ToArray();
+        var accounts = await database.MailAccounts
+            .AsNoTracking()
+            .Where(x => x.UserId == userContext.UserId && x.IsActive && accountIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, cancellationToken);
+
+        using var gate = new SemaphoreSlim(4);
+        var tasks = states.Select(async state =>
+        {
+            if (!accounts.TryGetValue(state.AccountId, out var account)) return null;
+            await gate.WaitAsync(cancellationToken);
+            try
+            {
+                MailMessage? message;
+                try
+                {
+                    message = await gateway.GetMessageAsync(state.AccountId, state.LastMessageId, cancellationToken);
+                }
+                catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException or KeyNotFoundException)
+                {
+                    return null;
+                }
+
+                if (message is null || message.FolderId is "drafts" or "trash" or "spam") return null;
+                var sent = string.Equals(message.FolderId, "sent", StringComparison.OrdinalIgnoreCase);
+                var counterpart = sent
+                    ? DisplayAddress(message.To.FirstOrDefault())
+                    : DisplayAddress(message.From);
+
+                return new ControlCenterPendingItem(
+                    state.AccountId,
+                    account.DisplayName,
+                    account.Color,
+                    message.ProviderMessageId,
+                    state.ConversationId,
+                    sent ? "sent" : "received",
+                    counterpart,
+                    string.IsNullOrWhiteSpace(message.Subject) ? "(sin asunto)" : message.Subject,
+                    message.ReceivedAt,
+                    message.IsRead);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        });
+
+        var values = await Task.WhenAll(tasks);
+        return values
+            .Where(x => x is not null)
+            .Select(x => x!)
+            .OrderBy(x => x.Since)
+            .ToArray();
+    }
+
+    private static string ManualKey(string messageId)
+    {
+        var trimmed = messageId.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed)) throw new InvalidOperationException("El correo no tiene un identificador válido.");
+        return $"{ManualPrefix}{trimmed}";
+    }
+
+    private static string DisplayAddress(MailAddress? address)
+    {
+        if (address is null) return "Destinatario";
+        return string.IsNullOrWhiteSpace(address.Name) ? address.Address : address.Name;
+    }
+}
