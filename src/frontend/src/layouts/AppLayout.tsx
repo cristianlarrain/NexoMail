@@ -7,6 +7,7 @@ import { mailApi } from '../api/mailApi'
 import { BackToTopButton } from '../components/BackToTopButton'
 
 const navClass = ({ isActive }: { isActive: boolean }) => `nav-item ${isActive ? 'active' : ''}`
+const controlCenterNavClass = ({ isActive }: { isActive: boolean }) => `nav-item control-center-nav ${isActive ? 'active' : ''}`
 function initials(value: string) { return value.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || 'NM' }
 function capitalize(value: string) { return value.charAt(0).toUpperCase() + value.slice(1) }
 
@@ -28,7 +29,7 @@ export function AppLayout() {
       <button className="compose-button" onClick={() => navigate('/compose')}><PenLine size={17} /><span>Redactar</span></button>
       <nav aria-label="Navegación principal">
         <NavLink to="/inbox" end className={navClass}><Inbox size={17} /><span>Bandeja de entrada</span></NavLink>
-        <NavLink to="/control-center" className={navClass}><LayoutDashboard size={17} /><span>Centro de control</span></NavLink>
+        <NavLink to="/control-center" className={controlCenterNavClass}><i className="control-center-nav-icon"><LayoutDashboard size={16} /></i><span>Centro de control</span></NavLink>
         <p className="nav-heading">Cuentas</p>
         {accounts.map(account => <NavLink key={account.id} to={`/account/${account.id}`} className={navClass}><i className="account-dot" style={{ background: account.color }} /><span>{account.displayName}</span></NavLink>)}
         <p className="nav-heading">Carpetas</p>
