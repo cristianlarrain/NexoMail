@@ -22,7 +22,9 @@ type DocumentRow = {
 type FolderCursor = { inbox?: string; archive?: string }
 type FolderFinished = { inbox: boolean; archive: boolean }
 
-const DETAIL_BATCH = 5
+const DETAIL_BATCH = 4
+const DETAILS_PER_LOAD = 12
+const DETAIL_TIMEOUT_MS = 5_000
 
 function documentType(attachment: MailAttachment) {
   const name = attachment.name.toLowerCase()
@@ -54,11 +56,23 @@ function dateLabel(value: string) {
   return new Date(value).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, '')
 }
 
+async function messageWithTimeout(item: MailSummary) {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race<MailMessage | null>([
+      mailApi.message(item.accountId, item.providerMessageId).catch(() => null),
+      new Promise<null>(resolve => { timer = setTimeout(() => resolve(null), DETAIL_TIMEOUT_MS) }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 async function loadDetails(items: MailSummary[]) {
   const result: MailMessage[] = []
   for (let index = 0; index < items.length; index += DETAIL_BATCH) {
     const batch = items.slice(index, index + DETAIL_BATCH)
-    const values = await Promise.all(batch.map(item => mailApi.message(item.accountId, item.providerMessageId).catch(() => null)))
+    const values = await Promise.all(batch.map(messageWithTimeout))
     result.push(...values.filter((value): value is MailMessage => Boolean(value)))
   }
   return result
@@ -87,9 +101,16 @@ function rowsFromMessages(messages: MailMessage[]) {
   return rows
 }
 
+function uniqueSummaries(items: MailSummary[]) {
+  return [...new Map(items.map(item => [`${item.accountId}:${item.providerMessageId}`, item])).values()]
+    .filter(item => item.hasAttachments)
+    .sort((left, right) => new Date(right.receivedAt).getTime() - new Date(left.receivedAt).getTime())
+}
+
 export function ControlCenterDocuments() {
   const navigate = useNavigate()
   const [documents, setDocuments] = useState<DocumentRow[]>([])
+  const [pendingSummaries, setPendingSummaries] = useState<MailSummary[]>([])
   const [cursors, setCursors] = useState<FolderCursor>({})
   const [folderFinished, setFolderFinished] = useState<FolderFinished>({ inbox: false, archive: false })
   const [started, setStarted] = useState(false)
@@ -103,19 +124,34 @@ export function ControlCenterDocuments() {
     setLoading(true)
     setError('')
     try {
-      const currentFinished = reset ? { inbox: false, archive: false } : folderFinished
-      const currentCursors = reset ? {} : cursors
-      const [inboxPage, archivePage] = await Promise.all([
-        currentFinished.inbox ? Promise.resolve(null) : mailApi.messages(undefined, 'inbox', 'has:attachment', currentCursors.inbox),
-        currentFinished.archive ? Promise.resolve(null) : mailApi.messages(undefined, 'archive', 'has:attachment', currentCursors.archive),
-      ])
+      let queue = reset ? [] : pendingSummaries
+      let nextCursors = reset ? {} as FolderCursor : cursors
+      let nextFinished = reset ? { inbox: false, archive: false } : folderFinished
 
-      const summaries = [
-        ...(inboxPage?.items ?? []),
-        ...(archivePage?.items ?? []),
-      ]
-      const uniqueSummaries = [...new Map(summaries.map(item => [`${item.accountId}:${item.providerMessageId}`, item])).values()]
-      const details = await loadDetails(uniqueSummaries.filter(item => item.hasAttachments))
+      if (queue.length === 0 && !(nextFinished.inbox && nextFinished.archive)) {
+        const [inboxPage, archivePage] = await Promise.all([
+          nextFinished.inbox ? Promise.resolve(null) : mailApi.messages(undefined, 'inbox', 'has:attachment', nextCursors.inbox),
+          nextFinished.archive ? Promise.resolve(null) : mailApi.messages(undefined, 'archive', 'has:attachment', nextCursors.archive),
+        ])
+
+        queue = uniqueSummaries([
+          ...(inboxPage?.items ?? []),
+          ...(archivePage?.items ?? []),
+        ])
+
+        nextCursors = {
+          inbox: inboxPage?.nextCursor,
+          archive: archivePage?.nextCursor,
+        }
+        nextFinished = {
+          inbox: nextFinished.inbox || !inboxPage?.nextCursor,
+          archive: nextFinished.archive || !archivePage?.nextCursor,
+        }
+      }
+
+      const currentBatch = queue.slice(0, DETAILS_PER_LOAD)
+      const remaining = queue.slice(DETAILS_PER_LOAD)
+      const details = await loadDetails(currentBatch)
       const nextRows = rowsFromMessages(details)
 
       setDocuments(current => {
@@ -124,15 +160,7 @@ export function ControlCenterDocuments() {
         nextRows.forEach(item => map.set(item.key, item))
         return [...map.values()].sort((left, right) => new Date(right.receivedAt).getTime() - new Date(left.receivedAt).getTime())
       })
-
-      const nextCursors = {
-        inbox: inboxPage?.nextCursor,
-        archive: archivePage?.nextCursor,
-      }
-      const nextFinished = {
-        inbox: currentFinished.inbox || !inboxPage?.nextCursor,
-        archive: currentFinished.archive || !archivePage?.nextCursor,
-      }
+      setPendingSummaries(remaining)
       setCursors(nextCursors)
       setFolderFinished(nextFinished)
       setStarted(true)
@@ -155,7 +183,7 @@ export function ControlCenterDocuments() {
   }, [documents, search, typeFilter])
 
   const types = useMemo(() => [...new Set(documents.map(item => item.documentType))].sort((a, b) => a.localeCompare(b, 'es')), [documents])
-  const finished = folderFinished.inbox && folderFinished.archive
+  const finished = folderFinished.inbox && folderFinished.archive && pendingSummaries.length === 0
 
   if (!started) return <section className="documents-control documents-start">
     <FileText size={30} />
@@ -202,7 +230,7 @@ export function ControlCenterDocuments() {
     </div>
 
     <div className="documents-more">
-      {!finished && <button type="button" className="secondary-button" onClick={() => void loadNext()} disabled={loading}>{loading ? 'Cargando…' : 'Cargar más documentos'}</button>}
+      {!finished && <button type="button" className="secondary-button" onClick={() => void loadNext()} disabled={loading}>{loading ? 'Cargando…' : pendingSummaries.length > 0 ? 'Cargar siguientes documentos' : 'Buscar más documentos'}</button>}
       {finished && <span>Se alcanzó el final de los documentos recibidos disponibles en Bandeja de entrada y Archivados.</span>}
     </div>
   </section>
