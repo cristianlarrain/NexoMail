@@ -5,7 +5,7 @@
     max-width: none;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: start;
-    gap: 24px;
+    gap: 12px;
   }
 
   .message-reader.with-preview .message-reading-pane {
@@ -20,18 +20,19 @@
 
   .message-reader.with-preview .attachment-preview {
     position: sticky;
-    top: 82px;
-    height: calc(100vh - 96px);
-    min-height: 620px;
+    top: 76px;
+    height: calc(100vh - 84px);
+    min-height: 640px;
     max-height: none;
     min-width: 0;
     overflow: hidden;
-    border-radius: 10px;
+    border-radius: 9px;
   }
 
   .message-reader.with-preview .attachment-preview header {
     flex: 0 0 auto;
-    padding: 12px 14px;
+    min-height: 48px;
+    padding: 8px 12px;
   }
 
   .message-reader.with-preview .attachment-preview-content {
@@ -46,6 +47,7 @@
     height: 100%;
     min-height: 0;
     align-self: stretch;
+    border: 0;
   }
 
   .message-reader.with-preview .attachment-preview-content img {
@@ -56,7 +58,8 @@
 
   .message-reader.with-preview .attachment-preview footer {
     flex: 0 0 auto;
-    padding: 10px 14px;
+    min-height: 48px;
+    padding: 7px 12px;
   }
 }
 
@@ -76,6 +79,7 @@
 
   .message-reader.with-preview .attachment-preview-content iframe {
     width: 100%;
-    min-height: 640px;
+    min-height: 720px;
+    border: 0;
   }
 }
