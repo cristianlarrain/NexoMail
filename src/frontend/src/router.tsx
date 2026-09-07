@@ -7,16 +7,16 @@ import { AuthPage } from './pages/AuthPage'
 import { ComposePage } from './pages/ComposePage'
 import { ControlCenterPage } from './pages/ControlCenterPage'
 import { InboxPage } from './pages/InboxPage'
+import { LandingPage } from './pages/LandingPage'
 import { MessagePage } from './pages/MessagePage'
 import { ProfilePage } from './pages/ProfilePage'
 
 export const router = createBrowserRouter([
+  { path: '/', element: <LandingPage /> },
   { path: '/login', element: <AuthPage /> },
   {
-    path: '/',
     element: <RequireAuth><AppLayout /></RequireAuth>,
     children: [
-      { index: true, element: <Navigate to="/inbox" replace /> },
       { path: 'inbox', element: <InboxPage /> },
       { path: 'control-center', element: <ControlCenterPage /> },
       { path: 'account/:accountId', element: <InboxPage /> },
