@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Bold, ChevronDown, Italic, Link, List, ListOrdered, Mic, MicOff, Paperclip, Save, Send, Sparkles, Trash2, Underline, X } from 'lucide-react'
 import { AiWritingAssistant } from '../components/AiWritingAssistant'
+import { AiInlineWritingAssistant } from '../components/AiInlineWritingAssistant'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { mailApi } from '../api/mailApi'
 import type { AiWritingSuggestion, ComposeMessage, MailMessage, OutgoingAttachment } from '../types/mail'
@@ -72,7 +73,6 @@ export function ComposePage() {
   const contacts = useQuery({ queryKey: ['contacts', fromAccountId, recipientTerm], queryFn: () => mailApi.contacts(fromAccountId!, recipientTerm), enabled: Boolean(fromAccountId && recipientFocused && recipientTerm.length >= 2), retry: false })
   const action = useMemo(() => state.mode === 'reply' ? 'Responder' : state.mode === 'replyAll' ? 'Responder a todos' : state.mode === 'forward' ? 'Reenviar' : state.mode === 'followUp' ? 'Enviar seguimiento' : 'Enviar', [state.mode])
   const showComposer = Boolean(origin) || composeReady || manualCompose
-  const showReplyAssistant = Boolean(origin && state.mode && state.mode !== 'forward')
 
   function buildPayload(): ComposeMessage {
     if (!fromAccountId) throw new Error('Selecciona una cuenta desde la cual enviar o guardar el correo.')
@@ -238,8 +238,6 @@ export function ComposePage() {
           <div className="ai-reply-source-body" dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(origin.htmlBody) }} />
         </section>}
 
-        {showReplyAssistant && origin && <AiWritingAssistant mode="reply" accountId={origin.accountId} messageId={origin.providerMessageId} onUse={useAiProposal} />}
-
         <section className="ai-compose-editor" aria-label="Editor del mensaje">
           <div className="ai-compose-editor-heading">
             <div>{origin ? <strong>{body ? 'Respuesta propuesta' : 'Respuesta'}</strong> : <><span>Nexo IA</span><strong>Tu mensaje</strong></>}</div>
@@ -248,6 +246,15 @@ export function ComposePage() {
           <div className="format-toolbar" aria-label="Formato"><button type="button" title="Negrita" onMouseDown={e => e.preventDefault()} onClick={() => format('bold')}><Bold size={16} /></button><button type="button" title="Cursiva" onMouseDown={e => e.preventDefault()} onClick={() => format('italic')}><Italic size={16} /></button><button type="button" title="Subrayado" onMouseDown={e => e.preventDefault()} onClick={() => format('underline')}><Underline size={16} /></button><button type="button" title="Lista" onMouseDown={e => e.preventDefault()} onClick={() => format('insertUnorderedList')}><List size={16} /></button><button type="button" title="Lista numerada" onMouseDown={e => e.preventDefault()} onClick={() => format('insertOrderedList')}><ListOrdered size={16} /></button><button type="button" title="Insertar enlace" onMouseDown={e => e.preventDefault()} onClick={() => { const url = window.prompt('Pega una URL segura (https://...)'); if (url?.startsWith('https://')) format('createLink', url) }}><Link size={16} /></button><button type="button" className={`dictation-button ${listening ? 'listening' : ''}`} title={listening ? 'Detener dictado' : 'Dictar mensaje'} aria-label={listening ? 'Detener dictado' : 'Dictar mensaje con micrófono'} onMouseDown={e => e.preventDefault()} onClick={toggleDictation}>{listening ? <MicOff size={16} /> : <Mic size={16} />}</button>{listening && <span className="dictation-status">Escuchando…</span>}</div>
           {dictationError && <p className="dictation-error">{dictationError}</p>}
           <div ref={editor} className="editor rich-editor" contentEditable suppressContentEditableWarning role="textbox" aria-multiline="true" data-placeholder="Escribe tu mensaje o utiliza Nexo IA para preparar una propuesta…" onInput={event => setBody(event.currentTarget.innerHTML)} />
+
+          <AiInlineWritingAssistant
+            currentHtml={body}
+            recipient={to}
+            accountId={origin && state.mode !== 'forward' ? origin.accountId : undefined}
+            messageId={origin && state.mode !== 'forward' ? origin.providerMessageId : undefined}
+            onUse={useAiProposal}
+          />
+
           <div className="outgoing-attachments">{attachments.map((file, index) => <span key={`${file.name}-${index}`}><Paperclip size={14} />{file.name}<button type="button" onClick={() => setAttachments(current => current.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Quitar ${file.name}`}><X size={14} /></button></span>)}</div>
           {attachmentError && <p className="attachment-error">{attachmentError}</p>}
           {send.isError && <p className="attachment-error">{send.error instanceof Error ? send.error.message : 'No se pudo enviar el correo.'}</p>}
