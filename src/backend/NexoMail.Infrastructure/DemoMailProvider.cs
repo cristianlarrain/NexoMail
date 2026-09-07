@@ -87,7 +87,7 @@ public sealed class DemoMailProvider : IMailProvider
 
 public sealed class DemoMailGateway(IEnumerable<IMailProvider> providers) : IMailGateway
 {
-    private readonly IMailProvider _demo = providers.Single(p => p.ProviderType == MailProviderType.Demo);
+    private readonly DemoMailProvider _demo = (DemoMailProvider)providers.Single(p => p.ProviderType == MailProviderType.Demo);
     private readonly List<MailAccount> _accounts = DemoData.Accounts.ToList();
     public Task<IReadOnlyCollection<MailAccount>> GetAccountsAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyCollection<MailAccount>>(_accounts);
     public Task<MailAccount?> UpdateAccountAsync(Guid accountId, MailAccountSettings settings, CancellationToken cancellationToken)
