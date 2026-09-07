@@ -6,6 +6,9 @@ import { useNavigate } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
 import type { ControlCenterPendingItem, ControlCenterSnapshot } from '../types/mail'
 import { ControlCenterActivity } from './ControlCenterActivity'
+import { NexiInsightCard } from './nexi/NexiInsightCard'
+import { NexiVisual } from './nexi/NexiVisual'
+import { buildNexiInsights, type NexiInsightAction } from './nexi/nexiInsights'
 
 type ManagementView = 'received' | 'sent' | 'overdue' | null
 type PriorityDisplayItem = { item: ControlCenterPendingItem; automatic: boolean; manual: boolean }
@@ -45,6 +48,14 @@ function managementCopy(view: Exclude<ManagementView, null>) {
   return { title: 'Pendientes de más de 48 horas', description: 'Reúne pendientes recibidos y enviados cuya última actividad ocurrió hace 48 horas o más.' }
 }
 
+function nexiInsightIcon(action?: NexiInsightAction) {
+  if (action === 'received') return <Inbox size={15} />
+  if (action === 'sent') return <Send size={15} />
+  if (action === 'unread') return <Mail size={15} />
+  if (action === 'overdue' || action === 'tracking') return <Clock3 size={15} />
+  return <Check size={15} />
+}
+
 export function ControlCenter({ accountId, accountName }: { accountId?: string; accountName?: string }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -56,6 +67,7 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
   const queryKey = ['control-center', accountId ?? 'all'] as const
   const inboxPath = accountId ? `/account/${accountId}` : '/inbox'
   const controlCenterPath = '/control-center'
+
   const snapshot = useQuery({
     queryKey,
     queryFn: () => mailApi.controlCenter(accountId),
@@ -65,6 +77,7 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
     refetchOnMount: false,
     refetchOnWindowFocus: false,
   })
+
   const manualTracking = useQuery({
     queryKey: ['control-center-tracking', accountId ?? 'all'],
     queryFn: () => mailApi.controlCenterTrackedItems(accountId),
@@ -137,6 +150,7 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
   const activeCopy = activeView ? managementCopy(activeView) : null
   const scopeLabel = accountId ? accountName ?? 'Esta cuenta' : 'Todas las cuentas'
   const priorityMap = new Map<string, PriorityDisplayItem>()
+
   data.pendingItems.forEach(item => priorityMap.set(messageKey(item), { item, automatic: true, manual: false }))
   ;(manualTracking.data ?? []).forEach(item => {
     const key = messageKey(item)
@@ -144,8 +158,23 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
     if (current) priorityMap.set(key, { ...current, manual: true })
     else priorityMap.set(key, { item, automatic: false, manual: true })
   })
+
   const priorityItems = [...priorityMap.values()].sort((left, right) => new Date(left.item.since).getTime() - new Date(right.item.since).getTime())
   const visiblePriorityItems = priorityItems.slice(0, priorityVisible)
+  const nexiInsights = buildNexiInsights(data)
+
+  function handleNexiAction(action?: NexiInsightAction) {
+    if (!action) return
+    if (action === 'unread') {
+      navigate(`${inboxPath}?q=${encodeURIComponent('is:unread')}`)
+      return
+    }
+    if (action === 'tracking') {
+      navigate(`${inboxPath}?tracking=priority`)
+      return
+    }
+    setActiveView(action)
+  }
 
   return <section className="control-center" aria-labelledby="control-center-title">
     <div className="control-center-header">
@@ -161,6 +190,24 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
       <MetricCard tone="unread" icon={<Mail size={19} />} value={data.unread} label="Correos sin leer" hint="Abrir y gestionar en forma masiva" onClick={() => navigate(`${inboxPath}?q=${encodeURIComponent('is:unread')}`)} />
       <MetricCard tone="overdue" icon={<Clock3 size={19} />} value={data.overdue} label="Más de 48 horas" hint="Pendientes que requieren atención" active={activeView === 'overdue'} onClick={() => setActiveView(current => current === 'overdue' ? null : 'overdue')} />
     </div>
+
+    <section className="nexi-insights-panel" aria-label="Sugerencias de Nexi">
+      <header className="nexi-insights-header">
+        <NexiVisual size="small" />
+        <div><strong>Nexi detectó</strong><span>Lectura rápida basada en los mismos indicadores del Centro de control.</span></div>
+      </header>
+      <div className="nexi-insights-grid">
+        {nexiInsights.map(insight => <NexiInsightCard
+          key={insight.id}
+          icon={nexiInsightIcon(insight.action)}
+          title={insight.title}
+          description={insight.description}
+          priority={insight.priority}
+          actionLabel={insight.actionLabel}
+          onAction={insight.action ? () => handleNexiAction(insight.action) : undefined}
+        />)}
+      </div>
+    </section>
 
     {activeView && activeCopy && <article className="control-management-panel">
       <header><div><p className="eyebrow">Gestión</p><strong>{activeCopy.title}</strong><span>{activeCopy.description}</span></div><button type="button" className="icon-button" onClick={() => { setActiveView(null); setSnoozeTarget(null) }} aria-label="Cerrar gestión"><X size={17} /></button></header>
