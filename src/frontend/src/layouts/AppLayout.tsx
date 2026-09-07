@@ -34,6 +34,23 @@ export function AppLayout() {
   useEffect(() => { setSearch(new URLSearchParams(location.search).get('q') ?? '') }, [location.search])
   useEffect(() => { setNexiOpen(false) }, [location.pathname])
   useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 1000); return () => window.clearInterval(timer) }, [])
+  useEffect(() => {
+    if (!accounts.length || !(location.pathname === '/inbox' || location.pathname.startsWith('/account/'))) return
+    const timer = window.setTimeout(() => {
+      const scopes: Array<string | undefined> = [undefined, ...accounts.map(account => account.id)]
+      for (const scope of scopes) {
+        void queryClient.prefetchInfiniteQuery({
+          queryKey: ['messages', scope, 'inbox', ''],
+          queryFn: ({ pageParam }) => mailApi.messages(scope, 'inbox', '', pageParam || undefined),
+          initialPageParam: '',
+          getNextPageParam: lastPage => lastPage.nextCursor ?? undefined,
+          pages: 1,
+          staleTime: 5 * 60_000,
+        })
+      }
+    }, 650)
+    return () => window.clearTimeout(timer)
+  }, [accounts, location.pathname, queryClient])
 
   const dateLabel = capitalize(now.toLocaleDateString('es-CL', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, ''))
   const timeLabel = now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
