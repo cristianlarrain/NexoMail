@@ -1,0 +1,71 @@
+.control-center-page > .control-page-header .view-context {
+  display: none;
+}
+
+.control-center-page .control-center-header {
+  min-height: 36px;
+  padding-block: 6px;
+}
+
+.control-center-page .control-center-title-line h2,
+.control-center-page .control-center-header > div:first-child > p {
+  display: none;
+}
+
+.control-center-page .control-center-title-line span {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 0;
+  font-weight: 700;
+}
+
+.control-center-page .control-center-title-line span::after {
+  content: "Todas las cuentas · 14 días";
+  font-size: 10px;
+}
+
+.control-center-page .control-center-refresh span {
+  color: var(--muted-foreground);
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.nexi-control-summary .nexi-insights-header {
+  min-height: 48px;
+  padding-block: 8px;
+}
+
+.nexi-control-summary .nexi-insights-header > div > strong {
+  font-size: 0;
+}
+
+.nexi-control-summary .nexi-insights-header > div > strong::after {
+  content: "Nexi";
+  font-size: 13px;
+}
+
+.nexi-control-summary .nexi-insights-header > div > span {
+  font-size: 0;
+}
+
+.nexi-control-summary .nexi-insights-header > div > span::after {
+  content: "Hallazgos y sugerencias de esta vista.";
+  font-size: 9px;
+}
+
+.nexi-control-summary .nexi-findings-heading span {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .control-center-page .control-center-header {
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .control-center-page .control-center-refresh {
+    margin-left: 0;
+  }
+}
