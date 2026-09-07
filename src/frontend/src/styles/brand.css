@@ -1,0 +1,87 @@
+.nexomail-logo {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.nexomail-logo-mark {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: grid;
+  place-items: center;
+}
+
+.nexomail-logo-mark svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+  filter: drop-shadow(0 4px 8px color-mix(in srgb, var(--primary) 18%, transparent));
+}
+
+.nexomail-logo-tile {
+  fill: var(--primary);
+}
+
+.nexomail-logo-n,
+.nexomail-logo-flap {
+  fill: none;
+  stroke: var(--primary-foreground);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nexomail-logo-n { stroke-width: 2.65; }
+.nexomail-logo-flap { stroke-width: 2.15; opacity: .92; }
+
+.nexomail-wordmark {
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  color: var(--foreground);
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: -.045em;
+  white-space: nowrap;
+}
+
+.nexomail-wordmark strong {
+  font-weight: 760;
+}
+
+.nexomail-wordmark > span {
+  margin-left: 1px;
+  color: var(--primary);
+  font-weight: 650;
+}
+
+.brand-home:hover .nexomail-wordmark strong,
+.brand-home:focus-visible .nexomail-wordmark strong {
+  color: var(--primary);
+}
+
+.brand-home:hover .nexomail-logo-mark svg {
+  transform: translateY(-1px);
+}
+
+.nexomail-logo-mark svg,
+.nexomail-wordmark strong {
+  transition: transform .16s ease, color .16s ease, filter .16s ease;
+}
+
+:root[data-theme="dark"] .nexomail-logo-mark svg {
+  filter: drop-shadow(0 0 8px rgb(53 200 232 / .20));
+}
+
+:root[data-theme="dark"] .nexomail-logo-tile {
+  fill: color-mix(in srgb, var(--primary) 94%, #0c1a21);
+}
+
+.sidebar.collapsed .nexomail-wordmark { display: none; }
+.sidebar.collapsed .nexomail-logo { gap: 0; }
+
+@media (max-width: 760px) {
+  .nexomail-logo-mark { width: 29px; height: 29px; flex-basis: 29px; }
+}
