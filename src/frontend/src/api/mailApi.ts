@@ -1,5 +1,5 @@
 import { csrfFetch } from './csrfFetch'
-import type { AiTone, AiWritingSuggestion, ComposeMessage, ContactSuggestion, ControlCenterActivitySnapshot, ControlCenterSnapshot, MailAccount, MailAttachment, MailMessage, MailSummary, PagedResult } from '../types/mail'
+import type { AiTone, AiWritingSuggestion, ComposeMessage, ContactSuggestion, ControlCenterActivitySnapshot, ControlCenterPendingItem, ControlCenterSnapshot, MailAccount, MailAttachment, MailMessage, MailSummary, PagedResult } from '../types/mail'
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await csrfFetch(`/api${path}`, { headers: { 'Content-Type': 'application/json', ...init?.headers }, ...init })
@@ -15,6 +15,10 @@ export const mailApi = {
   refreshMail: () => api<void>('/mail/refresh', { method: 'POST' }),
   controlCenter: (accountId?: string) => api<ControlCenterSnapshot>(`/mail/control-center${accountId ? `?accountId=${encodeURIComponent(accountId)}` : ''}`),
   controlCenterActivity: (accountId: string | undefined, days: 7 | 14 | 30, offsetDays: number) => api<ControlCenterActivitySnapshot>(`/mail/control-center/activity?days=${days}&offsetDays=${offsetDays}${accountId ? `&accountId=${encodeURIComponent(accountId)}` : ''}`),
+  controlCenterTrackedItems: (accountId?: string) => api<ControlCenterPendingItem[]>(`/mail/control-center/tracking${accountId ? `?accountId=${encodeURIComponent(accountId)}` : ''}`),
+  controlCenterTrackingState: (accountId: string, messageId: string) => api<{ isTracked: boolean }>(`/mail/control-center/tracking/${encodeURIComponent(accountId)}/${encodeURIComponent(messageId)}`),
+  trackMessage: (accountId: string, messageId: string) => api<void>(`/mail/control-center/tracking/${encodeURIComponent(accountId)}/${encodeURIComponent(messageId)}`, { method: 'POST' }),
+  untrackMessage: (accountId: string, messageId: string) => api<void>(`/mail/control-center/tracking/${encodeURIComponent(accountId)}/${encodeURIComponent(messageId)}`, { method: 'DELETE' }),
   updateControlCenterState: (accountId: string, conversationId: string, payload: { messageId: string; action: 'resolved' | 'snoozed'; snoozeHours?: number }) => api<void>(`/mail/control-center/${encodeURIComponent(accountId)}/${encodeURIComponent(conversationId)}/state`, { method: 'PATCH', body: JSON.stringify(payload) }),
   contacts: (accountId: string, search: string) => api<ContactSuggestion[]>(`/mail/contacts?accountId=${encodeURIComponent(accountId)}&search=${encodeURIComponent(search)}`),
   updateAccount: (accountId: string, settings: { displayName: string; color: string }) => api<MailAccount>(`/mail/accounts/${accountId}`, { method: 'PATCH', body: JSON.stringify(settings) }),
