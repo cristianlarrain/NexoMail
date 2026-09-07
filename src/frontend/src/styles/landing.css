@@ -1,0 +1,279 @@
+.landing-page {
+  min-height: 100vh;
+  color: var(--foreground);
+  background:
+    radial-gradient(circle at 82% 4%, color-mix(in srgb, var(--primary) 8%, transparent), transparent 28%),
+    var(--background);
+}
+
+.landing-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  min-height: 72px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 28px;
+  padding: 0 max(28px, calc((100vw - 1180px) / 2));
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+.landing-brand { color: inherit; text-decoration: none; }
+.landing-brand .nexomail-logo-mark { width: 34px; height: 34px; flex-basis: 34px; }
+.landing-brand .nexomail-wordmark { font-size: 20px; }
+
+.landing-links { display: flex; justify-content: center; gap: 26px; }
+.landing-links a,
+.landing-footer a { color: var(--muted-foreground); text-decoration: none; font-size: 12px; font-weight: 650; }
+.landing-links a:hover,
+.landing-footer a:hover { color: var(--primary); }
+
+.landing-actions { display: flex; align-items: center; gap: 8px; }
+.landing-theme-button {
+  width: 35px;
+  height: 35px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted-foreground);
+}
+.landing-theme-button:hover { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); }
+.landing-login { padding: 9px 11px; color: var(--foreground); text-decoration: none; font-size: 12px; font-weight: 700; }
+.landing-primary,
+.landing-secondary {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 8px;
+  padding: 0 14px;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 750;
+}
+.landing-primary { background: var(--primary); color: var(--primary-foreground); border: 1px solid var(--primary); box-shadow: 0 8px 24px color-mix(in srgb, var(--primary) 18%, transparent); }
+.landing-primary:hover { filter: brightness(1.05); transform: translateY(-1px); }
+.landing-primary.large { min-height: 44px; padding-inline: 18px; font-size: 13px; }
+.landing-secondary { border: 1px solid var(--border); background: var(--surface); color: var(--foreground); }
+.landing-secondary:hover { border-color: color-mix(in srgb, var(--primary) 36%, var(--border)); color: var(--primary); }
+
+.landing-hero {
+  width: min(1180px, calc(100% - 56px));
+  min-height: 650px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, .92fr) minmax(500px, 1.08fr);
+  align-items: center;
+  gap: 58px;
+  padding: 70px 0 62px;
+}
+.landing-hero-copy { max-width: 590px; }
+.landing-pill {
+  width: max-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 20px;
+  padding: 6px 9px;
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.landing-hero h1 { margin: 0; max-width: 660px; font-size: clamp(44px, 5.2vw, 72px); line-height: .98; letter-spacing: -.062em; }
+.landing-hero h1 span { color: var(--primary); }
+.landing-hero-copy > p { max-width: 570px; margin: 24px 0 0; color: var(--muted-foreground); font-size: 16px; line-height: 1.72; }
+.landing-hero-actions { display: flex; align-items: center; gap: 10px; margin-top: 28px; }
+.landing-trust-row { display: flex; flex-wrap: wrap; gap: 14px 18px; margin-top: 22px; color: var(--muted-foreground); font-size: 10px; font-weight: 650; }
+.landing-trust-row span { display: inline-flex; align-items: center; gap: 5px; }
+.landing-trust-row svg { color: var(--success); }
+
+.landing-product-preview {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border));
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 28px 70px rgb(0 0 0 / .13), 0 0 0 1px color-mix(in srgb, var(--primary) 4%, transparent);
+  transform: perspective(1300px) rotateY(-3deg) rotateX(1deg);
+}
+.landing-preview-top { height: 46px; display: flex; align-items: center; gap: 9px; padding: 0 14px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 96%, var(--primary)); color: var(--muted-foreground); font-size: 10px; font-weight: 700; }
+.landing-preview-top .nexomail-logo-mark { width: 22px; height: 22px; flex-basis: 22px; }
+.landing-preview-top i { width: 7px; height: 7px; margin-left: auto; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 10%, transparent); }
+.landing-preview-body { min-height: 390px; display: grid; grid-template-columns: 76px minmax(0, 1fr); }
+.landing-preview-body > aside { display: grid; align-content: start; gap: 12px; padding: 20px 13px; border-right: 1px solid var(--border); background: color-mix(in srgb, var(--muted) 48%, var(--surface)); }
+.landing-preview-body > aside span { height: 8px; border-radius: 999px; background: var(--border); }
+.landing-preview-body > aside span.active { background: var(--primary); }
+.landing-preview-main { padding: 22px; }
+.landing-preview-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 17px; }
+.landing-preview-heading span { width: 150px; height: 12px; border-radius: 999px; background: var(--foreground); opacity: .88; }
+.landing-preview-heading small { width: 74px; height: 8px; border-radius: 999px; background: var(--border); }
+.landing-preview-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.landing-preview-metrics article { min-height: 78px; padding: 10px; border: 1px solid var(--border); border-radius: 9px; background: color-mix(in srgb, var(--surface) 98%, var(--primary)); }
+.landing-preview-metrics b { display: block; font-size: 21px; letter-spacing: -.04em; }
+.landing-preview-metrics span { display: block; margin-top: 5px; color: var(--muted-foreground); font-size: 8px; line-height: 1.25; }
+.landing-preview-lower { display: grid; grid-template-columns: 1.25fr .75fr; gap: 9px; margin-top: 9px; }
+.landing-preview-lower > article { min-height: 220px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); }
+.landing-preview-chart { height: 100%; display: flex; align-items: end; justify-content: space-around; gap: 7px; padding: 38px 18px 18px; }
+.landing-preview-chart i { width: 13%; border-radius: 5px 5px 2px 2px; background: linear-gradient(180deg, var(--primary), color-mix(in srgb, var(--primary) 64%, transparent)); }
+.landing-preview-chart i:nth-child(1) { height: 36%; }.landing-preview-chart i:nth-child(2) { height: 55%; }.landing-preview-chart i:nth-child(3) { height: 44%; }.landing-preview-chart i:nth-child(4) { height: 70%; }.landing-preview-chart i:nth-child(5) { height: 61%; }.landing-preview-chart i:nth-child(6) { height: 82%; }.landing-preview-chart i:nth-child(7) { height: 68%; }
+.landing-preview-list { display: grid; align-content: start; gap: 10px; padding: 18px; }
+.landing-preview-list span { height: 33px; border-bottom: 1px solid var(--border); background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 12%, var(--surface)) 0 8px, transparent 8px); }
+
+.landing-section { width: min(1180px, calc(100% - 56px)); margin: 0 auto; padding: 82px 0; }
+.landing-value-strip { display: grid; grid-template-columns: repeat(4, 1fr); padding: 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.landing-value-strip div { min-height: 104px; display: grid; align-content: center; gap: 4px; padding: 0 24px; border-right: 1px solid var(--border); }
+.landing-value-strip div:last-child { border-right: 0; }
+.landing-value-strip strong { font-size: 15px; }
+.landing-value-strip span { color: var(--muted-foreground); font-size: 11px; }
+
+.landing-section-heading { max-width: 720px; margin-bottom: 34px; }
+.landing-section-heading > span,
+.landing-section-label { color: var(--primary); font-size: 10px; font-weight: 850; text-transform: uppercase; letter-spacing: .08em; }
+.landing-section-heading h2,
+.landing-nexi-copy h2,
+.landing-security h2,
+.landing-cta h2 { margin: 8px 0 0; font-size: clamp(30px, 3.3vw, 44px); line-height: 1.08; letter-spacing: -.045em; }
+.landing-section-heading p,
+.landing-nexi-copy > p,
+.landing-security p,
+.landing-cta p { margin: 13px 0 0; color: var(--muted-foreground); font-size: 13px; line-height: 1.65; }
+
+.landing-feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; }
+.landing-feature-grid article { min-height: 210px; padding: 23px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); }
+.landing-feature-grid article > i { width: 39px; height: 39px; display: grid; place-items: center; border-radius: 10px; background: color-mix(in srgb, var(--primary) 9%, var(--surface)); color: var(--primary); font-style: normal; }
+.landing-feature-grid h3 { margin: 18px 0 0; font-size: 15px; }
+.landing-feature-grid p { margin: 8px 0 0; color: var(--muted-foreground); font-size: 11px; line-height: 1.62; }
+
+.landing-nexi-section { display: grid; grid-template-columns: 260px minmax(0, 1fr); align-items: center; gap: 58px; padding-block: 72px; }
+.landing-nexi-visual { min-height: 260px; display: grid; place-items: center; align-content: center; gap: 5px; border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border)); border-radius: 18px; background: radial-gradient(circle, color-mix(in srgb, var(--primary) 11%, var(--surface)), var(--surface) 70%); }
+.landing-nexi-visual .nexi-visual.large { width: 150px; height: 150px; }
+.landing-nexi-visual > span { color: var(--primary); font-size: 13px; font-weight: 800; }
+.landing-nexi-copy { max-width: 720px; }
+.landing-nexi-capabilities { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 22px; }
+.landing-nexi-capabilities span { min-height: 38px; display: flex; align-items: center; gap: 7px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--muted-foreground); font-size: 10px; font-weight: 650; }
+.landing-nexi-capabilities svg { color: var(--primary); }
+
+.landing-provider-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.landing-provider-grid article { min-height: 105px; display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); }
+.landing-provider-grid article.available { border-color: color-mix(in srgb, var(--success) 34%, var(--border)); }
+.provider-symbol { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 10px; background: color-mix(in srgb, var(--primary) 9%, var(--surface)); color: var(--primary); }
+.provider-symbol.microsoft { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 2px; padding: 8px; }
+.provider-symbol.microsoft span { background: var(--primary); border-radius: 1px; }
+.landing-provider-grid strong,
+.landing-provider-grid span { display: block; }
+.landing-provider-grid strong { font-size: 13px; }
+.landing-provider-grid div > span { margin-top: 4px; color: var(--muted-foreground); font-size: 9px; }
+.landing-provider-grid article > b { padding: 5px 7px; border-radius: 999px; background: var(--muted); color: var(--muted-foreground); font-size: 8px; }
+.landing-provider-grid article.available > b { background: color-mix(in srgb, var(--success) 10%, var(--surface)); color: var(--success); }
+
+.landing-how { padding-top: 56px; }
+.landing-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.landing-steps article { padding: 24px; border-top: 1px solid var(--border); }
+.landing-steps b { color: var(--primary); font-size: 11px; }
+.landing-steps h3 { margin: 15px 0 0; font-size: 16px; }
+.landing-steps p { margin: 8px 0 0; color: var(--muted-foreground); font-size: 11px; line-height: 1.6; }
+
+.landing-plan-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; align-items: stretch; }
+.landing-plan-grid article { position: relative; min-height: 390px; padding: 25px; border: 1px solid var(--border); border-radius: 13px; background: var(--surface); }
+.landing-plan-grid article.featured { border-color: color-mix(in srgb, var(--primary) 50%, var(--border)); box-shadow: 0 18px 44px color-mix(in srgb, var(--primary) 9%, transparent); }
+.landing-plan-badge { position: absolute; right: 16px; top: 15px; padding: 5px 8px; border-radius: 999px; background: color-mix(in srgb, var(--primary) 10%, var(--surface)); color: var(--primary); font-size: 8px; font-weight: 800; }
+.landing-plan-grid small { color: var(--primary); font-size: 9px; font-weight: 750; text-transform: uppercase; letter-spacing: .05em; }
+.landing-plan-grid h3 { margin: 12px 0 0; font-size: 24px; letter-spacing: -.03em; }
+.landing-plan-grid p { min-height: 58px; margin: 9px 0 0; color: var(--muted-foreground); font-size: 11px; line-height: 1.55; }
+.landing-plan-grid ul { display: grid; gap: 10px; margin: 20px 0 28px; padding: 18px 0 0; border-top: 1px solid var(--border); list-style: none; }
+.landing-plan-grid li { display: flex; align-items: center; gap: 7px; color: var(--muted-foreground); font-size: 10px; }
+.landing-plan-grid li svg { color: var(--success); }
+.landing-plan-grid article > a { position: absolute; left: 25px; bottom: 24px; display: inline-flex; align-items: center; gap: 6px; color: var(--primary); text-decoration: none; font-size: 11px; font-weight: 800; }
+
+.landing-security { display: grid; grid-template-columns: 1.05fr .95fr; gap: 70px; align-items: center; padding-block: 86px; }
+.landing-security-points { display: grid; gap: 9px; }
+.landing-security-points span { min-height: 54px; display: flex; align-items: center; gap: 10px; padding: 0 15px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--muted-foreground); font-size: 11px; font-weight: 650; }
+.landing-security-points svg { color: var(--primary); }
+
+.landing-cta { width: min(1180px, calc(100% - 56px)); margin: 10px auto 80px; padding: 60px 28px; display: grid; justify-items: center; text-align: center; border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border)); border-radius: 18px; background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--primary) 11%, var(--surface)), var(--surface) 65%); }
+.landing-cta .nexomail-logo-mark { width: 38px; height: 38px; flex-basis: 38px; }
+.landing-cta h2 { max-width: 650px; margin-top: 24px; }
+.landing-cta p { margin-bottom: 22px; }
+
+.landing-footer { min-height: 86px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 28px; padding: 0 max(28px, calc((100vw - 1180px) / 2)); border-top: 1px solid var(--border); background: var(--surface); }
+.landing-footer > span { color: var(--muted-foreground); font-size: 9px; }
+.landing-footer > div { display: flex; gap: 18px; }
+.landing-footer .nexomail-logo-mark { width: 25px; height: 25px; flex-basis: 25px; }
+.landing-footer .nexomail-wordmark { font-size: 15px; }
+
+:root[data-theme="dark"] .landing-page {
+  background:
+    radial-gradient(circle at 82% 4%, rgb(53 200 232 / .09), transparent 28%),
+    linear-gradient(180deg, #071116, var(--background) 44%);
+}
+:root[data-theme="dark"] .landing-product-preview,
+:root[data-theme="dark"] .landing-feature-grid article,
+:root[data-theme="dark"] .landing-provider-grid article,
+:root[data-theme="dark"] .landing-plan-grid article,
+:root[data-theme="dark"] .landing-security-points span,
+:root[data-theme="dark"] .landing-nexi-capabilities span {
+  box-shadow: inset 0 0 22px rgb(53 200 232 / .018), var(--shadow);
+}
+
+@media (max-width: 980px) {
+  .landing-nav { grid-template-columns: auto 1fr; }
+  .landing-links { display: none; }
+  .landing-actions { justify-self: end; }
+  .landing-hero { grid-template-columns: 1fr; min-height: 0; padding-top: 54px; }
+  .landing-hero-copy { max-width: 720px; }
+  .landing-product-preview { transform: none; }
+  .landing-feature-grid { grid-template-columns: 1fr 1fr; }
+  .landing-provider-grid,
+  .landing-plan-grid { grid-template-columns: 1fr; }
+  .landing-plan-grid article { min-height: 320px; }
+  .landing-nexi-section { grid-template-columns: 210px minmax(0, 1fr); gap: 34px; }
+  .landing-security { gap: 34px; }
+}
+
+@media (max-width: 700px) {
+  .landing-nav { min-height: 64px; padding-inline: 16px; gap: 12px; }
+  .landing-brand .nexomail-wordmark { font-size: 17px; }
+  .landing-login { display: none; }
+  .landing-actions .landing-primary { padding-inline: 10px; }
+  .landing-actions .landing-primary svg { display: none; }
+  .landing-hero,
+  .landing-section,
+  .landing-cta { width: min(100% - 32px, 1180px); }
+  .landing-hero { gap: 34px; padding: 42px 0 48px; }
+  .landing-hero h1 { font-size: 43px; }
+  .landing-hero-copy > p { font-size: 14px; }
+  .landing-hero-actions { align-items: stretch; flex-direction: column; }
+  .landing-trust-row { display: grid; gap: 8px; }
+  .landing-preview-body { grid-template-columns: 48px minmax(0, 1fr); min-height: 330px; }
+  .landing-preview-body > aside { padding-inline: 9px; }
+  .landing-preview-main { padding: 13px; }
+  .landing-preview-metrics { grid-template-columns: 1fr 1fr; }
+  .landing-preview-lower { grid-template-columns: 1fr; }
+  .landing-preview-lower > article { min-height: 150px; }
+  .landing-preview-list { display: none; }
+  .landing-value-strip { grid-template-columns: 1fr 1fr; }
+  .landing-value-strip div { min-height: 84px; border-bottom: 1px solid var(--border); }
+  .landing-value-strip div:nth-child(2) { border-right: 0; }
+  .landing-value-strip div:nth-child(3), .landing-value-strip div:nth-child(4) { border-bottom: 0; }
+  .landing-feature-grid { grid-template-columns: 1fr; }
+  .landing-nexi-section { grid-template-columns: 1fr; }
+  .landing-nexi-visual { min-height: 210px; }
+  .landing-nexi-capabilities { grid-template-columns: 1fr; }
+  .landing-provider-grid article { grid-template-columns: 40px minmax(0, 1fr); }
+  .landing-provider-grid article > b { grid-column: 2; width: max-content; }
+  .landing-steps { grid-template-columns: 1fr; }
+  .landing-security { grid-template-columns: 1fr; gap: 28px; }
+  .landing-footer { grid-template-columns: 1fr; justify-items: center; gap: 12px; padding: 22px 16px; text-align: center; }
+  .landing-footer > div { flex-wrap: wrap; justify-content: center; }
+}
