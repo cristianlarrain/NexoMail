@@ -1,5 +1,22 @@
-.control-center-page > .control-page-header .view-context {
-  display: none;
+.control-center-page > .control-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.control-center-page .control-page-title {
+  min-width: 0;
+}
+
+.control-center-page .control-page-title h1 {
+  margin: 0;
+}
+
+.control-center-page .control-tabs-inline {
+  margin-left: auto;
+  flex: 0 0 auto;
 }
 
 .control-center-page .control-center-header {
@@ -57,6 +74,18 @@
 
 .nexi-control-summary .nexi-findings-heading span {
   display: none;
+}
+
+@media (max-width: 760px) {
+  .control-center-page > .control-page-header {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .control-center-page .control-tabs-inline {
+    width: 100%;
+    margin-left: 0;
+  }
 }
 
 @media (max-width: 640px) {
