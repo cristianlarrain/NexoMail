@@ -117,6 +117,18 @@ public sealed class GmailMailProvider(
     public async Task MoveToTrashAsync(Guid accountId, string messageId, CancellationToken cancellationToken)
     {
         var client = await CreateClientAsync(accountId, cancellationToken);
+        using var metadataResponse = await client.GetAsync($"users/me/messages/{Uri.EscapeDataString(messageId)}?format=metadata&fields=labelIds", cancellationToken);
+        metadataResponse.EnsureSuccessStatusCode();
+        using var metadata = JsonDocument.Parse(await metadataResponse.Content.ReadAsStreamAsync(cancellationToken));
+        var isDraft = metadata.RootElement.TryGetProperty("labelIds", out var labelIds)
+            && labelIds.EnumerateArray().Any(label => string.Equals(label.GetString(), "DRAFT", StringComparison.Ordinal));
+
+        if (isDraft)
+        {
+            await DeleteDraftAsync(client, messageId, cancellationToken);
+            return;
+        }
+
         using var response = await client.PostAsync($"users/me/messages/{Uri.EscapeDataString(messageId)}/trash", null, cancellationToken);
         response.EnsureSuccessStatusCode();
     }
@@ -243,6 +255,42 @@ public sealed class GmailMailProvider(
         var client = httpClientFactory.CreateClient("Gmail");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", finalToken.AccessToken);
         return client;
+    }
+
+    private static async Task DeleteDraftAsync(HttpClient client, string messageId, CancellationToken cancellationToken)
+    {
+        string? pageToken = null;
+        do
+        {
+            var fields = Uri.EscapeDataString("drafts(id,message(id)),nextPageToken");
+            var url = $"users/me/drafts?maxResults=500&fields={fields}";
+            if (!string.IsNullOrWhiteSpace(pageToken)) url += $"&pageToken={Uri.EscapeDataString(pageToken)}";
+
+            using var response = await client.GetAsync(url, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
+
+            if (document.RootElement.TryGetProperty("drafts", out var drafts))
+            {
+                foreach (var draft in drafts.EnumerateArray())
+                {
+                    var draftMessageId = draft.TryGetProperty("message", out var message)
+                        && message.TryGetProperty("id", out var id) ? id.GetString() : null;
+                    if (!string.Equals(draftMessageId, messageId, StringComparison.Ordinal)) continue;
+
+                    var draftId = draft.TryGetProperty("id", out var draftIdElement) ? draftIdElement.GetString() : null;
+                    if (string.IsNullOrWhiteSpace(draftId)) break;
+                    using var delete = await client.DeleteAsync($"users/me/drafts/{Uri.EscapeDataString(draftId)}", cancellationToken);
+                    delete.EnsureSuccessStatusCode();
+                    return;
+                }
+            }
+
+            pageToken = document.RootElement.TryGetProperty("nextPageToken", out var nextPageToken) ? nextPageToken.GetString() : null;
+        }
+        while (!string.IsNullOrWhiteSpace(pageToken));
+
+        throw new InvalidOperationException("Gmail no encontró el borrador asociado. Actualiza Borradores e inténtalo nuevamente.");
     }
 
     private static async Task SendRawAsync(HttpClient client, string raw, string? threadId, CancellationToken cancellationToken)
