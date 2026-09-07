@@ -1,5 +1,5 @@
 import { csrfFetch } from './csrfFetch'
-import type { AiTone, AiWritingSuggestion, ComposeMessage, ContactSuggestion, ControlCenterActivitySnapshot, ControlCenterPendingItem, ControlCenterSnapshot, MailAccount, MailAttachment, MailMessage, MailSummary, PagedResult } from '../types/mail'
+import type { AiTone, AiWritingSuggestion, ComposeMessage, ContactAnalyticsSnapshot, ContactSuggestion, ControlCenterActivitySnapshot, ControlCenterPendingItem, ControlCenterSnapshot, DocumentIndexSnapshot, MailAccount, MailAttachment, MailMessage, MailMetadataSyncResult, MailSummary, PagedResult } from '../types/mail'
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await csrfFetch(`/api${path}`, { headers: { 'Content-Type': 'application/json', ...init?.headers }, ...init })
@@ -15,6 +15,9 @@ export const mailApi = {
   refreshMail: () => api<void>('/mail/refresh', { method: 'POST' }),
   controlCenter: (accountId?: string) => api<ControlCenterSnapshot>(`/mail/control-center${accountId ? `?accountId=${encodeURIComponent(accountId)}` : ''}`),
   controlCenterActivity: (accountId: string | undefined, days: 7 | 14 | 30, offsetDays: number) => api<ControlCenterActivitySnapshot>(`/mail/control-center/activity?days=${days}&offsetDays=${offsetDays}${accountId ? `&accountId=${encodeURIComponent(accountId)}` : ''}`),
+  controlCenterContacts: (days: 30 | 90) => api<ContactAnalyticsSnapshot>(`/mail/control-center/contacts?days=${days}`),
+  controlCenterDocuments: (search = '', type = 'all', take = 50, skip = 0) => api<DocumentIndexSnapshot>(`/mail/control-center/documents?take=${take}&skip=${skip}&type=${encodeURIComponent(type)}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ''}`),
+  syncMetadataIndex: (days = 90, limitPerAccount = 120) => api<MailMetadataSyncResult>(`/mail/control-center/index/sync?days=${days}&limitPerAccount=${limitPerAccount}`, { method: 'POST' }),
   controlCenterTrackedItems: (accountId?: string) => api<ControlCenterPendingItem[]>(`/mail/control-center/tracking${accountId ? `?accountId=${encodeURIComponent(accountId)}` : ''}`),
   controlCenterTrackingState: (accountId: string, messageId: string) => api<{ isTracked: boolean }>(`/mail/control-center/tracking/${encodeURIComponent(accountId)}/${encodeURIComponent(messageId)}`),
   trackMessage: (accountId: string, messageId: string) => api<void>(`/mail/control-center/tracking/${encodeURIComponent(accountId)}/${encodeURIComponent(messageId)}`, { method: 'POST' }),
