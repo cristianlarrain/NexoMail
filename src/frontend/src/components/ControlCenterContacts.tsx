@@ -1,249 +1,8 @@
-import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Clock3, Mail, MessageSquareReply, Search, Send, Users } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Clock3, Mail, MessageSquareReply, RefreshCw, Search, Send, Users } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
-import type { MailMessage, MailSummary } from '../types/mail'
-
-type ContactAccumulator = {
-  email: string
-  name: string
-  accounts: Set<string>
-  sent: number
-  received: number
-  replies: number
-  awaiting: number
-  responseMinutes: number[]
-  lastInteraction: number
-  subjects: Map<string, { subject: string; count: number; lastAt: number }>
-}
-
-type ContactStat = {
-  email: string
-  name: string
-  accounts: string[]
-  sent: number
-  received: number
-  replies: number
-  awaiting: number
-  averageResponseMinutes: number | null
-  lastInteraction: string
-  subjects: string[]
-}
-
-type ContactsSnapshot = {
-  days: 30 | 90
-  contacts: ContactStat[]
-  totalSent: number
-  totalReceived: number
-  totalReplies: number
-  totalAwaiting: number
-  averageResponseMinutes: number | null
-  analyzedSent: number
-  truncated: boolean
-}
-
-const MAX_SENT_MESSAGES = 20
-const INBOX_PAGES = 2
-const DETAIL_BATCH_SIZE = 5
-const DETAIL_TIMEOUT_MS = 12_000
-
-function normalizeEmail(value: string) {
-  return value.trim().toLowerCase()
-}
-
-function normalizeSubject(value: string) {
-  return value.replace(/^\s*((re|rv|fw|fwd)\s*:\s*)+/i, '').trim() || '(sin asunto)'
-}
-
-function isNonPersonalAddress(value: string) {
-  const email = normalizeEmail(value)
-  const local = (email.split('@')[0] ?? '').replace(/[._-]+/g, '')
-  return /^(noreply|donotreply|mailerdaemon|postmaster|newsletter|notifications?|alerts?|marketing|news|info|contacto|contact|soporte|support|ventas|sales|administracion|administrativo|admin|secretaria|recepcion|office|comunicaciones|communications|rrhh|recursoshumanos|facturacion|billing|cobranza|webmaster)$/i.test(local)
-}
-
-function addSubject(contact: ContactAccumulator, subject: string, at: number) {
-  const normalized = normalizeSubject(subject)
-  const key = normalized.toLowerCase()
-  const current = contact.subjects.get(key)
-  contact.subjects.set(key, current
-    ? { subject: current.subject, count: current.count + 1, lastAt: Math.max(current.lastAt, at) }
-    : { subject: normalized, count: 1, lastAt: at })
-}
-
-function contactName(name: string, email: string) {
-  const clean = name.trim().replace(/^"|"$/g, '')
-  return clean && normalizeEmail(clean) !== normalizeEmail(email) ? clean : email.split('@')[0]
-}
-
-async function withTimeout<T>(promise: Promise<T>, milliseconds: number): Promise<T | null> {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const timeout = new Promise<null>(resolve => {
-    timer = setTimeout(() => resolve(null), milliseconds)
-  })
-  const value = await Promise.race([promise, timeout])
-  if (timer) clearTimeout(timer)
-  return value
-}
-
-async function loadInbox(days: 30 | 90) {
-  const items: MailSummary[] = []
-  let cursor: string | undefined
-  let pages = 0
-  do {
-    const page = await mailApi.messages(undefined, 'inbox', `newer_than:${days}d`, cursor)
-    items.push(...page.items)
-    cursor = page.nextCursor
-    pages++
-  } while (cursor && pages < INBOX_PAGES)
-  return { items, truncated: Boolean(cursor) }
-}
-
-async function loadRecentSent(days: 30 | 90) {
-  const page = await mailApi.messages(undefined, 'sent', `newer_than:${days}d`)
-  return {
-    items: page.items.slice(0, MAX_SENT_MESSAGES),
-    truncated: Boolean(page.nextCursor) || page.items.length > MAX_SENT_MESSAGES,
-  }
-}
-
-async function loadSentDetails(items: MailSummary[]) {
-  const details: MailMessage[] = []
-  for (let index = 0; index < items.length; index += DETAIL_BATCH_SIZE) {
-    const batch = items.slice(index, index + DETAIL_BATCH_SIZE)
-    const values = await Promise.all(batch.map(item => withTimeout(
-      mailApi.message(item.accountId, item.providerMessageId).catch(() => null),
-      DETAIL_TIMEOUT_MS,
-    )))
-    details.push(...values.filter((value): value is MailMessage => Boolean(value)))
-  }
-  return details
-}
-
-function computeThreadStats(contact: ContactAccumulator, message: MailMessage, ownEmail: string, counterpartEmail: string) {
-  const thread = [...(message.thread ?? [])].sort((left, right) => new Date(left.receivedAt).getTime() - new Date(right.receivedAt).getTime())
-  if (thread.length === 0) return
-
-  let waitingSince: number | null = null
-  for (const item of thread) {
-    const from = normalizeEmail(item.from.address)
-    const at = new Date(item.receivedAt).getTime()
-    if (from === ownEmail) {
-      waitingSince = at
-      continue
-    }
-    if (from === counterpartEmail && waitingSince !== null && at >= waitingSince) {
-      contact.replies++
-      contact.responseMinutes.push(Math.max(0, Math.round((at - waitingSince) / 60_000)))
-      waitingSince = null
-    }
-  }
-  if (waitingSince !== null) contact.awaiting++
-}
-
-async function buildSnapshot(days: 30 | 90): Promise<ContactsSnapshot> {
-  const [accounts, sentPage, inboxPage] = await Promise.all([
-    mailApi.accounts(),
-    loadRecentSent(days),
-    loadInbox(days),
-  ])
-
-  const accountById = new Map(accounts.map(account => [account.id, account]))
-  const ownAddresses = new Set(accounts.map(account => normalizeEmail(account.emailAddress)))
-  const sentDetails = await loadSentDetails(sentPage.items)
-  const contacts = new Map<string, ContactAccumulator>()
-  const processedThreads = new Set<string>()
-
-  for (const message of sentDetails) {
-    const account = accountById.get(message.accountId)
-    if (!account) continue
-    const ownEmail = normalizeEmail(account.emailAddress)
-    const recipients = message.to
-      .map(recipient => ({ name: recipient.name, email: normalizeEmail(recipient.address) }))
-      .filter(recipient => recipient.email.includes('@') && !ownAddresses.has(recipient.email) && !isNonPersonalAddress(recipient.email))
-
-    for (const recipient of recipients) {
-      let contact = contacts.get(recipient.email)
-      if (!contact) {
-        contact = {
-          email: recipient.email,
-          name: contactName(recipient.name, recipient.email),
-          accounts: new Set<string>(),
-          sent: 0,
-          received: 0,
-          replies: 0,
-          awaiting: 0,
-          responseMinutes: [],
-          lastInteraction: 0,
-          subjects: new Map(),
-        }
-        contacts.set(recipient.email, contact)
-      }
-
-      contact.sent++
-      contact.accounts.add(account.displayName)
-      const sentAt = new Date(message.receivedAt).getTime()
-      contact.lastInteraction = Math.max(contact.lastInteraction, sentAt)
-      addSubject(contact, message.subject, sentAt)
-
-      const firstThreadMessage = message.thread?.[0]?.providerMessageId ?? message.providerMessageId
-      const threadKey = `${message.accountId}:${firstThreadMessage}:${recipient.email}`
-      if (!processedThreads.has(threadKey)) {
-        processedThreads.add(threadKey)
-        computeThreadStats(contact, message, ownEmail, recipient.email)
-      }
-    }
-  }
-
-  for (const item of inboxPage.items) {
-    const email = normalizeEmail(item.senderAddress)
-    if (!email || ownAddresses.has(email) || isNonPersonalAddress(email)) continue
-    const contact = contacts.get(email)
-    if (!contact) continue
-    contact.received++
-    if (!contact.name || contact.name === contact.email.split('@')[0]) contact.name = contactName(item.senderName, email)
-    const receivedAt = new Date(item.receivedAt).getTime()
-    contact.lastInteraction = Math.max(contact.lastInteraction, receivedAt)
-    addSubject(contact, item.subject, receivedAt)
-  }
-
-  const values = [...contacts.values()]
-    .filter(contact => contact.sent > 0)
-    .map<ContactStat>(contact => ({
-      email: contact.email,
-      name: contact.name,
-      accounts: [...contact.accounts].sort((a, b) => a.localeCompare(b, 'es')),
-      sent: contact.sent,
-      received: contact.received,
-      replies: contact.replies,
-      awaiting: contact.awaiting,
-      averageResponseMinutes: contact.responseMinutes.length
-        ? Math.round(contact.responseMinutes.reduce((sum, value) => sum + value, 0) / contact.responseMinutes.length)
-        : null,
-      lastInteraction: new Date(contact.lastInteraction || Date.now()).toISOString(),
-      subjects: [...contact.subjects.values()]
-        .sort((left, right) => right.count - left.count || right.lastAt - left.lastAt)
-        .slice(0, 3)
-        .map(value => value.subject),
-    }))
-    .sort((left, right) => right.sent - left.sent || right.received - left.received)
-
-  const allResponseMinutes = values.flatMap(contact => contacts.get(contact.email)?.responseMinutes ?? [])
-
-  return {
-    days,
-    contacts: values,
-    totalSent: values.reduce((sum, contact) => sum + contact.sent, 0),
-    totalReceived: values.reduce((sum, contact) => sum + contact.received, 0),
-    totalReplies: values.reduce((sum, contact) => sum + contact.replies, 0),
-    totalAwaiting: values.reduce((sum, contact) => sum + contact.awaiting, 0),
-    averageResponseMinutes: allResponseMinutes.length
-      ? Math.round(allResponseMinutes.reduce((sum, value) => sum + value, 0) / allResponseMinutes.length)
-      : null,
-    analyzedSent: sentDetails.length,
-    truncated: sentPage.truncated || inboxPage.truncated,
-  }
-}
 
 function responseTimeLabel(minutes: number | null) {
   if (minutes === null) return 'Sin datos'
@@ -258,19 +17,41 @@ function lastInteractionLabel(value: string) {
   return new Date(value).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, '')
 }
 
+function indexedLabel(value?: string | null) {
+  if (!value) return 'Índice pendiente'
+  return `Actualizado ${new Date(value).toLocaleString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).replace(/\./g, '')}`
+}
+
 export function ControlCenterContacts() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const initialSyncAttempted = useRef(false)
   const [days, setDays] = useState<30 | 90>(30)
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<'sent' | 'awaiting' | 'response' | 'recent'>('sent')
 
   const query = useQuery({
-    queryKey: ['control-center-contacts', days],
-    queryFn: () => buildSnapshot(days),
-    staleTime: 10 * 60_000,
-    gcTime: 30 * 60_000,
+    queryKey: ['control-center-contacts-index', days],
+    queryFn: () => mailApi.controlCenterContacts(days),
+    staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
   })
+
+  const sync = useMutation({
+    mutationFn: () => mailApi.syncMetadataIndex(90, 120),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['control-center-contacts-index'] }),
+        queryClient.invalidateQueries({ queryKey: ['control-center-documents-index'] }),
+      ])
+    },
+  })
+
+  useEffect(() => {
+    if (!query.data || query.data.indexedMessages > 0 || initialSyncAttempted.current || sync.isPending) return
+    initialSyncAttempted.current = true
+    sync.mutate()
+  }, [query.data, sync])
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -283,18 +64,23 @@ export function ControlCenterContacts() {
     })
   }, [query.data?.contacts, search, sort])
 
-  if (query.isLoading) return <section className="contact-control contact-control-loading"><div className="reading-skeleton" /><p>Preparando estadísticas de contactos…</p><small>Analizando una muestra reciente para mantener una carga rápida.</small></section>
-  if (query.isError || !query.data) return <section className="contact-control"><div className="notice">No fue posible generar las estadísticas de contactos. <button type="button" className="auth-link" onClick={() => query.refetch()}>Reintentar</button></div></section>
+  if (query.isLoading) return <section className="contact-control contact-control-loading"><div className="reading-skeleton" /><p>Cargando estadísticas locales…</p></section>
+  if (query.isError || !query.data) return <section className="contact-control"><div className="notice">No fue posible leer el índice de contactos. <button type="button" className="auth-link" onClick={() => query.refetch()}>Reintentar</button></div></section>
 
   const data = query.data
+  const firstIndex = data.indexedMessages === 0
+
   return <section className="contact-control" aria-label="Estadísticas de contactos">
     <header className="contact-control-header">
-      <div><p className="eyebrow">Interacción real</p><h2>Contactos</h2><p>Personas con las que usted mantiene intercambio de correo. Se excluyen avisos, newsletters y direcciones genéricas o automáticas.</p></div>
+      <div><p className="eyebrow">Interacción real</p><h2>Contactos</h2><p>Estadísticas calculadas desde un índice local de metadatos. NexoMail no almacena el cuerpo de los correos.</p></div>
       <div className="contact-period" aria-label="Período de análisis">
         <button type="button" className={days === 30 ? 'active' : ''} onClick={() => setDays(30)}>30 días</button>
         <button type="button" className={days === 90 ? 'active' : ''} onClick={() => setDays(90)}>90 días</button>
       </div>
     </header>
+
+    {firstIndex && sync.isPending && <div className="notice contact-limit-notice">Creando el índice inicial de metadatos. Esta operación ocurre una sola vez; después la pestaña abrirá desde SQLite.</div>}
+    {sync.isError && <div className="notice contact-limit-notice">No fue posible actualizar el índice. Los datos ya indexados siguen disponibles.</div>}
 
     <div className="contact-summary-grid">
       <article><Users size={18} /><div><strong>{data.contacts.length}</strong><span>Contactos activos</span></div></article>
@@ -304,16 +90,12 @@ export function ControlCenterContacts() {
       <article><Clock3 size={18} /><div><strong>{responseTimeLabel(data.averageResponseMinutes)}</strong><span>Tiempo medio</span></div></article>
     </div>
 
-    <div className="notice contact-limit-notice">Vista rápida basada en los {data.analyzedSent} correos enviados más recientes disponibles dentro de los últimos {days} días{data.truncated ? '. El resto se omite para evitar una carga excesiva.' : '.'}</div>
-
     <div className="contact-toolbar">
       <label className="contact-search"><Search size={15} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar persona, correo o asunto" /></label>
       <select value={sort} onChange={event => setSort(event.target.value as typeof sort)} aria-label="Ordenar contactos">
-        <option value="sent">Más interacción</option>
-        <option value="awaiting">Más pendientes</option>
-        <option value="response">Respuesta más rápida</option>
-        <option value="recent">Más reciente</option>
+        <option value="sent">Más interacción</option><option value="awaiting">Más pendientes</option><option value="response">Respuesta más rápida</option><option value="recent">Más reciente</option>
       </select>
+      <button type="button" className="secondary-button compact-action" disabled={sync.isPending} onClick={() => sync.mutate()}><RefreshCw size={14} className={sync.isPending ? 'spin' : ''} /> {sync.isPending ? 'Actualizando…' : 'Actualizar índice'}</button>
     </div>
 
     <div className="contact-list">
@@ -322,23 +104,14 @@ export function ControlCenterContacts() {
           <span className="contact-avatar">{(contact.name || contact.email).trim().charAt(0).toUpperCase()}</span>
           <span className="contact-identity-copy"><strong>{contact.name}</strong><small>{contact.email}</small><em>{contact.accounts.join(' · ')}</em></span>
         </button>
-
-        <div className="contact-row-metrics" aria-label={`Estadísticas de ${contact.name}`}>
-          <span><small>Enviados</small><strong>{contact.sent}</strong></span>
-          <span><small>Recibidos</small><strong>{contact.received}</strong></span>
-          <span><small>Respuestas</small><strong className="positive">{contact.replies}</strong></span>
-          <span><small>Sin respuesta</small><strong className={contact.awaiting > 0 ? 'attention' : ''}>{contact.awaiting}</strong></span>
-          <span><small>Tiempo medio</small><strong>{responseTimeLabel(contact.averageResponseMinutes)}</strong></span>
+        <div className="contact-row-metrics">
+          <span><small>Enviados</small><strong>{contact.sent}</strong></span><span><small>Recibidos</small><strong>{contact.received}</strong></span><span><small>Respuestas</small><strong className="positive">{contact.replies}</strong></span><span><small>Sin respuesta</small><strong className={contact.awaiting > 0 ? 'attention' : ''}>{contact.awaiting}</strong></span><span><small>Tiempo medio</small><strong>{responseTimeLabel(contact.averageResponseMinutes)}</strong></span>
         </div>
-
-        <div className="contact-row-detail">
-          <div className="contact-subjects"><small>Asuntos</small><div>{contact.subjects.length > 0 ? contact.subjects.map(subject => <span key={subject} title={subject}>{subject}</span>) : <span>Sin asuntos destacados</span>}</div></div>
-          <div className="contact-last"><small>Última interacción</small><strong>{lastInteractionLabel(contact.lastInteraction)}</strong></div>
-        </div>
+        <div className="contact-row-detail"><div className="contact-subjects"><small>Asuntos</small><div>{contact.subjects.map(subject => <span key={subject} title={subject}>{subject}</span>)}</div></div><div className="contact-last"><small>Última interacción</small><strong>{lastInteractionLabel(contact.lastInteraction)}</strong></div></div>
       </article>)}
-      {filtered.length === 0 && <div className="contact-empty">No hay contactos que coincidan con el filtro.</div>}
+      {filtered.length === 0 && !sync.isPending && <div className="contact-empty">No hay contactos indexados para este período.</div>}
     </div>
 
-    <p className="contact-footnote">“Sin respuesta” indica conversaciones cuyo último intercambio detectado fue enviado por usted. El tiempo medio se calcula hasta la siguiente respuesta del mismo contacto dentro del hilo.</p>
+    <p className="contact-footnote">{indexedLabel(data.indexedAt)} · {data.indexedMessages} mensajes de metadatos disponibles. “Sin respuesta” se calcula por hilo sin guardar contenido del mensaje.</p>
   </section>
 }
