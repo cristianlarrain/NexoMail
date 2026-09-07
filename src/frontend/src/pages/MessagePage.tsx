@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Archive, ArrowLeft, Ban, Check, ChevronLeft, ChevronRight, Download, EyeOff, FileText, Forward, Paperclip, Reply, ReplyAll, ShieldAlert, Trash2, Undo2, X } from 'lucide-react'
 import { AiWritingAssistant } from '../components/AiWritingAssistant'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { mailApi } from '../api/mailApi'
-import type { ControlCenterPendingItem, MailAttachment } from '../types/mail'
+import type { ControlCenterPendingItem, ControlCenterSnapshot, MailAttachment, MailSummary, PagedResult } from '../types/mail'
 import { sanitizeEmailHtml } from '../utils/sanitizeEmailHtml'
 
 type MessageNavigationItem = { accountId: string; messageId: string }
@@ -13,6 +13,14 @@ type MessageNavigationState = { navigationItems?: MessageNavigationItem[]; retur
 
 function canPreview(file: MailAttachment) {
   return file.contentType.startsWith('image/') || file.contentType === 'application/pdf' || /^text\/(plain|csv)|application\/(json|xml)/i.test(file.contentType) || /\.(txt|csv|json|xml|log|md)$/i.test(file.name)
+}
+
+function trackingKey(item: ControlCenterPendingItem) {
+  return `${item.accountId}:${item.conversationId}:${item.messageId}`
+}
+
+function trackingIsOverdue(item: ControlCenterPendingItem) {
+  return Date.now() - new Date(item.since).getTime() >= 48 * 60 * 60 * 1000
 }
 
 export function MessagePage() {
@@ -34,27 +42,99 @@ export function MessagePage() {
   const openedFromIgnored = returnPath.startsWith('/ignored')
   const openedFromControlCenter = returnPath.startsWith('/control-center')
 
-  const invalidateMail = () => {
-    void queryClient.invalidateQueries({ queryKey: ['messages'] })
-    void queryClient.invalidateQueries({ queryKey: ['control-center'] })
-    void queryClient.invalidateQueries({ queryKey: ['control-center-activity'] })
+  function removeMessageFromCachedLists() {
+    queryClient.setQueriesData<InfiniteData<PagedResult<MailSummary>>>({ queryKey: ['messages'] }, current => current ? {
+      ...current,
+      pages: current.pages.map(page => ({
+        ...page,
+        items: page.items.filter(item => !(item.accountId === accountId && item.providerMessageId === messageId)),
+      })),
+    } : current)
   }
-  const finishMailboxAction = () => { invalidateMail(); navigate(returnPath) }
+
+  function removeSenderFromCachedFolder(folderId: string) {
+    const sender = message?.from.address.trim().toLowerCase()
+    if (!sender) return
+    queryClient.setQueriesData<InfiniteData<PagedResult<MailSummary>>>({
+      predicate: query => query.queryKey[0] === 'messages' && query.queryKey[2] === folderId,
+    }, current => current ? {
+      ...current,
+      pages: current.pages.map(page => ({
+        ...page,
+        items: page.items.filter(item => !(item.accountId === accountId && item.senderAddress.trim().toLowerCase() === sender)),
+      })),
+    } : current)
+  }
+
+  function refreshControlCenter() {
+    void queryClient.invalidateQueries({ queryKey: ['control-center'], refetchType: 'all' })
+    void queryClient.invalidateQueries({ queryKey: ['control-center-activity'], refetchType: 'all' })
+  }
+
+  function finishMailboxMove(targetFolder: 'inbox' | 'archive' | 'spam' | 'trash') {
+    removeMessageFromCachedLists()
+    void queryClient.invalidateQueries({ queryKey: ['messages'], refetchType: 'none' })
+    void queryClient.invalidateQueries({
+      predicate: query => query.queryKey[0] === 'messages' && query.queryKey[2] === targetFolder,
+      refetchType: 'all',
+    })
+    refreshControlCenter()
+    navigate(returnPath)
+  }
 
   const read = useMutation({ mutationFn: () => mailApi.read(accountId, messageId, true) })
-  const trash = useMutation({ mutationFn: () => mailApi.trash(accountId, messageId), onSuccess: finishMailboxAction })
-  const move = useMutation({ mutationFn: (target: 'inbox' | 'archive' | 'spam') => mailApi.move(accountId, messageId, target), onSuccess: finishMailboxAction })
-  const ignore = useMutation({ mutationFn: () => mailApi.ignoreSender(accountId, message?.from.address ?? ''), onSuccess: finishMailboxAction })
-  const unignore = useMutation({ mutationFn: () => mailApi.unignoreSender(accountId, message?.from.address ?? ''), onSuccess: finishMailboxAction })
+  const trash = useMutation({ mutationFn: () => mailApi.trash(accountId, messageId), onSuccess: () => finishMailboxMove('trash') })
+  const move = useMutation({ mutationFn: (target: 'inbox' | 'archive' | 'spam') => mailApi.move(accountId, messageId, target), onSuccess: (_data, target) => finishMailboxMove(target) })
+  const ignore = useMutation({
+    mutationFn: () => mailApi.ignoreSender(accountId, message?.from.address ?? ''),
+    onSuccess: () => {
+      removeSenderFromCachedFolder('inbox')
+      void queryClient.invalidateQueries({ queryKey: ['messages'], refetchType: 'none' })
+      void queryClient.invalidateQueries({ predicate: query => query.queryKey[0] === 'messages' && query.queryKey[2] === 'ignored', refetchType: 'all' })
+      refreshControlCenter()
+      navigate(returnPath)
+    },
+  })
+  const unignore = useMutation({
+    mutationFn: () => mailApi.unignoreSender(accountId, message?.from.address ?? ''),
+    onSuccess: () => {
+      removeSenderFromCachedFolder('ignored')
+      void queryClient.invalidateQueries({ queryKey: ['messages'], refetchType: 'none' })
+      void queryClient.invalidateQueries({ predicate: query => query.queryKey[0] === 'messages' && query.queryKey[2] === 'inbox', refetchType: 'all' })
+      refreshControlCenter()
+      navigate(returnPath)
+    },
+  })
   const resolveTracking = useMutation({
     mutationFn: async () => {
       if (!controlCenterItem) throw new Error('Este correo no tiene información de seguimiento asociada.')
       await mailApi.updateControlCenterState(controlCenterItem.accountId, controlCenterItem.conversationId, { messageId: controlCenterItem.messageId, action: 'resolved' })
     },
     onSuccess: () => {
+      if (controlCenterItem) {
+        const resolvedKey = trackingKey(controlCenterItem)
+        queryClient.setQueriesData<ControlCenterSnapshot>({ queryKey: ['control-center'] }, current => {
+          if (!current) return current
+          const pending = current.pendingItems.find(item => trackingKey(item) === resolvedKey)
+          if (!pending) return current
+          const overdueAdjustment = trackingIsOverdue(pending) ? 1 : 0
+          return {
+            ...current,
+            receivedWithoutReply: Math.max(0, current.receivedWithoutReply - (pending.direction === 'received' ? 1 : 0)),
+            sentWithoutResponse: Math.max(0, current.sentWithoutResponse - (pending.direction === 'sent' ? 1 : 0)),
+            overdue: Math.max(0, current.overdue - overdueAdjustment),
+            priorityItems: current.priorityItems.filter(item => trackingKey(item) !== resolvedKey),
+            pendingItems: current.pendingItems.filter(item => trackingKey(item) !== resolvedKey),
+            accounts: current.accounts.map(account => account.accountId !== pending.accountId ? account : {
+              ...account,
+              receivedWithoutReply: Math.max(0, account.receivedWithoutReply - (pending.direction === 'received' ? 1 : 0)),
+              sentWithoutResponse: Math.max(0, account.sentWithoutResponse - (pending.direction === 'sent' ? 1 : 0)),
+            }),
+          }
+        })
+      }
       setTrackingResolved(true)
-      void queryClient.invalidateQueries({ queryKey: ['control-center'] })
-      void queryClient.invalidateQueries({ queryKey: ['control-center-activity'] })
+      refreshControlCenter()
     },
   })
 
