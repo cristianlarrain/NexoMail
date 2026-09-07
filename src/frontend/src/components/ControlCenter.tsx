@@ -161,7 +161,7 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
 
   const priorityItems = [...priorityMap.values()].sort((left, right) => new Date(left.item.since).getTime() - new Date(right.item.since).getTime())
   const visiblePriorityItems = priorityItems.slice(0, priorityVisible)
-  const nexiInsights = buildNexiInsights(data)
+  const nexiInsights = buildNexiInsights(data, manualTracking.data ?? [])
 
   function handleNexiAction(action?: NexiInsightAction) {
     if (!action) return
@@ -184,18 +184,20 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
 
     {data.unavailableAccounts > 0 && <div className="notice control-center-warning">No se pudo consultar {data.unavailableAccounts} cuenta{data.unavailableAccounts === 1 ? '' : 's'}. Los indicadores muestran las cuentas disponibles.</div>}
 
-    <div className="control-metrics">
-      <MetricCard tone="received" icon={<Inbox size={19} />} value={data.receivedWithoutReply} label="Recibidos sin responder" hint="Promociones y avisos informativos se excluyen" active={activeView === 'received'} onClick={() => setActiveView(current => current === 'received' ? null : 'received')} />
-      <MetricCard tone="sent" icon={<Send size={19} />} value={data.sentWithoutResponse} label="Enviados sin respuesta" hint="Usted escribió al final" active={activeView === 'sent'} onClick={() => setActiveView(current => current === 'sent' ? null : 'sent')} />
-      <MetricCard tone="unread" icon={<Mail size={19} />} value={data.unread} label="Correos sin leer" hint="Abrir y gestionar en forma masiva" onClick={() => navigate(`${inboxPath}?q=${encodeURIComponent('is:unread')}`)} />
-      <MetricCard tone="overdue" icon={<Clock3 size={19} />} value={data.overdue} label="Más de 48 horas" hint="Pendientes que requieren atención" active={activeView === 'overdue'} onClick={() => setActiveView(current => current === 'overdue' ? null : 'overdue')} />
-    </div>
-
-    <section className="nexi-insights-panel" aria-label="Sugerencias de Nexi">
+    <section className="nexi-insights-panel nexi-control-summary" aria-label="Resumen y sugerencias de Nexi">
       <header className="nexi-insights-header">
         <NexiVisual size="small" />
-        <div><strong>Nexi detectó</strong><span>Lectura rápida basada en los mismos indicadores del Centro de control.</span></div>
+        <div><strong>Nexi · Resumen del Centro de control</strong><span>Indicadores principales y hallazgos complementarios en una sola vista.</span></div>
       </header>
+
+      <div className="control-metrics nexi-control-metrics">
+        <MetricCard tone="received" icon={<Inbox size={19} />} value={data.receivedWithoutReply} label="Recibidos sin responder" hint="Promociones y avisos informativos se excluyen" active={activeView === 'received'} onClick={() => setActiveView(current => current === 'received' ? null : 'received')} />
+        <MetricCard tone="sent" icon={<Send size={19} />} value={data.sentWithoutResponse} label="Enviados sin respuesta" hint="Usted escribió al final" active={activeView === 'sent'} onClick={() => setActiveView(current => current === 'sent' ? null : 'sent')} />
+        <MetricCard tone="unread" icon={<Mail size={19} />} value={data.unread} label="Correos sin leer" hint="Abrir y gestionar en forma masiva" onClick={() => navigate(`${inboxPath}?q=${encodeURIComponent('is:unread')}`)} />
+        <MetricCard tone="overdue" icon={<Clock3 size={19} />} value={data.overdue} label="Más de 48 horas" hint="Pendientes que requieren atención" active={activeView === 'overdue'} onClick={() => setActiveView(current => current === 'overdue' ? null : 'overdue')} />
+      </div>
+
+      <div className="nexi-findings-heading"><strong>Hallazgos adicionales</strong><span>Nexi muestra sólo información que complementa las métricas anteriores.</span></div>
       <div className="nexi-insights-grid">
         {nexiInsights.map(insight => <NexiInsightCard
           key={insight.id}
