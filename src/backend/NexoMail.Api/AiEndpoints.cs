@@ -16,6 +16,7 @@ public static class AiEndpoints
             client.Timeout = TimeSpan.FromSeconds(35);
         });
         services.AddScoped<AiWritingService>();
+        services.AddScoped<ControlCenterTrackingService>();
         services.AddRateLimiter(options => options.AddPolicy("ai-writing", context =>
             RateLimitPartition.GetFixedWindowLimiter(
                 partitionKey: context.User.Identity?.Name ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -31,6 +32,8 @@ public static class AiEndpoints
 
     public static RouteGroupBuilder MapNexoMailAi(this RouteGroupBuilder mail)
     {
+        ControlCenterTrackingEndpoints.Map(mail);
+
         mail.MapPost("/messages/{accountId:guid}/{messageId}/ai-reply", async (
             IMailGateway gateway,
             AiWritingService ai,
