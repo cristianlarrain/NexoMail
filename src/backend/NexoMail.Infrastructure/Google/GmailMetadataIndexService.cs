@@ -331,7 +331,7 @@ public sealed class GmailMetadataIndexService(
         return matches.Cast<Match>().Select(match => new IndexedAddress(match.Groups["name"].Value.Trim().Trim('"'), NormalizeEmail(match.Groups["email"].Value))).Where(x => x.Address.Contains('@')).ToArray();
     }
 
-    private static string SerializeAddresses(IReadOnlyCollection<IndexedAddress> addresses) => string.Join('\n', addresses.Select(x => $"{CleanAddressField(x.Name)}\t{x.Address}"));
+    private static string SerializeAddresses(IReadOnlyCollection<IndexedAddress> addresses) => string.Join("\n", addresses.Select(x => $"{CleanAddressField(x.Name)}\t{x.Address}"));
     private static IReadOnlyCollection<IndexedAddress> DeserializeAddresses(string value) => string.IsNullOrWhiteSpace(value) ? [] : value.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(line => line.Split('\t', 2)).Where(parts => parts.Length == 2 && parts[1].Contains('@')).Select(parts => new IndexedAddress(parts[0], NormalizeEmail(parts[1]))).ToArray();
     private static string CleanAddressField(string value) => value.Replace('\t', ' ').Replace('\r', ' ').Replace('\n', ' ').Trim();
 
