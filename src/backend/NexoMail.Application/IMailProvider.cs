@@ -9,6 +9,7 @@ public interface IMailProvider
     Task<MailMessage?> GetMessageAsync(Guid accountId, string messageId, CancellationToken cancellationToken);
     Task<MailAttachmentContent?> GetAttachmentAsync(Guid accountId, string messageId, string attachmentId, CancellationToken cancellationToken);
     Task SendAsync(ComposeMessage message, CancellationToken cancellationToken);
+    Task SaveDraftAsync(Guid accountId, string? replyToMessageId, ComposeMessage message, CancellationToken cancellationToken);
     Task ReplyAsync(Guid accountId, string messageId, ComposeMessage message, CancellationToken cancellationToken);
     Task ReplyAllAsync(Guid accountId, string messageId, ComposeMessage message, CancellationToken cancellationToken);
     Task ForwardAsync(Guid accountId, string messageId, ComposeMessage message, CancellationToken cancellationToken);
@@ -27,6 +28,7 @@ public interface IMailGateway
     Task<MailMessage?> GetMessageAsync(Guid accountId, string messageId, CancellationToken cancellationToken);
     Task<MailAttachmentContent?> GetAttachmentAsync(Guid accountId, string messageId, string attachmentId, CancellationToken cancellationToken);
     Task SendAsync(ComposeMessage message, CancellationToken cancellationToken);
+    Task SaveDraftAsync(Guid accountId, string? replyToMessageId, ComposeMessage message, CancellationToken cancellationToken);
     Task ReplyAsync(Guid accountId, string messageId, ComposeMessage message, bool replyAll, CancellationToken cancellationToken);
     Task ForwardAsync(Guid accountId, string messageId, ComposeMessage message, CancellationToken cancellationToken);
     Task MarkReadAsync(Guid accountId, string messageId, bool read, CancellationToken cancellationToken);
