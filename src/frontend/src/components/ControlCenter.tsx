@@ -170,7 +170,7 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
       return
     }
     if (action === 'tracking') {
-      navigate(`${inboxPath}?tracking=priority`)
+      navigate(`${inboxPath}?priority=1`)
       return
     }
     setActiveView(action)
