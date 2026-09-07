@@ -109,7 +109,8 @@ export function ComposePage() {
       return mailApi.saveDraft(payload, replyToMessageId)
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['messages'] })
+      queryClient.removeQueries({ predicate: query => query.queryKey[0] === 'messages' && query.queryKey[2] === 'drafts' })
+      void queryClient.invalidateQueries({ queryKey: ['messages'], refetchType: 'none' })
       void queryClient.invalidateQueries({ queryKey: ['control-center'] })
       navigate('/drafts', { state: { draftSaved: true } })
     },
