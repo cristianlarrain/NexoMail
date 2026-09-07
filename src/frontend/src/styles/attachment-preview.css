@@ -1,0 +1,81 @@
+/* Wide split-view attachment reader. The mail and its attachment share the workspace instead of treating the preview as a small secondary card. */
+@media (min-width: 1001px) {
+  .message-reader.with-preview {
+    width: 100%;
+    max-width: none;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 24px;
+  }
+
+  .message-reader.with-preview .message-reading-pane {
+    min-width: 0;
+    max-width: none;
+  }
+
+  .message-reader.with-preview .message-body,
+  .message-reader.with-preview .thread-view {
+    max-width: none;
+  }
+
+  .message-reader.with-preview .attachment-preview {
+    position: sticky;
+    top: 82px;
+    height: calc(100vh - 96px);
+    min-height: 620px;
+    max-height: none;
+    min-width: 0;
+    overflow: hidden;
+    border-radius: 10px;
+  }
+
+  .message-reader.with-preview .attachment-preview header {
+    flex: 0 0 auto;
+    padding: 12px 14px;
+  }
+
+  .message-reader.with-preview .attachment-preview-content {
+    min-height: 0;
+    height: 100%;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+
+  .message-reader.with-preview .attachment-preview-content iframe {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    align-self: stretch;
+  }
+
+  .message-reader.with-preview .attachment-preview-content img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+
+  .message-reader.with-preview .attachment-preview footer {
+    flex: 0 0 auto;
+    padding: 10px 14px;
+  }
+}
+
+/* Below desktop split-view size, keep the safe stacked layout. */
+@media (max-width: 1000px) {
+  .message-reader.with-preview {
+    grid-template-columns: 1fr;
+  }
+
+  .message-reader.with-preview .attachment-preview {
+    position: relative;
+    top: auto;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .message-reader.with-preview .attachment-preview-content iframe {
+    width: 100%;
+    min-height: 640px;
+  }
+}
