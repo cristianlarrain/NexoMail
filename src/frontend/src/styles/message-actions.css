@@ -1,10 +1,25 @@
 .message-action-toolbar {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 6px;
-  flex-wrap: wrap;
 }
+
+.unified-message-actions {
+  width: 100%;
+  max-width: none;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  margin: 8px 0 14px;
+}
+
+.message-action-separator {
+  width: 1px;
+  height: 22px;
+  flex: 0 0 1px;
+  margin: 0 2px;
+  background: var(--border);
+}
+
 .message-action-button {
   min-height: 34px;
   display: inline-flex;
@@ -19,6 +34,7 @@
   font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
+  text-decoration: none;
   transition: background .16s ease, border-color .16s ease, color .16s ease, transform .16s ease;
 }
 .message-action-button:hover {
@@ -50,16 +66,16 @@
   border-top: 1px solid var(--border);
 }
 
-@media (max-width: 920px) {
-  .message-title-row { align-items: flex-start; gap: 14px; }
-  .message-action-toolbar { max-width: 230px; }
-  .message-action-toolbar .message-action-button span { display: none; }
-  .message-action-toolbar .message-action-button { width: 34px; padding: 0; }
+@media (max-width: 1180px) {
+  .unified-message-actions .message-action-button > span { display: none; }
+  .unified-message-actions .message-action-button { width: 34px; min-width: 34px; padding: 0; }
 }
 
 @media (max-width: 560px) {
   .message-title-row { flex-direction: column; }
-  .message-action-toolbar { max-width: none; width: 100%; justify-content: flex-start; }
+  .unified-message-actions { gap: 4px; }
+  .unified-message-actions .message-action-button { width: 32px; min-width: 32px; min-height: 32px; }
+  .unified-message-actions .message-action-separator { margin: 0 1px; }
   .message-action-footer { gap: 6px; }
   .message-action-footer .message-action-button { flex: 1; min-width: 0; padding-inline: 8px; }
 }
