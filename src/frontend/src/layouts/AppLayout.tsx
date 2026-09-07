@@ -27,12 +27,11 @@ export function AppLayout() {
       <div className="brand-row"><button className="brand-home" onClick={() => { setOpen(false); navigate('/inbox') }} aria-label="Ir a Bandeja de entrada"><span className="brand-mark"><Mail size={18} /></span><span className="brand-name">NexoMail</span></button><button className="icon-button collapse-button" onClick={() => setCollapsed(!collapsed)} aria-label="Contraer barra lateral"><ChevronLeft size={18} /></button></div>
       <button className="compose-button" onClick={() => navigate('/compose')}><PenLine size={17} /><span>Redactar</span></button>
       <nav aria-label="Navegación principal">
-        <NavLink to="/inbox" end className={navClass}><Inbox size={17} /><span>Todas</span></NavLink>
+        <NavLink to="/inbox" end className={navClass}><Inbox size={17} /><span>Bandeja de entrada</span></NavLink>
         <NavLink to="/control-center" className={navClass}><LayoutDashboard size={17} /><span>Centro de control</span></NavLink>
         <p className="nav-heading">Cuentas</p>
         {accounts.map(account => <NavLink key={account.id} to={`/account/${account.id}`} className={navClass}><i className="account-dot" style={{ background: account.color }} /><span>{account.displayName}</span></NavLink>)}
         <p className="nav-heading">Carpetas</p>
-        <NavLink to="/inbox" className={navClass}><Inbox size={17} /><span>Bandeja</span></NavLink>
         <NavLink to="/archive" className={navClass}><Archive size={17} /><span>Archivados</span></NavLink>
         <NavLink to="/ignored" className={navClass}><EyeOff size={17} /><span>Ignorados</span></NavLink>
         <NavLink to="/sent" className={navClass}><Send size={17} /><span>Enviados</span></NavLink>
