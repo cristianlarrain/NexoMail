@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { BarChart3, Users } from 'lucide-react'
+import { BarChart3, Files, Users } from 'lucide-react'
 import { ControlCenter } from '../components/ControlCenter'
 import { ControlCenterContacts } from '../components/ControlCenterContacts'
+import { ControlCenterDocuments } from '../components/ControlCenterDocuments'
 
-type ControlTab = 'summary' | 'contacts'
+type ControlTab = 'summary' | 'contacts' | 'documents'
 
 export function ControlCenterPage() {
   const queryClient = useQueryClient()
@@ -26,8 +27,9 @@ export function ControlCenterPage() {
     <nav className="control-tabs" aria-label="Secciones del Centro de control">
       <button type="button" className={tab === 'summary' ? 'active' : ''} onClick={() => setTab('summary')}><BarChart3 size={16} /> Resumen</button>
       <button type="button" className={tab === 'contacts' ? 'active' : ''} onClick={() => setTab('contacts')}><Users size={16} /> Contactos</button>
+      <button type="button" className={tab === 'documents' ? 'active' : ''} onClick={() => setTab('documents')}><Files size={16} /> Documentos</button>
     </nav>
 
-    {tab === 'summary' ? <ControlCenter /> : <ControlCenterContacts />}
+    {tab === 'summary' ? <ControlCenter /> : tab === 'contacts' ? <ControlCenterContacts /> : <ControlCenterDocuments />}
   </section>
 }
