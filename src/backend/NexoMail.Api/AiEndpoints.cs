@@ -2,6 +2,7 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using NexoMail.Application;
 using NexoMail.Infrastructure;
+using NexoMail.Infrastructure.Google;
 
 namespace NexoMail.Api;
 
@@ -17,6 +18,8 @@ public static class AiEndpoints
         });
         services.AddScoped<AiWritingService>();
         services.AddScoped<ControlCenterTrackingService>();
+        services.AddScoped<GmailDraftProvider>();
+        services.AddScoped<IMailDraftProvider>(services => services.GetRequiredService<GmailDraftProvider>());
         services.AddRateLimiter(options => options.AddPolicy("ai-writing", context =>
             RateLimitPartition.GetFixedWindowLimiter(
                 partitionKey: context.User.Identity?.Name ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -33,6 +36,7 @@ public static class AiEndpoints
     public static RouteGroupBuilder MapNexoMailAi(this RouteGroupBuilder mail)
     {
         ControlCenterTrackingEndpoints.Map(mail);
+        DraftEndpoints.Map(mail);
 
         mail.MapPost("/messages/{accountId:guid}/{messageId}/ai-reply", async (
             IMailGateway gateway,
