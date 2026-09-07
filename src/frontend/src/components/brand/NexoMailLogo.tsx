@@ -7,6 +7,9 @@ export function NexoMailLogo({ compact = false }: { compact?: boolean }) {
         <path className="nexomail-logo-flap" d="M10.5 14.5 20 21.2l9.5-6.7" />
       </svg>
     </span>
-    {!compact && <span className="nexomail-wordmark"><strong>Nexo</strong><span>Mail</span></span>}
+    {!compact && <span className="nexomail-wordmark-stack">
+      <span className="nexomail-wordmark"><strong>Nexo</strong><span>Mail</span></span>
+      <small className="nexomail-signature">by EIDOS Digital</small>
+    </span>}
   </span>
 }
