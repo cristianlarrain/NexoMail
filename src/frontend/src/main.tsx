@@ -8,7 +8,6 @@ import './styles/overrides.css'
 import './styles/mail-enhancements.css'
 import './styles/mail-actions.css'
 import './styles/control-activity.css'
-import './styles/control-center-variants.css'
 import './styles/unread-management.css'
 import './styles/navigation-enhancements.css'
 import './styles/operations-clock.css'
@@ -23,6 +22,7 @@ import './styles/auth.css'
 import './styles/ui-polish.css'
 import './styles/attachment-preview.css'
 import './styles/nexi.css'
+import './styles/control-center-cinematic.css'
 
 const client = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, retry: 1 } } })
 createRoot(document.getElementById('root')!).render(<StrictMode><QueryClientProvider client={client}><RouterProvider router={router} /></QueryClientProvider></StrictMode>)
