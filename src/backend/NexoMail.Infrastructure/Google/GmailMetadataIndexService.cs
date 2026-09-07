@@ -43,9 +43,12 @@ public sealed class GmailMetadataIndexService(
         foreach (var account in accounts)
         {
             var client = await CreateClientAsync(account.Id, cancellationToken);
-            var existingCount = await database.MailMessageIndex
+            var existingAccountMessages = await database.MailMessageIndex
                 .AsNoTracking()
-                .CountAsync(x => x.UserId == userId && x.AccountId == account.Id && x.OccurredAt >= cutoff, cancellationToken);
+                .Where(x => x.UserId == userId && x.AccountId == account.Id)
+                .ToArrayAsync(cancellationToken);
+            var windowMessages = existingAccountMessages.Where(x => x.OccurredAt >= cutoff).ToArray();
+            var existingCount = windowMessages.Length;
 
             List<string> ids;
             if (existingCount == 0)
@@ -56,13 +59,10 @@ public sealed class GmailMetadataIndexService(
             {
                 var newestLimit = Math.Min(RefreshNewestCount, limitPerAccount);
                 var newest = await ListMessageIdsAsync(client, days, newestLimit, null, cancellationToken);
-                var oldest = await database.MailMessageIndex
-                    .AsNoTracking()
-                    .Where(x => x.UserId == userId && x.AccountId == account.Id && x.OccurredAt >= cutoff)
-                    .MinAsync(x => (DateTimeOffset?)x.OccurredAt, cancellationToken);
+                var oldest = windowMessages.Min(x => x.OccurredAt);
                 var backfillLimit = Math.Max(0, limitPerAccount - newest.Count);
-                var older = oldest.HasValue && oldest.Value > cutoff && backfillLimit > 0
-                    ? await ListMessageIdsAsync(client, days, backfillLimit, oldest.Value.ToUnixTimeSeconds(), cancellationToken)
+                var older = oldest > cutoff && backfillLimit > 0
+                    ? await ListMessageIdsAsync(client, days, backfillLimit, oldest.ToUnixTimeSeconds(), cancellationToken)
                     : [];
                 ids = newest.Concat(older).Distinct(StringComparer.Ordinal).Take(limitPerAccount).ToList();
             }
@@ -85,11 +85,11 @@ public sealed class GmailMetadataIndexService(
         var days = requestedDays is 90 ? 90 : 30;
         var userId = userContext.UserId;
         var cutoff = DateTimeOffset.UtcNow.AddDays(-days);
-        var messages = await database.MailMessageIndex
+        var allMessages = await database.MailMessageIndex
             .AsNoTracking()
-            .Where(x => x.UserId == userId && x.OccurredAt >= cutoff)
-            .OrderBy(x => x.OccurredAt)
+            .Where(x => x.UserId == userId)
             .ToArrayAsync(cancellationToken);
+        var messages = allMessages.Where(x => x.OccurredAt >= cutoff).OrderBy(x => x.OccurredAt).ToArray();
 
         var accounts = await database.MailAccounts
             .AsNoTracking()
@@ -110,7 +110,6 @@ public sealed class GmailMetadataIndexService(
                     contact = new ContactAccumulator(email, ContactName(recipient.Name, email));
                     contacts[email] = contact;
                 }
-
                 contact.Sent++;
                 contact.LastInteraction = Max(contact.LastInteraction, message.OccurredAt);
                 if (accounts.TryGetValue(message.AccountId, out var account)) contact.Accounts.Add(account.DisplayName);
@@ -140,11 +139,7 @@ public sealed class GmailMetadataIndexService(
             DateTimeOffset? waitingSince = null;
             foreach (var item in events.OrderBy(x => x.At))
             {
-                if (item.Sent)
-                {
-                    waitingSince = item.At;
-                    continue;
-                }
+                if (item.Sent) { waitingSince = item.At; continue; }
                 if (waitingSince.HasValue && item.At >= waitingSince.Value)
                 {
                     contact.Replies++;
@@ -160,30 +155,15 @@ public sealed class GmailMetadataIndexService(
             .OrderByDescending(x => x.Sent)
             .ThenByDescending(x => x.Received)
             .Select(x => new ContactAnalyticsItem(
-                x.Email,
-                x.Name,
-                x.Accounts.OrderBy(value => value, StringComparer.CurrentCultureIgnoreCase).ToArray(),
-                x.Sent,
-                x.Received,
-                x.Replies,
-                x.Awaiting,
-                Average(x.ResponseMinutes),
+                x.Email, x.Name, x.Accounts.OrderBy(value => value, StringComparer.CurrentCultureIgnoreCase).ToArray(),
+                x.Sent, x.Received, x.Replies, x.Awaiting, Average(x.ResponseMinutes),
                 x.LastInteraction ?? DateTimeOffset.UtcNow,
                 x.Subjects.Values.OrderByDescending(v => v.Count).ThenByDescending(v => v.LastAt).Take(3).Select(v => v.Subject).ToArray()))
             .ToArray();
 
         var allResponseMinutes = contacts.Values.SelectMany(x => x.ResponseMinutes).ToArray();
         var states = await database.MailIndexStates.AsNoTracking().Where(x => x.UserId == userId).ToArrayAsync(cancellationToken);
-        return new ContactAnalyticsSnapshot(
-            days,
-            items,
-            items.Sum(x => x.Sent),
-            items.Sum(x => x.Received),
-            items.Sum(x => x.Replies),
-            items.Sum(x => x.Awaiting),
-            Average(allResponseMinutes),
-            messages.Length,
-            states.Length == 0 ? null : states.Max(x => x.LastIndexedAt));
+        return new ContactAnalyticsSnapshot(days, items, items.Sum(x => x.Sent), items.Sum(x => x.Received), items.Sum(x => x.Replies), items.Sum(x => x.Awaiting), Average(allResponseMinutes), messages.Length, states.Length == 0 ? null : states.Max(x => x.LastIndexedAt));
     }
 
     public async Task<DocumentIndexSnapshot> GetDocumentsAsync(string? search, string? type, int? requestedTake, int? requestedSkip, CancellationToken cancellationToken)
@@ -194,16 +174,11 @@ public sealed class GmailMetadataIndexService(
         var term = search?.Trim().ToLowerInvariant() ?? string.Empty;
         var typeFilter = type?.Trim() ?? string.Empty;
 
-        var messages = await database.MailMessageIndex.AsNoTracking()
-            .Where(x => x.UserId == userId && x.Direction == "received" && x.HasAttachments)
-            .ToDictionaryAsync(x => $"{x.AccountId:N}|{x.ProviderMessageId}", cancellationToken);
-        var indexedMessageCount = await database.MailMessageIndex.AsNoTracking().CountAsync(x => x.UserId == userId, cancellationToken);
-        var accounts = await database.MailAccounts.AsNoTracking()
-            .Where(x => x.UserId == userId && x.IsActive)
-            .ToDictionaryAsync(x => x.Id, cancellationToken);
-        var attachments = await database.MailAttachmentIndex.AsNoTracking()
-            .Where(x => x.UserId == userId)
-            .ToArrayAsync(cancellationToken);
+        var messageArray = await database.MailMessageIndex.AsNoTracking().Where(x => x.UserId == userId).ToArrayAsync(cancellationToken);
+        var messages = messageArray.Where(x => x.Direction == "received" && x.HasAttachments).ToDictionary(x => $"{x.AccountId:N}|{x.ProviderMessageId}");
+        var indexedMessageCount = messageArray.Length;
+        var accounts = await database.MailAccounts.AsNoTracking().Where(x => x.UserId == userId && x.IsActive).ToDictionaryAsync(x => x.Id, cancellationToken);
+        var attachments = await database.MailAttachmentIndex.AsNoTracking().Where(x => x.UserId == userId).ToArrayAsync(cancellationToken);
 
         var rows = attachments
             .Select(attachment =>
@@ -214,25 +189,15 @@ public sealed class GmailMetadataIndexService(
             })
             .Where(x => x.message is not null && IsUsefulDocument(x.attachment.FileName))
             .Where(x => string.IsNullOrWhiteSpace(typeFilter) || string.Equals(typeFilter, "all", StringComparison.OrdinalIgnoreCase) || string.Equals(x.documentType, typeFilter, StringComparison.OrdinalIgnoreCase))
-            .Where(x => string.IsNullOrWhiteSpace(term) || new[] { x.attachment.FileName, x.documentType, x.message!.FromName, x.message.FromAddress, x.message.Subject, x.message.Snippet }
-                .Any(value => (value ?? string.Empty).Contains(term, StringComparison.OrdinalIgnoreCase)))
+            .Where(x => string.IsNullOrWhiteSpace(term) || new[] { x.attachment.FileName, x.documentType, x.message!.FromName, x.message.FromAddress, x.message.Subject, x.message.Snippet }.Any(value => (value ?? string.Empty).Contains(term, StringComparison.OrdinalIgnoreCase)))
             .OrderByDescending(x => x.message!.OccurredAt)
             .ToArray();
 
         var page = rows.Skip(skip).Take(take).Select(x => new DocumentIndexItem(
-            x.attachment.AccountId,
-            x.account?.DisplayName ?? "Cuenta",
-            x.attachment.ProviderMessageId,
-            x.attachment.AttachmentId,
-            x.attachment.FileName,
-            x.attachment.ContentType,
-            x.attachment.Size,
-            x.documentType,
-            x.message!.OccurredAt,
+            x.attachment.AccountId, x.account?.DisplayName ?? "Cuenta", x.attachment.ProviderMessageId, x.attachment.AttachmentId,
+            x.attachment.FileName, x.attachment.ContentType, x.attachment.Size, x.documentType, x.message!.OccurredAt,
             string.IsNullOrWhiteSpace(x.message.FromName) ? x.message.FromAddress : x.message.FromName,
-            x.message.FromAddress,
-            x.message.Subject,
-            string.IsNullOrWhiteSpace(x.message.Snippet) ? x.message.Subject : x.message.Snippet)).ToArray();
+            x.message.FromAddress, x.message.Subject, string.IsNullOrWhiteSpace(x.message.Snippet) ? x.message.Subject : x.message.Snippet)).ToArray();
 
         var states = await database.MailIndexStates.AsNoTracking().Where(x => x.UserId == userId).ToArrayAsync(cancellationToken);
         return new DocumentIndexSnapshot(page, rows.Length, skip + page.Length < rows.Length, indexedMessageCount, states.Length == 0 ? null : states.Max(x => x.LastIndexedAt));
@@ -242,13 +207,8 @@ public sealed class GmailMetadataIndexService(
     {
         var userId = userContext.UserId;
         var ids = indexed.Select(x => x.MessageId).ToArray();
-        var existing = await database.MailMessageIndex
-            .Where(x => x.UserId == userId && x.AccountId == account.Id && ids.Contains(x.ProviderMessageId))
-            .ToDictionaryAsync(x => x.ProviderMessageId, cancellationToken);
-
-        var oldAttachments = await database.MailAttachmentIndex
-            .Where(x => x.UserId == userId && x.AccountId == account.Id && ids.Contains(x.ProviderMessageId))
-            .ToArrayAsync(cancellationToken);
+        var existing = await database.MailMessageIndex.Where(x => x.UserId == userId && x.AccountId == account.Id && ids.Contains(x.ProviderMessageId)).ToDictionaryAsync(x => x.ProviderMessageId, cancellationToken);
+        var oldAttachments = await database.MailAttachmentIndex.Where(x => x.UserId == userId && x.AccountId == account.Id && ids.Contains(x.ProviderMessageId)).ToArrayAsync(cancellationToken);
         if (oldAttachments.Length > 0) database.MailAttachmentIndex.RemoveRange(oldAttachments);
 
         foreach (var message in indexed)
@@ -270,14 +230,7 @@ public sealed class GmailMetadataIndexService(
             entity.IndexedAt = now;
 
             foreach (var attachment in message.Attachments)
-            {
-                database.MailAttachmentIndex.Add(new MailAttachmentIndexEntity
-                {
-                    Id = Guid.NewGuid(), UserId = userId, AccountId = account.Id, ProviderMessageId = message.MessageId,
-                    AttachmentId = attachment.AttachmentId, FileName = attachment.FileName, ContentType = attachment.ContentType,
-                    Size = attachment.Size, IndexedAt = now
-                });
-            }
+                database.MailAttachmentIndex.Add(new MailAttachmentIndexEntity { Id = Guid.NewGuid(), UserId = userId, AccountId = account.Id, ProviderMessageId = message.MessageId, AttachmentId = attachment.AttachmentId, FileName = attachment.FileName, ContentType = attachment.ContentType, Size = attachment.Size, IndexedAt = now });
         }
 
         await database.SaveChangesAsync(cancellationToken);
@@ -288,11 +241,7 @@ public sealed class GmailMetadataIndexService(
     private async Task UpsertStateAsync(MailAccountEntity account, DateTimeOffset now, int days, int count, CancellationToken cancellationToken)
     {
         var state = await database.MailIndexStates.SingleOrDefaultAsync(x => x.AccountId == account.Id, cancellationToken);
-        if (state is null)
-        {
-            state = new MailIndexStateEntity { AccountId = account.Id, UserId = userContext.UserId };
-            database.MailIndexStates.Add(state);
-        }
+        if (state is null) { state = new MailIndexStateEntity { AccountId = account.Id, UserId = userContext.UserId }; database.MailIndexStates.Add(state); }
         state.LastIndexedAt = now;
         state.WindowDays = days;
         state.IndexedMessageCount = count;
@@ -314,8 +263,7 @@ public sealed class GmailMetadataIndexService(
             response.EnsureSuccessStatusCode();
             using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
             if (document.RootElement.TryGetProperty("messages", out var messages))
-                foreach (var item in messages.EnumerateArray())
-                    if (item.TryGetProperty("id", out var id) && !string.IsNullOrWhiteSpace(id.GetString())) ids.Add(id.GetString()!);
+                foreach (var item in messages.EnumerateArray()) if (item.TryGetProperty("id", out var id) && !string.IsNullOrWhiteSpace(id.GetString())) ids.Add(id.GetString()!);
             pageToken = document.RootElement.TryGetProperty("nextPageToken", out var next) ? next.GetString() : null;
         }
         while (ids.Count < limit && !string.IsNullOrWhiteSpace(pageToken));
@@ -349,16 +297,7 @@ public sealed class GmailMetadataIndexService(
         var occurredAt = root.TryGetProperty("internalDate", out var timestamp) && long.TryParse(timestamp.GetString(), out var ms) ? DateTimeOffset.FromUnixTimeMilliseconds(ms) : DateTimeOffset.UtcNow;
         var attachments = new List<IndexedAttachment>();
         ReadAttachments(payload, attachments);
-        return new IndexedMessage(
-            id,
-            root.TryGetProperty("threadId", out var thread) ? thread.GetString() ?? id : id,
-            labels.Contains("SENT") ? "sent" : "received",
-            ParseAddress(Header(headers, "From")),
-            ParseAddresses(Header(headers, "To")),
-            Header(headers, "Subject", "(sin asunto)"),
-            root.TryGetProperty("snippet", out var snippet) ? snippet.GetString() ?? string.Empty : string.Empty,
-            occurredAt,
-            attachments);
+        return new IndexedMessage(id, root.TryGetProperty("threadId", out var thread) ? thread.GetString() ?? id : id, labels.Contains("SENT") ? "sent" : "received", ParseAddress(Header(headers, "From")), ParseAddresses(Header(headers, "To")), Header(headers, "Subject", "(sin asunto)"), root.TryGetProperty("snippet", out var snippet) ? snippet.GetString() ?? string.Empty : string.Empty, occurredAt, attachments);
     }
 
     private static Dictionary<string, string> Headers(JsonElement payload)
@@ -389,24 +328,11 @@ public sealed class GmailMetadataIndexService(
         if (string.IsNullOrWhiteSpace(raw)) return [];
         var matches = Regex.Matches(raw, "(?:(?<name>[^,<]+?)\\s*)?<(?<email>[^>]+)>|(?<email>[A-Z0-9._%+\\-]+@[A-Z0-9.\\-]+)", RegexOptions.IgnoreCase);
         if (matches.Count == 0) return [ParseAddress(raw)];
-        return matches.Cast<Match>()
-            .Select(match => new IndexedAddress(match.Groups["name"].Value.Trim().Trim('"'), NormalizeEmail(match.Groups["email"].Value)))
-            .Where(x => x.Address.Contains('@'))
-            .ToArray();
+        return matches.Cast<Match>().Select(match => new IndexedAddress(match.Groups["name"].Value.Trim().Trim('"'), NormalizeEmail(match.Groups["email"].Value))).Where(x => x.Address.Contains('@')).ToArray();
     }
 
     private static string SerializeAddresses(IReadOnlyCollection<IndexedAddress> addresses) => string.Join('\n', addresses.Select(x => $"{CleanAddressField(x.Name)}\t{x.Address}"));
-
-    private static IReadOnlyCollection<IndexedAddress> DeserializeAddresses(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return [];
-        return value.Split('\n', StringSplitOptions.RemoveEmptyEntries)
-            .Select(line => line.Split('\t', 2))
-            .Where(parts => parts.Length == 2 && parts[1].Contains('@'))
-            .Select(parts => new IndexedAddress(parts[0], NormalizeEmail(parts[1])))
-            .ToArray();
-    }
-
+    private static IReadOnlyCollection<IndexedAddress> DeserializeAddresses(string value) => string.IsNullOrWhiteSpace(value) ? [] : value.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(line => line.Split('\t', 2)).Where(parts => parts.Length == 2 && parts[1].Contains('@')).Select(parts => new IndexedAddress(parts[0], NormalizeEmail(parts[1]))).ToArray();
     private static string CleanAddressField(string value) => value.Replace('\t', ' ').Replace('\r', ' ').Replace('\n', ' ').Trim();
 
     private static void ReadAttachments(JsonElement part, List<IndexedAttachment> result)
@@ -423,18 +349,11 @@ public sealed class GmailMetadataIndexService(
 
     private async Task<HttpClient> CreateClientAsync(Guid accountId, CancellationToken cancellationToken)
     {
-        var credential = await database.OAuthCredentials.AsNoTracking().SingleOrDefaultAsync(x => x.MailAccountId == accountId, cancellationToken)
-            ?? throw new InvalidOperationException("No existe una credencial OAuth para esta cuenta.");
+        var credential = await database.OAuthCredentials.AsNoTracking().SingleOrDefaultAsync(x => x.MailAccountId == accountId, cancellationToken) ?? throw new InvalidOperationException("No existe una credencial OAuth para esta cuenta.");
         var settings = options.Value;
         var refreshToken = tokenProtector.Unprotect(credential.EncryptedRefreshToken);
         var tokenClient = httpClientFactory.CreateClient();
-        using var response = await tokenClient.PostAsync("https://oauth2.googleapis.com/token", new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["client_id"] = settings.ClientId,
-            ["client_secret"] = settings.ClientSecret,
-            ["refresh_token"] = refreshToken,
-            ["grant_type"] = "refresh_token"
-        }), cancellationToken);
+        using var response = await tokenClient.PostAsync("https://oauth2.googleapis.com/token", new FormUrlEncodedContent(new Dictionary<string, string> { ["client_id"] = settings.ClientId, ["client_secret"] = settings.ClientSecret, ["refresh_token"] = refreshToken, ["grant_type"] = "refresh_token" }), cancellationToken);
         response.EnsureSuccessStatusCode();
         using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
         var accessToken = document.RootElement.GetProperty("access_token").GetString() ?? throw new InvalidOperationException("Google no entregó un token de acceso válido.");
@@ -443,13 +362,7 @@ public sealed class GmailMetadataIndexService(
         return client;
     }
 
-    private static List<TimelineEvent> Timeline(Dictionary<string, List<TimelineEvent>> timelines, string threadId, string email)
-    {
-        var key = $"{threadId}|{email}";
-        if (!timelines.TryGetValue(key, out var events)) timelines[key] = events = [];
-        return events;
-    }
-
+    private static List<TimelineEvent> Timeline(Dictionary<string, List<TimelineEvent>> timelines, string threadId, string email) { var key = $"{threadId}|{email}"; if (!timelines.TryGetValue(key, out var events)) timelines[key] = events = []; return events; }
     private static int? Average(IReadOnlyCollection<int> values) => values.Count == 0 ? null : (int)Math.Round(values.Average());
     private static DateTimeOffset? Max(DateTimeOffset? current, DateTimeOffset value) => !current.HasValue || value > current.Value ? value : current;
     private static string NormalizeEmail(string value) => value.Trim().ToLowerInvariant();
