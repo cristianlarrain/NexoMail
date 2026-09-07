@@ -1,6 +1,15 @@
+import { useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { ControlCenter } from '../components/ControlCenter'
 
 export function ControlCenterPage() {
+  const queryClient = useQueryClient()
+
+  useEffect(() => {
+    void queryClient.invalidateQueries({ queryKey: ['control-center'], refetchType: 'active' })
+    void queryClient.invalidateQueries({ queryKey: ['control-center-activity'], refetchType: 'active' })
+  }, [queryClient])
+
   return <section className="mail-view control-center-page">
     <div className="view-header">
       <div>
