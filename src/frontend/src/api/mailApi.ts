@@ -1,5 +1,42 @@
 import { csrfFetch } from './csrfFetch'
-import type { AiTone, AiWritingSuggestion, ComposeMessage, ContactAnalyticsSnapshot, ContactSuggestion, ControlCenterActivitySnapshot, ControlCenterPendingItem, ControlCenterSnapshot, DocumentIndexSnapshot, MailAccount, MailAttachment, MailMessage, MailMetadataSyncResult, MailSummary, PagedResult } from '../types/mail'
+import type { AiTone, AiWritingSuggestion, ComposeMessage, ContactAnalyticsSnapshot, ContactSuggestion, ControlCenterActivitySnapshot, ControlCenterPendingItem, ControlCenterSnapshot, DocumentIndexSnapshot, MailAccount, MailAttachment, MailMessage, MailMetadataSyncResult, MailSummary, OutgoingAttachment, PagedResult } from '../types/mail'
+
+const messageAttachmentCache = new Map<string, MailAttachment[]>()
+
+function attachmentCacheKey(accountId: string, messageId: string) {
+  return `${accountId}:${messageId}`
+}
+
+function attachmentPath(accountId: string, messageId: string, attachment: MailAttachment, download = false) {
+  return `/api/mail/messages/${encodeURIComponent(accountId)}/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachment.id)}?fileName=${encodeURIComponent(attachment.name)}${download ? '&download=true' : ''}`
+}
+
+function blobToBase64(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(reader.error ?? new Error('No fue posible leer el adjunto original.'))
+    reader.onload = () => {
+      const value = String(reader.result ?? '')
+      const separator = value.indexOf(',')
+      resolve(separator >= 0 ? value.slice(separator + 1) : value)
+    }
+    reader.readAsDataURL(blob)
+  })
+}
+
+async function fetchForwardAttachment(accountId: string, messageId: string, attachment: MailAttachment): Promise<OutgoingAttachment> {
+  const response = await csrfFetch(attachmentPath(accountId, messageId, attachment, true))
+  if (!response.ok) {
+    const problem = await response.json().catch(() => null) as { detail?: string; error?: string } | null
+    throw new Error(problem?.detail ?? problem?.error ?? `No fue posible recuperar el adjunto ${attachment.name}.`)
+  }
+  const blob = await response.blob()
+  return {
+    name: attachment.name,
+    contentType: attachment.contentType || blob.type || 'application/octet-stream',
+    base64Content: await blobToBase64(blob),
+  }
+}
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await csrfFetch(`/api${path}`, { headers: { 'Content-Type': 'application/json', ...init?.headers }, ...init })
@@ -30,12 +67,16 @@ export const mailApi = {
     const take = cursor ? 25 : accountId ? 20 : 12
     return api<PagedResult<MailSummary>>(`/mail/messages?folder=${encodeURIComponent(folder)}&take=${take}${accountId ? `&accountId=${encodeURIComponent(accountId)}` : ''}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ''}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
   },
-  message: (accountId: string, messageId: string) => api<MailMessage>(`/mail/messages/${accountId}/${messageId}`),
+  message: async (accountId: string, messageId: string) => {
+    const value = await api<MailMessage>(`/mail/messages/${accountId}/${messageId}`)
+    messageAttachmentCache.set(attachmentCacheKey(accountId, messageId), [...value.attachments])
+    return value
+  },
   aiReply: (accountId: string, messageId: string, tone: AiTone, instruction = '') => api<AiWritingSuggestion>(`/mail/messages/${encodeURIComponent(accountId)}/${encodeURIComponent(messageId)}/ai-reply`, { method: 'POST', body: JSON.stringify({ tone, instruction }) }),
   aiDraft: (context: string, tone: AiTone, recipient = '') => api<AiWritingSuggestion>('/mail/ai/draft', { method: 'POST', body: JSON.stringify({ context, tone, recipient }) }),
   saveDraft: (message: ComposeMessage, replyToMessageId?: string) => api<void>('/mail/drafts', { method: 'POST', body: JSON.stringify({ message, replyToMessageId: replyToMessageId || null }) }),
   attachmentUrl: (accountId: string, messageId: string, attachment: MailAttachment, download = false) => {
-    const base = `/api/mail/messages/${encodeURIComponent(accountId)}/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachment.id)}?fileName=${encodeURIComponent(attachment.name)}${download ? '&download=true' : ''}`
+    const base = attachmentPath(accountId, messageId, attachment, download)
     const isPdf = attachment.contentType === 'application/pdf' || /\.pdf$/i.test(attachment.name)
     return !download && isPdf ? `${base}#page=1&view=Fit&zoom=page-fit&navpanes=0&pagemode=none` : base
   },
@@ -47,5 +88,16 @@ export const mailApi = {
   emptyFolder: (folderId: string, accountId?: string) => api<void>(`/mail/folders/${folderId}/empty${accountId ? `?accountId=${accountId}` : ''}`, { method: 'POST' }),
   send: (message: ComposeMessage) => api<void>('/mail/send', { method: 'POST', body: JSON.stringify(message) }),
   reply: (accountId: string, messageId: string, message: ComposeMessage, replyAll: boolean) => api<void>(`/mail/messages/${accountId}/${messageId}/reply`, { method: 'POST', body: JSON.stringify({ message, replyAll }) }),
-  forward: (accountId: string, messageId: string, message: ComposeMessage) => api<void>(`/mail/messages/${accountId}/${messageId}/forward`, { method: 'POST', body: JSON.stringify(message) }),
+  forward: async (accountId: string, messageId: string, message: ComposeMessage) => {
+    const cacheKey = attachmentCacheKey(accountId, messageId)
+    let sourceAttachments = messageAttachmentCache.get(cacheKey)
+    if (!sourceAttachments) {
+      const original = await api<MailMessage>(`/mail/messages/${accountId}/${messageId}`)
+      sourceAttachments = [...original.attachments]
+      messageAttachmentCache.set(cacheKey, sourceAttachments)
+    }
+    const originalAttachments = await Promise.all(sourceAttachments.map(file => fetchForwardAttachment(accountId, messageId, file)))
+    const attachments = [...originalAttachments, ...(message.attachments ?? [])]
+    return api<void>(`/mail/messages/${accountId}/${messageId}/forward`, { method: 'POST', body: JSON.stringify({ ...message, attachments }) })
+  },
 }
