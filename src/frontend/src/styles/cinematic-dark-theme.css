@@ -1,0 +1,148 @@
+/* Global dark theme palette for NexoMail.
+   The cinematic palette belongs to dark mode itself, never to an individual module. */
+:root[data-theme="dark"] {
+  --background: #071116;
+  --foreground: #e8f6fa;
+  --surface: #0c1a21;
+  --surface-hover: #10252e;
+  --primary: #35c8e8;
+  --primary-foreground: #041014;
+  --border: #1d4756;
+  --muted: #10252e;
+  --muted-foreground: #83a6b1;
+  --danger: #f26b6b;
+  --success: #43d18b;
+  --shadow: 0 0 0 1px rgb(53 200 232 / .02), 0 10px 26px rgb(0 0 0 / .20);
+
+  --nexi-accent: #35c8e8;
+  --nexi-accent-soft: color-mix(in srgb, #35c8e8 9%, #0c1a21);
+  --nexi-border: #1d4756;
+  color-scheme: dark;
+}
+
+:root[data-theme="dark"] body {
+  background:
+    radial-gradient(circle at 78% -12%, rgb(53 200 232 / .055), transparent 30%),
+    var(--background);
+}
+
+:root[data-theme="dark"] .topbar {
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  border-bottom-color: var(--border);
+}
+
+:root[data-theme="dark"] .sidebar {
+  background: #09171d;
+  border-right-color: var(--border);
+}
+
+:root[data-theme="dark"] .brand-mark,
+:root[data-theme="dark"] .compose-button,
+:root[data-theme="dark"] .primary-button {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+:root[data-theme="dark"] .avatar {
+  background: #163540;
+  color: #dff7fb;
+}
+
+:root[data-theme="dark"] .nav-item:hover,
+:root[data-theme="dark"] .nav-item.active,
+:root[data-theme="dark"] .icon-button:hover,
+:root[data-theme="dark"] .format-toolbar button:hover,
+:root[data-theme="dark"] .message-row:hover,
+:root[data-theme="dark"] .priority-row:hover,
+:root[data-theme="dark"] .activity-account-card:hover {
+  background: var(--surface-hover);
+}
+
+:root[data-theme="dark"] .message-list,
+:root[data-theme="dark"] .compose-card,
+:root[data-theme="dark"] .settings-card,
+:root[data-theme="dark"] .account-modal,
+:root[data-theme="dark"] .attachment-preview,
+:root[data-theme="dark"] .control-panel,
+:root[data-theme="dark"] .control-management-panel,
+:root[data-theme="dark"] .control-metric,
+:root[data-theme="dark"] .nexi-insights-panel,
+:root[data-theme="dark"] .nexi-assistant-panel {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+:root[data-theme="dark"] .control-panel,
+:root[data-theme="dark"] .control-management-panel,
+:root[data-theme="dark"] .control-metric,
+:root[data-theme="dark"] .nexi-insights-panel {
+  box-shadow: inset 0 0 18px rgb(53 200 232 / .018), var(--shadow);
+}
+
+:root[data-theme="dark"] .control-panel > header,
+:root[data-theme="dark"] .control-management-panel > header,
+:root[data-theme="dark"] .nexi-insights-header {
+  background: linear-gradient(90deg, rgb(53 200 232 / .035), transparent);
+}
+
+:root[data-theme="dark"] .control-metric:hover,
+:root[data-theme="dark"] .control-metric.active {
+  border-color: color-mix(in srgb, var(--primary) 58%, var(--border));
+  background: color-mix(in srgb, var(--primary) 5%, var(--surface));
+}
+
+:root[data-theme="dark"] .activity-line-overlay .received {
+  filter: drop-shadow(0 0 4px rgb(53 200 232 / .30));
+}
+
+:root[data-theme="dark"] .activity-line-overlay .sent {
+  filter: drop-shadow(0 0 4px rgb(67 209 139 / .24));
+}
+
+:root[data-theme="dark"] .notice {
+  border-color: #6a4b22;
+  background: #211a0f;
+  color: #efc57a;
+}
+
+:root[data-theme="dark"] .notice button,
+:root[data-theme="dark"] .text-button {
+  color: #68dff3;
+}
+
+:root[data-theme="dark"] .secondary-button,
+:root[data-theme="dark"] .snooze-options button,
+:root[data-theme="dark"] .activity-account-card,
+:root[data-theme="dark"] .priority-row,
+:root[data-theme="dark"] .management-row {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--foreground);
+}
+
+:root[data-theme="dark"] .theme-preview.dark {
+  background: #071116;
+  border-color: #1d4756;
+}
+
+:root[data-theme="dark"] .theme-preview.dark span,
+:root[data-theme="dark"] .theme-preview.dark b {
+  background: #0c1a21;
+}
+
+:root[data-theme="dark"] .theme-preview.dark i {
+  background: #35c8e8;
+}
+
+:root[data-theme="dark"] .switch[data-on="true"] {
+  background: var(--primary);
+}
+
+:root[data-theme="dark"] .nexi-panel-backdrop {
+  background: rgb(3 12 16 / .58);
+}
+
+:root[data-theme="dark"] .nexi-context-card,
+:root[data-theme="dark"] .nexi-insights-panel {
+  background: linear-gradient(135deg, var(--nexi-accent-soft), var(--surface) 70%);
+}
