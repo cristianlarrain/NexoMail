@@ -208,35 +208,37 @@
   position: relative;
   width: 100%;
   min-width: 0;
+  background:
+    linear-gradient(to bottom, transparent 49.5%, color-mix(in srgb, var(--border) 45%, transparent) 50%, transparent 50.5%);
 }
 
 .activity-chart-dynamic {
   position: relative;
   z-index: 1;
   width: 100%;
-  height: 190px;
-  gap: 3px;
-  padding: 25px 12px 12px;
+  height: 176px;
+  gap: 4px;
+  padding: 22px 12px 10px;
 }
 
 .activity-line-overlay {
   position: absolute;
   z-index: 2;
-  top: 24px;
+  top: 20px;
   left: 12px;
   width: calc(100% - 24px);
-  height: 112px;
+  height: 108px;
   overflow: visible;
   pointer-events: none;
 }
 
 .activity-line-overlay polyline {
   fill: none;
-  stroke-width: 3;
+  stroke-width: 1.45;
   vector-effect: non-scaling-stroke;
   stroke-linecap: round;
   stroke-linejoin: round;
-  opacity: .72;
+  opacity: .95;
 }
 
 .activity-line-overlay polyline.received {
@@ -245,26 +247,27 @@
 
 .activity-line-overlay polyline.sent {
   stroke: var(--success);
+  stroke-dasharray: 5 5;
 }
 
 .activity-chart-dynamic .activity-day {
   position: relative;
   z-index: 3;
   min-width: 0;
-  grid-template-rows: 132px 20px;
-  gap: 7px;
+  grid-template-rows: 118px 18px;
+  gap: 6px;
 }
 
 .activity-chart-dynamic .activity-bars {
   min-width: 0;
-  height: 132px;
-  gap: 3px;
+  height: 118px;
+  gap: 4px;
   align-items: flex-end;
 }
 
 .activity-bar-column {
   min-width: 0;
-  height: 132px;
+  height: 118px;
   flex: 1 1 0;
   display: flex;
   flex-direction: column;
@@ -276,25 +279,25 @@
 .activity-bar-column b {
   flex: 0 0 auto;
   color: var(--muted-foreground);
-  font-size: 9px;
-  font-weight: 750;
+  font-size: 8px;
+  font-weight: 650;
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 
 .activity-bar-column i {
-  width: min(12px, 80%);
-  min-width: 3px;
-  min-height: 3px;
-  max-height: 112px;
+  width: 5px;
+  min-width: 2px;
+  min-height: 2px;
+  max-height: 104px;
   flex: 0 0 auto;
-  border-radius: 4px 4px 2px 2px;
-  background: color-mix(in srgb, var(--primary) 72%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 34%, transparent);
   transition: height .2s ease;
 }
 
 .activity-bar-column.sent i {
-  background: color-mix(in srgb, var(--success) 72%, transparent);
+  background: color-mix(in srgb, var(--success) 34%, transparent);
 }
 
 .activity-chart-dynamic .activity-day > span {
@@ -302,13 +305,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 9px;
-  text-transform: capitalize;
-}
-
-.activity-chart-dynamic.days-14 .activity-day > span,
-.activity-chart-dynamic.days-30 .activity-day > span {
+  color: var(--muted-foreground);
   font-size: 8px;
+  font-weight: 600;
+  text-transform: capitalize;
 }
 
 .activity-chart-dynamic.days-14 .activity-day:nth-child(even) > span {
@@ -319,39 +319,48 @@
   visibility: hidden;
 }
 
-.activity-chart-dynamic.days-30 .activity-bar-column b {
-  font-size: 7px;
+.activity-chart-dynamic.days-14 .activity-bars,
+.activity-chart-dynamic.days-30 .activity-bars {
+  gap: 2px;
 }
 
-.activity-chart-dynamic.days-30 .activity-bars {
-  gap: 1px;
+.activity-chart-dynamic.days-14 .activity-bar-column i {
+  width: 4px;
+}
+
+.activity-chart-dynamic.days-30 .activity-bar-column i {
+  width: 3px;
 }
 
 .activity-legend-footer {
   min-height: 36px;
   display: flex;
   align-items: center;
-  gap: 13px;
+  gap: 15px;
   padding: 7px 14px;
   border-top: 1px solid var(--border);
-  background: color-mix(in srgb, var(--muted) 25%, var(--surface));
+  background: color-mix(in srgb, var(--muted) 18%, var(--surface));
 }
 
 .activity-legend-footer span {
   display: inline-flex !important;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   margin: 0 !important;
   color: var(--muted-foreground);
   font-size: 10px;
 }
 
-.activity-line-key::before {
-  content: "";
-  width: 15px;
+.activity-legend-footer i {
+  width: 16px;
   height: 2px;
   border-radius: 999px;
   background: var(--primary);
+}
+
+.activity-legend-footer i.sent {
+  height: 1px;
+  background: repeating-linear-gradient(to right, var(--success) 0 5px, transparent 5px 8px);
 }
 
 .activity-legend-footer .activity-unavailable {
