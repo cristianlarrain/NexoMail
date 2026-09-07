@@ -7,9 +7,14 @@ using NexoMail.Infrastructure.Data;
 
 namespace NexoMail.Infrastructure;
 
-public sealed class MailGateway(IEnumerable<IMailProvider> providers, NexoMailDbContext database, IUserContext userContext) : IMailGateway
+public sealed class MailGateway(
+    IEnumerable<IMailProvider> providers,
+    IEnumerable<IMailDraftProvider> draftProviders,
+    NexoMailDbContext database,
+    IUserContext userContext) : IMailGateway
 {
     private readonly IReadOnlyDictionary<MailProviderType, IMailProvider> _providers = providers.ToDictionary(x => x.ProviderType);
+    private readonly IReadOnlyDictionary<MailProviderType, IMailDraftProvider> _draftProviders = draftProviders.ToDictionary(x => x.ProviderType);
 
     public async Task<IReadOnlyCollection<MailAccount>> GetAccountsAsync(CancellationToken cancellationToken)
     {
@@ -69,7 +74,13 @@ public sealed class MailGateway(IEnumerable<IMailProvider> providers, NexoMailDb
     public async Task<MailMessage?> GetMessageAsync(Guid accountId, string messageId, CancellationToken cancellationToken) => await ProviderFor(await AccountAsync(accountId, cancellationToken)).GetMessageAsync(accountId, messageId, cancellationToken);
     public async Task<MailAttachmentContent?> GetAttachmentAsync(Guid accountId, string messageId, string attachmentId, CancellationToken cancellationToken) => await ProviderFor(await AccountAsync(accountId, cancellationToken)).GetAttachmentAsync(accountId, messageId, attachmentId, cancellationToken);
     public async Task SendAsync(ComposeMessage message, CancellationToken cancellationToken) => await ProviderFor(await AccountAsync(message.FromAccountId, cancellationToken)).SendAsync(message, cancellationToken);
-    public async Task SaveDraftAsync(Guid accountId, string? replyToMessageId, ComposeMessage message, CancellationToken cancellationToken) => await ProviderFor(await AccountAsync(accountId, cancellationToken)).SaveDraftAsync(accountId, replyToMessageId, message with { FromAccountId = accountId }, cancellationToken);
+
+    public async Task SaveDraftAsync(Guid accountId, string? replyToMessageId, ComposeMessage message, CancellationToken cancellationToken)
+    {
+        var account = await AccountAsync(accountId, cancellationToken);
+        await DraftProviderFor(account).SaveDraftAsync(accountId, replyToMessageId, message with { FromAccountId = accountId }, cancellationToken);
+    }
+
     public async Task ReplyAsync(Guid accountId, string messageId, ComposeMessage message, bool replyAll, CancellationToken cancellationToken) { var provider = ProviderFor(await AccountAsync(accountId, cancellationToken)); if (replyAll) await provider.ReplyAllAsync(accountId, messageId, message, cancellationToken); else await provider.ReplyAsync(accountId, messageId, message, cancellationToken); }
     public async Task ForwardAsync(Guid accountId, string messageId, ComposeMessage message, CancellationToken cancellationToken) => await ProviderFor(await AccountAsync(accountId, cancellationToken)).ForwardAsync(accountId, messageId, message, cancellationToken);
     public async Task MarkReadAsync(Guid accountId, string messageId, bool read, CancellationToken cancellationToken) => await ProviderFor(await AccountAsync(accountId, cancellationToken)).MarkReadAsync(accountId, messageId, read, cancellationToken);
@@ -100,6 +111,7 @@ public sealed class MailGateway(IEnumerable<IMailProvider> providers, NexoMailDb
     }
 
     private IMailProvider ProviderFor(MailAccount account) => _providers.TryGetValue(account.Provider, out var provider) ? provider : throw new NotSupportedException($"El proveedor {account.Provider} aún no está disponible.");
+    private IMailDraftProvider DraftProviderFor(MailAccount account) => _draftProviders.TryGetValue(account.Provider, out var provider) ? provider : throw new NotSupportedException($"El proveedor {account.Provider} aún no permite guardar borradores desde NexoMail.");
 
     private async Task<PagedResult<MailSummary>?> TryGetMessagesAsync(MailAccount account, MailQuery query, CancellationToken ct)
     {
