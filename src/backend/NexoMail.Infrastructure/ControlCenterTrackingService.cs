@@ -34,12 +34,8 @@ public sealed class ControlCenterTrackingService(
             .AnyAsync(x => x.Id == accountId && x.UserId == userContext.UserId && x.IsActive, cancellationToken);
         if (!accountExists) return false;
 
-        var message = await gateway.GetMessageAsync(accountId, messageId, cancellationToken);
-        if (message is null) return false;
-        if (message.FolderId is "drafts" or "trash" or "spam")
-            throw new InvalidOperationException("Este correo no puede añadirse a seguimiento desde la carpeta actual.");
-
-        var key = ManualKey(messageId);
+        var normalizedMessageId = messageId.Trim();
+        var key = ManualKey(normalizedMessageId);
         var state = await database.ControlCenterStates.SingleOrDefaultAsync(
             x => x.UserId == userContext.UserId && x.AccountId == accountId && x.ConversationId == key,
             cancellationToken);
@@ -56,7 +52,7 @@ public sealed class ControlCenterTrackingService(
             database.ControlCenterStates.Add(state);
         }
 
-        state.LastMessageId = messageId;
+        state.LastMessageId = normalizedMessageId;
         state.Status = "tracked";
         state.SnoozedUntil = null;
         state.UpdatedAt = DateTimeOffset.UtcNow;
@@ -103,53 +99,42 @@ public sealed class ControlCenterTrackingService(
             .Where(x => x.UserId == userContext.UserId && x.IsActive && accountIds.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, cancellationToken);
 
-        using var gate = new SemaphoreSlim(4);
-        var tasks = states.Select(async state =>
+        var values = new List<ControlCenterPendingItem>(states.Length);
+        foreach (var state in states)
         {
-            if (!accounts.TryGetValue(state.AccountId, out var account)) return null;
-            await gate.WaitAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!accounts.TryGetValue(state.AccountId, out var account)) continue;
+
+            MailMessage? message;
             try
             {
-                MailMessage? message;
-                try
-                {
-                    message = await gateway.GetMessageAsync(state.AccountId, state.LastMessageId, cancellationToken);
-                }
-                catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException or KeyNotFoundException)
-                {
-                    return null;
-                }
-
-                if (message is null || message.FolderId is "drafts" or "trash" or "spam") return null;
-                var sent = string.Equals(message.FolderId, "sent", StringComparison.OrdinalIgnoreCase);
-                var counterpart = sent
-                    ? DisplayAddress(message.To.FirstOrDefault())
-                    : DisplayAddress(message.From);
-
-                return new ControlCenterPendingItem(
-                    state.AccountId,
-                    account.DisplayName,
-                    account.Color,
-                    message.ProviderMessageId,
-                    state.ConversationId,
-                    sent ? "sent" : "received",
-                    counterpart,
-                    string.IsNullOrWhiteSpace(message.Subject) ? "(sin asunto)" : message.Subject,
-                    message.ReceivedAt,
-                    message.IsRead);
+                message = await gateway.GetMessageAsync(state.AccountId, state.LastMessageId, cancellationToken);
             }
-            finally
+            catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException or KeyNotFoundException)
             {
-                gate.Release();
+                continue;
             }
-        });
 
-        var values = await Task.WhenAll(tasks);
-        return values
-            .Where(x => x is not null)
-            .Select(x => x!)
-            .OrderBy(x => x.Since)
-            .ToArray();
+            if (message is null || message.FolderId is "drafts" or "trash" or "spam") continue;
+            var sent = string.Equals(message.FolderId, "sent", StringComparison.OrdinalIgnoreCase);
+            var counterpart = sent
+                ? DisplayAddress(message.To.FirstOrDefault())
+                : DisplayAddress(message.From);
+
+            values.Add(new ControlCenterPendingItem(
+                state.AccountId,
+                account.DisplayName,
+                account.Color,
+                message.ProviderMessageId,
+                state.ConversationId,
+                sent ? "sent" : "received",
+                counterpart,
+                string.IsNullOrWhiteSpace(message.Subject) ? "(sin asunto)" : message.Subject,
+                message.ReceivedAt,
+                message.IsRead));
+        }
+
+        return values.OrderBy(x => x.Since).ToArray();
     }
 
     private static string ManualKey(string messageId)
