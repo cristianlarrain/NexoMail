@@ -9,7 +9,6 @@ public interface IMailProvider
     Task<MailMessage?> GetMessageAsync(Guid accountId, string messageId, CancellationToken cancellationToken);
     Task<MailAttachmentContent?> GetAttachmentAsync(Guid accountId, string messageId, string attachmentId, CancellationToken cancellationToken);
     Task SendAsync(ComposeMessage message, CancellationToken cancellationToken);
-    Task SaveDraftAsync(Guid accountId, string? replyToMessageId, ComposeMessage message, CancellationToken cancellationToken);
     Task ReplyAsync(Guid accountId, string messageId, ComposeMessage message, CancellationToken cancellationToken);
     Task ReplyAllAsync(Guid accountId, string messageId, ComposeMessage message, CancellationToken cancellationToken);
     Task ForwardAsync(Guid accountId, string messageId, ComposeMessage message, CancellationToken cancellationToken);
@@ -18,6 +17,12 @@ public interface IMailProvider
     Task MoveToFolderAsync(Guid accountId, string messageId, string folderId, CancellationToken cancellationToken);
     Task EmptyFolderAsync(Guid accountId, string folderId, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<MailFolder>> GetFoldersAsync(Guid accountId, CancellationToken cancellationToken);
+}
+
+public interface IMailDraftProvider
+{
+    MailProviderType ProviderType { get; }
+    Task SaveDraftAsync(Guid accountId, string? replyToMessageId, ComposeMessage message, CancellationToken cancellationToken);
 }
 
 public interface IMailGateway
