@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Bold, ChevronDown, Italic, Link, List, ListOrdered, Mic, MicOff, Paperclip, Send, Sparkles, Underline, X } from 'lucide-react'
+import { ArrowLeft, Bold, ChevronDown, Italic, Link, List, ListOrdered, Mic, MicOff, Paperclip, Save, Send, Sparkles, Trash2, Underline, X } from 'lucide-react'
 import { AiWritingAssistant } from '../components/AiWritingAssistant'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { mailApi } from '../api/mailApi'
-import type { AiWritingSuggestion, MailMessage, OutgoingAttachment } from '../types/mail'
+import type { AiWritingSuggestion, ComposeMessage, MailMessage, OutgoingAttachment } from '../types/mail'
 import { sanitizeEmailHtml } from '../utils/sanitizeEmailHtml'
 
 type ComposeState = {
@@ -61,6 +62,7 @@ export function ComposePage() {
   const [dictationError, setDictationError] = useState('')
   const [composeReady, setComposeReady] = useState(Boolean(origin))
   const [manualCompose, setManualCompose] = useState(false)
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
   const editor = useRef<HTMLDivElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const recognition = useRef<SpeechRecognitionLike | null>(null)
@@ -72,17 +74,22 @@ export function ComposePage() {
   const showComposer = Boolean(origin) || composeReady || manualCompose
   const showReplyAssistant = Boolean(origin && state.mode && state.mode !== 'forward')
 
+  function buildPayload(): ComposeMessage {
+    if (!fromAccountId) throw new Error('Selecciona una cuenta desde la cual enviar o guardar el correo.')
+    return {
+      fromAccountId,
+      to: to.split(',').map(v => v.trim()).filter(Boolean),
+      cc: cc.split(',').map(v => v.trim()).filter(Boolean),
+      bcc: bcc.split(',').map(v => v.trim()).filter(Boolean),
+      subject,
+      htmlBody: body || '<p></p>',
+      attachments,
+    }
+  }
+
   const send = useMutation({
     mutationFn: () => {
-      const payload = {
-        fromAccountId,
-        to: to.split(',').map(v => v.trim()).filter(Boolean),
-        cc: cc.split(',').map(v => v.trim()).filter(Boolean),
-        bcc: bcc.split(',').map(v => v.trim()).filter(Boolean),
-        subject,
-        htmlBody: body || '<p></p>',
-        attachments,
-      }
+      const payload = buildPayload()
       if (origin && state.mode !== 'forward') return mailApi.reply(origin.accountId, origin.providerMessageId, payload, state.mode === 'replyAll')
       if (origin && state.mode === 'forward') return mailApi.forward(origin.accountId, origin.providerMessageId, payload)
       return mailApi.send(payload)
@@ -92,6 +99,19 @@ export function ComposePage() {
       void queryClient.invalidateQueries({ queryKey: ['control-center-activity'] })
       void queryClient.invalidateQueries({ queryKey: ['messages'] })
       navigate('/inbox', { state: { sent: true } })
+    },
+  })
+
+  const saveDraft = useMutation({
+    mutationFn: () => {
+      const payload = buildPayload()
+      const replyToMessageId = origin && state.mode !== 'forward' ? origin.providerMessageId : undefined
+      return mailApi.saveDraft(payload, replyToMessageId)
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['messages'] })
+      void queryClient.invalidateQueries({ queryKey: ['control-center'] })
+      navigate('/drafts', { state: { draftSaved: true } })
     },
   })
 
@@ -129,6 +149,11 @@ export function ComposePage() {
       return
     }
     navigate(-1)
+  }
+
+  function discardComposer() {
+    setConfirmDiscard(false)
+    closeComposer()
   }
 
   function appendDictation(text: string) {
@@ -183,6 +208,8 @@ export function ComposePage() {
     if (fileInput.current) fileInput.current.value = ''
   }
 
+  const composerBusy = send.isPending || saveDraft.isPending
+
   return <section className="compose-page"><div className={`compose-card ai-compose-card ${!showComposer ? 'ai-first-compose' : ''}`}>
     <header className="ai-compose-header">
       <div className="ai-compose-heading"><span className="ai-compose-mark"><Sparkles size={18} /></span><div><p className="eyebrow">Nexo IA</p><h1>{!origin && !showComposer ? 'Asistente de redacción' : origin ? action : 'Revisar y enviar'}</h1></div></div>
@@ -223,10 +250,18 @@ export function ComposePage() {
           <div className="outgoing-attachments">{attachments.map((file, index) => <span key={`${file.name}-${index}`}><Paperclip size={14} />{file.name}<button type="button" onClick={() => setAttachments(current => current.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Quitar ${file.name}`}><X size={14} /></button></span>)}</div>
           {attachmentError && <p className="attachment-error">{attachmentError}</p>}
           {send.isError && <p className="attachment-error">{send.error instanceof Error ? send.error.message : 'No se pudo enviar el correo.'}</p>}
+          {saveDraft.isError && <p className="attachment-error">{saveDraft.error instanceof Error ? saveDraft.error.message : 'No se pudo guardar el borrador.'}</p>}
         </section>
 
-        <footer className="ai-compose-footer"><input ref={fileInput} className="file-picker" type="file" multiple onChange={event => void addFiles(event.target.files)} /><button type="button" className="attachment-action" onClick={() => fileInput.current?.click()}><Paperclip size={17} /> Adjuntar</button><button className="primary-button" disabled={send.isPending}><Send size={16} /> {send.isPending ? 'Enviando…' : action}</button></footer>
+        <footer className="ai-compose-footer">
+          <div className="ai-compose-footer-left"><input ref={fileInput} className="file-picker" type="file" multiple onChange={event => void addFiles(event.target.files)} /><button type="button" className="attachment-action" disabled={composerBusy} onClick={() => fileInput.current?.click()}><Paperclip size={17} /> Adjuntar</button></div>
+          <div className="ai-compose-footer-actions">
+            <button type="button" className="secondary-button compose-discard-button" disabled={composerBusy} onClick={() => setConfirmDiscard(true)}><Trash2 size={15} /> Descartar</button>
+            <button type="button" className="secondary-button" disabled={composerBusy || !fromAccountId} onClick={() => { recognition.current?.stop(); saveDraft.mutate() }}><Save size={15} /> {saveDraft.isPending ? 'Guardando…' : 'Guardar borrador'}</button>
+            <button type="submit" className="primary-button" disabled={composerBusy}><Send size={16} /> {send.isPending ? 'Enviando…' : action}</button>
+          </div>
+        </footer>
       </section>}
     </form>
-  </div></section>
+  </div><ConfirmDialog open={confirmDiscard} title="Descartar cambios" message="Los cambios de este correo se perderán si no los guardas como borrador." confirmLabel="Descartar" tone="danger" pending={false} onCancel={() => setConfirmDiscard(false)} onConfirm={discardComposer} /></section>
 }
