@@ -101,7 +101,14 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
     }
   }
 
-  if (snapshot.isLoading) return <section className="control-center control-center-loading" aria-label="Cargando centro de control"><div className="reading-skeleton" /><div className="control-loading-grid">{Array.from({ length: 4 }, (_, index) => <div className="reading-skeleton" key={index} />)}</div></section>
+  if (snapshot.isLoading) return <section className="control-center control-center-loading" role="status" aria-live="polite" aria-label="Recuperando información del Centro de control">
+    <div className="control-loading-copy">
+      <span className="control-loading-icon" aria-hidden="true"><RefreshCw size={18} /></span>
+      <div><strong>Recuperando información</strong><span>Consultando actividad, pendientes y seguimiento de tus cuentas. La primera carga puede tardar unos segundos.</span></div>
+    </div>
+    <div className="control-loading-progress" aria-hidden="true"><span /></div>
+    <div className="control-loading-steps" aria-hidden="true"><span>Conectando cuentas</span><span>Procesando actividad</span><span>Preparando seguimiento</span></div>
+  </section>
 
   if (snapshot.isError || !snapshot.data) return <section className="control-center"><div className="control-center-header"><div><h2>Centro de control</h2><p>No fue posible cargar los indicadores.</p></div><button className="icon-button" onClick={() => snapshot.refetch()} aria-label="Reintentar centro de control"><RefreshCw size={17} /></button></div></section>
 
