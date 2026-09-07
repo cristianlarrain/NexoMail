@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { Archive, ArrowLeft, Ban, Check, ChevronLeft, ChevronRight, Download, EyeOff, FileText, Forward, Paperclip, Reply, ReplyAll, ShieldAlert, Trash2, Undo2, X } from 'lucide-react'
+import { Archive, ArrowLeft, Ban, Check, ChevronLeft, ChevronRight, Clock3, Download, EyeOff, FileText, Forward, Paperclip, Reply, ReplyAll, ShieldAlert, Trash2, Undo2, X } from 'lucide-react'
 import { AiWritingAssistant } from '../components/AiWritingAssistant'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { mailApi } from '../api/mailApi'
@@ -38,9 +38,18 @@ export function MessagePage() {
   const [confirmTrash, setConfirmTrash] = useState(false)
   const [trackingResolved, setTrackingResolved] = useState(false)
   const { data: message, isLoading } = useQuery({ queryKey: ['message', accountId, messageId], queryFn: () => mailApi.message(accountId, messageId), enabled: Boolean(accountId && messageId) })
+  const trackingState = useQuery({
+    queryKey: ['control-center-tracking-state', accountId, messageId],
+    queryFn: () => mailApi.controlCenterTrackingState(accountId, messageId),
+    enabled: Boolean(accountId && messageId && message && !['drafts', 'trash', 'spam'].includes(message.folderId)),
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
+  })
   const returnPath = navigationState?.returnTo ?? '/inbox'
   const openedFromIgnored = returnPath.startsWith('/ignored')
   const openedFromControlCenter = returnPath.startsWith('/control-center')
+  const openedManualTracking = controlCenterItem?.conversationId.startsWith('manual:') ?? false
 
   function removeMessageFromCachedLists() {
     queryClient.setQueriesData<InfiniteData<PagedResult<MailSummary>>>({ queryKey: ['messages'] }, current => current ? {
@@ -69,6 +78,11 @@ export function MessagePage() {
   function refreshControlCenter() {
     void queryClient.invalidateQueries({ queryKey: ['control-center'], refetchType: 'all' })
     void queryClient.invalidateQueries({ queryKey: ['control-center-activity'], refetchType: 'all' })
+  }
+
+  function refreshManualTracking() {
+    void queryClient.invalidateQueries({ queryKey: ['control-center-tracking'], refetchType: 'all' })
+    refreshControlCenter()
   }
 
   function finishMailboxMove(targetFolder: 'inbox' | 'archive' | 'spam' | 'trash') {
@@ -103,6 +117,20 @@ export function MessagePage() {
       void queryClient.invalidateQueries({ predicate: query => query.queryKey[0] === 'messages' && query.queryKey[2] === 'inbox', refetchType: 'all' })
       refreshControlCenter()
       navigate(returnPath)
+    },
+  })
+  const trackMessage = useMutation({
+    mutationFn: () => mailApi.trackMessage(accountId, messageId),
+    onSuccess: () => {
+      queryClient.setQueryData(['control-center-tracking-state', accountId, messageId], { isTracked: true })
+      refreshManualTracking()
+    },
+  })
+  const untrackMessage = useMutation({
+    mutationFn: () => mailApi.untrackMessage(accountId, messageId),
+    onSuccess: () => {
+      queryClient.setQueryData(['control-center-tracking-state', accountId, messageId], { isTracked: false })
+      refreshManualTracking()
     },
   })
   const resolveTracking = useMutation({
@@ -149,12 +177,14 @@ export function MessagePage() {
   const returnToPreviousView = () => navigationState?.returnTo ? navigate(navigationState.returnTo) : navigate(-1)
   const previewUrl = preview ? mailApi.attachmentUrl(accountId, messageId, preview) : ''
   const downloadUrl = preview ? mailApi.attachmentUrl(accountId, messageId, preview, true) : ''
-  const mailboxActionPending = move.isPending || ignore.isPending || unignore.isPending || trash.isPending || resolveTracking.isPending
+  const mailboxActionPending = move.isPending || ignore.isPending || unignore.isPending || trash.isPending || resolveTracking.isPending || trackMessage.isPending || untrackMessage.isPending
   const isDraft = message.folderId === 'drafts'
   const isArchived = message.folderId === 'archive'
   const canRestoreToInbox = isArchived || message.folderId === 'spam' || message.folderId === 'trash'
   const canArchive = !canRestoreToInbox && message.folderId !== 'sent' && message.folderId !== 'drafts'
   const canOrganize = message.folderId !== 'sent' && message.folderId !== 'drafts'
+  const canManualTrack = !['drafts', 'trash', 'spam'].includes(message.folderId)
+  const isManuallyTracked = trackingState.data?.isTracked ?? openedManualTracking
   const destructiveActionLabel = isDraft ? 'Descartar borrador' : 'Mover a Papelera'
   return <article className={`mail-view message-reader ${preview ? 'with-preview' : ''}`}>
     <section className="message-reading-pane">
@@ -170,14 +200,19 @@ export function MessagePage() {
         {canOrganize && (openedFromIgnored ? <button className="message-action-button" aria-label="Dejar de ignorar remitente" title="Dejar de ignorar remitente" disabled={mailboxActionPending} onClick={() => unignore.mutate()}><Undo2 size={16} /><span>Dejar de ignorar</span></button> : <button className="message-action-button" aria-label="Ignorar remitente" title="Ignorar remitente" disabled={mailboxActionPending} onClick={() => ignore.mutate()}><EyeOff size={16} /><span>Ignorar remitente</span></button>)}
         {canOrganize && message.folderId !== 'spam' && <button className="message-action-button" aria-label="Marcar como spam" title="Marcar como spam" disabled={mailboxActionPending} onClick={() => move.mutate('spam')}><ShieldAlert size={16} /><span>Spam</span></button>}
         {message.unsubscribeUrl && <a className="message-action-button" href={message.unsubscribeUrl} target="_blank" rel="noopener noreferrer" aria-label="Desuscribirse" title="Desuscribirse"><Ban size={16} /><span>Desuscribirse</span></a>}
-        {controlCenterItem && !trackingResolved && <><span className="message-action-separator" aria-hidden="true" /><button className="message-action-button" aria-label="Quitar de seguimiento" title={controlCenterItem.direction === 'received' ? 'Marcar como que no requiere respuesta' : 'Marcar como que no requiere seguimiento'} disabled={mailboxActionPending} onClick={() => resolveTracking.mutate()}><Check size={16} /><span>Quitar de seguimiento</span></button></>}
+        {canManualTrack && !controlCenterItem && <><span className="message-action-separator" aria-hidden="true" />{isManuallyTracked ? <button className="message-action-button" aria-label="Quitar seguimiento" title="Quitar este correo del seguimiento manual" disabled={mailboxActionPending} onClick={() => untrackMessage.mutate()}><Check size={16} /><span>Quitar seguimiento</span></button> : <button className="message-action-button" aria-label="Hacer seguimiento" title="Añadir este correo a Seguimiento prioritario" disabled={mailboxActionPending || trackingState.isLoading} onClick={() => trackMessage.mutate()}><Clock3 size={16} /><span>Hacer seguimiento</span></button>}</>}
+        {openedManualTracking && <><span className="message-action-separator" aria-hidden="true" /><button className="message-action-button" aria-label="Quitar seguimiento" title="Quitar este correo del seguimiento manual" disabled={mailboxActionPending} onClick={() => untrackMessage.mutate()}><Check size={16} /><span>Quitar seguimiento</span></button></>}
+        {controlCenterItem && !openedManualTracking && !trackingResolved && <><span className="message-action-separator" aria-hidden="true" /><button className="message-action-button" aria-label={controlCenterItem.direction === 'received' ? 'No requiere respuesta' : 'No requiere seguimiento'} title="Retirar esta conversación del seguimiento automático" disabled={mailboxActionPending} onClick={() => resolveTracking.mutate()}><Check size={16} /><span>{controlCenterItem.direction === 'received' ? 'No requiere respuesta' : 'No requiere seguimiento'}</span></button></>}
         <span className="message-action-separator" aria-hidden="true" />
         <button className="message-action-button danger-action" aria-label={destructiveActionLabel} title={destructiveActionLabel} disabled={mailboxActionPending} onClick={() => setConfirmTrash(true)}><Trash2 size={16} /><span>{destructiveActionLabel}</span></button>
       </div>
       <div className="message-meta"><div className="sender-avatar">{message.from.name.slice(0, 1)}</div><div><strong>{message.from.name}</strong><span>{message.from.address}</span><small>para {message.to.map(x => x.address).join(', ')} · {new Date(message.receivedAt).toLocaleString('es-CL')}</small></div></div>
 
-      {trackingResolved && <div className="success-notice">Correo quitado del seguimiento prioritario. El mensaje no fue movido ni eliminado.</div>}
-      {resolveTracking.isError && <div className="notice message-mailbox-error">{resolveTracking.error instanceof Error ? resolveTracking.error.message : 'No fue posible quitar el correo del seguimiento.'}</div>}
+      {trackMessage.isSuccess && <div className="success-notice">Correo añadido a Seguimiento prioritario.</div>}
+      {untrackMessage.isSuccess && <div className="success-notice">Seguimiento manual retirado. El correo no fue movido ni eliminado.</div>}
+      {trackingResolved && <div className="success-notice">Conversación retirada del seguimiento automático. El correo no fue movido ni eliminado.</div>}
+      {(trackMessage.isError || untrackMessage.isError) && <div className="notice message-mailbox-error">{(trackMessage.error ?? untrackMessage.error) instanceof Error ? (trackMessage.error ?? untrackMessage.error as Error).message : 'No fue posible actualizar el seguimiento manual.'}</div>}
+      {resolveTracking.isError && <div className="notice message-mailbox-error">{resolveTracking.error instanceof Error ? resolveTracking.error.message : 'No fue posible actualizar el seguimiento.'}</div>}
       {(move.isError || ignore.isError || unignore.isError) && <div className="notice message-mailbox-error">No fue posible completar la acción sobre este correo.</div>}
 
       {message.thread && message.thread.length > 1 ? <section className="thread-view"><h2>Conversación</h2>{message.thread.map(item => <article className={`thread-message ${item.isCurrent ? 'current' : ''}`} key={item.providerMessageId}><header><strong>{item.from.name}</strong><span>{item.from.address} · {new Date(item.receivedAt).toLocaleString('es-CL')}</span></header><div dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(item.htmlBody) }} /></article>)}</section> : <div className="message-body" dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(message.htmlBody) }} />}
