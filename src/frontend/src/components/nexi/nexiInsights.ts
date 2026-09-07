@@ -48,7 +48,9 @@ export function buildNexiInsights(data: ControlCenterSnapshot, manualTracking: C
     insights.push({
       id: 'tracking-total',
       title: 'Seguimiento consolidado',
-      description: `${priorityItems.length} ${plural(priorityItems.length, 'conversación forma', 'conversaciones forman')} su seguimiento prioritario al combinar detección automática y marcas manuales.`,
+      description: manualCount > 0
+        ? `${priorityItems.length} ${plural(priorityItems.length, 'conversación forma', 'conversaciones forman')} su seguimiento prioritario al combinar detección automática y marcas manuales.`
+        : `${priorityItems.length} ${plural(priorityItems.length, 'conversación forma', 'conversaciones forman')} el seguimiento prioritario detectado actualmente por NexoMail.`,
       priority: data.overdue > 0 ? 'high' : 'medium',
       action: 'tracking',
       actionLabel: 'Ver seguimiento',
