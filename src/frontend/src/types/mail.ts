@@ -64,3 +64,55 @@ export interface ControlCenterActivitySnapshot {
   unavailableAccounts: number
   generatedAt: string
 }
+
+export interface ContactAnalyticsItem {
+  email: string
+  name: string
+  accounts: string[]
+  sent: number
+  received: number
+  replies: number
+  awaiting: number
+  averageResponseMinutes: number | null
+  lastInteraction: string
+  subjects: string[]
+}
+export interface ContactAnalyticsSnapshot {
+  days: number
+  contacts: ContactAnalyticsItem[]
+  totalSent: number
+  totalReceived: number
+  totalReplies: number
+  totalAwaiting: number
+  averageResponseMinutes: number | null
+  indexedMessages: number
+  indexedAt?: string | null
+}
+export interface DocumentIndexItem {
+  accountId: string
+  accountName: string
+  messageId: string
+  attachmentId: string
+  fileName: string
+  contentType: string
+  size: number
+  documentType: string
+  receivedAt: string
+  senderName: string
+  senderAddress: string
+  subject: string
+  context: string
+}
+export interface DocumentIndexSnapshot {
+  items: DocumentIndexItem[]
+  total: number
+  hasMore: boolean
+  indexedMessages: number
+  indexedAt?: string | null
+}
+export interface MailMetadataSyncResult {
+  accounts: number
+  messagesIndexed: number
+  attachmentsIndexed: number
+  indexedAt: string
+}
