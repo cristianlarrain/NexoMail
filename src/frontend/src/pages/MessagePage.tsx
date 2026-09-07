@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Archive, ArrowLeft, Ban, Check, ChevronLeft, ChevronRight, Clock3, Download, EyeOff, FileText, Forward, Paperclip, Reply, ReplyAll, ShieldAlert, Trash2, Undo2, X } from 'lucide-react'
-import { AiWritingAssistant } from '../components/AiWritingAssistant'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { mailApi } from '../api/mailApi'
 import type { ControlCenterPendingItem, ControlCenterSnapshot, MailAttachment, MailSummary, PagedResult } from '../types/mail'
@@ -37,7 +36,15 @@ export function MessagePage() {
   const [preview, setPreview] = useState<MailAttachment | null>(null)
   const [confirmTrash, setConfirmTrash] = useState(false)
   const [trackingResolved, setTrackingResolved] = useState(false)
-  const { data: message, isLoading } = useQuery({ queryKey: ['message', accountId, messageId], queryFn: () => mailApi.message(accountId, messageId), enabled: Boolean(accountId && messageId) })
+  const { data: message, isLoading } = useQuery({
+    queryKey: ['message', accountId, messageId],
+    queryFn: () => mailApi.message(accountId, messageId),
+    enabled: Boolean(accountId && messageId),
+    staleTime: 10 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+  })
   const trackingState = useQuery({
     queryKey: ['control-center-tracking-state', accountId, messageId],
     queryFn: () => mailApi.controlCenterTrackingState(accountId, messageId),
@@ -168,10 +175,27 @@ export function MessagePage() {
 
   useEffect(() => { if (message && !message.isRead) read.mutate() }, [message])
   useEffect(() => { setPreview(null); setConfirmTrash(false); setTrackingResolved(false) }, [accountId, messageId])
+  useEffect(() => {
+    if (!message) return
+    for (const item of [previousMessage, nextMessage]) {
+      if (!item) continue
+      void queryClient.prefetchQuery({
+        queryKey: ['message', item.accountId, item.messageId],
+        queryFn: () => mailApi.message(item.accountId, item.messageId),
+        staleTime: 10 * 60_000,
+      })
+    }
+  }, [message, nextMessage?.accountId, nextMessage?.messageId, previousMessage?.accountId, previousMessage?.messageId, queryClient])
+
   if (isLoading || !message) return <section className="mail-view"><div className="reading-skeleton" /></section>
   const compose = (mode: 'reply' | 'replyAll' | 'forward', initialBody?: string) => navigate('/compose', { state: { mode, message, initialBody, returnTo: location.pathname, returnState: navigationState } })
   const goToMessage = (item: MessageNavigationItem | null) => {
     if (!item) return
+    void queryClient.prefetchQuery({
+      queryKey: ['message', item.accountId, item.messageId],
+      queryFn: () => mailApi.message(item.accountId, item.messageId),
+      staleTime: 10 * 60_000,
+    })
     navigate(`/message/${item.accountId}/${item.messageId}`, { state: navigationState })
   }
   const returnToPreviousView = () => navigationState?.returnTo ? navigate(navigationState.returnTo) : navigate(-1)
@@ -217,7 +241,6 @@ export function MessagePage() {
       {(move.isError || ignore.isError || unignore.isError) && <div className="notice message-mailbox-error">No fue posible completar la acción sobre este correo.</div>}
 
       {message.thread && message.thread.length > 1 ? <section className="thread-view"><h2>Conversación</h2>{message.thread.map(item => <article className={`thread-message ${item.isCurrent ? 'current' : ''}`} key={item.providerMessageId}><header><strong>{item.from.name}</strong><span>{item.from.address} · {new Date(item.receivedAt).toLocaleString('es-CL')}</span></header><div dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(item.htmlBody) }} /></article>)}</section> : <div className="message-body" dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(message.htmlBody) }} />}
-      {message.folderId !== 'sent' && <AiWritingAssistant mode="reply" accountId={accountId} messageId={messageId} onUse={suggestion => compose('reply', suggestion.text)} />}
       {message.attachments.length > 0 && <div className="attachments"><h2><Paperclip size={16} /> Adjuntos</h2><div className="attachment-list">{message.attachments.map(file => <div key={file.id} className={`attachment-card ${preview?.id === file.id ? 'selected' : ''}`}><button type="button" className="attachment-preview-button" onClick={() => setPreview(file)} title="Abrir vista previa"><Paperclip size={17} /><span><strong>{file.name}</strong><small>{Math.max(1, Math.round(file.size / 1000))} KB · Vista previa</small></span></button><a href={mailApi.attachmentUrl(accountId, messageId, file, true)} className="attachment-download" title={`Descargar ${file.name}`} aria-label={`Descargar ${file.name}`}><Download size={16} /></a></div>)}</div></div>}
       <div className="reply-bar message-action-footer"><button className="message-action-button primary-action" onClick={() => compose('reply')}><Reply size={16} /> Responder</button><button className="message-action-button" onClick={() => compose('replyAll')}><ReplyAll size={16} /> Responder a todos</button><button className="message-action-button" onClick={() => compose('forward')}><Forward size={16} /> Reenviar</button></div>
     </section>
