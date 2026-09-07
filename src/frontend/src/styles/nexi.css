@@ -150,10 +150,23 @@
   background: linear-gradient(135deg, var(--nexi-accent-soft), var(--surface) 58%);
   overflow: hidden;
 }
+.nexi-control-summary { margin-top: 0; }
 .nexi-insights-header { padding: 12px 14px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid color-mix(in srgb, var(--nexi-border) 70%, transparent); }
 .nexi-insights-header > div { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .nexi-insights-header strong { font-size: 13px; }
 .nexi-insights-header span { color: var(--muted-foreground); font-size: 10px; }
+.nexi-control-metrics { margin: 0; padding: 12px 12px 4px; }
+.nexi-control-metrics .control-metric { background: color-mix(in srgb, var(--surface) 97%, var(--nexi-accent)); }
+.nexi-findings-heading {
+  margin: 10px 12px 0;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--nexi-border) 58%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nexi-findings-heading strong { font-size: 12px; }
+.nexi-findings-heading span { color: var(--muted-foreground); font-size: 10px; }
 .nexi-insights-grid { padding: 10px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .nexi-insight-card { min-width: 0; min-height: 90px; border: 1px solid var(--border); border-radius: 9px; background: color-mix(in srgb, var(--surface) 96%, transparent); padding: 10px; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 8px; align-items: start; }
 .nexi-insight-card.high { border-color: color-mix(in srgb, var(--danger) 24%, var(--border)); }
