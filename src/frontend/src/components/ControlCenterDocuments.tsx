@@ -19,6 +19,9 @@ type DocumentRow = {
   attachment: MailAttachment
 }
 
+type FolderCursor = { inbox?: string; archive?: string }
+type FolderFinished = { inbox: boolean; archive: boolean }
+
 const DETAIL_BATCH = 5
 
 function documentType(attachment: MailAttachment) {
@@ -81,16 +84,16 @@ function rowsFromMessages(messages: MailMessage[]) {
       })
     }
   }
-  return rows.sort((left, right) => new Date(right.receivedAt).getTime() - new Date(left.receivedAt).getTime())
+  return rows
 }
 
 export function ControlCenterDocuments() {
   const navigate = useNavigate()
   const [documents, setDocuments] = useState<DocumentRow[]>([])
-  const [cursor, setCursor] = useState<string | undefined>()
+  const [cursors, setCursors] = useState<FolderCursor>({})
+  const [folderFinished, setFolderFinished] = useState<FolderFinished>({ inbox: false, archive: false })
   const [started, setStarted] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [finished, setFinished] = useState(false)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
@@ -100,18 +103,38 @@ export function ControlCenterDocuments() {
     setLoading(true)
     setError('')
     try {
-      const nextCursor = reset ? undefined : cursor
-      const page = await mailApi.messages(undefined, 'inbox', 'has:attachment', nextCursor)
-      const details = await loadDetails(page.items.filter(item => item.hasAttachments))
+      const currentFinished = reset ? { inbox: false, archive: false } : folderFinished
+      const currentCursors = reset ? {} : cursors
+      const [inboxPage, archivePage] = await Promise.all([
+        currentFinished.inbox ? Promise.resolve(null) : mailApi.messages(undefined, 'inbox', 'has:attachment', currentCursors.inbox),
+        currentFinished.archive ? Promise.resolve(null) : mailApi.messages(undefined, 'archive', 'has:attachment', currentCursors.archive),
+      ])
+
+      const summaries = [
+        ...(inboxPage?.items ?? []),
+        ...(archivePage?.items ?? []),
+      ]
+      const uniqueSummaries = [...new Map(summaries.map(item => [`${item.accountId}:${item.providerMessageId}`, item])).values()]
+      const details = await loadDetails(uniqueSummaries.filter(item => item.hasAttachments))
       const nextRows = rowsFromMessages(details)
+
       setDocuments(current => {
         const base = reset ? [] : current
         const map = new Map(base.map(item => [item.key, item]))
         nextRows.forEach(item => map.set(item.key, item))
         return [...map.values()].sort((left, right) => new Date(right.receivedAt).getTime() - new Date(left.receivedAt).getTime())
       })
-      setCursor(page.nextCursor)
-      setFinished(!page.nextCursor)
+
+      const nextCursors = {
+        inbox: inboxPage?.nextCursor,
+        archive: archivePage?.nextCursor,
+      }
+      const nextFinished = {
+        inbox: currentFinished.inbox || !inboxPage?.nextCursor,
+        archive: currentFinished.archive || !archivePage?.nextCursor,
+      }
+      setCursors(nextCursors)
+      setFolderFinished(nextFinished)
       setStarted(true)
     } catch (exception) {
       setError(exception instanceof Error ? exception.message : 'No fue posible consultar los documentos recibidos.')
@@ -132,17 +155,18 @@ export function ControlCenterDocuments() {
   }, [documents, search, typeFilter])
 
   const types = useMemo(() => [...new Set(documents.map(item => item.documentType))].sort((a, b) => a.localeCompare(b, 'es')), [documents])
+  const finished = folderFinished.inbox && folderFinished.archive
 
   if (!started) return <section className="documents-control documents-start">
     <FileText size={30} />
     <h2>Documentos recibidos</h2>
-    <p>Lista documentos adjuntos recibidos en sus cuentas: archivo, tipo, fecha de recepción, emisor y contexto del correo.</p>
+    <p>Lista documentos adjuntos recibidos en sus cuentas, incluidos correos archivados: archivo, tipo, fecha de recepción, emisor y contexto.</p>
     <button type="button" className="primary-button" onClick={() => void loadNext(true)} disabled={loading}>{loading ? 'Consultando…' : 'Consultar documentos'}</button>
   </section>
 
   return <section className="documents-control" aria-label="Documentos recibidos">
     <header className="documents-header">
-      <div><p className="eyebrow">Registro documental</p><h2>Documentos recibidos</h2><p>La fecha corresponde a la recepción del correo. La fecha interna contenida dentro de un PDF o Word podrá incorporarse posteriormente mediante análisis del documento.</p></div>
+      <div><p className="eyebrow">Registro documental</p><h2>Documentos recibidos</h2><p>Incluye Bandeja de entrada y Archivados. La fecha corresponde a la recepción del correo; la fecha interna escrita dentro de un PDF o Word requerirá análisis del contenido del documento.</p></div>
       <strong>{documents.length} documento{documents.length === 1 ? '' : 's'} cargado{documents.length === 1 ? '' : 's'}</strong>
     </header>
 
@@ -179,7 +203,7 @@ export function ControlCenterDocuments() {
 
     <div className="documents-more">
       {!finished && <button type="button" className="secondary-button" onClick={() => void loadNext()} disabled={loading}>{loading ? 'Cargando…' : 'Cargar más documentos'}</button>}
-      {finished && <span>Se alcanzó el final de los documentos disponibles en la bandeja de entrada.</span>}
+      {finished && <span>Se alcanzó el final de los documentos recibidos disponibles en Bandeja de entrada y Archivados.</span>}
     </div>
   </section>
 }
