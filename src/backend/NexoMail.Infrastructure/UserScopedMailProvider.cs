@@ -44,6 +44,12 @@ public sealed class UserScopedMailProvider(
         await inner.SendAsync(message, cancellationToken);
     }
 
+    public async Task SaveDraftAsync(Guid accountId, string? replyToMessageId, ComposeMessage message, CancellationToken cancellationToken)
+    {
+        await EnsureAccountAccessAsync(accountId, cancellationToken);
+        await inner.SaveDraftAsync(accountId, replyToMessageId, message with { FromAccountId = accountId }, cancellationToken);
+    }
+
     public async Task ReplyAsync(Guid accountId, string messageId, ComposeMessage message, CancellationToken cancellationToken)
     {
         await EnsureAccountAccessAsync(accountId, cancellationToken);
