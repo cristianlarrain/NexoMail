@@ -191,7 +191,7 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
         <header><div><strong>Seguimiento prioritario</strong><span>Automático: últimos 14 días · también incluye correos marcados manualmente</span></div></header>
         {priorityItems.length === 0 ? <div className="control-empty"><strong>Sin pendientes recientes</strong><span>No hay conversaciones que requieran seguimiento en este momento.</span></div> : <>
           <div className="priority-list">
-            {visiblePriorityItems.map(({ item, automatic, manual }) => <button type="button" className="priority-row" key={messageKey(item)} onClick={() => navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: controlCenterPath, controlCenterItem: item } })}>
+            {visiblePriorityItems.map(({ item, automatic, manual }) => <button type="button" className="priority-row" key={messageKey(item)} onClick={() => navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: controlCenterPath, controlCenterItem: item, manualTracking: manual } })}>
               <i className="account-dot" style={{ background: item.accountColor }} />
               <span className="priority-main"><span className={`priority-direction ${item.direction}`}>{item.direction === 'received' ? 'Responder' : 'Esperando'}</span><strong>{item.subject}</strong><small>{item.direction === 'received' ? 'De' : 'Para'}: {item.counterpart} · {manual && automatic ? 'Manual + automático' : manual ? 'Manual' : 'Automático'}</small></span>
               <span className="priority-age">{ageLabel(item.since)}<ChevronRight size={15} /></span>
