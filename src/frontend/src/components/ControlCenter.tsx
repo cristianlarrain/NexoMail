@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
 import type { ControlCenterPendingItem, ControlCenterSnapshot } from '../types/mail'
 import { ControlCenterActivity } from './ControlCenterActivity'
+import { NexiEmptyState } from './nexi/NexiEmptyState'
 import { NexiInsightCard } from './nexi/NexiInsightCard'
 import { NexiVisual } from './nexi/NexiVisual'
 import { buildNexiInsights, type NexiInsightAction } from './nexi/nexiInsights'
@@ -214,7 +215,7 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
     {activeView && activeCopy && <article className="control-management-panel">
       <header><div><p className="eyebrow">Gestión</p><strong>{activeCopy.title}</strong><span>{activeCopy.description}</span></div><button type="button" className="icon-button" onClick={() => { setActiveView(null); setSnoozeTarget(null) }} aria-label="Cerrar gestión"><X size={17} /></button></header>
       {actionError && <div className="notice control-management-error">{actionError}</div>}
-      {managementItems.length === 0 ? <div className="control-empty management-empty"><Check size={24} /><strong>Sin pendientes en esta vista</strong><span>No hay conversaciones que requieran gestión en este momento.</span></div> : <div className="management-list">
+      {managementItems.length === 0 ? <NexiEmptyState compact title="Sin pendientes en esta vista" description="Nexi no encontró conversaciones que requieran gestión en este momento." /> : <div className="management-list">
         {managementItems.map(item => {
           const key = itemKey(item)
           const pendingAction = manage.isPending || openingTarget === key
@@ -238,7 +239,7 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
 
       <article className="control-panel priority-panel">
         <header><div><strong>Seguimiento prioritario</strong><span>Automático: últimos 14 días · también incluye correos marcados manualmente</span></div></header>
-        {priorityItems.length === 0 ? <div className="control-empty"><strong>Sin pendientes recientes</strong><span>No hay conversaciones que requieran seguimiento en este momento.</span></div> : <>
+        {priorityItems.length === 0 ? <NexiEmptyState compact title="Todo al día" description="Nexi no encontró conversaciones pendientes ni correos marcados para seguimiento." /> : <>
           <div className="priority-list">
             {visiblePriorityItems.map(({ item, automatic, manual }) => <button type="button" className="priority-row" key={messageKey(item)} onClick={() => navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: controlCenterPath, controlCenterItem: item, manualTracking: manual } })}>
               <i className="account-dot" style={{ background: item.accountColor }} />
