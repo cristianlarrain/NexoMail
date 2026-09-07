@@ -214,6 +214,9 @@
 .nexi-empty-state { min-height: 250px; padding: 36px 20px; display: grid; justify-items: center; align-content: center; gap: 8px; text-align: center; color: var(--muted-foreground); }
 .nexi-empty-state > strong { color: var(--foreground); font-size: 15px; }
 .nexi-empty-state > span { max-width: 420px; font-size: 12px; line-height: 1.5; }
+.nexi-empty-state.compact { min-height: 140px; padding: 20px 16px; gap: 6px; }
+.nexi-empty-state.compact > strong { font-size: 13px; }
+.nexi-empty-state.compact > span { max-width: 360px; font-size: 10px; }
 .nexi-empty-action { margin-top: 6px; }
 
 /* Keep the existing back-to-top action clear of the Nexi launcher. */
