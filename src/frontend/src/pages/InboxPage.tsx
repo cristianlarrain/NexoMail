@@ -60,6 +60,40 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
     } : current)
   }
 
+  function removeSendersFromCurrentList(itemsToRemove: MailSummary[]) {
+    const senders = new Set(itemsToRemove.map(item => `${item.accountId}:${item.senderAddress.trim().toLowerCase()}`))
+    queryClient.setQueryData<InfiniteData<PagedResult<MailSummary>>>(['messages', accountId, folder, search], current => current ? {
+      ...current,
+      pages: current.pages.map(page => ({
+        ...page,
+        items: page.items.filter(item => !senders.has(`${item.accountId}:${item.senderAddress.trim().toLowerCase()}`)),
+      })),
+    } : current)
+  }
+
+  function markCurrentItemsRead(itemsToMark: MailSummary[]) {
+    const marked = new Set(itemsToMark.map(itemKey))
+    queryClient.setQueryData<InfiniteData<PagedResult<MailSummary>>>(['messages', accountId, folder, search], current => current ? {
+      ...current,
+      pages: current.pages.map(page => ({
+        ...page,
+        items: page.items.map(item => marked.has(itemKey(item)) ? { ...item, isRead: true } : item),
+      })),
+    } : current)
+  }
+
+  function refreshFolder(folderId: string) {
+    void queryClient.invalidateQueries({
+      predicate: query => query.queryKey[0] === 'messages' && query.queryKey[2] === folderId,
+      refetchType: 'all',
+    })
+  }
+
+  function refreshControlCenter() {
+    void queryClient.invalidateQueries({ queryKey: ['control-center'], refetchType: 'all' })
+    void queryClient.invalidateQueries({ queryKey: ['control-center-activity'], refetchType: 'all' })
+  }
+
   const refreshMailbox = useMutation({
     mutationFn: mailApi.refreshMail,
     onSuccess: async () => { await messagesQuery.refetch() },
@@ -67,7 +101,16 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
 
   const emptyTrash = useMutation({
     mutationFn: () => mailApi.emptyFolder('trash', accountId),
-    onSuccess: () => { setConfirmation(null); queryClient.invalidateQueries({ queryKey: ['messages'] }); void messagesQuery.refetch() },
+    onSuccess: () => {
+      queryClient.setQueryData<InfiniteData<PagedResult<MailSummary>>>(['messages', accountId, folder, search], current => current ? {
+        ...current,
+        pages: current.pages.map(page => ({ ...page, items: [] })),
+      } : current)
+      setConfirmation(null)
+      setSelected(new Set())
+      void queryClient.invalidateQueries({ queryKey: ['messages'], refetchType: 'none' })
+      refreshControlCenter()
+    },
   })
 
   const moveMessages = useMutation({
@@ -80,9 +123,8 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
       setOpenActionMenu(null)
       setSelected(new Set())
       void queryClient.invalidateQueries({ queryKey: ['messages'], refetchType: 'none' })
-      void queryClient.invalidateQueries({ queryKey: ['control-center'] })
-      void queryClient.invalidateQueries({ queryKey: ['control-center-activity'] })
-      window.setTimeout(() => { void messagesQuery.refetch() }, 300)
+      refreshFolder(variables.target)
+      refreshControlCenter()
     },
   })
 
@@ -92,12 +134,13 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
       items.forEach(item => unique.set(`${item.accountId}:${item.senderAddress.trim().toLowerCase()}`, item))
       await Promise.all([...unique.values()].map(item => mailApi.ignoreSender(item.accountId, item.senderAddress)))
     },
-    onSuccess: () => {
+    onSuccess: (_data, items) => {
+      if (folder === 'inbox') removeSendersFromCurrentList(items)
       setOpenActionMenu(null)
       setSelected(new Set())
-      void queryClient.invalidateQueries({ queryKey: ['messages'] })
-      void queryClient.invalidateQueries({ queryKey: ['control-center'] })
-      void messagesQuery.refetch()
+      void queryClient.invalidateQueries({ queryKey: ['messages'], refetchType: 'none' })
+      refreshFolder('ignored')
+      refreshControlCenter()
     },
   })
 
@@ -107,12 +150,13 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
       items.forEach(item => unique.set(`${item.accountId}:${item.senderAddress.trim().toLowerCase()}`, item))
       await Promise.all([...unique.values()].map(item => mailApi.unignoreSender(item.accountId, item.senderAddress)))
     },
-    onSuccess: () => {
+    onSuccess: (_data, items) => {
+      if (folder === 'ignored') removeSendersFromCurrentList(items)
       setOpenActionMenu(null)
       setSelected(new Set())
-      void queryClient.invalidateQueries({ queryKey: ['messages'] })
-      void queryClient.invalidateQueries({ queryKey: ['control-center'] })
-      void messagesQuery.refetch()
+      void queryClient.invalidateQueries({ queryKey: ['messages'], refetchType: 'none' })
+      refreshFolder('inbox')
+      refreshControlCenter()
     },
   })
 
@@ -120,11 +164,12 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
     mutationFn: async (items: MailSummary[]) => {
       await Promise.all(items.filter(item => !item.isRead).map(item => mailApi.read(item.accountId, item.providerMessageId, true)))
     },
-    onSuccess: () => {
+    onSuccess: (_data, items) => {
+      if (isUnreadView) removeFromCurrentList(items)
+      else markCurrentItemsRead(items)
       setSelected(new Set())
-      void queryClient.invalidateQueries({ queryKey: ['messages'] })
-      void queryClient.invalidateQueries({ queryKey: ['control-center'] })
-      void messagesQuery.refetch()
+      void queryClient.invalidateQueries({ queryKey: ['messages'], refetchType: 'none' })
+      refreshControlCenter()
     },
   })
 
@@ -177,11 +222,11 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
   const navigationItems = sortedItems.map(item => ({ accountId: item.accountId, messageId: item.providerMessageId }))
   const returnTo = `${location.pathname}${location.search}`
   const confirmDetails = confirmation?.kind === 'emptyTrash'
-    ? { title: 'Vaciar Papelera', message: 'Esta acción intenta eliminar permanentemente todos los correos de la Papelera.', label: 'Vaciar Papelera', tone: 'danger' as const }
+    ? { title: 'Vaciar Papelera', message: 'Esta acción eliminará permanentemente todos los correos de la Papelera.', label: 'Vaciar Papelera', tone: 'danger' as const }
     : folder === 'drafts'
       ? confirmation?.kind === 'trashOne'
-        ? { title: 'Descartar borrador', message: 'Este borrador se eliminará definitivamente de Gmail. Esta acción no se puede deshacer.', label: 'Descartar borrador', tone: 'danger' as const }
-        : { title: 'Descartar borradores', message: `Se eliminarán definitivamente ${selectedItems.length} borrador${selectedItems.length === 1 ? '' : 'es'} de Gmail. Esta acción no se puede deshacer.`, label: 'Descartar borradores', tone: 'danger' as const }
+        ? { title: 'Descartar borrador', message: 'Este borrador se eliminará definitivamente. Esta acción no se puede deshacer.', label: 'Descartar borrador', tone: 'danger' as const }
+        : { title: 'Descartar borradores', message: `Se eliminarán definitivamente ${selectedItems.length} borrador${selectedItems.length === 1 ? '' : 'es'}. Esta acción no se puede deshacer.`, label: 'Descartar borradores', tone: 'danger' as const }
       : confirmation?.kind === 'trashOne'
         ? { title: 'Mover correo a Papelera', message: 'El correo dejará de aparecer en esta bandeja y podrá restaurarse desde Papelera.', label: 'Mover a Papelera', tone: 'danger' as const }
         : { title: 'Mover correos a Papelera', message: `Se moverán ${selectedItems.length} correo${selectedItems.length === 1 ? '' : 's'} a Papelera.`, label: 'Mover a Papelera', tone: 'danger' as const }
@@ -223,13 +268,18 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
 
   const actionPending = moveMessages.isPending || ignoreSenders.isPending || unignoreSenders.isPending || markReadMessages.isPending
   const confirmationPending = confirmation?.kind === 'emptyTrash' ? emptyTrash.isPending : moveMessages.isPending
+  const moveSuccess = moveMessages.isSuccess ? moveMessages.variables : null
 
   return <section className="mail-view">
-    <div className="view-header"><div><h1>{pageTitle}</h1><p className="view-context">{contextLabel}</p></div><div className="view-actions">{folder === 'trash' && <button className="secondary-button danger-button" disabled={emptyTrash.isPending} onClick={() => setConfirmation({ kind: 'emptyTrash' })}><Trash2 size={16} /> {emptyTrash.isPending ? 'Vaciando…' : 'Vaciar papelera'}</button>}<button className="icon-button" disabled={refreshMailbox.isPending} onClick={refreshAll} aria-label="Actualizar mensajes" title="Actualizar"><RefreshCw size={18} className={refreshMailbox.isPending ? 'spin' : ''} /></button></div></div>
+    <div className="view-header"><div><h1>{pageTitle}</h1><p className="view-context">{contextLabel}</p></div><div className="view-actions">{folder === 'trash' && <button className="secondary-button danger-button" disabled={emptyTrash.isPending} onClick={() => setConfirmation({ kind: 'emptyTrash' })}><Trash2 size={16} /> {emptyTrash.isPending ? 'Vaciando…' : 'Vaciar Papelera'}</button>}<button className="icon-button" disabled={refreshMailbox.isPending} onClick={refreshAll} aria-label="Actualizar mensajes" title="Actualizar"><RefreshCw size={18} className={refreshMailbox.isPending ? 'spin' : ''} /></button></div></div>
 
     {(location.state as { sent?: boolean; trashed?: boolean } | null)?.sent && <div className="success-notice">Correo enviado correctamente.</div>}
     {(location.state as { trashed?: boolean } | null)?.trashed && <div className="success-notice">Correo movido a Papelera.</div>}
-    {folder === 'drafts' && moveMessages.isSuccess && moveMessages.variables?.target === 'trash' && <div className="success-notice">{moveMessages.variables.items.length === 1 ? 'Borrador descartado correctamente.' : 'Borradores descartados correctamente.'}</div>}
+    {folder === 'drafts' && moveSuccess?.target === 'trash' && <div className="success-notice">{moveSuccess.items.length === 1 ? 'Borrador descartado correctamente.' : `${moveSuccess.items.length} borradores descartados correctamente.`}</div>}
+    {folder !== 'drafts' && moveSuccess?.target === 'archive' && <div className="success-notice">{moveSuccess.items.length === 1 ? 'Correo archivado correctamente.' : `${moveSuccess.items.length} correos archivados correctamente.`}</div>}
+    {folder !== 'drafts' && moveSuccess?.target === 'inbox' && <div className="success-notice">{moveSuccess.items.length === 1 ? 'Correo restaurado a Bandeja de entrada.' : `${moveSuccess.items.length} correos restaurados a Bandeja de entrada.`}</div>}
+    {folder !== 'drafts' && moveSuccess?.target === 'spam' && <div className="success-notice">{moveSuccess.items.length === 1 ? 'Correo marcado como spam.' : `${moveSuccess.items.length} correos marcados como spam.`}</div>}
+    {folder !== 'drafts' && moveSuccess?.target === 'trash' && <div className="success-notice">{moveSuccess.items.length === 1 ? 'Correo movido a Papelera.' : `${moveSuccess.items.length} correos movidos a Papelera.`}</div>}
     {ignoreSenders.isSuccess && <div className="success-notice">Remitente ignorado. Sus correos permanecen disponibles en Ignorados.</div>}
     {unignoreSenders.isSuccess && <div className="success-notice">El remitente volvió a la Bandeja de entrada.</div>}
     {emptyTrash.isSuccess && <div className="success-notice">Papelera vaciada permanentemente.</div>}
@@ -238,9 +288,9 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
     {ignoreSenders.isError && <div className="notice">{ignoreSenders.error instanceof Error ? ignoreSenders.error.message : 'No se pudo ignorar el remitente.'}</div>}
     {unignoreSenders.isError && <div className="notice">{unignoreSenders.error instanceof Error ? unignoreSenders.error.message : 'No se pudo restaurar el remitente.'}</div>}
     {markReadMessages.isError && <div className="notice">{markReadMessages.error instanceof Error ? markReadMessages.error.message : 'No se pudieron marcar los correos como leídos.'}</div>}
-    {refreshMailbox.isError && <div className="notice">No fue posible actualizar la bandeja. Los datos almacenados siguen disponibles y puede reintentar.</div>}
+    {refreshMailbox.isError && <div className="notice">No fue posible actualizar la bandeja. Los datos disponibles siguen visibles y puede reintentar.</div>}
 
-    {selected.size > 0 && <div className="bulk-actions"><strong>{selected.size} seleccionado{selected.size === 1 ? '' : 's'}</strong>{folder === 'drafts' ? <button className="secondary-button danger-button" onClick={() => setConfirmation({ kind: 'trashSelected' })} disabled={actionPending}><Trash2 size={15} /> Descartar borrador{selectedItems.length === 1 ? '' : 'es'}</button> : <>{selectedUnreadItems.length > 0 && <button className="secondary-button" onClick={() => markReadMessages.mutate(selectedUnreadItems)} disabled={actionPending}><MailOpen size={15} /> Marcar como leído{selectedUnreadItems.length === 1 ? '' : 's'}</button>}{folder !== 'archive' && folder !== 'trash' && <button className="secondary-button" onClick={() => moveMessages.mutate({ items: selectedItems, target: 'archive' })} disabled={actionPending}><Archive size={15} /> Archivar</button>}{folder === 'ignored' ? <button className="secondary-button" onClick={() => unignoreSenders.mutate(selectedItems)} disabled={actionPending}><Undo2 size={15} /> Dejar de ignorar</button> : folder !== 'trash' && <button className="secondary-button" onClick={() => ignoreSenders.mutate(selectedItems)} disabled={actionPending}><EyeOff size={15} /> Ignorar remitente</button>}{folder === 'archive' || folder === 'spam' || folder === 'trash' ? <button className="secondary-button" onClick={() => moveMessages.mutate({ items: selectedItems, target: 'inbox' })} disabled={actionPending}><Undo2 size={15} /> Restaurar a Bandeja</button> : null}{folder !== 'trash' && <button className="secondary-button" onClick={() => setConfirmation({ kind: 'trashSelected' })} disabled={actionPending}><Trash2 size={15} /> Papelera</button>}</>}<button className="icon-button" onClick={() => setSelected(new Set())} aria-label="Cancelar selección"><X size={17} /></button></div>}
+    {selected.size > 0 && <div className="bulk-actions"><strong>{selected.size} seleccionado{selected.size === 1 ? '' : 's'}</strong>{folder === 'drafts' ? <button className="secondary-button danger-button" onClick={() => setConfirmation({ kind: 'trashSelected' })} disabled={actionPending}><Trash2 size={15} /> Descartar borrador{selectedItems.length === 1 ? '' : 'es'}</button> : <>{selectedUnreadItems.length > 0 && <button className="secondary-button" onClick={() => markReadMessages.mutate(selectedUnreadItems)} disabled={actionPending}><MailOpen size={15} /> Marcar como leído{selectedUnreadItems.length === 1 ? '' : 's'}</button>}{folder !== 'archive' && folder !== 'trash' && <button className="secondary-button" onClick={() => moveMessages.mutate({ items: selectedItems, target: 'archive' })} disabled={actionPending}><Archive size={15} /> Archivar</button>}{folder === 'ignored' ? <button className="secondary-button" onClick={() => unignoreSenders.mutate(selectedItems)} disabled={actionPending}><Undo2 size={15} /> Dejar de ignorar</button> : folder !== 'trash' && <button className="secondary-button" onClick={() => ignoreSenders.mutate(selectedItems)} disabled={actionPending}><EyeOff size={15} /> Ignorar remitente</button>}{folder === 'archive' || folder === 'spam' || folder === 'trash' ? <button className="secondary-button" onClick={() => moveMessages.mutate({ items: selectedItems, target: 'inbox' })} disabled={actionPending}><Undo2 size={15} /> Restaurar a Bandeja</button> : null}{folder !== 'trash' && <button className="secondary-button" onClick={() => setConfirmation({ kind: 'trashSelected' })} disabled={actionPending}><Trash2 size={15} /> Mover a Papelera</button>}</>}<button className="icon-button" onClick={() => setSelected(new Set())} aria-label="Cancelar selección"><X size={17} /></button></div>}
 
     {isUnreadView && selected.size === 0 && items.length > 0 && <div className="unread-management-hint"><MailOpen size={16} /><span>Seleccione varios correos o use el checkbox superior para marcarlos como leídos en una sola acción.</span></div>}
 
