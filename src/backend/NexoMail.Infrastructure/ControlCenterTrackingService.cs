@@ -87,10 +87,13 @@ public sealed class ControlCenterTrackingService(
                 && x.ConversationId.StartsWith(ManualPrefix));
         if (accountId.HasValue) stateQuery = stateQuery.Where(x => x.AccountId == accountId.Value);
 
-        var states = await stateQuery
+        // SQLite cannot translate ORDER BY over DateTimeOffset. Materialize the small
+        // metadata set first, then order and cap it safely in memory.
+        var stateRows = await stateQuery.ToArrayAsync(cancellationToken);
+        var states = stateRows
             .OrderByDescending(x => x.UpdatedAt)
             .Take(MaximumTrackedItems)
-            .ToArrayAsync(cancellationToken);
+            .ToArray();
         if (states.Length == 0) return [];
 
         var accountIds = states.Select(x => x.AccountId).Distinct().ToArray();
