@@ -53,10 +53,10 @@ function normalizeSubject(value: string) {
   return value.replace(/^\s*((re|rv|fw|fwd)\s*:\s*)+/i, '').trim() || '(sin asunto)'
 }
 
-function isAutomatedAddress(value: string) {
+function isNonPersonalAddress(value: string) {
   const email = normalizeEmail(value)
-  const local = email.split('@')[0] ?? ''
-  return /^(no[-_.]?reply|do[-_.]?not[-_.]?reply|mailer[-_.]?daemon|postmaster|newsletter|notifications?|alerts?|marketing|news)([-_.+].*)?$/i.test(local)
+  const local = (email.split('@')[0] ?? '').replace(/[._-]+/g, '')
+  return /^(noreply|donotreply|mailerdaemon|postmaster|newsletter|notifications?|alerts?|marketing|news|info|contacto|contact|soporte|support|ventas|sales|administracion|administrativo|admin|secretaria|recepcion|office|comunicaciones|communications|rrhh|recursoshumanos|facturacion|billing|cobranza|webmaster)$/i.test(local)
 }
 
 function addSubject(contact: ContactAccumulator, subject: string, at: number) {
@@ -136,7 +136,7 @@ async function buildSnapshot(days: 30 | 90): Promise<ContactsSnapshot> {
     const ownEmail = normalizeEmail(account.emailAddress)
     const recipients = message.to
       .map(recipient => ({ name: recipient.name, email: normalizeEmail(recipient.address) }))
-      .filter(recipient => recipient.email.includes('@') && !ownAddresses.has(recipient.email))
+      .filter(recipient => recipient.email.includes('@') && !ownAddresses.has(recipient.email) && !isNonPersonalAddress(recipient.email))
 
     for (const recipient of recipients) {
       let contact = contacts.get(recipient.email)
@@ -173,7 +173,7 @@ async function buildSnapshot(days: 30 | 90): Promise<ContactsSnapshot> {
 
   for (const item of inboxPage.items) {
     const email = normalizeEmail(item.senderAddress)
-    if (!email || ownAddresses.has(email) || isAutomatedAddress(email)) continue
+    if (!email || ownAddresses.has(email) || isNonPersonalAddress(email)) continue
     const contact = contacts.get(email)
     if (!contact) continue
     contact.received++
@@ -204,10 +204,7 @@ async function buildSnapshot(days: 30 | 90): Promise<ContactsSnapshot> {
     }))
     .sort((left, right) => right.sent - left.sent || right.received - left.received)
 
-  const allResponseMinutes = values.flatMap(contact => {
-    const source = contacts.get(contact.email)
-    return source?.responseMinutes ?? []
-  })
+  const allResponseMinutes = values.flatMap(contact => contacts.get(contact.email)?.responseMinutes ?? [])
 
   return {
     days,
@@ -267,7 +264,7 @@ export function ControlCenterContacts() {
   const data = query.data
   return <section className="contact-control" aria-label="Estadísticas de contactos">
     <header className="contact-control-header">
-      <div><p className="eyebrow">Interacción real</p><h2>Contactos</h2><p>Personas y direcciones con las que usted ha enviado correos. Se excluyen remitentes sin intercambio saliente y direcciones automáticas o informativas.</p></div>
+      <div><p className="eyebrow">Interacción real</p><h2>Contactos</h2><p>Personas con las que usted mantiene intercambio de correo. Se excluyen avisos, newsletters y direcciones genéricas o automáticas.</p></div>
       <div className="contact-period" aria-label="Período de análisis">
         <button type="button" className={days === 30 ? 'active' : ''} onClick={() => setDays(30)}>30 días</button>
         <button type="button" className={days === 90 ? 'active' : ''} onClick={() => setDays(90)}>90 días</button>
@@ -276,43 +273,47 @@ export function ControlCenterContacts() {
 
     <div className="contact-summary-grid">
       <article><Users size={18} /><div><strong>{data.contacts.length}</strong><span>Contactos activos</span></div></article>
-      <article><Send size={18} /><div><strong>{data.totalSent}</strong><span>Correos enviados</span></div></article>
-      <article><MessageSquareReply size={18} /><div><strong>{data.totalReplies}</strong><span>Respuestas recibidas</span></div></article>
-      <article><Mail size={18} /><div><strong>{data.totalAwaiting}</strong><span>Esperando respuesta</span></div></article>
-      <article><Clock3 size={18} /><div><strong>{responseTimeLabel(data.averageResponseMinutes)}</strong><span>Tiempo medio de respuesta</span></div></article>
+      <article><Send size={18} /><div><strong>{data.totalSent}</strong><span>Enviados</span></div></article>
+      <article><MessageSquareReply size={18} /><div><strong>{data.totalReplies}</strong><span>Respuestas</span></div></article>
+      <article><Mail size={18} /><div><strong>{data.totalAwaiting}</strong><span>Sin respuesta</span></div></article>
+      <article><Clock3 size={18} /><div><strong>{responseTimeLabel(data.averageResponseMinutes)}</strong><span>Tiempo medio</span></div></article>
     </div>
 
-    {data.truncated && <div className="notice contact-limit-notice">El volumen del período es alto. Para mantener un rendimiento razonable, esta vista analiza las páginas más recientes disponibles del período seleccionado.</div>}
+    {data.truncated && <div className="notice contact-limit-notice">El volumen del período es alto; se analizaron las interacciones más recientes disponibles.</div>}
 
     <div className="contact-toolbar">
-      <label className="contact-search"><Search size={15} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar contacto o asunto" /></label>
+      <label className="contact-search"><Search size={15} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar persona, correo o asunto" /></label>
       <select value={sort} onChange={event => setSort(event.target.value as typeof sort)} aria-label="Ordenar contactos">
-        <option value="sent">Más correos enviados</option>
-        <option value="awaiting">Más respuestas pendientes</option>
-        <option value="response">Menor tiempo de respuesta</option>
-        <option value="recent">Interacción más reciente</option>
+        <option value="sent">Más interacción</option>
+        <option value="awaiting">Más pendientes</option>
+        <option value="response">Respuesta más rápida</option>
+        <option value="recent">Más reciente</option>
       </select>
     </div>
 
-    <div className="contact-table-wrap">
-      <table className="contact-table">
-        <thead><tr><th>Contacto</th><th>Cuenta</th><th>Enviados</th><th>Recibidos</th><th>Respuestas</th><th>Sin respuesta</th><th>Tiempo resp.</th><th>Última interacción</th><th>Asuntos frecuentes</th></tr></thead>
-        <tbody>
-          {filtered.map(contact => <tr key={contact.email} onDoubleClick={() => navigate(`/inbox?q=${encodeURIComponent(contact.email)}`)}>
-            <td><button type="button" className="contact-name-button" onClick={() => navigate(`/inbox?q=${encodeURIComponent(contact.email)}`)}><strong>{contact.name}</strong><span>{contact.email}</span></button></td>
-            <td><span className="contact-account-list">{contact.accounts.join(', ')}</span></td>
-            <td className="contact-number">{contact.sent}</td>
-            <td className="contact-number">{contact.received}</td>
-            <td className="contact-number positive">{contact.replies}</td>
-            <td className={`contact-number ${contact.awaiting > 0 ? 'attention' : ''}`}>{contact.awaiting}</td>
-            <td>{responseTimeLabel(contact.averageResponseMinutes)}</td>
-            <td>{lastInteractionLabel(contact.lastInteraction)}</td>
-            <td><div className="contact-subjects">{contact.subjects.map(subject => <span key={subject} title={subject}>{subject}</span>)}</div></td>
-          </tr>)}
-          {filtered.length === 0 && <tr><td colSpan={9}><div className="contact-empty">No hay contactos que coincidan con el filtro.</div></td></tr>}
-        </tbody>
-      </table>
+    <div className="contact-list">
+      {filtered.map(contact => <article className="contact-row-card" key={contact.email}>
+        <button type="button" className="contact-identity" onClick={() => navigate(`/inbox?q=${encodeURIComponent(contact.email)}`)}>
+          <span className="contact-avatar">{(contact.name || contact.email).trim().charAt(0).toUpperCase()}</span>
+          <span className="contact-identity-copy"><strong>{contact.name}</strong><small>{contact.email}</small><em>{contact.accounts.join(' · ')}</em></span>
+        </button>
+
+        <div className="contact-row-metrics" aria-label={`Estadísticas de ${contact.name}`}>
+          <span><small>Enviados</small><strong>{contact.sent}</strong></span>
+          <span><small>Recibidos</small><strong>{contact.received}</strong></span>
+          <span><small>Respuestas</small><strong className="positive">{contact.replies}</strong></span>
+          <span><small>Sin respuesta</small><strong className={contact.awaiting > 0 ? 'attention' : ''}>{contact.awaiting}</strong></span>
+          <span><small>Tiempo medio</small><strong>{responseTimeLabel(contact.averageResponseMinutes)}</strong></span>
+        </div>
+
+        <div className="contact-row-detail">
+          <div className="contact-subjects"><small>Asuntos</small><div>{contact.subjects.length > 0 ? contact.subjects.map(subject => <span key={subject} title={subject}>{subject}</span>) : <span>Sin asuntos destacados</span>}</div></div>
+          <div className="contact-last"><small>Última interacción</small><strong>{lastInteractionLabel(contact.lastInteraction)}</strong></div>
+        </div>
+      </article>)}
+      {filtered.length === 0 && <div className="contact-empty">No hay contactos que coincidan con el filtro.</div>}
     </div>
-    <p className="contact-footnote">“Sin respuesta” considera conversaciones cuyo último intercambio detectado corresponde a un mensaje enviado por usted. El tiempo medio se calcula desde el último envío hasta la siguiente respuesta del contacto dentro del mismo hilo.</p>
+
+    <p className="contact-footnote">“Sin respuesta” indica conversaciones cuyo último intercambio detectado fue enviado por usted. El tiempo medio se calcula hasta la siguiente respuesta del mismo contacto dentro del hilo.</p>
   </section>
 }
