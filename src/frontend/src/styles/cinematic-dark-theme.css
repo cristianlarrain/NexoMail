@@ -20,6 +20,12 @@
   color-scheme: dark;
 }
 
+/* Light mode always keeps the regular NexoMail palette, including Control Center. */
+:root:not([data-theme="dark"]) .control-center-cinematic {
+  color: inherit;
+  background: transparent;
+}
+
 :root[data-theme="dark"] body {
   background:
     radial-gradient(circle at 78% -12%, rgb(53 200 232 / .055), transparent 30%),
@@ -120,17 +126,18 @@
   color: var(--foreground);
 }
 
-:root[data-theme="dark"] .theme-preview.dark {
+/* Settings preview must represent the actual dark palette regardless of active mode. */
+.theme-preview.dark {
   background: #071116;
   border-color: #1d4756;
 }
 
-:root[data-theme="dark"] .theme-preview.dark span,
-:root[data-theme="dark"] .theme-preview.dark b {
+.theme-preview.dark span,
+.theme-preview.dark b {
   background: #0c1a21;
 }
 
-:root[data-theme="dark"] .theme-preview.dark i {
+.theme-preview.dark i {
   background: #35c8e8;
 }
 
