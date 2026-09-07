@@ -1,45 +1,69 @@
 .message-list-header,
 .message-row {
-  grid-template-columns: 24px 16px 180px minmax(0, 1fr) 22px 84px 68px;
+  grid-template-columns: 24px 14px 172px minmax(0, 1fr) 20px 76px 60px;
 }
 
 .message-list {
   overflow: visible;
 }
 
-/* Denser mailbox rhythm: more messages visible without turning the list into a cramped table. */
+/* Compact mailbox rhythm: intentionally closer to a modern mail client list than a card list. */
 .message-list-header {
-  min-height: 34px;
-  padding-inline: 12px;
+  min-height: 30px;
+  height: 30px;
+  padding: 0 10px;
+  gap: 8px;
+  box-sizing: border-box;
 }
 
 .message-row {
   position: relative;
-  min-height: 48px;
-  padding-inline: 12px;
-  font-size: 13px;
+  min-height: 40px;
+  height: 40px;
+  padding: 0 10px !important;
+  gap: 8px;
+  align-items: center;
+  box-sizing: border-box;
+  font-size: 12px;
+  line-height: 1.1;
 }
 
-.message-row .sender,
+.message-row .sender {
+  font-size: 12px;
+  line-height: 1.1;
+}
+
 .message-row .subject {
-  line-height: 1.25;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.1;
 }
 
-.message-row time {
+.message-row .subject > span {
   font-size: 11px;
 }
 
+.message-row time {
+  font-size: 10px;
+}
+
 .message-row .row-check {
-  height: 30px;
+  height: 26px;
+}
+
+.message-row .row-check input {
+  width: 14px;
+  height: 14px;
 }
 
 .inbox-skeleton-list .skeleton-row {
-  height: 48px;
-  padding-inline: 12px;
+  height: 40px;
+  min-height: 40px;
+  padding-inline: 10px;
 }
 
 .row-mail-actions {
-  min-width: 64px;
+  min-width: 56px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -47,12 +71,12 @@
 }
 
 .row-mail-action {
-  width: 27px;
-  height: 27px;
+  width: 24px;
+  height: 24px;
   display: grid;
   place-items: center;
   border: 0;
-  border-radius: 7px;
+  border-radius: 6px;
   background: transparent;
   color: var(--muted-foreground);
 }
@@ -107,6 +131,36 @@
   color: var(--danger);
 }
 
+.priority-filter-button {
+  min-height: 34px;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.priority-filter-button.active {
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+  background: color-mix(in srgb, var(--primary) 9%, var(--surface));
+  color: var(--primary);
+}
+
+.priority-filter-button .priority-count {
+  min-width: 20px;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+  padding-inline: 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+  font-size: 10px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.priority-filter-button.active .priority-count {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
 .message-mailbox-actions {
   display: flex;
   align-items: center;
@@ -153,17 +207,24 @@
 @media (max-width: 820px) {
   .message-list-header,
   .message-row {
-    grid-template-columns: 24px 12px 140px minmax(0, 1fr) 20px 68px 64px;
+    grid-template-columns: 24px 10px 132px minmax(0, 1fr) 18px 62px 58px;
+    gap: 7px;
   }
 }
 
 @media (max-width: 620px) {
   .message-row {
-    min-height: 52px;
+    min-height: 44px;
+    height: 44px;
+  }
+
+  .inbox-skeleton-list .skeleton-row {
+    min-height: 44px;
+    height: 44px;
   }
 
   .row-mail-actions {
-    min-width: 60px;
+    min-width: 54px;
   }
 
   .row-action-menu {
@@ -172,5 +233,9 @@
 
   .message-mailbox-actions {
     align-items: stretch;
+  }
+
+  .priority-filter-button span:not(.priority-count) {
+    display: none;
   }
 }
