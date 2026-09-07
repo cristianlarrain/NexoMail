@@ -67,29 +67,119 @@
   white-space: nowrap;
 }
 
-/* Evita los grandes bloques skeleton que se veían detrás del encabezado.
-   Mientras Gmail prepara el dashboard sólo se reserva una franja discreta. */
 .control-center-loading {
-  min-height: 48px;
-  margin: 0 0 12px;
-  padding: 0 14px;
-  display: flex;
-  align-items: center;
+  min-height: 132px;
+  margin: 2px 0 18px;
+  padding: 20px 22px 17px;
+  display: block;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--surface);
   box-shadow: var(--shadow);
 }
 
-.control-center-loading > .reading-skeleton:first-child {
-  width: min(260px, 55%);
-  height: 12px;
-  border-radius: 999px;
+.control-loading-copy {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
 }
 
-.control-center-loading .control-loading-grid {
-  display: none;
+.control-loading-copy > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.control-loading-copy strong {
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.control-loading-copy span {
+  max-width: 680px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.control-loading-icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--primary) 9%, var(--surface));
+  color: var(--primary);
+}
+
+.control-loading-icon svg {
+  animation: control-loading-spin 1.15s linear infinite;
+}
+
+.control-loading-progress {
+  position: relative;
+  height: 4px;
+  margin: 17px 0 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 58%, transparent);
+}
+
+.control-loading-progress span {
+  position: absolute;
+  inset-block: 0;
+  left: -28%;
+  width: 34%;
+  border-radius: inherit;
+  background: var(--primary);
+  animation: control-loading-progress 1.45s ease-in-out infinite;
+}
+
+.control-loading-steps {
+  display: flex;
+  align-items: center;
+  gap: 8px 18px;
+  color: var(--muted-foreground);
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: .01em;
+}
+
+.control-loading-steps span {
+  position: relative;
+  padding-left: 10px;
+}
+
+.control-loading-steps span::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--primary) 58%, var(--border));
+  transform: translateY(-50%);
+}
+
+@keyframes control-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes control-loading-progress {
+  0% { left: -34%; width: 28%; }
+  48% { width: 42%; }
+  100% { left: 106%; width: 28%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .control-loading-icon svg,
+  .control-loading-progress span {
+    animation-duration: 3s;
+  }
 }
 
 @media (max-width: 620px) {
@@ -108,11 +198,21 @@
   }
 
   .control-center-loading {
-    min-height: 44px;
-    padding-inline: 12px;
+    min-height: 126px;
+    padding: 17px 16px 15px;
   }
 
-  .control-center-loading > .reading-skeleton:first-child {
-    width: 72%;
+  .control-loading-copy strong {
+    font-size: 12px;
+  }
+
+  .control-loading-copy span {
+    font-size: 10px;
+  }
+
+  .control-loading-steps {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
   }
 }
