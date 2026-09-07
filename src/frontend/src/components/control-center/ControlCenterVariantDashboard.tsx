@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Activity, Bot, CircleAlert, Clock3, Inbox, Mail, Radio, Send, Users } from 'lucide-react'
 import { mailApi } from '../../api/mailApi'
-import type { ControlCenterAccountActivity, ControlCenterPendingItem, ControlCenterSnapshot } from '../../types/mail'
+import type { ControlCenterAccountActivity, ControlCenterDay, ControlCenterPendingItem, ControlCenterSnapshot } from '../../types/mail'
 import { NexiVisual } from '../nexi/NexiVisual'
 import { buildNexiInsights, type NexiInsightAction } from '../nexi/nexiInsights'
 import { AccountSummary, ActivityChart, FollowUpTimeline, InsightCard, MetricCard, PendingEmails, RecentActivity, totals, type DashboardPriorityItem } from './DashboardParts'
@@ -81,7 +81,7 @@ function ResponseTimePanel({ pending }: { pending: ControlCenterPendingItem[] })
 }
 
 function TrafficPanel({ activity, accounts, latest, generatedAt }: {
-  activity: ControlCenterPendingItem[] extends never[] ? never : import('../../types/mail').ControlCenterDay[]
+  activity: ControlCenterDay[]
   accounts: ControlCenterAccountActivity[]
   latest?: DashboardPriorityItem
   generatedAt: string
