@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { Check, RefreshCw, Sparkles } from 'lucide-react'
+import { RefreshCw, Sparkles } from 'lucide-react'
 import { mailApi } from '../api/mailApi'
 import type { AiTone, AiWritingSuggestion } from '../types/mail'
 
@@ -28,7 +28,7 @@ const tones: Array<{ value: AiTone; label: string }> = [
 
 const intents: Intent[] = [
   { value: 'mejorar', label: 'Mejorar', instruction: 'Mejora la redacción conservando exactamente el sentido y los hechos del usuario.' },
-  { value: 'informar', label: 'Informar', instruction: 'Redacta el mensaje para informar de manera clara y ordenada.' },
+  { value: 'informar', label: 'Informar', instruction: 'Redacta el mensaje para informar de manera clara, ordenada y natural.' },
   { value: 'solicitar', label: 'Solicitar', instruction: 'Redacta el mensaje para formular una solicitud concreta y fácil de responder.' },
   { value: 'responder', label: 'Responder', instruction: 'Redacta una respuesta pertinente al correo original y a lo que el usuario quiere expresar.' },
   { value: 'aclarar', label: 'Aclarar', instruction: 'Redacta el mensaje para aclarar o precisar el punto del usuario.' },
@@ -38,72 +38,86 @@ const intents: Intent[] = [
 function plainText(html: string) {
   if (!html.trim()) return ''
   const documentValue = new DOMParser().parseFromString(html, 'text/html')
-  return (documentValue.body.textContent ?? '').replace(/\u00a0/g, ' ').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim()
+  return (documentValue.body.textContent ?? '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 }
 
 export function AiInlineWritingAssistant({ currentHtml, recipient, accountId, messageId, onUse }: Props) {
+  const isReplyContext = Boolean(accountId && messageId)
   const [tone, setTone] = useState<AiTone>('profesional')
-  const [intent, setIntent] = useState('mejorar')
-  const [instruction, setInstruction] = useState('')
-  const [suggestion, setSuggestion] = useState<AiWritingSuggestion | null>(null)
+  const [intent, setIntent] = useState(isReplyContext ? 'responder' : 'mejorar')
+  const [generated, setGenerated] = useState(false)
 
   const currentText = useMemo(() => plainText(currentHtml), [currentHtml])
   const selectedIntent = intents.find(option => option.value === intent) ?? intents[0]
-  const hasInput = Boolean(currentText || instruction.trim())
-  const isReplyContext = Boolean(accountId && messageId)
+  const selectedTone = tones.find(option => option.value === tone) ?? tones[0]
+  const canGenerate = Boolean(currentText || isReplyContext)
 
   const generate = useMutation({
     mutationFn: async () => {
       const parts = [selectedIntent.instruction]
-      if (instruction.trim()) parts.push(`Lo que el usuario quiere expresar:\n${instruction.trim()}`)
-      if (currentText) parts.push(`Texto actual del usuario. Reescríbelo y mejóralo; no agregues hechos, fechas, nombres ni compromisos que no estén aquí:\n${currentText}`)
-      parts.push('Devuelve una versión lista para enviar, natural y sin explicaciones sobre el proceso de edición.')
+      if (currentText) {
+        parts.push(`Texto actual del usuario. Reescríbelo y mejóralo sin cambiar los hechos, nombres, fechas ni compromisos:\n${currentText}`)
+      } else if (isReplyContext) {
+        parts.push('El usuario todavía no escribió un borrador. Propón una respuesta completa a partir del correo original, sin inventar información que no esté en la conversación.')
+      }
+      parts.push('Devuelve únicamente una versión lista para enviar, sin explicar el proceso de edición.')
       const context = parts.join('\n\n')
 
       return isReplyContext
         ? mailApi.aiReply(accountId!, messageId!, tone, context)
         : mailApi.aiDraft(context, tone, recipient)
     },
-    onSuccess: result => setSuggestion(result),
+    onSuccess: result => {
+      setGenerated(true)
+      onUse(result)
+    },
   })
 
-  return <section className="ai-inline-writing" aria-label="Redactar con Nexo IA">
-    <header className="ai-inline-header">
-      <div><span className="ai-inline-mark"><Sparkles size={14} /></span><div><strong>Redactar con IA</strong><small>{currentText ? 'Mejora o reescribe lo que ya tienes.' : 'Indica qué quieres expresar y Nexo IA preparará una propuesta.'}</small></div></div>
-      <span className="ai-inline-context">{isReplyContext ? 'Usa el correo original como contexto' : 'Correo nuevo'}</span>
-    </header>
+  const generateLabel = generate.isPending
+    ? generated ? 'Regenerando…' : 'Generando…'
+    : generated
+      ? isReplyContext ? 'Regenerar respuesta' : 'Regenerar texto'
+      : currentText
+        ? isReplyContext ? 'Mejorar respuesta' : 'Mejorar texto'
+        : isReplyContext ? 'Generar respuesta' : 'Generar texto'
 
-    <div className="ai-inline-controls">
-      <label className="ai-inline-instruction">
-        <span>¿Qué quieres expresar?</span>
-        <textarea value={instruction} maxLength={3500} onChange={event => setInstruction(event.target.value)} placeholder={currentText ? 'Opcional: indica qué quieres cambiar, enfatizar o agregar sin perder el sentido.' : 'Ej.: informar que estaré con licencia esta semana y que enviaré los contenidos para avanzar en clases.'} />
-      </label>
+  return <section className="ai-inline-writing" aria-label="Opciones de redacción con Nexo IA">
+    <div className="ai-inline-choice-strip">
+      <fieldset className="ai-inline-radio-group">
+        <legend>Objetivo</legend>
+        <div>
+          {intents.map(option => <label key={option.value} className={intent === option.value ? 'active' : ''} title={option.instruction}>
+            <input type="radio" name="ai-writing-intent" value={option.value} checked={intent === option.value} onChange={() => setIntent(option.value)} />
+            <span>{option.label}</span>
+          </label>)}
+        </div>
+      </fieldset>
 
-      <div className="ai-inline-option-row">
-        <span>Objetivo</span>
-        <div>{intents.map(option => <button type="button" key={option.value} className={intent === option.value ? 'active' : ''} onClick={() => setIntent(option.value)}>{option.label}</button>)}</div>
-      </div>
-
-      <div className="ai-inline-option-row">
-        <span>Tono</span>
-        <div>{tones.map(option => <button type="button" key={option.value} className={tone === option.value ? 'active' : ''} onClick={() => setTone(option.value)}>{option.label}</button>)}</div>
-      </div>
-
-      {generate.isError && <div className="ai-inline-error">{generate.error instanceof Error ? generate.error.message : 'No fue posible generar la propuesta.'}</div>}
-
-      <div className="ai-inline-generate">
-        <small>{selectedIntent.label} · {tones.find(option => option.value === tone)?.label}</small>
-        <button type="button" className="primary-button" disabled={!hasInput || generate.isPending} onClick={() => generate.mutate()}><Sparkles size={14} /> {generate.isPending ? 'Generando…' : currentText ? 'Proponer versión mejorada' : 'Redactar propuesta'}</button>
-      </div>
+      <fieldset className="ai-inline-radio-group ai-inline-tone-group">
+        <legend>Tono</legend>
+        <div>
+          {tones.map(option => <label key={option.value} className={tone === option.value ? 'active' : ''}>
+            <input type="radio" name="ai-writing-tone" value={option.value} checked={tone === option.value} onChange={() => setTone(option.value)} />
+            <span>{option.label}</span>
+          </label>)}
+        </div>
+      </fieldset>
     </div>
 
-    {suggestion && <div className="ai-inline-result">
-      <div className="ai-inline-result-heading"><div><span>Propuesta de Nexo IA</span><strong>Revísala antes de usarla</strong></div><small>Puedes editar esta propuesta directamente.</small></div>
-      <textarea value={suggestion.text} onChange={event => setSuggestion(current => current ? { ...current, text: event.target.value } : current)} />
-      <div className="ai-inline-result-actions">
-        <button type="button" className="secondary-button" disabled={generate.isPending} onClick={() => generate.mutate()}><RefreshCw size={14} /> {generate.isPending ? 'Regenerando…' : 'Regenerar'}</button>
-        <button type="button" className="primary-button" disabled={!suggestion.text.trim()} onClick={() => onUse(suggestion)}><Check size={14} /> Usar propuesta</button>
+    <div className="ai-inline-generation-row">
+      <div className="ai-inline-generation-copy">
+        <Sparkles size={13} />
+        <span>Nexo IA · {selectedIntent.label} · {selectedTone.label}</span>
+        {generate.isError && <em>{generate.error instanceof Error ? generate.error.message : 'No fue posible generar la propuesta.'}</em>}
       </div>
-    </div>}
+      <button type="button" className="primary-button ai-inline-generation-button" disabled={!canGenerate || generate.isPending} onClick={() => generate.mutate()}>
+        {generated ? <RefreshCw size={14} /> : <Sparkles size={14} />}
+        {generateLabel}
+      </button>
+    </div>
   </section>
 }
