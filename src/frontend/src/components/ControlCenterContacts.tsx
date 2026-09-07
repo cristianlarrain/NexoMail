@@ -38,7 +38,7 @@ export function ControlCenterContacts() {
   })
 
   const sync = useMutation({
-    mutationFn: () => mailApi.syncMetadataIndex(90, 120),
+    mutationFn: (limitPerAccount: number) => mailApi.syncMetadataIndex(90, limitPerAccount),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['control-center-contacts-index'] }),
@@ -50,7 +50,7 @@ export function ControlCenterContacts() {
   useEffect(() => {
     if (!query.data || query.data.indexedMessages > 0 || initialSyncAttempted.current || sync.isPending) return
     initialSyncAttempted.current = true
-    sync.mutate()
+    sync.mutate(50)
   }, [query.data, sync])
 
   const filtered = useMemo(() => {
@@ -79,7 +79,7 @@ export function ControlCenterContacts() {
       </div>
     </header>
 
-    {firstIndex && sync.isPending && <div className="notice contact-limit-notice">Creando el índice inicial de metadatos. Esta operación ocurre una sola vez; después la pestaña abrirá desde SQLite.</div>}
+    {firstIndex && sync.isPending && <div className="notice contact-limit-notice">Creando un índice inicial liviano. Esta operación ocurre una sola vez; después la pestaña abrirá desde SQLite.</div>}
     {sync.isError && <div className="notice contact-limit-notice">No fue posible actualizar el índice. Los datos ya indexados siguen disponibles.</div>}
 
     <div className="contact-summary-grid">
@@ -95,7 +95,7 @@ export function ControlCenterContacts() {
       <select value={sort} onChange={event => setSort(event.target.value as typeof sort)} aria-label="Ordenar contactos">
         <option value="sent">Más interacción</option><option value="awaiting">Más pendientes</option><option value="response">Respuesta más rápida</option><option value="recent">Más reciente</option>
       </select>
-      <button type="button" className="secondary-button compact-action" disabled={sync.isPending} onClick={() => sync.mutate()}><RefreshCw size={14} className={sync.isPending ? 'spin' : ''} /> {sync.isPending ? 'Actualizando…' : 'Actualizar índice'}</button>
+      <button type="button" className="secondary-button compact-action" disabled={sync.isPending} onClick={() => sync.mutate(120)}><RefreshCw size={14} className={sync.isPending ? 'spin' : ''} /> {sync.isPending ? 'Actualizando…' : 'Actualizar índice'}</button>
     </div>
 
     <div className="contact-list">
