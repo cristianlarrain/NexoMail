@@ -1,10 +1,13 @@
 import { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Clock3, Inbox, Mail, Send, Sparkles, X } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Check, Clock3, Inbox, Mail, Reply, Send, Sparkles, X } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { mailApi } from '../../api/mailApi'
+import type { ControlCenterPendingItem } from '../../types/mail'
 import { NexiVisual } from './NexiVisual'
 import { buildNexiInsights, type NexiInsightAction } from './nexiInsights'
+
+type PriorityDisplayItem = { item: ControlCenterPendingItem; automatic: boolean; manual: boolean }
 
 function messageKey(accountId: string, messageId: string) {
   return `${accountId}:${messageId}`
@@ -33,6 +36,7 @@ function viewContext(pathname: string) {
 export function NexiAssistantPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate()
   const location = useLocation()
+  const queryClient = useQueryClient()
   const context = viewContext(location.pathname)
   const routeMessage = messageRoute(location.pathname)
 
@@ -58,43 +62,57 @@ export function NexiAssistantPanel({ open, onClose }: { open: boolean; onClose: 
     refetchOnWindowFocus: false,
   })
 
-  const complementary = useMemo(() => {
-    const keys = new Set<string>()
-    const items = new Map<string, { since: string }>()
-    snapshot.data?.pendingItems.forEach(item => {
-      const key = messageKey(item.accountId, item.messageId)
-      keys.add(key)
-      items.set(key, item)
-    })
+  const priorityItems = useMemo(() => {
+    const merged = new Map<string, PriorityDisplayItem>()
+    snapshot.data?.pendingItems.forEach(item => merged.set(messageKey(item.accountId, item.messageId), { item, automatic: true, manual: false }))
     tracking.data?.forEach(item => {
       const key = messageKey(item.accountId, item.messageId)
-      keys.add(key)
-      items.set(key, item)
+      const current = merged.get(key)
+      if (current) merged.set(key, { ...current, manual: true })
+      else merged.set(key, { item, automatic: false, manual: true })
     })
+    return [...merged.values()].sort((left, right) => new Date(left.item.since).getTime() - new Date(right.item.since).getTime())
+  }, [snapshot.data?.pendingItems, tracking.data])
 
+  const complementary = useMemo(() => {
     const manualCount = new Set((tracking.data ?? []).map(item => messageKey(item.accountId, item.messageId))).size
     const accountsWithPending = snapshot.data?.accounts.filter(account => account.receivedWithoutReply + account.sentWithoutResponse > 0).length ?? 0
-    const oldest = [...items.values()].sort((left, right) => new Date(left.since).getTime() - new Date(right.since).getTime())[0]
-
     return {
-      priorityCount: keys.size,
+      priorityCount: priorityItems.length,
       manualCount,
       accountsWithPending,
-      oldestAge: ageLabel(oldest?.since),
+      oldestAge: ageLabel(priorityItems[0]?.item.since),
     }
-  }, [snapshot.data?.accounts, snapshot.data?.pendingItems, tracking.data])
+  }, [priorityItems, snapshot.data?.accounts, tracking.data])
 
   const currentPending = routeMessage
     ? snapshot.data?.pendingItems.find(item => item.accountId === routeMessage.accountId && item.messageId === routeMessage.messageId)
     : undefined
-  const currentTracked = routeMessage
-    ? (tracking.data ?? []).some(item => item.accountId === routeMessage.accountId && item.messageId === routeMessage.messageId)
-    : false
+  const currentPriority = routeMessage
+    ? priorityItems.find(value => value.item.accountId === routeMessage.accountId && value.item.messageId === routeMessage.messageId)
+    : undefined
+  const currentTracked = currentPriority?.manual ?? false
   const currentAccount = routeMessage
     ? snapshot.data?.accounts.find(account => account.accountId === routeMessage.accountId)
     : undefined
-
+  const canManualTrackCurrent = Boolean(currentMessage.data && !['drafts', 'trash', 'spam'].includes(currentMessage.data.folderId))
+  const oldestPriority = priorityItems[0]
   const insights = snapshot.data ? buildNexiInsights(snapshot.data, tracking.data ?? [], context === 'control-center' ? 3 : 2) : []
+
+  const trackingMutation = useMutation({
+    mutationFn: async () => {
+      if (!routeMessage) throw new Error('No hay un correo activo para actualizar el seguimiento.')
+      if (currentTracked) await mailApi.untrackMessage(routeMessage.accountId, routeMessage.messageId)
+      else await mailApi.trackMessage(routeMessage.accountId, routeMessage.messageId)
+    },
+    onSuccess: async () => {
+      if (routeMessage) queryClient.setQueryData(['control-center-tracking-state', routeMessage.accountId, routeMessage.messageId], { isTracked: !currentTracked })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['control-center-tracking'], refetchType: 'all' }),
+        queryClient.invalidateQueries({ queryKey: ['control-center'], refetchType: 'all' }),
+      ])
+    },
+  })
 
   function go(path: string) {
     onClose()
@@ -103,7 +121,34 @@ export function NexiAssistantPanel({ open, onClose }: { open: boolean; onClose: 
 
   function goInsight(action?: NexiInsightAction) {
     if (action === 'unread') go(`/inbox?q=${encodeURIComponent('is:unread')}`)
-    else go('/inbox?tracking=priority')
+    else if (action === 'tracking') go('/inbox?priority=1')
+    else go('/control-center')
+  }
+
+  function openPriority(value?: PriorityDisplayItem) {
+    if (!value) return
+    const returnTo = `${location.pathname}${location.search}`
+    onClose()
+    navigate(`/message/${encodeURIComponent(value.item.accountId)}/${encodeURIComponent(value.item.messageId)}`, {
+      state: {
+        returnTo,
+        controlCenterItem: value.item,
+        manualTracking: value.manual,
+      },
+    })
+  }
+
+  function openCurrentComposer(mode: 'reply' | 'followUp') {
+    if (!currentMessage.data) return
+    onClose()
+    navigate('/compose', {
+      state: {
+        mode,
+        message: currentMessage.data,
+        returnTo: location.pathname,
+        returnState: location.state,
+      },
+    })
   }
 
   return <>
@@ -137,9 +182,13 @@ export function NexiAssistantPanel({ open, onClose }: { open: boolean; onClose: 
           </section>
 
           <section className="nexi-panel-actions">
-            <strong>Acciones según este correo</strong>
-            {(currentPending || currentTracked) && <button type="button" onClick={() => go('/inbox?tracking=priority')}>Ver en seguimiento prioritario</button>}
+            <strong>Acciones sobre este correo</strong>
+            {currentPending?.direction === 'received' && <button type="button" className="nexi-action-primary" disabled={!currentMessage.data} onClick={() => openCurrentComposer('reply')}><span><Reply size={14} /> Responder</span></button>}
+            {currentPending?.direction === 'sent' && <button type="button" className="nexi-action-primary" disabled={!currentMessage.data} onClick={() => openCurrentComposer('followUp')}><span><Send size={14} /> Hacer seguimiento</span></button>}
+            {canManualTrackCurrent && <button type="button" disabled={trackingMutation.isPending} onClick={() => trackingMutation.mutate()}><span>{currentTracked ? <Check size={14} /> : <Clock3 size={14} />} {currentTracked ? 'Quitar seguimiento manual' : 'Marcar para seguimiento'}</span></button>}
+            {(currentPending || currentTracked) && <button type="button" onClick={() => go('/inbox?priority=1')}>Ver en seguimiento prioritario</button>}
             <button type="button" onClick={() => go('/control-center')}>Abrir Centro de control</button>
+            {trackingMutation.isError && <div className="notice">{trackingMutation.error instanceof Error ? trackingMutation.error.message : 'No fue posible actualizar el seguimiento.'}</div>}
             <button type="button" disabled title="Disponible en una etapa posterior">Resumir este correo <small>Próximamente</small></button>
             <button type="button" disabled title="Disponible en una etapa posterior">Sugerir respuesta <small>Próximamente</small></button>
           </section>
@@ -155,8 +204,9 @@ export function NexiAssistantPanel({ open, onClose }: { open: boolean; onClose: 
             </div>
           </section>
           <section className="nexi-panel-actions">
-            <strong>Accesos desde esta vista</strong>
-            <button type="button" onClick={() => go('/inbox?tracking=priority')}>Abrir seguimiento prioritario</button>
+            <strong>Acciones desde esta vista</strong>
+            {oldestPriority && <button type="button" className="nexi-action-primary" onClick={() => openPriority(oldestPriority)}>Abrir pendiente más antiguo <small>{ageLabel(oldestPriority.item.since)}</small></button>}
+            <button type="button" onClick={() => go('/inbox?priority=1')}>Abrir seguimiento prioritario <small>{priorityItems.length}</small></button>
             <button type="button" onClick={() => go('/inbox')}>Volver a Bandeja de entrada</button>
           </section>
         </>}
@@ -165,10 +215,10 @@ export function NexiAssistantPanel({ open, onClose }: { open: boolean; onClose: 
           <section className="nexi-context-block">
             <div className="nexi-section-heading"><Inbox size={15} /><div><strong>Contexto de la bandeja</strong><span>Resumen operativo del seguimiento entre sus cuentas.</span></div></div>
             <section className="nexi-panel-summary" aria-label="Información complementaria de la bandeja">
-              <button type="button" onClick={() => go('/inbox?tracking=priority')}><Inbox size={16} /><span><b>{complementary.priorityCount}</b>Seguimiento total</span></button>
-              <button type="button" onClick={() => go('/inbox?tracking=priority')}><Send size={16} /><span><b>{complementary.manualCount}</b>Marcados manual</span></button>
+              <button type="button" onClick={() => go('/inbox?priority=1')}><Inbox size={16} /><span><b>{complementary.priorityCount}</b>Seguimiento total</span></button>
+              <button type="button" onClick={() => go('/inbox?priority=1')}><Send size={16} /><span><b>{complementary.manualCount}</b>Marcados manual</span></button>
               <button type="button" onClick={() => go('/control-center')}><Mail size={16} /><span><b>{complementary.accountsWithPending}</b>Cuentas con pendientes</span></button>
-              <button type="button" onClick={() => go('/inbox?tracking=priority')}><Clock3 size={16} /><span><b>{complementary.oldestAge}</b>Más antiguo</span></button>
+              <button type="button" onClick={() => openPriority(oldestPriority)} disabled={!oldestPriority}><Clock3 size={16} /><span><b>{complementary.oldestAge}</b>Más antiguo</span></button>
             </section>
           </section>
 
@@ -178,6 +228,13 @@ export function NexiAssistantPanel({ open, onClose }: { open: boolean; onClose: 
               ? <button type="button" key={insight.id} className="nexi-priority-callout" onClick={() => goInsight(insight.action)}><span><strong>{insight.title}</strong><br />{insight.description}</span></button>
               : <div key={insight.id} className="nexi-priority-clear"><strong>{insight.title}</strong><br />{insight.description}</div>)}
           </section>
+
+          <section className="nexi-panel-actions">
+            <strong>Acciones rápidas</strong>
+            {oldestPriority && <button type="button" className="nexi-action-primary" onClick={() => openPriority(oldestPriority)}>Abrir pendiente más antiguo <small>{ageLabel(oldestPriority.item.since)}</small></button>}
+            <button type="button" onClick={() => go('/inbox?priority=1')}>Revisar seguimiento prioritario <small>{priorityItems.length}</small></button>
+            <button type="button" onClick={() => go(`/inbox?q=${encodeURIComponent('is:unread')}`)}>Revisar correos sin leer <small>{snapshot.data.unread}</small></button>
+          </section>
         </>}
 
         {snapshot.data && context === 'general' && <>
@@ -186,7 +243,8 @@ export function NexiAssistantPanel({ open, onClose }: { open: boolean; onClose: 
           </section>
           <section className="nexi-panel-actions">
             <strong>Accesos rápidos</strong>
-            <button type="button" onClick={() => go('/inbox?tracking=priority')}>Revisar seguimientos</button>
+            {oldestPriority && <button type="button" className="nexi-action-primary" onClick={() => openPriority(oldestPriority)}>Abrir pendiente más antiguo <small>{ageLabel(oldestPriority.item.since)}</small></button>}
+            <button type="button" onClick={() => go('/inbox?priority=1')}>Revisar seguimientos <small>{priorityItems.length}</small></button>
             <button type="button" onClick={() => go('/control-center')}>Abrir Centro de control</button>
           </section>
         </>}
