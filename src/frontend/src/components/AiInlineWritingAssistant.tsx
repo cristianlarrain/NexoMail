@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { RefreshCw, Sparkles } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
+import { Paperclip, RefreshCw, Sparkles } from 'lucide-react'
 import { mailApi } from '../api/mailApi'
-import type { AiTone, AiWritingSuggestion } from '../types/mail'
+import type { AiTone, AiWritingSuggestion, MailAttachment } from '../types/mail'
 
 type Props = {
   currentHtml: string
@@ -16,6 +17,11 @@ type Intent = {
   value: string
   label: string
   instruction: string
+}
+
+type ComposeLocationState = {
+  mode?: 'reply' | 'replyAll' | 'forward' | 'followUp'
+  message?: { attachments?: MailAttachment[] }
 }
 
 const tones: Array<{ value: AiTone; label: string }> = [
@@ -45,7 +51,17 @@ function plainText(html: string) {
     .trim()
 }
 
+function sizeLabel(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 export function AiInlineWritingAssistant({ currentHtml, recipient, accountId, messageId, onUse }: Props) {
+  const location = useLocation()
+  const composeState = (location.state ?? {}) as ComposeLocationState
+  const isForwardContext = composeState.mode === 'forward'
+  const forwardedAttachments = isForwardContext ? composeState.message?.attachments ?? [] : []
   const isReplyContext = Boolean(accountId && messageId)
   const [tone, setTone] = useState<AiTone>('profesional')
   const [intent, setIntent] = useState(isReplyContext ? 'responder' : 'mejorar')
@@ -107,6 +123,17 @@ export function AiInlineWritingAssistant({ currentHtml, recipient, accountId, me
         </div>
       </fieldset>
     </div>
+
+    {isForwardContext && <div className="ai-forward-attachments" aria-label="Adjuntos originales del correo reenviado">
+      <div className="ai-forward-attachments-heading">
+        <Paperclip size={14} />
+        <strong>{forwardedAttachments.length ? `Adjuntos originales · ${forwardedAttachments.length}` : 'Sin adjuntos originales'}</strong>
+        {forwardedAttachments.length > 0 && <span>Se incluirán al reenviar.</span>}
+      </div>
+      {forwardedAttachments.length > 0 && <div className="ai-forward-attachment-list">
+        {forwardedAttachments.map(file => <span key={file.id} title={file.name}><Paperclip size={12} /><b>{file.name}</b><small>{sizeLabel(file.size)}</small></span>)}
+      </div>}
+    </div>}
 
     <div className="ai-inline-generation-row">
       <div className="ai-inline-generation-copy">
