@@ -28,7 +28,11 @@ export const mailApi = {
   aiReply: (accountId: string, messageId: string, tone: AiTone, instruction = '') => api<AiWritingSuggestion>(`/mail/messages/${encodeURIComponent(accountId)}/${encodeURIComponent(messageId)}/ai-reply`, { method: 'POST', body: JSON.stringify({ tone, instruction }) }),
   aiDraft: (context: string, tone: AiTone, recipient = '') => api<AiWritingSuggestion>('/mail/ai/draft', { method: 'POST', body: JSON.stringify({ context, tone, recipient }) }),
   saveDraft: (message: ComposeMessage, replyToMessageId?: string) => api<void>('/mail/drafts', { method: 'POST', body: JSON.stringify({ message, replyToMessageId: replyToMessageId || null }) }),
-  attachmentUrl: (accountId: string, messageId: string, attachment: MailAttachment, download = false) => `/api/mail/messages/${encodeURIComponent(accountId)}/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachment.id)}?fileName=${encodeURIComponent(attachment.name)}${download ? '&download=true' : ''}`,
+  attachmentUrl: (accountId: string, messageId: string, attachment: MailAttachment, download = false) => {
+    const base = `/api/mail/messages/${encodeURIComponent(accountId)}/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachment.id)}?fileName=${encodeURIComponent(attachment.name)}${download ? '&download=true' : ''}`
+    const isPdf = attachment.contentType === 'application/pdf' || /\.pdf$/i.test(attachment.name)
+    return !download && isPdf ? `${base}#zoom=page-width` : base
+  },
   read: (accountId: string, messageId: string, read: boolean) => api<void>(`/mail/messages/${accountId}/${messageId}/read`, { method: 'PATCH', body: JSON.stringify({ read }) }),
   trash: (accountId: string, messageId: string) => api<void>(`/mail/messages/${accountId}/${messageId}/trash`, { method: 'POST' }),
   move: (accountId: string, messageId: string, folderId: 'inbox' | 'archive' | 'spam' | 'trash') => api<void>(`/mail/messages/${accountId}/${messageId}/move`, { method: 'POST', body: JSON.stringify({ folderId }) }),
