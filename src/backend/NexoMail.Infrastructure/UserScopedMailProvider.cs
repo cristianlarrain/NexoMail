@@ -32,6 +32,12 @@ public sealed class UserScopedMailProvider(
         return await inner.GetMessageAsync(accountId, messageId, cancellationToken);
     }
 
+    public async Task<IReadOnlyCollection<MailThreadMessage>> GetThreadAsync(Guid accountId, string messageId, CancellationToken cancellationToken)
+    {
+        await EnsureAccountAccessAsync(accountId, cancellationToken);
+        return await inner.GetThreadAsync(accountId, messageId, cancellationToken);
+    }
+
     public async Task<MailAttachmentContent?> GetAttachmentAsync(Guid accountId, string messageId, string attachmentId, CancellationToken cancellationToken)
     {
         await EnsureAccountAccessAsync(accountId, cancellationToken);
