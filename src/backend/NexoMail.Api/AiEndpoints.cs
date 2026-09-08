@@ -48,6 +48,24 @@ public static class AiEndpoints
         DraftEndpoints.Map(mail);
         MetadataIndexEndpoints.Map(mail);
 
+        mail.MapGet("/messages/{accountId:guid}/{messageId}/thread", async (
+            IMailGateway gateway,
+            MailReadCache cache,
+            IUserContext userContext,
+            Guid accountId,
+            string messageId,
+            CancellationToken ct) =>
+        {
+            var value = await cache.GetOrCreateAsync(
+                userContext.UserId.ToString(),
+                "message-thread",
+                $"{accountId:N}:{messageId}",
+                TimeSpan.FromMinutes(10),
+                token => gateway.GetThreadAsync(accountId, messageId, token),
+                ct);
+            return Results.Ok(value);
+        });
+
         mail.MapGet("/ai/status", (Microsoft.Extensions.Options.IOptions<AiWritingOptions> options) =>
         {
             var settings = options.Value;
