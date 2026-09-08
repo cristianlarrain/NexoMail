@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, CalendarDays, CheckCircle2, Inbox, Sparkles } from 'lucide-react'
+import { AlertTriangle, CalendarDays, CheckCircle2, Inbox, Info, Sparkles } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
 import { nexiApi, type NexiReportPeriod } from '../api/nexiApi'
@@ -23,11 +23,35 @@ const labels: Record<NexiReportPeriod, string> = {
   last_week: 'Semana pasada',
 }
 
+function reportRangeLabel(period: NexiReportPeriod, localDate: string) {
+  const [year, month, day] = localDate.split('-').map(Number)
+  const today = new Date(year, month - 1, day)
+  const daySinceMonday = (today.getDay() + 6) % 7
+  const weekStart = new Date(today)
+  weekStart.setDate(today.getDate() - daySinceMonday)
+
+  let start = new Date(today)
+  let end = new Date(today)
+  if (period === 'this_week') start = weekStart
+  if (period === 'last_week') {
+    start = new Date(weekStart)
+    start.setDate(weekStart.getDate() - 7)
+    end = new Date(weekStart)
+    end.setDate(weekStart.getDate() - 1)
+  }
+
+  const formatter = new Intl.DateTimeFormat('es-CL', { day: 'numeric', month: 'short' })
+  const endFormatter = new Intl.DateTimeFormat('es-CL', { day: 'numeric', month: 'short', year: 'numeric' })
+  if (start.getTime() === end.getTime()) return endFormatter.format(end).replace(/\./g, '')
+  return `${formatter.format(start).replace(/\./g, '')} – ${endFormatter.format(end).replace(/\./g, '')}`
+}
+
 export function NexiMailReport() {
   const [params, setParams] = useSearchParams()
   const period = normalizedPeriod(params.get('period'))
   const accountId = params.get('account') ?? ''
   const localDate = useMemo(localDateValue, [])
+  const rangeLabel = useMemo(() => reportRangeLabel(period, localDate), [localDate, period])
   const accounts = useQuery({ queryKey: ['accounts'], queryFn: mailApi.accounts, staleTime: 10 * 60_000 })
   const report = useQuery({
     queryKey: ['nexi-mail-report', period, accountId, localDate],
@@ -44,6 +68,18 @@ export function NexiMailReport() {
     setParams(next, { replace: true })
   }
 
+  const attentionItems = report.data?.items.filter(item => Boolean(item.requestedAction)) ?? []
+  const informationalItems = report.data?.items.filter(item => !item.requestedAction) ?? []
+
+  const renderItem = (item: NonNullable<typeof report.data>['items'][number], index: number) => <article key={`${item.sender}-${item.subject}-${index}`} className="nexi-report-item">
+    <div className="nexi-report-item-top">
+      <div><strong>{item.sender || 'Remitente'}</strong><span>{item.subject}</span></div>
+      <span className={`nexi-importance ${item.importance}`}>{item.importance === 'alta' && <AlertTriangle size={12} />}{item.importance}</span>
+    </div>
+    <p>{item.summary}</p>
+    {item.requestedAction && <div className="nexi-report-request"><CheckCircle2 size={14} /><span><strong>Qué requiere de ti:</strong> {item.requestedAction}</span></div>}
+  </article>
+
   return <div className="nexi-report-view">
     <section className="nexi-report-toolbar">
       <div className="nexi-report-toolbar-copy">
@@ -58,6 +94,7 @@ export function NexiMailReport() {
 
     <div className="nexi-report-periods" aria-label="Período del reporte">
       {(Object.keys(labels) as NexiReportPeriod[]).map(value => <button key={value} type="button" className={period === value ? 'active' : ''} onClick={() => updateParam('period', value)}><CalendarDays size={14} />{labels[value]}</button>)}
+      <span className="nexi-report-range">{rangeLabel}</span>
     </div>
 
     {report.isLoading && <section className="nexi-report-loading"><span className="reading-skeleton" /><span className="reading-skeleton" /><span className="reading-skeleton" /><small>Nexi está leyendo y organizando los correos del período…</small></section>}
@@ -74,19 +111,20 @@ export function NexiMailReport() {
         <ul>{report.data.actions.map((action, index) => <li key={`${action}-${index}`}>{action}</li>)}</ul>
       </section>}
 
-      <section className="nexi-report-messages">
-        <header><Sparkles size={16} /><strong>Resumen del período</strong><span>{report.data.periodLabel}</span></header>
-        {report.data.items.length === 0
-          ? <div className="nexi-report-empty">No hay detalles adicionales para mostrar.</div>
-          : report.data.items.map((item, index) => <article key={`${item.sender}-${item.subject}-${index}`} className="nexi-report-item">
-            <div className="nexi-report-item-top">
-              <div><strong>{item.sender || 'Remitente'}</strong><span>{item.subject}</span></div>
-              <span className={`nexi-importance ${item.importance}`}>{item.importance === 'alta' && <AlertTriangle size={12} />}{item.importance}</span>
-            </div>
-            <p>{item.summary}</p>
-            {item.requestedAction && <div className="nexi-report-request"><CheckCircle2 size={14} /><span><strong>Qué requiere de ti:</strong> {item.requestedAction}</span></div>}
-          </article>)}
-      </section>
+      {attentionItems.length > 0 && <section className="nexi-report-messages">
+        <header><AlertTriangle size={16} /><strong>Requiere atención</strong><span>{attentionItems.length} · {rangeLabel}</span></header>
+        {attentionItems.map(renderItem)}
+      </section>}
+
+      {informationalItems.length > 0 && <section className="nexi-report-messages nexi-report-informational">
+        <header><Info size={16} /><strong>Informativos</strong><span>{informationalItems.length} · {rangeLabel}</span></header>
+        {informationalItems.map(renderItem)}
+      </section>}
+
+      {report.data.items.length === 0 && <section className="nexi-report-messages">
+        <header><Sparkles size={16} /><strong>Resumen del período</strong><span>{rangeLabel}</span></header>
+        <div className="nexi-report-empty">No hay detalles adicionales para mostrar.</div>
+      </section>}
     </>}
   </div>
 }
