@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useLocation } from 'react-router-dom'
 import { NexiVisual } from './NexiVisual'
 
 const POSITION_KEY = 'nexomail-nexi-position'
 const VIEWPORT_MARGIN = 8
+const PROMPT_HEIGHT = 30
+const PROMPT_GAP = 6
 
 type Position = { x: number; y: number }
 type DragState = { pointerId: number; startX: number; startY: number; originX: number; originY: number }
@@ -18,20 +21,37 @@ function storedPosition(): Position | null {
   }
 }
 
+function promptForPath(pathname: string) {
+  if (pathname.startsWith('/message/')) return '¿Qué quieres hacer con este correo?'
+  if (pathname === '/compose') return '¿Te ayudo a redactar?'
+  if (pathname === '/control-center') return '¿Qué quieres revisar ahora?'
+  if (pathname.startsWith('/settings/')) return '¿Qué quieres configurar?'
+  if (pathname === '/inbox' || pathname.startsWith('/account/')) return '¿Qué quieres hacer en esta bandeja?'
+  if (['/archive', '/ignored', '/sent', '/drafts', '/spam', '/trash'].includes(pathname)) return '¿Qué quieres hacer aquí?'
+  return '¿Qué puedo hacer por ti?'
+}
+
 export function NexiAssistantButton({ open, onClick }: { open: boolean; onClick: () => void }) {
+  const location = useLocation()
   const buttonRef = useRef<HTMLButtonElement>(null)
   const dragRef = useRef<DragState | null>(null)
   const draggedRef = useRef(false)
   const [position, setPosition] = useState<Position | null>(() => storedPosition())
   const [dragging, setDragging] = useState(false)
+  const prompt = open ? 'Estoy listo. ¿Qué hacemos?' : promptForPath(location.pathname)
 
   function clampPosition(next: Position) {
     const rect = buttonRef.current?.getBoundingClientRect()
     const width = rect?.width ?? 54
     const height = rect?.height ?? 54
+    const promptWidth = window.innerWidth <= 760 ? 156 : 184
+    const horizontalPromptMargin = Math.max(0, (promptWidth - width) / 2)
+    const minX = VIEWPORT_MARGIN + horizontalPromptMargin
+    const maxX = Math.max(minX, window.innerWidth - width - VIEWPORT_MARGIN - horizontalPromptMargin)
+    const maxY = Math.max(VIEWPORT_MARGIN, window.innerHeight - height - PROMPT_GAP - PROMPT_HEIGHT - VIEWPORT_MARGIN)
     return {
-      x: Math.min(Math.max(VIEWPORT_MARGIN, next.x), Math.max(VIEWPORT_MARGIN, window.innerWidth - width - VIEWPORT_MARGIN)),
-      y: Math.min(Math.max(VIEWPORT_MARGIN, next.y), Math.max(VIEWPORT_MARGIN, window.innerHeight - height - VIEWPORT_MARGIN)),
+      x: Math.min(Math.max(minX, next.x), maxX),
+      y: Math.min(Math.max(VIEWPORT_MARGIN, next.y), maxY),
     }
   }
 
@@ -101,10 +121,11 @@ export function NexiAssistantButton({ open, onClick }: { open: boolean; onClick:
     onPointerCancel={finishDrag}
     onClick={handleClick}
     title={open ? 'Arrastrar para mover · clic para cerrar Nexi' : 'Arrastrar para mover · clic para abrir Nexi'}
-    aria-label={open ? 'Cerrar Nexi. También puedes arrastrarlo para moverlo.' : 'Abrir Nexi. También puedes arrastrarlo para moverlo.'}
+    aria-label={open ? 'Cerrar Nexi. También puedes arrastrarlo para moverlo.' : `Abrir Nexi. ${prompt}`}
     aria-expanded={open}
   >
     <NexiVisual size="small" />
     <span className="nexi-assistant-button-label">Nexi</span>
+    <span className="nexi-assistant-prompt" aria-hidden="true">{prompt}</span>
   </button>
 }
