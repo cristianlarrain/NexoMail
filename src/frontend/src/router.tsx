@@ -8,7 +8,7 @@ import { ComposePage } from './pages/ComposePage'
 import { ControlCenterPage } from './pages/ControlCenterPage'
 import { InboxPage } from './pages/InboxPage'
 import { LandingPage } from './pages/LandingPage'
-import { MessagePage } from './pages/MessagePage'
+import { MessageRoute } from './pages/MessageRoute'
 import { ProfilePage } from './pages/ProfilePage'
 
 export const router = createBrowserRouter([
@@ -26,7 +26,7 @@ export const router = createBrowserRouter([
       { path: '/drafts', element: <InboxPage folder="drafts" /> },
       { path: '/spam', element: <InboxPage folder="spam" /> },
       { path: '/trash', element: <InboxPage folder="trash" /> },
-      { path: '/message/:accountId/:messageId', element: <MessagePage /> },
+      { path: '/message/:accountId/:messageId', element: <MessageRoute /> },
       { path: '/compose', element: <ComposePage /> },
       { path: '/settings', element: <Navigate to="/settings/accounts" replace /> },
       { path: '/settings/accounts', element: <AccountsPage /> },
