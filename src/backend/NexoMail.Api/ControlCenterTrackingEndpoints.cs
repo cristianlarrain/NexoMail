@@ -32,7 +32,7 @@ public static class ControlCenterTrackingEndpoints
             {
                 var updated = await service.TrackAsync(accountId, messageId, ct);
                 if (!updated) return Results.NotFound();
-                cache.Invalidate(userContext.UserId.ToString());
+                cache.InvalidateAreas(userContext.UserId.ToString(), "control-center");
                 return Results.NoContent();
             }
             catch (InvalidOperationException exception)
@@ -51,7 +51,7 @@ public static class ControlCenterTrackingEndpoints
         {
             var updated = await service.UntrackAsync(accountId, messageId, ct);
             if (!updated) return Results.NotFound();
-            cache.Invalidate(userContext.UserId.ToString());
+            cache.InvalidateAreas(userContext.UserId.ToString(), "control-center");
             return Results.NoContent();
         });
 
