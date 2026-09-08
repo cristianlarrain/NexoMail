@@ -38,7 +38,7 @@ export function ControlCenterPage() {
   return <section className="mail-view control-center-page nexi-control-center">
     <div className="view-header control-page-header nexi-control-header">
       <div className="control-page-title nexi-control-title">
-        <NexiVisual size="small" className="nexi-control-mascot" />
+        <span style={{ display: 'inline-flex', transform: 'translateY(6px)' }}><NexiVisual size="small" /></span>
         <div><h1>Centro de Control Nexi</h1><p>Nexi interpreta tus pendientes, actividad, contactos, documentos y reportes de correo.</p></div>
       </div>
 
