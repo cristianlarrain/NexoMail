@@ -4,7 +4,6 @@ import { BarChart3, Mail, Search, SendHorizontal, Sparkles, Users } from 'lucide
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { nexiApi } from '../api/nexiApi'
 import type { NexiContextResponse } from '../types/nexi'
-import { NexiVisual } from './nexi/NexiVisual'
 
 type Turn = {
   id: string
@@ -79,14 +78,14 @@ export function NexiContextWorkspace() {
   const dayMax = useMemo(() => Math.max(1, ...(lastResult?.days.map(item => item.count) ?? [1])), [lastResult?.days])
 
   if (!query) return <section className="nexi-context-empty">
-    <NexiVisual size="medium" />
+    <Sparkles size={22} />
     <div><strong>Nexi está listo para trabajar con un contexto</strong><span>Haz una búsqueda desde la barra superior y luego abre “Analizar con Nexi”. El conjunto encontrado quedará activo aquí para seguir preguntando sin empezar de nuevo.</span></div>
   </section>
 
   return <section className="nexi-context-workspace">
     <div className="nexi-context-main">
       <header className="nexi-context-header">
-        <div className="nexi-context-identity"><NexiVisual size="small" /><div><span>Contexto activo</span><strong>{query}</strong></div></div>
+        <div className="nexi-context-identity"><div><span>Contexto activo</span><strong>{query}</strong></div></div>
         <button type="button" className="secondary-button" onClick={openResults}><Search size={14} /> Ver resultados</button>
       </header>
 
