@@ -28,6 +28,7 @@ public sealed class AiSearchService(
         "que", "me", "mi", "mis", "con", "sin", "y", "o", "a", "en", "por", "para", "recibido", "recibidos", "recibi", "recibí",
         "enviado", "enviados", "envie", "envié", "mande", "mandé", "ultimo", "último", "ultimos", "últimos", "dias", "días", "este", "esta",
         "mes", "semana", "adjunto", "adjuntos", "archivo", "archivos", "no", "leido", "leído", "leidos", "leídos", "leer", "responder", "respuesta",
+        "respondido", "respondidos", "respondieron", "pendiente", "pendientes", "seguimiento", "requiere", "requieren",
         "buscar", "busca", "muestra", "mostrar", "quiero", "donde", "dónde", "esta", "está", "estan", "están"
     };
 
@@ -44,8 +45,8 @@ public sealed class AiSearchService(
             Convierte la petición del usuario en filtros de búsqueda de Gmail y metadatos locales.
             La fecha actual es {DateTimeOffset.UtcNow:yyyy-MM-dd}.
             Devuelve SOLO un objeto JSON válido, sin Markdown y sin comentarios, con estas propiedades exactas:
-            textQuery: términos principales útiles para buscar contactos y documentos, sin palabras de relleno.
-            gmailQuery: consulta válida para Gmail q. Puedes usar from:, to:, subject:, has:attachment, filename:, is:unread, newer_than:, after:, before:.
+            textQuery: términos principales útiles para buscar contactos y documentos, sin palabras de relleno. Si la petición contiene sólo filtros operativos, devuelve cadena vacía.
+            gmailQuery: consulta válida para Gmail q. Puedes usar from:, to:, subject:, has:attachment, filename:, is:unread, newer_than:, after:, before:. Si sólo hay filtros, no agregues la frase conversacional como texto libre.
             folder: uno de all, inbox, sent.
             unread: boolean.
             hasAttachments: boolean.
@@ -163,9 +164,9 @@ public sealed class AiSearchService(
             .Take(8)
             .ToArray();
         var textQuery = string.Join(' ', terms);
-        if (string.IsNullOrWhiteSpace(textQuery)) textQuery = query.Trim();
 
-        var gmailParts = new List<string> { textQuery };
+        var gmailParts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(textQuery)) gmailParts.Add(textQuery);
         if (unread) gmailParts.Add("is:unread");
         if (hasAttachments) gmailParts.Add("has:attachment");
         if (documentType == "pdf") gmailParts.Add("filename:pdf");
@@ -175,7 +176,7 @@ public sealed class AiSearchService(
 
         return new AiSearchInterpretation(
             textQuery,
-            string.Join(' ', gmailParts.Where(value => !string.IsNullOrWhiteSpace(value))),
+            string.Join(' ', gmailParts),
             folder,
             unread,
             hasAttachments,
@@ -183,7 +184,9 @@ public sealed class AiSearchService(
             scope,
             documentType,
             special,
-            "Nexi buscará los términos indicados y aplicará los filtros que pudo reconocer.");
+            string.IsNullOrWhiteSpace(textQuery)
+                ? "Nexi aplicará sólo los filtros operativos de la búsqueda."
+                : "Nexi buscará los términos indicados y aplicará los filtros que pudo reconocer.");
     }
 
     private static string ExtractOutputText(JsonElement root)
@@ -205,8 +208,8 @@ public sealed class AiSearchService(
     }
 
     private static string Value(JsonElement root, string name, string fallback) =>
-        root.TryGetProperty(name, out var element) && element.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(element.GetString())
-            ? element.GetString()!.Trim()
+        root.TryGetProperty(name, out var element) && element.ValueKind == JsonValueKind.String
+            ? element.GetString()?.Trim() ?? fallback
             : fallback;
 
     private static bool Boolean(JsonElement root, string name, bool fallback) =>
