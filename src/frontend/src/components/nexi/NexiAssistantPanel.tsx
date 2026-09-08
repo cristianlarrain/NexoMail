@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, Clock3, Inbox, Mail, Palette, Reply, Send, Settings, Sparkles, UserRound, X } from 'lucide-react'
+import { Check, Clock3, FileText, Inbox, Mail, Palette, Reply, Search, Send, Settings, Sparkles, UserRound, Users, X } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { mailApi } from '../../api/mailApi'
 import type { ControlCenterPendingItem } from '../../types/mail'
@@ -33,6 +33,7 @@ function messageRoute(pathname: string) {
 
 function viewContext(pathname: string) {
   if (messageRoute(pathname)) return 'message'
+  if (pathname === '/search') return 'search'
   if (pathname === '/control-center') return 'control-center'
   if (pathname.startsWith('/settings/')) return 'settings'
   if (pathname === '/inbox' || pathname.startsWith('/account/')) return 'inbox'
@@ -65,7 +66,9 @@ export function NexiAssistantPanel({ open, onClose }: { open: boolean; onClose: 
   const context = viewContext(location.pathname)
   const routeMessage = messageRoute(location.pathname)
   const currentSettings = settingsContext(location.pathname)
-  const mailContextEnabled = open && context !== 'settings'
+  const searchParams = new URLSearchParams(location.search)
+  const currentSearchQuery = searchParams.get('q')?.trim() ?? ''
+  const mailContextEnabled = open && context !== 'settings' && context !== 'search'
 
   const snapshot = useQuery({
     queryKey: ['control-center', 'all'],
@@ -147,9 +150,22 @@ export function NexiAssistantPanel({ open, onClose }: { open: boolean; onClose: 
   }
 
   function goInsight(action?: NexiInsightAction) {
-    if (action === 'unread') go(`/inbox?q=${encodeURIComponent('is:unread')}`)
+    if (action === 'unread') go(`/search?q=${encodeURIComponent('correos sin leer')}&scope=mail&unread=1`)
     else if (action === 'tracking') go('/inbox?priority=1')
     else go('/control-center')
+  }
+
+  function searchScope(scope: 'all' | 'mail' | 'contacts' | 'documents') {
+    const next = new URLSearchParams(location.search)
+    if (currentSearchQuery) next.set('q', currentSearchQuery)
+    next.set('scope', scope)
+    go(`/search?${next.toString()}`)
+  }
+
+  function clearSearchFilters() {
+    const next = new URLSearchParams()
+    if (currentSearchQuery) next.set('q', currentSearchQuery)
+    go(next.size > 0 ? `/search?${next.toString()}` : '/search')
   }
 
   function openPriority(value?: PriorityDisplayItem) {
@@ -187,8 +203,8 @@ export function NexiAssistantPanel({ open, onClose }: { open: boolean; onClose: 
       </header>
 
       <div className="nexi-panel-content">
-        {context !== 'settings' && snapshot.isLoading && <div className="nexi-panel-loading"><span className="nexi-loading-line" /><span className="nexi-loading-line short" /><small>Revisando el contexto actual…</small></div>}
-        {context !== 'settings' && snapshot.isError && <div className="notice">No fue posible recuperar los indicadores de Nexi.</div>}
+        {context !== 'settings' && context !== 'search' && snapshot.isLoading && <div className="nexi-panel-loading"><span className="nexi-loading-line" /><span className="nexi-loading-line short" /><small>Revisando el contexto actual…</small></div>}
+        {context !== 'settings' && context !== 'search' && snapshot.isError && <div className="notice">No fue posible recuperar los indicadores de Nexi.</div>}
 
         {context === 'settings' && <>
           <section className="nexi-context-block">
@@ -199,6 +215,20 @@ export function NexiAssistantPanel({ open, onClose }: { open: boolean; onClose: 
             {location.pathname !== '/settings/profile' && <button type="button" onClick={() => go('/settings/profile')}><span><UserRound size={14} /> Mi perfil</span></button>}
             {location.pathname !== '/settings/accounts' && <button type="button" onClick={() => go('/settings/accounts')}><span><Settings size={14} /> Configurar cuentas</span></button>}
             {location.pathname !== '/settings/appearance' && <button type="button" onClick={() => go('/settings/appearance')}><span><Palette size={14} /> Apariencia</span></button>}
+          </section>
+        </>}
+
+        {context === 'search' && <>
+          <section className="nexi-context-block">
+            <div className="nexi-section-heading"><Search size={15} /><div><strong>Búsqueda inteligente</strong><span>{currentSearchQuery ? `Estoy trabajando sobre “${currentSearchQuery}”.` : 'Escribe lo que quieres encontrar y lo buscaré en todo NexoMail.'}</span></div></div>
+          </section>
+          <section className="nexi-panel-actions">
+            <strong>Acotar resultados</strong>
+            <button type="button" onClick={() => searchScope('all')}><span><Search size={14} /> Buscar en todo</span></button>
+            <button type="button" onClick={() => searchScope('mail')}><span><Mail size={14} /> Sólo correos</span></button>
+            <button type="button" onClick={() => searchScope('contacts')}><span><Users size={14} /> Sólo contactos</span></button>
+            <button type="button" onClick={() => searchScope('documents')}><span><FileText size={14} /> Sólo documentos</span></button>
+            {location.search && <button type="button" onClick={clearSearchFilters}>Quitar filtros y conservar la búsqueda</button>}
           </section>
         </>}
 
@@ -272,7 +302,7 @@ export function NexiAssistantPanel({ open, onClose }: { open: boolean; onClose: 
             <strong>Acciones rápidas</strong>
             {oldestPriority && <button type="button" className="nexi-action-primary" onClick={() => openPriority(oldestPriority)}>Abrir pendiente más antiguo <small>{ageLabel(oldestPriority.item.since)}</small></button>}
             <button type="button" onClick={() => go('/inbox?priority=1')}>Revisar seguimiento prioritario <small>{priorityItems.length}</small></button>
-            <button type="button" onClick={() => go(`/inbox?q=${encodeURIComponent('is:unread')}`)}>Revisar correos sin leer <small>{snapshot.data.unread}</small></button>
+            <button type="button" onClick={() => go(`/search?q=${encodeURIComponent('correos sin leer')}&scope=mail&unread=1`)}>Revisar correos sin leer <small>{snapshot.data.unread}</small></button>
           </section>
         </>}
 
