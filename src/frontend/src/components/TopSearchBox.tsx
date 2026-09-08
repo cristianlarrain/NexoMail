@@ -147,12 +147,15 @@ export function TopSearchBox({ value, onChange, onSubmit }: TopSearchBoxProps) {
     onSubmit()
   }
 
+  const showGuidance = value.length > 72 && !listening && !voiceError
+
   return <div className={`search top-search ${listening ? 'listening expanded' : value.length > 72 ? 'expanded' : ''}`} role="search" title={voiceError || 'Busca o dale instrucciones a Nexi con lenguaje normal'}>
     <Search size={18} className="top-search-icon" />
     <div className="top-search-editor">
       <textarea
         ref={textarea}
         rows={1}
+        maxLength={6000}
         value={value}
         onChange={event => onChange(event.target.value)}
         onKeyDown={event => {
@@ -164,14 +167,16 @@ export function TopSearchBox({ value, onChange, onSubmit }: TopSearchBoxProps) {
         placeholder={listening ? 'Escuchando… dicta tu instrucción completa' : 'Busca o pregúntale a Nexi'}
         aria-label="Buscar o dar una instrucción a Nexi"
       />
-      {(listening || voiceError) && <span className={`top-search-inline-status ${voiceError ? 'error' : ''}`} aria-live="polite">
-        {voiceError || 'Escuchando… pulsa Listo cuando termines. Después revisa el texto y pulsa Enviar.'}
+      {(listening || voiceError || showGuidance) && <span className={`top-search-inline-status ${voiceError ? 'error' : ''}`} aria-live="polite">
+        {voiceError || (listening
+          ? 'Escuchando… pulsa Listo cuando termines. Después revisa el texto y pulsa Enviar.'
+          : `Enter envía · Shift+Enter nueva línea · ${value.length}/6000 caracteres`)}
       </span>}
     </div>
     {value && <button type="button" className="top-search-action clear" onClick={clearSearch} aria-label="Borrar búsqueda" title="Borrar búsqueda"><X size={16} /></button>}
     {listening
       ? <button type="button" className="top-search-done" onClick={finishListening} aria-label="Terminar dictado" title="Terminar dictado"><Check size={15} />Listo</button>
       : <button type="button" className="top-search-action voice" onClick={toggleVoice} aria-label="Dictar búsqueda por voz" title="Hablarle a Nexi"><Mic size={17} /></button>}
-    {value.trim() && !listening && <button type="button" className="top-search-action submit" onClick={submitSearch} aria-label="Enviar a Nexi" title="Enviar a Nexi"><SendHorizontal size={17} /></button>}
+    {value.trim() && !listening && <button type="button" className="top-search-submit" onClick={submitSearch} aria-label="Enviar a Nexi" title="Enviar a Nexi"><SendHorizontal size={15} /><span>Enviar</span></button>}
   </div>
 }
