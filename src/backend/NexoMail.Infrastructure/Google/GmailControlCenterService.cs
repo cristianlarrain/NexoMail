@@ -274,27 +274,29 @@ public sealed class GmailControlCenterService(
         var now = DateTimeOffset.UtcNow;
         if (!AccessTokens.TryGetValue(accountId, out var cached) || cached.CredentialUpdatedAt != credential.UpdatedAt || cached.ExpiresAt <= now.AddMinutes(2))
         {
-            var gate = TokenGates.GetOrAdd(accountId, _ => new SemaphoreSlim(1, 1));
+            var gate = TokenGates.GetOrAdd(accountId, static _ => new SemaphoreSlim(1, 1));
             await gate.WaitAsync(cancellationToken);
             try
             {
                 now = DateTimeOffset.UtcNow;
                 if (!AccessTokens.TryGetValue(accountId, out cached) || cached.CredentialUpdatedAt != credential.UpdatedAt || cached.ExpiresAt <= now.AddMinutes(2))
                 {
+                    var settings = options.Value;
                     var refreshToken = tokenProtector.Unprotect(credential.EncryptedRefreshToken);
                     var tokenClient = httpClientFactory.CreateClient();
                     using var response = await tokenClient.PostAsync("https://oauth2.googleapis.com/token", new FormUrlEncodedContent(new Dictionary<string, string>
                     {
-                        ["client_id"] = options.Value.ClientId,
-                        ["client_secret"] = options.Value.ClientSecret,
+                        ["client_id"] = settings.ClientId,
+                        ["client_secret"] = settings.ClientSecret,
                         ["refresh_token"] = refreshToken,
                         ["grant_type"] = "refresh_token"
                     }), cancellationToken);
                     response.EnsureSuccessStatusCode();
-                    using var tokenDocument = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
-                    var accessToken = tokenDocument.RootElement.GetProperty("access_token").GetString() ?? throw new InvalidOperationException("Google no entregó un token de acceso válido.");
-                    var expiresIn = tokenDocument.RootElement.TryGetProperty("expires_in", out var expiresElement) && expiresElement.TryGetInt32(out var seconds) ? seconds : 3600;
-                    cached = new CachedAccessToken(accessToken, now.AddSeconds(Math.Max(300, expiresIn)), credential.UpdatedAt);
+                    using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
+                    var accessToken = document.RootElement.TryGetProperty("access_token", out var tokenElement) ? tokenElement.GetString() : null;
+                    if (string.IsNullOrWhiteSpace(accessToken)) throw new InvalidOperationException("Google no entregó un token de acceso válido.");
+                    var expiresIn = document.RootElement.TryGetProperty("expires_in", out var expiresElement) && expiresElement.TryGetInt32(out var seconds) ? seconds : 3600;
+                    cached = new CachedAccessToken(accessToken, now.AddSeconds(Math.Max(60, expiresIn - 120)), credential.UpdatedAt);
                     AccessTokens[accountId] = cached;
                 }
             }
@@ -309,7 +311,7 @@ public sealed class GmailControlCenterService(
         return client;
     }
 
-    private async Task<int> GetUnreadCountAsync(HttpClient client, CancellationToken cancellationToken)
+    private static async Task<int> GetUnreadCountAsync(HttpClient client, CancellationToken cancellationToken)
     {
         using var response = await client.GetAsync("users/me/labels/INBOX", cancellationToken);
         response.EnsureSuccessStatusCode();
@@ -317,10 +319,9 @@ public sealed class GmailControlCenterService(
         return document.RootElement.TryGetProperty("messagesUnread", out var unread) && unread.TryGetInt32(out var count) ? count : 0;
     }
 
-    private async Task<IReadOnlyCollection<string>> GetRecentThreadIdsAsync(HttpClient client, CancellationToken cancellationToken)
+    private static async Task<IReadOnlyCollection<string>> GetRecentThreadIdsAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        var cutoff = DateTimeOffset.UtcNow.AddDays(-LookbackDays).ToUnixTimeSeconds();
-        var query = Uri.EscapeDataString($"after:{cutoff} -label:drafts -label:spam -label:trash");
+        var query = Uri.EscapeDataString($"newer_than:{LookbackDays}d {{in:inbox in:sent}}");
         using var response = await client.GetAsync($"users/me/threads?maxResults={MaximumThreadsPerAccount}&q={query}", cancellationToken);
         response.EnsureSuccessStatusCode();
         using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
@@ -332,90 +333,194 @@ public sealed class GmailControlCenterService(
             .ToArray();
     }
 
-    private async Task<ThreadSnapshot?> GetThreadAsync(HttpClient client, string threadId, CancellationToken cancellationToken)
+    private static async Task<ThreadData?> GetThreadAsync(HttpClient client, string threadId, CancellationToken cancellationToken)
     {
-        const string fields = "id,messages(id,labelIds,internalDate,snippet,payload(headers))";
-        using var response = await client.GetAsync($"users/me/threads/{Uri.EscapeDataString(threadId)}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&fields={Uri.EscapeDataString(fields)}", cancellationToken);
-        response.EnsureSuccessStatusCode();
+        var url = $"users/me/threads/{Uri.EscapeDataString(threadId)}?format=metadata" +
+                  "&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject" +
+                  "&metadataHeaders=Auto-Submitted&metadataHeaders=Precedence&metadataHeaders=List-Unsubscribe";
+        using var response = await client.GetAsync(url, cancellationToken);
+        if (!response.IsSuccessStatusCode) return null;
         using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
         if (!document.RootElement.TryGetProperty("messages", out var messages)) return null;
-        var values = messages.EnumerateArray().Select(ParseThreadMessage).Where(x => x is not null).Select(x => x!).OrderBy(x => x.ReceivedAt).ToArray();
-        return values.Length == 0 ? null : new ThreadSnapshot(threadId, values);
+        return new ThreadData(threadId, messages.EnumerateArray().Select(ParseMessage).Where(x => x is not null).Select(x => x!).ToArray());
     }
 
-    private static ThreadMessage? ParseThreadMessage(JsonElement root)
+    private static ThreadMessageData? ParseMessage(JsonElement root)
     {
         if (!root.TryGetProperty("id", out var idElement) || string.IsNullOrWhiteSpace(idElement.GetString())) return null;
-        var labels = root.TryGetProperty("labelIds", out var labelElement)
-            ? labelElement.EnumerateArray().Select(x => x.GetString() ?? string.Empty).ToHashSet(StringComparer.OrdinalIgnoreCase)
+        var headers = Headers(root);
+        var labels = root.TryGetProperty("labelIds", out var labelIds)
+            ? labelIds.EnumerateArray().Select(x => x.GetString()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x!).ToHashSet(StringComparer.OrdinalIgnoreCase)
             : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var receivedAt = root.TryGetProperty("internalDate", out var dateElement) && long.TryParse(dateElement.GetString(), out var milliseconds)
+        var receivedAt = root.TryGetProperty("internalDate", out var timestamp) && long.TryParse(timestamp.GetString(), out var milliseconds)
             ? DateTimeOffset.FromUnixTimeMilliseconds(milliseconds)
             : DateTimeOffset.UtcNow;
-        var payload = root.TryGetProperty("payload", out var payloadElement) ? payloadElement : default;
-        var headers = payload.ValueKind == JsonValueKind.Object && payload.TryGetProperty("headers", out var headerElement)
-            ? headerElement.EnumerateArray()
-                .Where(x => x.TryGetProperty("name", out _) && x.TryGetProperty("value", out _))
-                .ToDictionary(
-                    x => x.GetProperty("name").GetString() ?? string.Empty,
-                    x => x.GetProperty("value").GetString() ?? string.Empty,
-                    StringComparer.OrdinalIgnoreCase)
-            : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        return new ThreadMessage(
+        return new ThreadMessageData(
             idElement.GetString()!,
-            labels,
+            Header(headers, "From"),
+            Header(headers, "To"),
+            Header(headers, "Subject"),
+            Header(headers, "Auto-Submitted"),
+            Header(headers, "Precedence"),
+            Header(headers, "List-Unsubscribe"),
             receivedAt,
-            headers.GetValueOrDefault("From") ?? string.Empty,
-            headers.GetValueOrDefault("To") ?? string.Empty,
-            headers.GetValueOrDefault("Subject") ?? string.Empty,
-            root.TryGetProperty("snippet", out var snippet) ? snippet.GetString() ?? string.Empty : string.Empty);
+            labels);
     }
 
-    private static bool IsNonActionableReceived(ThreadMessage message)
+    private static Dictionary<string, string> Headers(JsonElement root)
     {
-        var sender = message.From.ToLowerInvariant();
-        var subject = message.Subject.ToLowerInvariant();
-        var snippet = message.Snippet.ToLowerInvariant();
-        var combined = $"{subject} {snippet}";
-        return sender.Contains("no-reply")
-            || sender.Contains("noreply")
-            || sender.Contains("mailer-daemon")
-            || sender.Contains("notifications@")
-            || combined.Contains("unsubscribe")
-            || combined.Contains("desuscrib")
-            || combined.Contains("notificación automática")
-            || combined.Contains("notification")
-            || combined.Contains("código de verificación")
-            || combined.Contains("verification code")
-            || combined.Contains("recibo de compra")
-            || combined.Contains("receipt")
-            || combined.Contains("promoción")
-            || combined.Contains("promotion");
+        if (!root.TryGetProperty("payload", out var payload) || !payload.TryGetProperty("headers", out var headers))
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        return headers.EnumerateArray()
+            .Where(x => x.TryGetProperty("name", out _) && x.TryGetProperty("value", out _))
+            .GroupBy(x => x.GetProperty("name").GetString()!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Last().GetProperty("value").GetString() ?? string.Empty, StringComparer.OrdinalIgnoreCase);
     }
 
-    private static string DisplayCounterpart(string raw)
+    private static string Header(IReadOnlyDictionary<string, string> headers, string name) => headers.TryGetValue(name, out var value) ? value : string.Empty;
+
+    private static bool IsNonActionableReceived(ThreadMessageData message)
     {
-        if (string.IsNullOrWhiteSpace(raw)) return "Contacto";
-        var match = System.Text.RegularExpressions.Regex.Match(raw, "^(?<name>.*?)\\s*<(?<email>[^>]+)>$");
-        if (match.Success)
+        if (message.Labels.Contains("CATEGORY_PROMOTIONS") || message.Labels.Contains("CATEGORY_SOCIAL") || message.Labels.Contains("CATEGORY_FORUMS")) return true;
+        if (IsLikelyAutomated(message)) return true;
+        if (IsHighConfidenceTransactionalSubject(message.Subject)) return true;
+
+        var updateCategory = message.Labels.Contains("CATEGORY_UPDATES");
+        var notificationSender = HasNotificationSenderSignal(message.From);
+        return (updateCategory || notificationSender) && IsInformationalTransactionalSubject(message.Subject);
+    }
+
+    private static bool IsLikelyAutomated(ThreadMessageData message)
+    {
+        var from = message.From.ToLowerInvariant();
+        if (from.Contains("no-reply") || from.Contains("noreply") || from.Contains("do-not-reply") || from.Contains("donotreply") || from.Contains("mailer-daemon")) return true;
+        if (!string.IsNullOrWhiteSpace(message.ListUnsubscribe)) return true;
+        if (!string.IsNullOrWhiteSpace(message.AutoSubmitted) && !string.Equals(message.AutoSubmitted, "no", StringComparison.OrdinalIgnoreCase)) return true;
+        return message.Precedence.Equals("bulk", StringComparison.OrdinalIgnoreCase) ||
+               message.Precedence.Equals("list", StringComparison.OrdinalIgnoreCase) ||
+               message.Precedence.Equals("junk", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool HasNotificationSenderSignal(string from)
+    {
+        var value = NormalizeForMatch(from);
+        string[] signals =
+        [
+            "notificaciones@", "notificacion@", "notifications@", "notification@",
+            "alertas@", "alerta@", "alerts@", "alert@",
+            "facturacion@", "facturas@", "billing@", "invoice@", "invoices@",
+            "comprobantes@", "recibos@", "receipts@", "pedidos@", "orders@",
+            "despachos@", "shipping@", "seguridad@", "security@", "avisos@", "updates@"
+        ];
+        return signals.Any(value.Contains);
+    }
+
+    private static bool IsHighConfidenceTransactionalSubject(string subject)
+    {
+        var value = NormalizeForMatch(subject);
+        string[] phrases =
+        [
+            "comprobante de pago", "comprobante de transferencia", "comprobante de compra",
+            "confirmacion de compra", "confirmacion de pago", "confirmacion de transferencia",
+            "compra realizada", "compra aprobada", "pago realizado", "pago recibido", "pago procesado",
+            "transferencia realizada", "transferencia recibida", "factura electronica", "boleta electronica",
+            "recibo de pago", "estado de cuenta", "cartola bancaria", "movimiento en tu cuenta", "movimiento en su cuenta",
+            "pedido confirmado", "orden confirmada", "despacho confirmado", "envio confirmado", "entrega confirmada",
+            "codigo de verificacion", "clave temporal", "inicio de sesion", "alerta de seguridad",
+            "cargo realizado", "abono recibido", "suscripcion renovada"
+        ];
+        return phrases.Any(value.Contains);
+    }
+
+    private static bool IsInformationalTransactionalSubject(string subject)
+    {
+        var value = NormalizeForMatch(subject);
+        string[] terms =
+        [
+            "comprobante", "factura", "boleta", "recibo", "pago", "compra", "pedido", "orden",
+            "despacho", "envio", "entrega", "transferencia", "transaccion", "movimiento", "estado de cuenta",
+            "cartola", "codigo", "verificacion", "seguridad", "alerta", "suscripcion", "resumen de actividad"
+        ];
+        return terms.Any(value.Contains);
+    }
+
+    private static string NormalizeForMatch(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+        var normalized = value.Normalize(NormalizationForm.FormD);
+        var builder = new StringBuilder(normalized.Length);
+        foreach (var character in normalized)
         {
-            var name = match.Groups["name"].Value.Trim().Trim('"');
-            return string.IsNullOrWhiteSpace(name) ? match.Groups["email"].Value.Trim() : name;
+            if (CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark)
+                builder.Append(char.ToLowerInvariant(character));
         }
-        return raw.Trim();
+        return builder.ToString().Normalize(NormalizationForm.FormC);
     }
 
-    private static string DisplaySubject(string raw) => string.IsNullOrWhiteSpace(raw) ? "(sin asunto)" : raw.Trim();
-
-    private sealed record CachedAccessToken(string AccessToken, DateTimeOffset ExpiresAt, DateTimeOffset CredentialUpdatedAt);
-    private sealed record CredentialSnapshot(string EncryptedRefreshToken, DateTimeOffset UpdatedAt);
-    private sealed class ActivityCount { public int Received { get; set; } public int Sent { get; set; } }
-    private sealed record ThreadSnapshot(string Id, IReadOnlyCollection<ThreadMessage> Messages);
-    private sealed record ThreadMessage(string Id, HashSet<string> Labels, DateTimeOffset ReceivedAt, string From, string To, string Subject, string Snippet);
-    private sealed record PendingRaw(Guid AccountId, string AccountName, string AccountColor, string MessageId, string ConversationId, string Direction, string Counterpart, string Subject, DateTimeOffset Since, bool IsRead);
-    private sealed record AccountResult(Guid AccountId, string AccountName, string AccountColor, int Unread, IReadOnlyCollection<PendingRaw> PendingItems, IReadOnlyDictionary<DateTime, ActivityCount> Activity, bool IsAvailable)
+    private static string DisplayCounterpart(string value)
     {
-        public static AccountResult Unavailable(MailAccountEntity account) => new(account.Id, account.DisplayName, account.Color, 0, [], new Dictionary<DateTime, ActivityCount>(), false);
+        if (string.IsNullOrWhiteSpace(value)) return "Sin destinatario";
+        var first = value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault() ?? value;
+        return first.Length <= 90 ? first : first[..87] + "…";
+    }
+
+    private static string DisplaySubject(string value)
+    {
+        var subject = string.IsNullOrWhiteSpace(value) ? "(sin asunto)" : value.Trim();
+        return subject.Length <= 120 ? subject : subject[..117] + "…";
+    }
+
+    private sealed record CredentialSnapshot(string EncryptedRefreshToken, DateTimeOffset UpdatedAt);
+    private sealed record CachedAccessToken(string AccessToken, DateTimeOffset ExpiresAt, DateTimeOffset CredentialUpdatedAt);
+    private sealed record ThreadData(string Id, IReadOnlyCollection<ThreadMessageData> Messages);
+
+    private sealed record ThreadMessageData(
+        string Id,
+        string From,
+        string To,
+        string Subject,
+        string AutoSubmitted,
+        string Precedence,
+        string ListUnsubscribe,
+        DateTimeOffset ReceivedAt,
+        HashSet<string> Labels);
+
+    private sealed record PendingRaw(
+        Guid AccountId,
+        string AccountName,
+        string AccountColor,
+        string MessageId,
+        string ConversationId,
+        string Direction,
+        string Counterpart,
+        string Subject,
+        DateTimeOffset Since,
+        bool IsRead);
+
+    private sealed record AccountResult(
+        Guid AccountId,
+        string AccountName,
+        string AccountColor,
+        int Unread,
+        IReadOnlyCollection<PendingRaw> PendingItems,
+        Dictionary<DateTime, ActivityCount> Activity,
+        bool IsAvailable)
+    {
+        public static AccountResult Unavailable(MailAccountEntity account) => new(
+            account.Id,
+            account.DisplayName,
+            account.Color,
+            0,
+            [],
+            [],
+            false);
+    }
+
+    private sealed class ActivityCount
+    {
+        public int Received { get; set; }
+        public int Sent { get; set; }
     }
 }
