@@ -9,9 +9,8 @@
 .ai-compose-editor .dictation-error { order: 4; }
 .ai-compose-editor .rich-editor { order: 5; }
 .ai-compose-editor .ai-forward-attachments { order: 6; }
-.ai-compose-editor .ai-inline-generation-row { order: 7; }
-.ai-compose-editor .outgoing-attachments { order: 8; }
-.ai-compose-editor .attachment-error { order: 9; }
+.ai-compose-editor .outgoing-attachments { order: 7; }
+.ai-compose-editor .attachment-error { order: 8; }
 
 .ai-inline-writing { display: contents; }
 
@@ -70,6 +69,14 @@
 }
 .ai-inline-radio-group label.active span { color: var(--primary); }
 
+.ai-inline-generation-error {
+  grid-column: 1 / -1;
+  margin: -4px 0 0;
+  color: var(--danger);
+  font-size: 9px;
+  font-weight: 600;
+}
+
 .ai-forward-attachments {
   display: grid;
   gap: 7px;
@@ -121,40 +128,13 @@
   font-size: 8px;
 }
 
-.ai-inline-generation-row {
+.ai-compose-footer .ai-inline-generation-button {
   min-height: 42px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 7px 2px 0;
-}
-.ai-inline-generation-copy {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--muted-foreground);
-  font-size: 8.5px;
-  font-weight: 650;
-}
-.ai-inline-generation-copy > svg { flex: 0 0 auto; color: var(--primary); }
-.ai-inline-generation-copy > span { white-space: nowrap; }
-.ai-inline-generation-copy > em {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--danger);
-  font-size: 8.5px;
-  font-style: normal;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ai-inline-generation-button {
-  min-height: 31px;
+  min-width: 132px;
   flex: 0 0 auto;
-  padding: 0 11px;
-  font-size: 9px;
+  padding: 0 14px;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 @media (max-width: 980px) {
@@ -168,9 +148,5 @@
   .ai-forward-attachments-heading { align-items: flex-start; flex-wrap: wrap; }
   .ai-forward-attachments-heading span { width: 100%; margin-left: 20px; }
   .ai-forward-attachment-list > span { max-width: 100%; }
-  .ai-inline-generation-row { align-items: stretch; flex-direction: column; padding-top: 8px; }
-  .ai-inline-generation-copy { min-height: 18px; flex-wrap: wrap; }
-  .ai-inline-generation-copy > span { white-space: normal; }
-  .ai-inline-generation-copy > em { white-space: normal; }
-  .ai-inline-generation-button { width: 100%; justify-content: center; }
+  .ai-compose-footer .ai-inline-generation-button { min-width: 132px; width: auto; }
 }
