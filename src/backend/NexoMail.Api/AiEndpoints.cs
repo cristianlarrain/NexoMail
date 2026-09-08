@@ -29,6 +29,7 @@ public static class AiEndpoints
         services.AddScoped<AiWritingService>();
         services.AddScoped<AiSearchService>();
         services.AddScoped<AiMailInsightsService>();
+        services.AddScoped<AiContextService>();
         services.AddScoped<ControlCenterTrackingService>();
         services.AddScoped<GmailDraftProvider>();
         services.AddScoped<GmailMetadataIndexService>();
@@ -87,10 +88,116 @@ public static class AiEndpoints
         {
             if (string.IsNullOrWhiteSpace(request.Query))
                 return Results.BadRequest(new { error = "Escribe qué quieres buscar." });
-            if (request.Query.Length > 500)
-                return Results.BadRequest(new { error = "La búsqueda es demasiado extensa." });
+            if (request.Query.Length > 6_000)
+                return Results.BadRequest(new { error = "La instrucción es demasiado extensa. Usa hasta 6.000 caracteres." });
 
             return Results.Ok(await ai.InterpretAsync(request.Query, ct));
+        }).RequireRateLimiting("ai-writing");
+
+        mail.MapPost("/ai/context", async (
+            IMailGateway gateway,
+            MailReadCache cache,
+            IUserContext userContext,
+            AiSearchService search,
+            AiContextService ai,
+            AiContextRequest request,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.Query))
+                return Results.BadRequest(new { error = "No hay una búsqueda activa para usar como contexto." });
+            if (string.IsNullOrWhiteSpace(request.Instruction))
+                return Results.BadRequest(new { error = "Escribe qué quieres preguntarle a Nexi sobre estos correos." });
+            if (request.Query.Length > 6_000 || request.Instruction.Length > 3_500)
+                return Results.BadRequest(new { error = "La instrucción es demasiado extensa para este contexto." });
+
+            try
+            {
+                var interpretation = await search.InterpretAsync(request.Query, ct);
+                if (interpretation.Special != "none")
+                    return Results.BadRequest(new { error = "Este conjunto especial se analiza desde Operación. Abre los resultados normales o usa Reporte Nexi." });
+
+                var folder = interpretation.Folder is "inbox" or "sent" ? interpretation.Folder : "all";
+                var folders = folder == "all" ? new[] { "inbox", "sent", "archive" } : new[] { folder };
+                var pages = await Task.WhenAll(folders.Select(value =>
+                    gateway.GetMessagesAsync(new MailQuery(request.AccountId, value, 50, null, interpretation.GmailQuery), ct)));
+
+                var unique = new Dictionary<string, MailSummary>(StringComparer.Ordinal);
+                foreach (var page in pages)
+                {
+                    foreach (var item in page.Items)
+                        unique[$"{item.AccountId:N}:{item.ProviderMessageId}"] = item;
+                }
+
+                var summaries = unique.Values
+                    .OrderByDescending(value => value.ReceivedAt)
+                    .Take(40)
+                    .ToArray();
+
+                using var semaphore = new SemaphoreSlim(5);
+                var detailTasks = summaries.Take(20).Select(async item =>
+                {
+                    await semaphore.WaitAsync(ct);
+                    try
+                    {
+                        try
+                        {
+                            return await cache.GetOrCreateAsync(
+                                userContext.UserId.ToString(),
+                                "message-detail",
+                                $"{item.AccountId:N}:{item.ProviderMessageId}",
+                                TimeSpan.FromMinutes(10),
+                                async token => await gateway.GetMessageAsync(item.AccountId, item.ProviderMessageId, token) ?? throw new KeyNotFoundException(),
+                                ct);
+                        }
+                        catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException or KeyNotFoundException)
+                        {
+                            return null;
+                        }
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                });
+
+                var details = (await Task.WhenAll(detailTasks))
+                    .Where(value => value is not null)
+                    .Cast<MailMessage>()
+                    .ToArray();
+
+                var answer = await ai.AnalyzeAsync(request.Query, request.Instruction, details, ct);
+                var senders = summaries
+                    .GroupBy(value => string.IsNullOrWhiteSpace(value.SenderName) ? value.SenderAddress : value.SenderName, StringComparer.OrdinalIgnoreCase)
+                    .Select(group => new { label = group.Key, count = group.Count() })
+                    .OrderByDescending(value => value.count)
+                    .ThenBy(value => value.label, StringComparer.OrdinalIgnoreCase)
+                    .Take(8)
+                    .ToArray();
+                var days = summaries
+                    .GroupBy(value => value.ReceivedAt.Date)
+                    .Select(group => new { date = group.Key.ToString("yyyy-MM-dd"), count = group.Count() })
+                    .OrderBy(value => value.date)
+                    .TakeLast(14)
+                    .ToArray();
+
+                return Results.Ok(new
+                {
+                    query = request.Query,
+                    messageCount = summaries.Length,
+                    analyzedCount = details.Length,
+                    answer,
+                    senders,
+                    days
+                });
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Results.BadRequest(new { error = exception.Message });
+            }
+            catch (HttpRequestException)
+            {
+                return Results.Problem("No fue posible analizar este contexto con Nexi. Inténtalo nuevamente.", statusCode: 502);
+            }
         }).RequireRateLimiting("ai-writing");
 
         mail.MapPost("/messages/{accountId:guid}/{messageId}/ai-summary", async (
@@ -326,6 +433,7 @@ public static class AiEndpoints
 }
 
 public sealed record AiSearchRequest(string Query);
+public sealed record AiContextRequest(string Query, string Instruction, Guid? AccountId);
 public sealed record AiMessageSummaryRequest(bool IncludeThread);
 public sealed record AiMailReportRequest(string Period, string? LocalDate, Guid? AccountId);
 public sealed record AiReplyRequest(string Tone, string? Instruction);
