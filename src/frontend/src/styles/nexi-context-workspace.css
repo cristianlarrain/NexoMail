@@ -1,19 +1,22 @@
 .nexi-context-workspace {
+  width: 100%;
+  min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 310px;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 310px);
   gap: 14px;
+  overflow: visible;
 }
 
 .nexi-context-main,
 .nexi-context-data,
 .nexi-context-empty {
+  min-width: 0;
   border: 1px solid var(--border);
   border-radius: 14px;
   background: var(--surface);
 }
 
 .nexi-context-main {
-  min-width: 0;
   overflow: hidden;
 }
 
@@ -22,7 +25,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  min-height: 68px;
+  min-height: 64px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, #e8f7ff 58%, var(--surface));
@@ -32,7 +35,6 @@
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
 }
 
 .nexi-context-identity > div {
@@ -58,23 +60,28 @@
 }
 
 .nexi-context-quick {
-  display: flex;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 7px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
-  overflow-x: auto;
+  overflow: visible;
 }
 
 .nexi-context-quick button {
-  flex: 0 0 auto;
-  min-height: 30px;
+  min-width: 0;
+  min-height: 34px;
   border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--border));
-  border-radius: 999px;
-  padding: 0 10px;
+  border-radius: 10px;
+  padding: 6px 10px;
   background: color-mix(in srgb, var(--primary) 5%, var(--surface));
   color: var(--foreground);
   font: inherit;
   font-size: 10px;
+  line-height: 1.3;
+  white-space: normal;
+  text-align: left;
   cursor: pointer;
 }
 
@@ -84,17 +91,17 @@
 }
 
 .nexi-context-conversation {
-  min-height: 320px;
-  max-height: 54vh;
+  min-width: 0;
+  min-height: 240px;
   display: grid;
   align-content: start;
   gap: 9px;
   padding: 14px;
-  overflow-y: auto;
+  overflow: visible;
 }
 
 .nexi-context-welcome {
-  min-height: 170px;
+  min-height: 150px;
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr);
   align-content: center;
@@ -125,6 +132,7 @@
 }
 
 .nexi-context-turn {
+  min-width: 0;
   max-width: 88%;
   display: grid;
   gap: 3px;
@@ -158,12 +166,14 @@
 
 .nexi-context-turn p {
   margin: 0;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
   font-size: 12px;
   line-height: 1.5;
 }
 
 .nexi-context-composer {
+  min-width: 0;
   display: grid;
   gap: 7px;
   padding: 11px 12px;
@@ -173,6 +183,7 @@
 
 .nexi-context-composer textarea {
   width: 100%;
+  min-width: 0;
   min-height: 58px;
   resize: vertical;
   border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border));
@@ -192,6 +203,7 @@
 }
 
 .nexi-context-composer > div {
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -205,10 +217,12 @@
 }
 
 .nexi-context-data {
+  min-width: 0;
   display: grid;
   align-content: start;
   gap: 12px;
   padding: 12px;
+  overflow: hidden;
 }
 
 .nexi-context-stat {
@@ -242,6 +256,7 @@
 }
 
 .nexi-context-chart {
+  min-width: 0;
   display: grid;
   gap: 8px;
   padding-top: 10px;
@@ -263,13 +278,15 @@
 }
 
 .nexi-context-bar-row {
+  min-width: 0;
   display: grid;
-  grid-template-columns: minmax(70px, .9fr) minmax(80px, 1fr) 24px;
+  grid-template-columns: minmax(64px, .9fr) minmax(70px, 1fr) 24px;
   align-items: center;
   gap: 7px;
 }
 
 .nexi-context-bar-row > span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -278,6 +295,7 @@
 }
 
 .nexi-context-bar-row > i {
+  min-width: 0;
   height: 7px;
   overflow: hidden;
   border-radius: 999px;
@@ -297,12 +315,17 @@
 }
 
 .nexi-context-empty {
-  min-height: 300px;
+  min-height: 260px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 14px;
   padding: 30px;
+}
+
+.nexi-context-empty > svg {
+  flex: 0 0 auto;
+  color: var(--primary);
 }
 
 .nexi-context-empty > div {
@@ -345,6 +368,10 @@
   .nexi-context-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .nexi-context-quick {
+    grid-template-columns: 1fr;
   }
 
   .nexi-context-data {
