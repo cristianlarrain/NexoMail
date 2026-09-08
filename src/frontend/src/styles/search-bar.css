@@ -1,13 +1,16 @@
 .top-search {
   position: relative;
-  height: 40px;
-  max-width: 560px;
-  padding: 0 7px 0 12px;
+  min-height: 40px;
+  height: auto;
+  max-width: 620px;
+  display: flex;
+  align-items: center;
+  padding: 5px 7px 5px 12px;
   gap: 8px;
   border: 1px solid color-mix(in srgb, var(--primary) 42%, var(--border));
   background: color-mix(in srgb, #dff4ff 78%, var(--surface));
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 8%, transparent), 0 4px 14px rgb(30 111 149 / .07);
-  transition: border-color .16s ease, background .16s ease, box-shadow .16s ease;
+  transition: border-color .16s ease, background .16s ease, box-shadow .16s ease, min-height .16s ease;
 }
 
 .top-search:hover,
@@ -17,6 +20,11 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent), 0 5px 16px rgb(30 111 149 / .09);
 }
 
+.top-search.expanded {
+  min-height: 56px;
+  align-items: flex-start;
+}
+
 .top-search.listening {
   border-color: var(--primary);
   background: color-mix(in srgb, #d5f1ff 82%, var(--surface));
@@ -24,16 +32,47 @@
 
 .top-search-icon {
   flex: 0 0 auto;
+  margin-top: 6px;
   color: var(--primary);
 }
 
-.top-search input {
+.top-search-editor {
   min-width: 0;
-  height: 100%;
+  flex: 1 1 auto;
+  display: grid;
+  gap: 2px;
 }
 
-.top-search input::placeholder {
+.top-search textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  max-height: 68px;
+  resize: none;
+  overflow-y: auto;
+  border: 0;
+  outline: 0;
+  padding: 4px 0;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  line-height: 20px;
+}
+
+.top-search textarea::placeholder {
   color: color-mix(in srgb, var(--primary) 62%, var(--muted-foreground));
+}
+
+.top-search-inline-status {
+  display: block;
+  padding-bottom: 2px;
+  color: color-mix(in srgb, var(--primary) 76%, var(--muted-foreground));
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.top-search-inline-status.error {
+  color: #b9433a;
 }
 
 .top-search-action {
@@ -47,6 +86,8 @@
   background: transparent;
   color: color-mix(in srgb, var(--primary) 76%, var(--muted-foreground));
   padding: 0;
+  margin-top: 1px;
+  cursor: pointer;
 }
 
 .top-search-action:hover {
@@ -58,26 +99,43 @@
   background: color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
-.top-search-action.voice.active {
+.top-search-action.submit {
   color: var(--primary-foreground);
   background: var(--primary);
-  animation: search-mic-pulse 1.25s ease-in-out infinite;
+}
+
+.top-search-action.submit:hover {
+  color: var(--primary-foreground);
+  background: color-mix(in srgb, var(--primary) 88%, black);
 }
 
 .top-search-action.clear {
   color: var(--muted-foreground);
 }
 
-.top-search-voice-status {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
+.top-search-done {
+  min-height: 28px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   border: 0;
+  border-radius: 8px;
+  padding: 0 9px;
+  margin-top: 1px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  animation: search-mic-pulse 1.25s ease-in-out infinite;
+}
+
+.top-search-listening-mark {
+  flex: 0 0 auto;
+  margin: 7px 2px 0 -2px;
+  color: var(--primary);
 }
 
 :root[data-theme="dark"] .top-search {
@@ -100,10 +158,18 @@
 @media (max-width: 760px) {
   .top-search {
     max-width: none;
-    height: 38px;
+    min-height: 38px;
   }
 
-  .top-search input::placeholder {
+  .top-search.expanded {
+    min-height: 54px;
+  }
+
+  .top-search textarea::placeholder {
     font-size: 12px;
+  }
+
+  .top-search-done {
+    padding: 0 7px;
   }
 }
