@@ -25,6 +25,7 @@ public static class AiEndpoints
             client.Timeout = TimeSpan.FromSeconds(35);
         });
         services.AddScoped<AiWritingService>();
+        services.AddScoped<AiSearchService>();
         services.AddScoped<ControlCenterTrackingService>();
         services.AddScoped<GmailDraftProvider>();
         services.AddScoped<GmailMetadataIndexService>();
@@ -75,6 +76,19 @@ public static class AiEndpoints
                 model = string.IsNullOrWhiteSpace(settings.Model) ? "gpt-5.6-luna" : settings.Model
             });
         });
+
+        mail.MapPost("/ai/search", async (
+            AiSearchService ai,
+            AiSearchRequest request,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.Query))
+                return Results.BadRequest(new { error = "Escribe qué quieres buscar." });
+            if (request.Query.Length > 500)
+                return Results.BadRequest(new { error = "La búsqueda es demasiado extensa." });
+
+            return Results.Ok(await ai.InterpretAsync(request.Query, ct));
+        }).RequireRateLimiting("ai-writing");
 
         mail.MapPost("/messages/{accountId:guid}/{messageId}/ai-reply", async (
             IMailGateway gateway,
@@ -141,5 +155,6 @@ public static class AiEndpoints
     }
 }
 
+public sealed record AiSearchRequest(string Query);
 public sealed record AiReplyRequest(string Tone, string? Instruction);
 public sealed record AiDraftRequest(string Context, string Tone, string? Recipient);
