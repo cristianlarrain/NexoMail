@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { Archive, ChevronLeft, Clock3, EyeOff, FileText, Inbox, LayoutDashboard, LogOut, Menu, Moon, PenLine, Search, Send, Settings, ShieldAlert, Sun, Trash2, UserRound } from 'lucide-react'
 import { authApi } from '../api/authApi'
 import { mailApi } from '../api/mailApi'
+import type { MailSummary, PagedResult } from '../types/mail'
 import { BackToTopButton } from '../components/BackToTopButton'
 import { NexoMailLogo } from '../components/brand/NexoMailLogo'
 import { NexiAssistantButton } from '../components/nexi/NexiAssistantButton'
@@ -43,20 +44,31 @@ export function AppLayout() {
   useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 1000); return () => window.clearInterval(timer) }, [])
   useEffect(() => {
     if (!accounts.length || !(location.pathname === '/inbox' || location.pathname.startsWith('/account/'))) return
+    let cancelled = false
     const timer = window.setTimeout(() => {
       const scopes: Array<string | undefined> = [undefined, ...accounts.map(account => account.id)]
-      for (const scope of scopes) {
-        void queryClient.prefetchInfiniteQuery({
-          queryKey: ['messages', scope, 'inbox', ''],
-          queryFn: ({ pageParam }) => mailApi.messages(scope, 'inbox', '', pageParam || undefined),
-          initialPageParam: '',
-          getNextPageParam: lastPage => lastPage.nextCursor ?? undefined,
-          pages: 1,
-          staleTime: 5 * 60_000,
-        })
-      }
+      const activeScope = accountIdFromPath(location.pathname)
+      void Promise.all(scopes.map(scope => queryClient.prefetchInfiniteQuery({
+        queryKey: ['messages', scope, 'inbox', ''],
+        queryFn: ({ pageParam }) => mailApi.messages(scope, 'inbox', '', pageParam || undefined),
+        initialPageParam: '',
+        getNextPageParam: lastPage => lastPage.nextCursor ?? undefined,
+        pages: 1,
+        staleTime: 5 * 60_000,
+      }))).then(() => {
+        if (cancelled) return
+        const activeMessages = queryClient.getQueryData<InfiniteData<PagedResult<MailSummary>>>(['messages', activeScope, 'inbox', ''])
+        const firstVisible = activeMessages?.pages[0]?.items.slice(0, 3) ?? []
+        for (const item of firstVisible) {
+          void queryClient.prefetchQuery({
+            queryKey: ['message', item.accountId, item.providerMessageId],
+            queryFn: () => mailApi.message(item.accountId, item.providerMessageId),
+            staleTime: 10 * 60_000,
+          })
+        }
+      })
     }, 650)
-    return () => window.clearTimeout(timer)
+    return () => { cancelled = true; window.clearTimeout(timer) }
   }, [accounts, location.pathname, queryClient])
 
   const dateLabel = capitalize(now.toLocaleDateString('es-CL', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, ''))
