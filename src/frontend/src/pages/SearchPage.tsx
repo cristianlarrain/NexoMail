@@ -4,7 +4,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Bookmark, BookmarkCheck, Clock3, FileText, Inbox, Mail, Paperclip, Search, Send, Sparkles, Users, X } from 'lucide-react'
 import { mailApi } from '../api/mailApi'
 import { searchApi } from '../api/searchApi'
-import type { AiSearchInterpretation, ContactAnalyticsItem, DocumentIndexItem, MailSummary } from '../types/mail'
+import type { ContactAnalyticsItem, DocumentIndexItem, MailSummary } from '../types/mail'
 
 const SAVED_SEARCHES_KEY = 'nexomail-saved-searches-v1'
 
