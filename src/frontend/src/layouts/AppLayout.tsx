@@ -85,8 +85,10 @@ export function AppLayout() {
   const dateLabel = capitalize(now.toLocaleDateString('es-CL', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, ''))
   const timeLabel = now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
   const activeAccountId = accountIdFromPath(location.pathname)
-  const searchAccountId = location.pathname === '/search' ? new URLSearchParams(location.search).get('account') ?? undefined : undefined
-  const contextualAccountId = activeAccountId ?? searchAccountId
+  const contextualQueryAccount = ['/search', '/search-action', '/control-center'].includes(location.pathname)
+    ? new URLSearchParams(location.search).get('account') ?? undefined
+    : undefined
+  const contextualAccountId = activeAccountId ?? contextualQueryAccount
 
   function runSearch() {
     const query = search.trim()
@@ -121,7 +123,7 @@ export function AppLayout() {
       <button className="compose-button" onClick={() => { setOpen(false); navigate('/compose', { state: contextualAccountId ? { fromAccountId: contextualAccountId } : undefined }) }}><PenLine size={17} /><span>Redactar</span></button>
       <nav aria-label="Navegación principal">
         <NavLink to="/inbox" end className={navClass}><Inbox size={17} /><span>Bandeja de entrada</span></NavLink>
-        <NavLink to="/control-center" className={controlCenterNavClass}><i className="control-center-nav-icon"><LayoutDashboard size={16} /></i><span>Centro de Control Nexi</span></NavLink>
+        <NavLink to="/control-center" className={controlCenterNavClass}><i className="control-center-nav-icon"><LayoutDashboard size={16} /></i><span>Centro de Control</span></NavLink>
         <p className="nav-heading">Cuentas</p>
         {accounts.map(account => <NavLink key={account.id} to={`/account/${account.id}`} className={navClass}><i className="account-dot" style={{ background: account.color }} /><span>{account.displayName}</span></NavLink>)}
         <button type="button" className="nav-section-toggle" onClick={toggleFolders} aria-expanded={!foldersCollapsed} aria-controls="sidebar-folders" title={foldersCollapsed ? 'Mostrar carpetas' : 'Ocultar carpetas'}>
