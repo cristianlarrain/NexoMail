@@ -39,6 +39,7 @@ import './styles/landing.css'
 import './styles/landing-commercial.css'
 import './styles/cinematic-dark-theme.css'
 import './styles/universal-search.css'
+import './styles/search-context.css'
 import './styles/nexi-search-actions.css'
 import './styles/search-bar.css'
 
