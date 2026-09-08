@@ -6,11 +6,11 @@ import { ArrowLeft, Bold, ChevronDown, Italic, Link, List, ListOrdered, Mic, Mic
 import { AiInlineWritingAssistant } from '../components/AiInlineWritingAssistant'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { mailApi } from '../api/mailApi'
-import type { AiWritingSuggestion, ComposeMessage, MailMessage, OutgoingAttachment } from '../types/mail'
+import type { AiWritingSuggestion, ComposeMessage, MailAttachment, MailMessage, OutgoingAttachment } from '../types/mail'
 import { sanitizeEmailHtml } from '../utils/sanitizeEmailHtml'
 
 type ComposeState = {
-  mode?: 'reply' | 'replyAll' | 'forward' | 'followUp'
+  mode?: 'reply' | 'replyAll' | 'forward' | 'followUp' | 'editDraft'
   message?: MailMessage
   fromAccountId?: string
   initialBody?: string
@@ -63,14 +63,26 @@ export function ComposePage() {
   const state = (location.state ?? {}) as ComposeState
   const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: mailApi.accounts })
   const origin = state.message
+  const editingDraft = Boolean(origin && state.mode === 'editDraft')
   const [from, setFrom] = useState(origin?.accountId ?? state.fromAccountId ?? '')
-  const [to, setTo] = useState(origin ? state.mode === 'forward' ? '' : state.mode === 'followUp' ? origin.to.map(item => item.address).join(', ') : origin.from.address : '')
-  const [cc, setCc] = useState('')
+  const [to, setTo] = useState(origin
+    ? state.mode === 'forward'
+      ? ''
+      : state.mode === 'followUp' || state.mode === 'editDraft'
+        ? origin.to.map(item => item.address).join(', ')
+        : origin.from.address
+    : '')
+  const [cc, setCc] = useState(() => editingDraft ? origin?.cc.map(item => item.address).join(', ') ?? '' : '')
   const [bcc, setBcc] = useState('')
-  const [showCc, setShowCc] = useState(false)
-  const [subject, setSubject] = useState(() => origin ? `${state.mode === 'forward' ? 'Fwd:' : 'Re:'} ${origin.subject}` : '')
-  const [body, setBody] = useState(() => state.initialBody ? textToHtml(state.initialBody) : '')
+  const [showCc, setShowCc] = useState(() => Boolean(editingDraft && origin?.cc.length))
+  const [subject, setSubject] = useState(() => origin
+    ? state.mode === 'editDraft'
+      ? origin.subject
+      : `${state.mode === 'forward' ? 'Fwd:' : 'Re:'} ${origin.subject}`
+    : '')
+  const [body, setBody] = useState(() => editingDraft && origin ? origin.htmlBody : state.initialBody ? textToHtml(state.initialBody) : '')
   const [attachments, setAttachments] = useState<OutgoingAttachment[]>([])
+  const [retainedDraftAttachments, setRetainedDraftAttachments] = useState<MailAttachment[]>(() => editingDraft && origin ? [...origin.attachments] : [])
   const [attachmentError, setAttachmentError] = useState('')
   const [recipientFocused, setRecipientFocused] = useState(false)
   const [listening, setListening] = useState(false)
@@ -88,7 +100,17 @@ export function ComposePage() {
     enabled: Boolean(fromAccountId && recipientFocused && recipientTerm.length >= 2),
     retry: false,
   })
-  const action = useMemo(() => state.mode === 'reply' ? 'Responder' : state.mode === 'replyAll' ? 'Responder a todos' : state.mode === 'forward' ? 'Reenviar' : state.mode === 'followUp' ? 'Enviar seguimiento' : 'Enviar', [state.mode])
+  const action = useMemo(() => state.mode === 'reply'
+    ? 'Responder'
+    : state.mode === 'replyAll'
+      ? 'Responder a todos'
+      : state.mode === 'forward'
+        ? 'Reenviar'
+        : state.mode === 'followUp'
+          ? 'Enviar seguimiento'
+          : state.mode === 'editDraft'
+            ? 'Editar borrador'
+            : 'Enviar', [state.mode])
 
   function buildPayload(): ComposeMessage {
     if (!fromAccountId) throw new Error('Selecciona una cuenta desde la cual enviar o guardar el correo.')
@@ -106,6 +128,7 @@ export function ComposePage() {
   const send = useMutation({
     mutationFn: () => {
       const payload = buildPayload()
+      if (origin && state.mode === 'editDraft') return mailApi.sendDraft(origin.accountId, origin.providerMessageId, payload, retainedDraftAttachments)
       if (origin && state.mode !== 'forward') return mailApi.reply(origin.accountId, origin.providerMessageId, payload, state.mode === 'replyAll')
       if (origin && state.mode === 'forward') return mailApi.forward(origin.accountId, origin.providerMessageId, payload)
       return mailApi.send(payload)
@@ -121,6 +144,7 @@ export function ComposePage() {
   const saveDraft = useMutation({
     mutationFn: () => {
       const payload = buildPayload()
+      if (origin && state.mode === 'editDraft') return mailApi.updateDraft(origin.accountId, origin.providerMessageId, payload, retainedDraftAttachments)
       const replyToMessageId = origin && state.mode !== 'forward' ? origin.providerMessageId : undefined
       return mailApi.saveDraft(payload, replyToMessageId)
     },
@@ -146,11 +170,12 @@ export function ComposePage() {
     setShowCc(ccAddresses.length > 0)
   }, [accounts, origin, state.mode])
   useEffect(() => {
-    if (!state.initialBody || !editor.current) return
-    const html = textToHtml(state.initialBody)
+    if (!editor.current) return
+    const html = editingDraft && origin ? origin.htmlBody : state.initialBody ? textToHtml(state.initialBody) : ''
+    if (!html) return
     editor.current.innerHTML = html
     setBody(html)
-  }, [state.initialBody])
+  }, [editingDraft, origin, state.initialBody])
 
   function submit(event: FormEvent) {
     event.preventDefault()
@@ -172,7 +197,7 @@ export function ComposePage() {
   }
 
   function useAiProposal(suggestion: AiWritingSuggestion) {
-    if (!origin && suggestion.subject?.trim()) setSubject(suggestion.subject.trim())
+    if ((!origin || editingDraft) && suggestion.subject?.trim()) setSubject(suggestion.subject.trim())
     const html = textToHtml(suggestion.text)
     setBody(html)
     if (editor.current) {
@@ -187,7 +212,7 @@ export function ComposePage() {
       navigate(state.returnTo, { state: state.returnState })
       return
     }
-    if (origin) {
+    if (origin && !editingDraft) {
       navigate(`/message/${origin.accountId}/${origin.providerMessageId}`)
       return
     }
@@ -254,7 +279,12 @@ export function ComposePage() {
   async function addFiles(files: FileList | null) {
     if (!files?.length) return
     const selected = [...files]
-    const total = attachments.reduce((sum, file) => sum + Math.ceil(file.base64Content.length * 0.75), 0) + selected.reduce((sum, file) => sum + file.size, 0)
+    const retainedBytes = editingDraft
+      ? retainedDraftAttachments.reduce((sum, file) => sum + file.size, 0)
+      : state.mode === 'forward' && origin
+        ? origin.attachments.reduce((sum, file) => sum + file.size, 0)
+        : 0
+    const total = retainedBytes + attachments.reduce((sum, file) => sum + Math.ceil(file.base64Content.length * 0.75), 0) + selected.reduce((sum, file) => sum + file.size, 0)
     if (selected.some(file => file.size > 8 * 1024 * 1024) || total > 15 * 1024 * 1024) {
       setAttachmentError('Cada archivo admite hasta 8 MB y el total hasta 15 MB.')
       return
@@ -279,7 +309,7 @@ export function ComposePage() {
           <span className="ai-compose-mark"><Sparkles size={18} /></span>
           <div><p className="eyebrow">Nexo IA</p><h1>{origin ? action : 'Redactar correo'}</h1></div>
         </div>
-        <button type="button" className="icon-button" onClick={closeComposer} aria-label={origin ? 'Volver al correo' : 'Cerrar'} title={origin ? 'Volver al correo' : 'Cerrar'}>{origin ? <ArrowLeft size={19} /> : <X size={19} />}</button>
+        <button type="button" className="icon-button" onClick={closeComposer} aria-label={origin ? 'Volver' : 'Cerrar'} title={origin ? 'Volver' : 'Cerrar'}>{origin ? <ArrowLeft size={19} /> : <X size={19} />}</button>
       </header>
 
       <form onSubmit={submit}>
@@ -288,7 +318,7 @@ export function ComposePage() {
             <div className="compose-field">
               <label>De</label>
               <div className="select-wrap">
-                <select value={fromAccountId ?? ''} onChange={event => setFrom(event.target.value)}>
+                <select value={fromAccountId ?? ''} onChange={event => setFrom(event.target.value)} disabled={Boolean(origin)}>
                   {accounts.map(account => <option key={account.id} value={account.id}>{account.displayName} · {account.emailAddress}</option>)}
                 </select>
                 <ChevronDown size={16} />
@@ -310,12 +340,12 @@ export function ComposePage() {
             <div className="compose-field subject-field"><label>Asunto</label><input value={subject} onChange={event => setSubject(event.target.value)} required /></div>
           </div>
 
-          {origin && state.mode !== 'forward' && <section className="ai-reply-source" aria-label="Mensaje original">
+          {origin && state.mode !== 'forward' && state.mode !== 'editDraft' && <section className="ai-reply-source" aria-label="Mensaje original">
             <div className="ai-reply-source-body" dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(origin.htmlBody) }} />
           </section>}
 
           <section className="ai-compose-editor" aria-label="Editor del mensaje">
-            {origin && <div className="ai-compose-editor-heading">
+            {origin && !editingDraft && <div className="ai-compose-editor-heading">
               <div><strong>{body ? 'Respuesta propuesta' : 'Respuesta'}</strong></div>
               <small>Revísala antes de responder.</small>
             </div>}
@@ -335,12 +365,13 @@ export function ComposePage() {
             <AiInlineWritingAssistant
               currentHtml={body}
               recipient={to}
-              accountId={origin && state.mode !== 'forward' ? origin.accountId : undefined}
-              messageId={origin && state.mode !== 'forward' ? origin.providerMessageId : undefined}
+              accountId={origin && state.mode !== 'forward' && state.mode !== 'editDraft' ? origin.accountId : undefined}
+              messageId={origin && state.mode !== 'forward' && state.mode !== 'editDraft' ? origin.providerMessageId : undefined}
               onUse={useAiProposal}
             />
 
             <div className="outgoing-attachments">
+              {retainedDraftAttachments.map(file => <span key={`draft-${file.id}`}><Paperclip size={14} />{file.name}<button type="button" onClick={() => setRetainedDraftAttachments(current => current.filter(item => item.id !== file.id))} aria-label={`Quitar ${file.name}`}><X size={14} /></button></span>)}
               {attachments.map((file, index) => <span key={`${file.name}-${index}`}><Paperclip size={14} />{file.name}<button type="button" onClick={() => setAttachments(current => current.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Quitar ${file.name}`}><X size={14} /></button></span>)}
             </div>
             {attachmentError && <p className="attachment-error">{attachmentError}</p>}
