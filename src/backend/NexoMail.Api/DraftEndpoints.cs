@@ -39,6 +39,74 @@ public static class DraftEndpoints
             }
         });
 
+        mail.MapPut("/drafts/{accountId:guid}/{draftMessageId}", async (
+            IMailGateway gateway,
+            MailReadCache cache,
+            IUserContext userContext,
+            Guid accountId,
+            string draftMessageId,
+            ComposeMessage request,
+            CancellationToken ct) =>
+        {
+            if (accountId == Guid.Empty || string.IsNullOrWhiteSpace(draftMessageId))
+                return Results.BadRequest(new { error = "El borrador seleccionado no es válido." });
+
+            try
+            {
+                await gateway.UpdateDraftAsync(accountId, draftMessageId, request, ct);
+                cache.Invalidate(userContext.UserId.ToString());
+                return Results.Accepted();
+            }
+            catch (NotSupportedException exception)
+            {
+                return Results.BadRequest(new { error = exception.Message });
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Results.BadRequest(new { error = exception.Message });
+            }
+            catch (HttpRequestException exception)
+            {
+                return Results.Problem(
+                    $"El proveedor no pudo actualizar el borrador ({exception.StatusCode?.ToString() ?? "sin código"}).",
+                    statusCode: 502);
+            }
+        });
+
+        mail.MapPost("/drafts/{accountId:guid}/{draftMessageId}/send", async (
+            IMailGateway gateway,
+            MailReadCache cache,
+            IUserContext userContext,
+            Guid accountId,
+            string draftMessageId,
+            ComposeMessage request,
+            CancellationToken ct) =>
+        {
+            if (accountId == Guid.Empty || string.IsNullOrWhiteSpace(draftMessageId))
+                return Results.BadRequest(new { error = "El borrador seleccionado no es válido." });
+
+            try
+            {
+                await gateway.SendDraftAsync(accountId, draftMessageId, request, ct);
+                cache.Invalidate(userContext.UserId.ToString());
+                return Results.Accepted();
+            }
+            catch (NotSupportedException exception)
+            {
+                return Results.BadRequest(new { error = exception.Message });
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Results.BadRequest(new { error = exception.Message });
+            }
+            catch (HttpRequestException exception)
+            {
+                return Results.Problem(
+                    $"El proveedor no pudo enviar el borrador ({exception.StatusCode?.ToString() ?? "sin código"}).",
+                    statusCode: 502);
+            }
+        });
+
         return mail;
     }
 }
