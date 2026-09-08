@@ -24,6 +24,16 @@ public sealed class DemoMailProvider : IMailProvider
     public Task<MailMessage?> GetMessageAsync(Guid accountId, string messageId, CancellationToken cancellationToken) =>
         Task.FromResult(_messages.SingleOrDefault(m => m.AccountId == accountId && m.ProviderMessageId == messageId));
 
+    public Task<IReadOnlyCollection<MailThreadMessage>> GetThreadAsync(Guid accountId, string messageId, CancellationToken cancellationToken)
+    {
+        var message = _messages.SingleOrDefault(m => m.AccountId == accountId && m.ProviderMessageId == messageId);
+        if (message is null) return Task.FromResult<IReadOnlyCollection<MailThreadMessage>>([]);
+        if (message.Thread is { Count: > 0 }) return Task.FromResult(message.Thread);
+        return Task.FromResult<IReadOnlyCollection<MailThreadMessage>>([
+            new MailThreadMessage(message.ProviderMessageId, message.From, message.HtmlBody, message.ReceivedAt, true)
+        ]);
+    }
+
     public Task<MailAttachmentContent?> GetAttachmentAsync(Guid accountId, string messageId, string attachmentId, CancellationToken cancellationToken)
     {
         var attachment = _messages.SingleOrDefault(m => m.AccountId == accountId && m.ProviderMessageId == messageId)?.Attachments.SingleOrDefault(x => x.Id == attachmentId);
@@ -99,6 +109,7 @@ public sealed class DemoMailGateway(IEnumerable<IMailProvider> providers) : IMai
     }
     public Task<PagedResult<MailSummary>> GetMessagesAsync(MailQuery query, CancellationToken cancellationToken) => _demo.GetMessagesAsync(query, cancellationToken);
     public Task<MailMessage?> GetMessageAsync(Guid accountId, string messageId, CancellationToken cancellationToken) => _demo.GetMessageAsync(accountId, messageId, cancellationToken);
+    public Task<IReadOnlyCollection<MailThreadMessage>> GetThreadAsync(Guid accountId, string messageId, CancellationToken cancellationToken) => _demo.GetThreadAsync(accountId, messageId, cancellationToken);
     public Task<MailAttachmentContent?> GetAttachmentAsync(Guid accountId, string messageId, string attachmentId, CancellationToken cancellationToken) => _demo.GetAttachmentAsync(accountId, messageId, attachmentId, cancellationToken);
     public Task SendAsync(ComposeMessage message, CancellationToken cancellationToken) => _demo.SendAsync(message, cancellationToken);
     public Task SaveDraftAsync(Guid accountId, string? replyToMessageId, ComposeMessage message, CancellationToken cancellationToken) => _demo.SaveDraftAsync(accountId, replyToMessageId, message, cancellationToken);
