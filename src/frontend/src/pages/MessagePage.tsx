@@ -45,6 +45,16 @@ export function MessagePage() {
     refetchOnMount: false,
     refetchOnWindowFocus: false,
   })
+  const threadQuery = useQuery({
+    queryKey: ['message-thread', accountId, messageId],
+    queryFn: () => mailApi.thread(accountId, messageId),
+    enabled: Boolean(accountId && messageId && message),
+    staleTime: 10 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    retry: false,
+  })
   const trackingState = useQuery({
     queryKey: ['control-center-tracking-state', accountId, messageId],
     queryFn: () => mailApi.controlCenterTrackingState(accountId, messageId),
@@ -211,6 +221,8 @@ export function MessagePage() {
   const isManuallyTracked = trackingState.data?.isTracked ?? openedManualTracking
   const trackingMutationError = trackMessage.error ?? untrackMessage.error
   const destructiveActionLabel = isDraft ? 'Descartar borrador' : 'Mover a Papelera'
+  const thread = threadQuery.data ?? []
+
   return <article className={`mail-view message-reader ${preview ? 'with-preview' : ''}`}>
     <section className="message-reading-pane">
       <div className="message-navigation"><button className="back-link" onClick={returnToPreviousView}><ArrowLeft size={17} /> {openedFromControlCenter ? 'Volver al Centro de control' : 'Volver'}</button><div className="message-navigation-arrows" aria-label="Navegación entre correos"><button className="icon-button" onClick={() => goToMessage(previousMessage)} disabled={!previousMessage} aria-label="Correo anterior" title="Correo anterior"><ChevronLeft size={19} /></button><button className="icon-button" onClick={() => goToMessage(nextMessage)} disabled={!nextMessage} aria-label="Correo siguiente" title="Correo siguiente"><ChevronRight size={19} /></button></div></div>
@@ -240,7 +252,7 @@ export function MessagePage() {
       {resolveTracking.isError && <div className="notice message-mailbox-error">{resolveTracking.error instanceof Error ? resolveTracking.error.message : 'No fue posible actualizar el seguimiento.'}</div>}
       {(move.isError || ignore.isError || unignore.isError) && <div className="notice message-mailbox-error">No fue posible completar la acción sobre este correo.</div>}
 
-      {message.thread && message.thread.length > 1 ? <section className="thread-view"><h2>Conversación</h2>{message.thread.map(item => <article className={`thread-message ${item.isCurrent ? 'current' : ''}`} key={item.providerMessageId}><header><strong>{item.from.name}</strong><span>{item.from.address} · {new Date(item.receivedAt).toLocaleString('es-CL')}</span></header><div dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(item.htmlBody) }} /></article>)}</section> : <div className="message-body" dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(message.htmlBody) }} />}
+      {thread.length > 1 ? <section className="thread-view"><h2>Conversación</h2>{thread.map(item => <article className={`thread-message ${item.isCurrent ? 'current' : ''}`} key={item.providerMessageId}><header><strong>{item.from.name}</strong><span>{item.from.address} · {new Date(item.receivedAt).toLocaleString('es-CL')}</span></header><div dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(item.htmlBody) }} /></article>)}</section> : <div className="message-body" dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(message.htmlBody) }} />}
       {message.attachments.length > 0 && <div className="attachments"><h2><Paperclip size={16} /> Adjuntos</h2><div className="attachment-list">{message.attachments.map(file => <div key={file.id} className={`attachment-card ${preview?.id === file.id ? 'selected' : ''}`}><button type="button" className="attachment-preview-button" onClick={() => setPreview(file)} title="Abrir vista previa"><Paperclip size={17} /><span><strong>{file.name}</strong><small>{Math.max(1, Math.round(file.size / 1000))} KB · Vista previa</small></span></button><a href={mailApi.attachmentUrl(accountId, messageId, file, true)} className="attachment-download" title={`Descargar ${file.name}`} aria-label={`Descargar ${file.name}`}><Download size={16} /></a></div>)}</div></div>}
       <div className="reply-bar message-action-footer"><button className="message-action-button primary-action" onClick={() => compose('reply')}><Reply size={16} /> Responder</button><button className="message-action-button" onClick={() => compose('replyAll')}><ReplyAll size={16} /> Responder a todos</button><button className="message-action-button" onClick={() => compose('forward')}><Forward size={16} /> Reenviar</button></div>
     </section>
