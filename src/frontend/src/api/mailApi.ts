@@ -82,6 +82,7 @@ export const mailApi = {
   syncMetadataIndex: (days = 90, limitPerAccount = 120) => api<MailMetadataSyncResult>(`/mail/control-center/index/sync?days=${days}&limitPerAccount=${limitPerAccount}`, { method: 'POST' }),
   controlCenterTrackedItems: (accountId?: string) => api<ControlCenterPendingItem[]>(`/mail/control-center/tracking${accountId ? `?accountId=${encodeURIComponent(accountId)}` : ''}`),
   controlCenterTrackingState: (accountId: string, messageId: string) => api<{ isTracked: boolean }>(`/mail/control-center/tracking/${encodeURIComponent(accountId)}/${encodeURIComponent(messageId)}`),
+  controlCenterMessageState: (accountId: string, messageId: string) => api<{ status: 'active' | 'resolved' | 'snoozed'; conversationId?: string | null }>(`/mail/control-center/state/${encodeURIComponent(accountId)}/${encodeURIComponent(messageId)}`),
   trackMessage: (accountId: string, messageId: string) => api<void>(`/mail/control-center/tracking/${encodeURIComponent(accountId)}/${encodeURIComponent(messageId)}`, { method: 'POST' }),
   untrackMessage: (accountId: string, messageId: string) => api<void>(`/mail/control-center/tracking/${encodeURIComponent(accountId)}/${encodeURIComponent(messageId)}`, { method: 'DELETE' }),
   updateControlCenterState: (accountId: string, conversationId: string, payload: { messageId: string; action: 'resolved' | 'snoozed' | 'active'; snoozeHours?: number }) => api<void>(`/mail/control-center/${encodeURIComponent(accountId)}/${encodeURIComponent(conversationId)}/state`, { method: 'PATCH', body: JSON.stringify(payload) }),
