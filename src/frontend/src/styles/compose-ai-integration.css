@@ -127,7 +127,8 @@
   flex-direction: row !important;
   flex-wrap: nowrap !important;
   align-items: center !important;
-  gap: 12px;
+  justify-content: flex-end !important;
+  gap: 10px;
   padding: 11px 20px;
   overflow-x: auto;
   border-top: 1px solid color-mix(in srgb, var(--primary) 15%, var(--border)) !important;
@@ -135,21 +136,29 @@
 }
 .ai-compose-footer-left,
 .ai-compose-footer-actions {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
+  display: contents !important;
 }
-.ai-compose-footer-actions { margin-left: auto; }
 .ai-compose-footer .attachment-action,
 .ai-compose-footer .secondary-button,
 .ai-compose-footer .primary-button {
   min-height: 42px;
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   white-space: nowrap;
+}
+.ai-compose-footer .attachment-action {
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--foreground);
+}
+.ai-compose-footer .attachment-action:hover {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  color: var(--primary);
 }
 .ai-compose-footer .primary-button { min-width: 118px; }
 .compose-discard-button { color: var(--muted-foreground); }
@@ -180,8 +189,10 @@
   .ai-compose-editor { padding-inline: 15px; }
   .ai-compose-editor-heading { align-items: flex-start; flex-direction: column; justify-content: center; gap: 2px; padding: 9px 0; }
   .ai-compose-editor-heading > div { display: flex; }
-  .ai-compose-footer { padding-inline: 15px; }
-  .ai-compose-footer-actions { margin-left: auto; }
+  .ai-compose-footer {
+    justify-content: flex-start !important;
+    padding-inline: 15px;
+  }
   .ai-review-banner { align-items: flex-start; flex-direction: column; padding-inline: 15px; }
   .ai-add-copy { margin-left: 0 !important; }
   .ai-reply-source-body { padding-inline: 15px; }
