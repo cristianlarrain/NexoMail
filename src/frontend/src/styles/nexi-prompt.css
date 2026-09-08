@@ -1,0 +1,58 @@
+.nexi-assistant-button {
+  right: 82px;
+  bottom: 58px;
+}
+
+.nexi-assistant-prompt {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  width: max-content;
+  max-width: 184px;
+  transform: translateX(-50%);
+  padding: 5px 9px;
+  border: 1px solid color-mix(in srgb, var(--nexi-accent) 22%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 96%, var(--nexi-accent));
+  color: var(--muted-foreground);
+  box-shadow: 0 5px 18px rgb(0 0 0 / .10);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+
+.nexi-assistant-button:hover .nexi-assistant-prompt,
+.nexi-assistant-button.active .nexi-assistant-prompt {
+  border-color: color-mix(in srgb, var(--nexi-accent) 48%, var(--border));
+  color: var(--nexi-accent);
+}
+
+.nexi-assistant-button.dragging .nexi-assistant-prompt {
+  opacity: .72;
+}
+
+/* Keep utility actions clear of the always-visible Nexi prompt. */
+.back-to-top-button {
+  bottom: 126px;
+}
+
+@media (max-width: 760px) {
+  .nexi-assistant-button {
+    right: 66px;
+    bottom: 56px;
+  }
+
+  .nexi-assistant-prompt {
+    max-width: 156px;
+    padding: 4px 8px;
+    font-size: 9px;
+  }
+
+  .back-to-top-button {
+    right: 16px;
+    bottom: 118px;
+  }
+}
