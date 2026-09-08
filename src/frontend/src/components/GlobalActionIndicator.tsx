@@ -1,28 +1,50 @@
-import { useEffect, useState } from 'react'
-import { useIsFetching, useIsMutating } from '@tanstack/react-query'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ACTION_END_EVENT, ACTION_START_EVENT, type ActionEndDetail, type ActionStartDetail } from '../utils/actionIndicator'
+
+type ActiveAction = ActionStartDetail & { order: number }
 
 export function GlobalActionIndicator() {
-  const fetching = useIsFetching()
-  const mutating = useIsMutating()
-  const busy = fetching > 0 || mutating > 0
+  const [actions, setActions] = useState<ActiveAction[]>([])
   const [visible, setVisible] = useState(false)
+  const order = useRef(0)
 
   useEffect(() => {
-    if (busy) {
-      const timer = window.setTimeout(() => setVisible(true), 140)
-      return () => window.clearTimeout(timer)
+    function onStart(event: Event) {
+      const detail = (event as CustomEvent<ActionStartDetail>).detail
+      if (!detail?.id || !detail.label) return
+      order.current += 1
+      setActions(current => [...current.filter(item => item.id !== detail.id), { ...detail, order: order.current }])
     }
 
+    function onEnd(event: Event) {
+      const detail = (event as CustomEvent<ActionEndDetail>).detail
+      if (!detail?.id) return
+      setActions(current => current.filter(item => item.id !== detail.id))
+    }
+
+    window.addEventListener(ACTION_START_EVENT, onStart)
+    window.addEventListener(ACTION_END_EVENT, onEnd)
+    return () => {
+      window.removeEventListener(ACTION_START_EVENT, onStart)
+      window.removeEventListener(ACTION_END_EVENT, onEnd)
+    }
+  }, [])
+
+  const current = useMemo(() => [...actions].sort((left, right) => right.order - left.order)[0], [actions])
+
+  useEffect(() => {
+    if (current) {
+      const timer = window.setTimeout(() => setVisible(true), 160)
+      return () => window.clearTimeout(timer)
+    }
     const timer = window.setTimeout(() => setVisible(false), 180)
     return () => window.clearTimeout(timer)
-  }, [busy])
+  }, [current])
 
-  if (!visible) return null
+  if (!visible || !current) return null
 
-  const label = mutating > 0 ? 'Procesando acción…' : 'Cargando…'
-
-  return <div className="global-action-indicator" role="status" aria-live="polite" aria-label={label}>
-    <span>{label}</span>
+  return <div className="global-action-indicator" role="status" aria-live="polite" aria-label={current.label}>
+    <span>{current.label}</span>
     <i aria-hidden="true"><b /></i>
   </div>
 }
