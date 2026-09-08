@@ -1,17 +1,18 @@
 import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { BarChart3, Files, Sparkles, Users } from 'lucide-react'
+import { BarChart3, Files, MessageSquareText, Sparkles, Users } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { ControlCenter } from '../components/ControlCenter'
 import { ControlCenterContacts } from '../components/ControlCenterContacts'
 import { ControlCenterDocuments } from '../components/ControlCenterDocuments'
+import { NexiContextWorkspace } from '../components/NexiContextWorkspace'
 import { NexiMailReport } from '../components/NexiMailReport'
 import { NexiVisual } from '../components/nexi/NexiVisual'
 
-type ControlTab = 'summary' | 'report' | 'contacts' | 'documents'
+type ControlTab = 'summary' | 'nexi' | 'report' | 'contacts' | 'documents'
 
 function normalizedTab(value: string | null): ControlTab {
-  return value === 'report' || value === 'contacts' || value === 'documents' ? value : 'summary'
+  return value === 'nexi' || value === 'report' || value === 'contacts' || value === 'documents' ? value : 'summary'
 }
 
 export function ControlCenterPage() {
@@ -28,10 +29,14 @@ export function ControlCenterPage() {
     const updated = new URLSearchParams(params)
     if (next === 'summary') updated.delete('tab')
     else updated.set('tab', next)
-    if (next !== 'report') {
-      updated.delete('period')
-      updated.delete('account')
+
+    if (next !== 'report') updated.delete('period')
+    if (next !== 'nexi') {
+      updated.delete('q')
+      updated.delete('auto')
     }
+    if (next !== 'nexi' && next !== 'report') updated.delete('account')
+
     setParams(updated, { replace: true })
   }
 
@@ -39,17 +44,26 @@ export function ControlCenterPage() {
     <div className="view-header control-page-header nexi-control-header">
       <div className="control-page-title nexi-control-title">
         <span style={{ display: 'inline-flex', transform: 'translateY(6px)' }}><NexiVisual size="small" /></span>
-        <div><h1>Centro de Control Nexi</h1><p>Nexi interpreta tus pendientes, actividad, contactos, documentos y reportes de correo.</p></div>
+        <div><h1>Centro de Control</h1><p><strong>Nexi</strong> integra tus pendientes, búsquedas, análisis, reportes, contactos y documentos en un solo espacio.</p></div>
       </div>
 
-      <nav className="control-tabs control-tabs-inline" aria-label="Secciones del Centro de Control Nexi">
+      <nav className="control-tabs control-tabs-inline" aria-label="Secciones del Centro de Control con Nexi">
         <button type="button" className={tab === 'summary' ? 'active' : ''} onClick={() => selectTab('summary')}><BarChart3 size={16} /> Operación</button>
-        <button type="button" className={tab === 'report' ? 'active nexi-tab' : 'nexi-tab'} onClick={() => selectTab('report')}><Sparkles size={16} /> Reporte Nexi</button>
+        <button type="button" className={tab === 'nexi' ? 'active nexi-tab' : 'nexi-tab'} onClick={() => selectTab('nexi')}><MessageSquareText size={16} /> Nexi</button>
+        <button type="button" className={tab === 'report' ? 'active nexi-tab' : 'nexi-tab'} onClick={() => selectTab('report')}><Sparkles size={16} /> Reportes</button>
         <button type="button" className={tab === 'contacts' ? 'active' : ''} onClick={() => selectTab('contacts')}><Users size={16} /> Contactos</button>
         <button type="button" className={tab === 'documents' ? 'active' : ''} onClick={() => selectTab('documents')}><Files size={16} /> Documentos</button>
       </nav>
     </div>
 
-    {tab === 'summary' ? <ControlCenter /> : tab === 'report' ? <NexiMailReport /> : tab === 'contacts' ? <ControlCenterContacts /> : <ControlCenterDocuments />}
+    {tab === 'summary'
+      ? <ControlCenter />
+      : tab === 'nexi'
+        ? <NexiContextWorkspace />
+        : tab === 'report'
+          ? <NexiMailReport />
+          : tab === 'contacts'
+            ? <ControlCenterContacts />
+            : <ControlCenterDocuments />}
   </section>
 }
