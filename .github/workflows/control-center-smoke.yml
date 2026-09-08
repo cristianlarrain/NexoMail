@@ -1,0 +1,28 @@
+name: Control center smoke test
+
+on:
+  push:
+    branches:
+      - feature/nexi-assistant
+  workflow_dispatch:
+
+jobs:
+  control-center:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore src/backend/NexoMail.ControlCenterSmokeTests/NexoMail.ControlCenterSmokeTests.csproj
+
+      - name: Build
+        run: dotnet build src/backend/NexoMail.ControlCenterSmokeTests/NexoMail.ControlCenterSmokeTests.csproj --configuration Release --no-restore
+
+      - name: Run control center smoke test
+        run: dotnet run --project src/backend/NexoMail.ControlCenterSmokeTests/NexoMail.ControlCenterSmokeTests.csproj --configuration Release --no-build
