@@ -1,7 +1,7 @@
-.operations-clock { margin-left: auto; min-width: 250px; height: 38px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 0 11px; border: 1px solid var(--border); border-radius: 9px; background: color-mix(in srgb, var(--surface) 92%, transparent); color: var(--muted-foreground); font-size: 11px; white-space: nowrap; box-shadow: var(--shadow); }
-.operations-clock svg { color: var(--primary); }
-.operations-clock strong { min-width: 70px; color: var(--foreground); font-size: 14px; font-variant-numeric: tabular-nums; letter-spacing: .035em; text-align: right; }
-.operations-date { max-width: 155px; overflow: hidden; text-overflow: ellipsis; }
+.operations-clock { margin-left: auto; width: max-content; min-width: 0; height: 38px; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 0 9px; border: 1px solid var(--border); border-radius: 9px; background: color-mix(in srgb, var(--surface) 92%, transparent); color: var(--muted-foreground); font-size: 11px; white-space: nowrap; box-shadow: var(--shadow); }
+.operations-clock svg { color: var(--primary); flex: 0 0 auto; }
+.operations-clock strong { min-width: 68px; color: var(--foreground); font-size: 14px; font-variant-numeric: tabular-nums; letter-spacing: .035em; text-align: right; }
+.operations-date { max-width: 142px; overflow: hidden; text-overflow: ellipsis; }
 
 .weather-widget { height: 38px; min-width: 116px; max-width: 180px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 0 1 auto; padding: 0 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--muted-foreground); font-size: 11px; white-space: nowrap; box-shadow: var(--shadow); }
 .weather-widget svg { color: var(--primary); flex: 0 0 auto; }
