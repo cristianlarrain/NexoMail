@@ -20,7 +20,7 @@ public static class DraftEndpoints
             try
             {
                 await gateway.SaveDraftAsync(request.Message.FromAccountId, request.ReplyToMessageId, request.Message, ct);
-                cache.Invalidate(userContext.UserId.ToString());
+                cache.InvalidateAreas(userContext.UserId.ToString(), "messages", "message-detail");
                 return Results.Accepted();
             }
             catch (NotSupportedException exception)
@@ -54,7 +54,7 @@ public static class DraftEndpoints
             try
             {
                 await gateway.UpdateDraftAsync(accountId, draftMessageId, request, ct);
-                cache.Invalidate(userContext.UserId.ToString());
+                cache.InvalidateAreas(userContext.UserId.ToString(), "messages", "message-detail");
                 return Results.Accepted();
             }
             catch (NotSupportedException exception)
@@ -88,7 +88,7 @@ public static class DraftEndpoints
             try
             {
                 await gateway.SendDraftAsync(accountId, draftMessageId, request, ct);
-                cache.Invalidate(userContext.UserId.ToString());
+                cache.InvalidateAreas(userContext.UserId.ToString(), "messages", "message-detail", "message-thread", "control-center", "control-center-activity");
                 return Results.Accepted();
             }
             catch (NotSupportedException exception)
