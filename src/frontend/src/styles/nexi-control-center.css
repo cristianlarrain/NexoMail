@@ -342,7 +342,57 @@
   font-size: 12px;
 }
 
-:root[data-theme="dark"] .nexi-report-toolbar {
+.nexi-mail-summary-card {
+  display: grid;
+  gap: 9px;
+  padding: 13px;
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, #e9f7ff 48%, var(--surface));
+}
+
+.nexi-mail-summary-card > p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.nexi-summary-meaning,
+.nexi-summary-action {
+  display: grid;
+  gap: 3px;
+  padding: 8px 9px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--primary) 7%, var(--surface));
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.nexi-summary-meaning strong {
+  color: var(--primary);
+}
+
+.nexi-summary-action {
+  grid-template-columns: 14px minmax(0, 1fr);
+  align-items: start;
+}
+
+.nexi-summary-action svg {
+  margin-top: 1px;
+  color: var(--primary);
+}
+
+.nexi-mail-summary-card ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 3px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+:root[data-theme="dark"] .nexi-report-toolbar,
+:root[data-theme="dark"] .nexi-mail-summary-card {
   background: color-mix(in srgb, #174457 50%, var(--surface));
 }
 
