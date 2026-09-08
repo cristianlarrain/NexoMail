@@ -91,11 +91,11 @@ export function SearchPage() {
   const explicitScope = isScope(params.get('scope')) ? params.get('scope') as SearchScope : null
   const scope: SearchScope = explicitScope ?? interpretation?.scope ?? 'all'
   const special = interpretation?.special ?? 'none'
-  const textQuery = interpretation?.textQuery?.trim() || query
+  const textQuery = interpretation ? interpretation.textQuery.trim() : query
   const selectedAccount = accountsQuery.data?.find(account => account.id === explicitAccount)
 
   const gmailQuery = useMemo(() => {
-    let value = interpretation?.gmailQuery?.trim() || query
+    let value = interpretation ? interpretation.gmailQuery.trim() : query
     if (unread) value = appendOperator(value, 'is:unread', /(?:^|\s)is:unread(?:\s|$)/i)
     if (attachments) value = appendOperator(value, 'has:attachment', /(?:^|\s)has:attachment(?:\s|$)/i)
     if (days) value = appendOperator(value, `newer_than:${days}d`, /(?:^|\s)(?:newer_than:|after:)/i)
@@ -103,7 +103,7 @@ export function SearchPage() {
     if (documentType === 'word') value = appendOperator(value, '{filename:doc filename:docx}', /filename:doc/i)
     if (documentType === 'excel') value = appendOperator(value, '{filename:xls filename:xlsx filename:csv}', /filename:(?:xls|xlsx|csv)/i)
     return value.trim()
-  }, [attachments, days, documentType, interpretation?.gmailQuery, query, unread])
+  }, [attachments, days, documentType, interpretation, query, unread])
 
   const messagesQuery = useQuery({
     queryKey: ['universal-search-mail', explicitAccount, folder, gmailQuery],
@@ -132,7 +132,7 @@ export function SearchPage() {
   const contactsQuery = useQuery({
     queryKey: ['universal-search-contacts'],
     queryFn: searchApi.contacts,
-    enabled: query.length > 0 && (scope === 'all' || scope === 'contacts'),
+    enabled: query.length > 0 && (scope === 'contacts' || (scope === 'all' && textQuery.length > 0)),
     staleTime: 5 * 60_000,
     retry: false,
   })
@@ -140,7 +140,7 @@ export function SearchPage() {
   const documentsQuery = useQuery({
     queryKey: ['universal-search-documents', textQuery, documentType],
     queryFn: () => searchApi.documents(textQuery, documentType),
-    enabled: query.length > 0 && (scope === 'all' || scope === 'documents'),
+    enabled: query.length > 0 && (scope === 'documents' || (scope === 'all' && (textQuery.length > 0 || documentType !== 'all'))),
     staleTime: 5 * 60_000,
     retry: false,
   })
