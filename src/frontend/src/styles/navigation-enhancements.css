@@ -202,6 +202,10 @@
   color: var(--primary);
 }
 
+@media (min-width: 761px) {
+  .sidebar:not(.collapsed) { width: 232px; }
+}
+
 @media (max-width: 760px) {
   .back-to-top-button {
     right: 16px;
