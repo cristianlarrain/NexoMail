@@ -2,6 +2,7 @@ using NexoMail.Application;
 using NexoMail.Domain;
 using NexoMail.Infrastructure;
 
+// Critical Stage 1C regression: create -> open -> edit -> save without duplication -> reopen -> send.
 static void Ensure(bool condition, string message)
 {
     if (!condition) throw new InvalidOperationException(message);
