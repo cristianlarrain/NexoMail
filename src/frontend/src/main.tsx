@@ -34,6 +34,7 @@ import './styles/brand.css'
 import './styles/landing.css'
 import './styles/landing-commercial.css'
 import './styles/cinematic-dark-theme.css'
+import './styles/universal-search.css'
 
 const client = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, retry: 1 } } })
 createRoot(document.getElementById('root')!).render(<StrictMode><QueryClientProvider client={client}><RouterProvider router={router} /></QueryClientProvider></StrictMode>)
