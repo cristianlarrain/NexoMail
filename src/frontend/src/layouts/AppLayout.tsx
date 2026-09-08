@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
-import { Archive, ChevronDown, ChevronLeft, Clock3, EyeOff, FileText, Inbox, LayoutDashboard, LogOut, Menu, Moon, PenLine, Search, Send, Settings, ShieldAlert, Sun, Trash2, UserRound } from 'lucide-react'
+import { Archive, ChevronDown, ChevronLeft, Clock3, EyeOff, FileText, Inbox, LayoutDashboard, LogOut, Menu, Moon, PenLine, Send, Settings, ShieldAlert, Sun, Trash2, UserRound } from 'lucide-react'
 import { authApi } from '../api/authApi'
 import { mailApi } from '../api/mailApi'
 import type { MailSummary, PagedResult } from '../types/mail'
 import { BackToTopButton } from '../components/BackToTopButton'
+import { TopSearchBox } from '../components/TopSearchBox'
 import { NexoMailLogo } from '../components/brand/NexoMailLogo'
 import { NexiAssistantButton } from '../components/nexi/NexiAssistantButton'
 import { NexiAssistantPanel } from '../components/nexi/NexiAssistantPanel'
@@ -21,6 +22,14 @@ function accountIdFromPath(pathname: string) {
   if (accountMatch) return decodeURIComponent(accountMatch[1])
   const messageMatch = pathname.match(/^\/message\/([^/]+)\/[^/]+$/)
   return messageMatch ? decodeURIComponent(messageMatch[1]) : undefined
+}
+function reportPeriodFromQuery(value: string): 'today' | 'this_week' | 'last_week' | null {
+  const normalized = value.toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  const asksForReport = /(resumen|resume|reporte|informe)/.test(normalized) && /(correo|correos|mail|mails|mensaje|mensajes)/.test(normalized)
+  if (!asksForReport) return null
+  if (/semana pasada|semana anterior/.test(normalized)) return 'last_week'
+  if (/esta semana|semana actual|de la semana/.test(normalized)) return 'this_week'
+  return 'today'
 }
 
 export function AppLayout() {
@@ -85,6 +94,13 @@ export function AppLayout() {
       navigate(contextualAccountId ? `/search?account=${encodeURIComponent(contextualAccountId)}` : '/search')
       return
     }
+    const reportPeriod = reportPeriodFromQuery(query)
+    if (reportPeriod) {
+      const params = new URLSearchParams({ tab: 'report', period: reportPeriod })
+      if (contextualAccountId) params.set('account', contextualAccountId)
+      navigate(`/control-center?${params.toString()}`)
+      return
+    }
     const params = new URLSearchParams()
     params.set('q', query)
     if (contextualAccountId) params.set('account', contextualAccountId)
@@ -105,7 +121,7 @@ export function AppLayout() {
       <button className="compose-button" onClick={() => { setOpen(false); navigate('/compose', { state: contextualAccountId ? { fromAccountId: contextualAccountId } : undefined }) }}><PenLine size={17} /><span>Redactar</span></button>
       <nav aria-label="Navegación principal">
         <NavLink to="/inbox" end className={navClass}><Inbox size={17} /><span>Bandeja de entrada</span></NavLink>
-        <NavLink to="/control-center" className={controlCenterNavClass}><i className="control-center-nav-icon"><LayoutDashboard size={16} /></i><span>Centro de control</span></NavLink>
+        <NavLink to="/control-center" className={controlCenterNavClass}><i className="control-center-nav-icon"><LayoutDashboard size={16} /></i><span>Centro de Control Nexi</span></NavLink>
         <p className="nav-heading">Cuentas</p>
         {accounts.map(account => <NavLink key={account.id} to={`/account/${account.id}`} className={navClass}><i className="account-dot" style={{ background: account.color }} /><span>{account.displayName}</span></NavLink>)}
         <button type="button" className="nav-section-toggle" onClick={toggleFolders} aria-expanded={!foldersCollapsed} aria-controls="sidebar-folders" title={foldersCollapsed ? 'Mostrar carpetas' : 'Ocultar carpetas'}>
@@ -131,7 +147,7 @@ export function AppLayout() {
     <main className="main-content">
       <header className="topbar">
         <button className="icon-button menu-button" onClick={() => setOpen(true)} aria-label="Abrir menú"><Menu size={20} /></button>
-        <label className="search" title="Busca correos, contactos y documentos con lenguaje normal"><Search size={17} /><input value={search} onChange={event => setSearch(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') runSearch() }} placeholder="Busca correos, contactos, documentos o pregúntale a Nexi" aria-label="Buscar en NexoMail" /></label>
+        <TopSearchBox value={search} onChange={setSearch} onSubmit={runSearch} />
         <div className="operations-clock" aria-label={`${dateLabel}, ${timeLabel}`} title="Hora local"><Clock3 size={16} /><span className="operations-date">{dateLabel}</span><strong>{timeLabel}</strong></div>
         <WeatherWidget />
         <button className={`avatar ${session?.avatarDataUrl ? 'has-image' : ''}`} aria-label="Menú de perfil" aria-expanded={profileOpen} onClick={() => setProfileOpen(!profileOpen)}>{session?.avatarDataUrl ? <img src={session.avatarDataUrl} alt="" /> : initials(session?.displayName ?? session?.email ?? '')}</button>
