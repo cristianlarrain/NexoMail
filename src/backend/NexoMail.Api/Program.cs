@@ -1,5 +1,7 @@
-using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using NexoMail.Api.Security;
 using NexoMail.Application;
@@ -7,61 +9,133 @@ using NexoMail.Domain;
 using NexoMail.Infrastructure;
 using NexoMail.Infrastructure.Data;
 using NexoMail.Infrastructure.Google;
+using Serilog;
+using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
-
-var connectionString = builder.Configuration.GetConnectionString("NexoMail") ?? "Data Source=nexomail.db";
-builder.Services.AddDbContext<NexoMailDbContext>(options => options.UseSqlite(connectionString));
-builder.Services.AddDataProtection();
-builder.Services.Configure<GmailOptions>(builder.Configuration.GetSection(GmailOptions.SectionName));
-builder.Services.PostConfigure<GmailOptions>(options =>
+if (builder.Environment.IsDevelopment())
 {
-    if (string.IsNullOrWhiteSpace(options.ClientId)) options.ClientId = builder.Configuration["GOOGLE_CLIENT_ID"] ?? string.Empty;
-    if (string.IsNullOrWhiteSpace(options.ClientSecret)) options.ClientSecret = builder.Configuration["GOOGLE_CLIENT_SECRET"] ?? string.Empty;
-});
-builder.Services.AddHttpClient("Gmail", client => client.BaseAddress = new Uri("https://gmail.googleapis.com/gmail/v1/"));
-builder.Services.AddHttpClient();
+    builder.WebHost.UseUrls("http://localhost:5052");
+}
+
+builder.Host.UseSerilog((context, services, configuration) => configuration
+    .ReadFrom.Configuration(context.Configuration)
+    .ReadFrom.Services(services));
+
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
+    .WithOrigins("http://localhost:5173")
+    .AllowAnyHeader()
+    .AllowAnyMethod()
+    .AllowCredentials()));
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<IUserContext, HttpUserContext>();
-builder.Services.AddScoped<ITokenProtector, DataProtectionTokenProtector>();
-builder.Services.AddScoped<GoogleOAuthService>();
-builder.Services.AddScoped<GoogleContactsService>();
-builder.Services.AddScoped<GmailControlCenterService>();
-builder.Services.AddScoped<GmailControlCenterActivityService>();
-builder.Services.AddScoped<ControlCenterTrackingService>();
-builder.Services.AddScoped<GmailMetadataIndexService>();
+builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("Gmail", client => client.BaseAddress = new Uri("https://gmail.googleapis.com/gmail/v1/"));
+builder.Services.AddHttpClient("GooglePeople", client => client.BaseAddress = new Uri("https://people.googleapis.com/v1/"));
+builder.Services.AddOpenApi();
+builder.Services.AddMemoryCache(options => options.SizeLimit = 512);
 builder.Services.AddSingleton<NexoMail.Api.MailReadCache>();
-builder.Services.AddNexoMailAi(builder.Configuration);
-builder.Services.AddSingleton<DemoMailProvider>();
-builder.Services.AddScoped<GmailMailProvider>();
-builder.Services.AddScoped<UserScopedMailProvider>();
-builder.Services.AddScoped<MailGateway>();
-builder.Services.AddScoped<IMailGateway>(services => services.GetRequiredService<MailGateway>());
-builder.Services.AddScoped<IMailProvider>(services => services.GetRequiredService<UserScopedMailProvider>());
-builder.Services.AddScoped<PasswordRecoveryEmailSender>();
+builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+builder.Services.AddDbContext<NexoMailDbContext>(options => options.UseSqlite(builder.Configuration.GetValue<string>("Database:ConnectionString") ?? "Data Source=nexomail.db"));
+
+builder.Services.AddScoped<NexoMailCookieEvents>();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
         options.Cookie.Name = "NexoMail.Auth";
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Lax;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-        options.SlidingExpiration = true;
+        options.Cookie.SecurePolicy = builder.Environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
         options.ExpireTimeSpan = TimeSpan.FromDays(14);
-        options.Events = UserSessionSecurity.CreateCookieEvents();
+        options.SlidingExpiration = true;
+        options.EventsType = typeof(NexoMailCookieEvents);
     });
 builder.Services.AddAuthorization();
-builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
-    .WithOrigins("http://localhost:5173", "https://localhost:5173")
-    .AllowAnyHeader()
-    .AllowAnyMethod()
-    .AllowCredentials()));
-builder.Services.AddOpenApi();
+builder.Services.AddNexoMailCsrf(builder.Environment);
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, ct) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json";
+        await context.HttpContext.Response.WriteAsJsonAsync(new
+        {
+            error = "Demasiados intentos. Inténtalo nuevamente en unos minutos."
+        }, ct);
+    };
 
-builder.Services.AddScoped<AuthRateLimit>();
-builder.Services.AddScoped<UserSessionSecurity>();
+    options.AddPolicy("auth-login", context => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(5),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
 
-var demoMode = builder.Configuration.GetValue<bool>("DemoMode");
+    options.AddPolicy("auth-register", context => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5,
+            Window = TimeSpan.FromMinutes(30),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
+
+    options.AddPolicy("auth-send-code", context => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5,
+            Window = TimeSpan.FromMinutes(15),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
+
+    options.AddPolicy("auth-verify-code", context => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(10),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
+});
+builder.Services.AddScoped<IPasswordHasher<UserEntity>, PasswordHasher<UserEntity>>();
+builder.Services.AddScoped<IUserContext, HttpUserContext>();
+builder.Services.Configure<RecoveryEmailOptions>(builder.Configuration.GetSection(RecoveryEmailOptions.SectionName));
+builder.Services.AddScoped<IPasswordRecoveryEmailSender, SmtpPasswordRecoveryEmailSender>();
+NexoMail.Api.AiEndpoints.AddNexoMailAi(builder.Services, builder.Configuration);
+
+var dataProtection = builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NexoMail", "keys")));
+if (OperatingSystem.IsWindows()) dataProtection.ProtectKeysWithDpapi();
+
+builder.Services.Configure<GmailOptions>(builder.Configuration.GetSection(GmailOptions.SectionName));
+builder.Services.AddScoped<ITokenProtector, DataProtectionTokenProtector>();
+builder.Services.AddScoped<GoogleOAuthService>();
+builder.Services.AddScoped<GoogleContactsService>();
+builder.Services.AddScoped<GmailControlCenterService>();
+builder.Services.AddScoped<GmailControlCenterActivityService>();
+
+var demoMode = builder.Configuration.GetValue("MailProviders:DemoMode", true);
+if (demoMode)
+{
+    builder.Services.AddSingleton<IMailProvider, DemoMailProvider>();
+    builder.Services.AddSingleton<IMailGateway, DemoMailGateway>();
+}
+else
+{
+    builder.Services.AddScoped<GmailMailProvider>();
+    builder.Services.AddScoped<IMailProvider>(services => new UserScopedMailProvider(
+        services.GetRequiredService<GmailMailProvider>(),
+        services.GetRequiredService<NexoMailDbContext>(),
+        services.GetRequiredService<IUserContext>()));
+    builder.Services.AddScoped<IMailGateway, MailGateway>();
+}
 
 var app = builder.Build();
 using (var scope = app.Services.CreateScope())
@@ -202,7 +276,6 @@ mail.MapGet("/messages", async (IMailGateway gateway, NexoMailDbContext database
         TimeSpan.FromSeconds(45),
         token => gateway.GetMessagesAsync(new MailQuery(accountId, providerFolder, normalizedTake, cursor, normalizedSearch), token),
         ct);
-
     if (normalizedFolder is not ("inbox" or "ignored")) return Results.Ok(value);
 
     var ignoredQuery = database.IgnoredSenders.AsNoTracking().Where(x => x.UserId == userContext.UserId);
