@@ -7,7 +7,6 @@ import { ControlCenterContacts } from '../components/ControlCenterContacts'
 import { ControlCenterDocuments } from '../components/ControlCenterDocuments'
 import { NexiContextWorkspace } from '../components/NexiContextWorkspace'
 import { NexiMailReport } from '../components/NexiMailReport'
-import { NexiVisual } from '../components/nexi/NexiVisual'
 
 type ControlTab = 'summary' | 'nexi' | 'report' | 'contacts' | 'documents'
 
@@ -43,7 +42,6 @@ export function ControlCenterPage() {
   return <section className="mail-view control-center-page nexi-control-center">
     <div className="view-header control-page-header nexi-control-header">
       <div className="control-page-title nexi-control-title">
-        <span style={{ display: 'inline-flex', transform: 'translateY(6px)' }}><NexiVisual size="small" /></span>
         <div><h1>Centro de Control</h1><p><strong>Nexi</strong> integra tus pendientes, búsquedas, análisis, reportes, contactos y documentos en un solo espacio.</p></div>
       </div>
 
