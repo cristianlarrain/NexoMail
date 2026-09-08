@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { RequireAuth } from './components/RequireAuth'
+import { SearchContextLauncher } from './components/SearchContextLauncher'
 import { AppLayout } from './layouts/AppLayout'
 import { AccountsPage } from './pages/AccountsPage'
 import { AppearancePage } from './pages/AppearancePage'
@@ -17,7 +18,7 @@ export const router = createBrowserRouter([
   { path: '/', element: <LandingPage /> },
   { path: '/login', element: <AuthPage /> },
   {
-    element: <RequireAuth><AppLayout /></RequireAuth>,
+    element: <RequireAuth><><AppLayout /><SearchContextLauncher /></></RequireAuth>,
     children: [
       { path: '/inbox', element: <InboxPage /> },
       { path: '/search', element: <SearchPage /> },
