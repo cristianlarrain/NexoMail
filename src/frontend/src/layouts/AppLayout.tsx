@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
-import { Archive, ChevronLeft, Clock3, EyeOff, FileText, Inbox, LayoutDashboard, LogOut, Menu, Moon, PenLine, Search, Send, Settings, ShieldAlert, Sun, Trash2, UserRound } from 'lucide-react'
+import { Archive, ChevronDown, ChevronLeft, Clock3, EyeOff, FileText, Inbox, LayoutDashboard, LogOut, Menu, Moon, PenLine, Search, Send, Settings, ShieldAlert, Sun, Trash2, UserRound } from 'lucide-react'
 import { authApi } from '../api/authApi'
 import { mailApi } from '../api/mailApi'
 import type { MailSummary, PagedResult } from '../types/mail'
@@ -11,6 +11,7 @@ import { NexiAssistantButton } from '../components/nexi/NexiAssistantButton'
 import { NexiAssistantPanel } from '../components/nexi/NexiAssistantPanel'
 import { WeatherWidget } from '../components/WeatherWidget'
 
+const FOLDERS_COLLAPSED_KEY = 'nexomail-sidebar-folders-collapsed'
 const navClass = ({ isActive }: { isActive: boolean }) => `nav-item ${isActive ? 'active' : ''}`
 const controlCenterNavClass = ({ isActive }: { isActive: boolean }) => `nav-item control-center-nav ${isActive ? 'active' : ''}`
 function initials(value: string) { return value.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || 'NM' }
@@ -25,6 +26,7 @@ function accountIdFromPath(pathname: string) {
 export function AppLayout() {
   const [open, setOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+  const [foldersCollapsed, setFoldersCollapsed] = useState(() => localStorage.getItem(FOLDERS_COLLAPSED_KEY) === '1')
   const [theme, setTheme] = useState(() => localStorage.getItem('nexomail-theme') ?? 'light')
   const [profileOpen, setProfileOpen] = useState(false)
   const [nexiOpen, setNexiOpen] = useState(false)
@@ -89,6 +91,14 @@ export function AppLayout() {
     navigate(`/search?${params.toString()}`)
   }
 
+  function toggleFolders() {
+    setFoldersCollapsed(current => {
+      const next = !current
+      localStorage.setItem(FOLDERS_COLLAPSED_KEY, next ? '1' : '0')
+      return next
+    })
+  }
+
   return <div className="app-shell">
     <aside className={`sidebar ${open ? 'open' : ''} ${collapsed ? 'collapsed' : ''}`}>
       <div className="brand-row"><button className="brand-home" onClick={() => { setOpen(false); navigate('/inbox') }} aria-label="Ir a Bandeja de entrada"><NexoMailLogo compact={collapsed} /></button><button className="icon-button collapse-button" onClick={() => setCollapsed(!collapsed)} aria-label="Contraer barra lateral"><ChevronLeft size={18} /></button></div>
@@ -98,13 +108,19 @@ export function AppLayout() {
         <NavLink to="/control-center" className={controlCenterNavClass}><i className="control-center-nav-icon"><LayoutDashboard size={16} /></i><span>Centro de control</span></NavLink>
         <p className="nav-heading">Cuentas</p>
         {accounts.map(account => <NavLink key={account.id} to={`/account/${account.id}`} className={navClass}><i className="account-dot" style={{ background: account.color }} /><span>{account.displayName}</span></NavLink>)}
-        <p className="nav-heading">Carpetas</p>
-        <NavLink to="/archive" className={navClass}><Archive size={17} /><span>Archivados</span></NavLink>
-        <NavLink to="/ignored" className={navClass}><EyeOff size={17} /><span>Ignorados</span></NavLink>
-        <NavLink to="/sent" className={navClass}><Send size={17} /><span>Enviados</span></NavLink>
-        <NavLink to="/drafts" className={navClass}><FileText size={17} /><span>Borradores</span></NavLink>
-        <NavLink to="/spam" className={navClass}><ShieldAlert size={17} /><span>Spam</span></NavLink>
-        <NavLink to="/trash" className={navClass}><Trash2 size={17} /><span>Papelera</span></NavLink>
+        <button type="button" className="nav-section-toggle" onClick={toggleFolders} aria-expanded={!foldersCollapsed} aria-controls="sidebar-folders" title={foldersCollapsed ? 'Mostrar carpetas' : 'Ocultar carpetas'}>
+          <span>Carpetas</span><ChevronDown size={14} className={foldersCollapsed ? 'collapsed' : ''} />
+        </button>
+        <div id="sidebar-folders" className={`nav-folder-group ${foldersCollapsed ? 'collapsed' : ''}`}>
+          {!foldersCollapsed && <>
+            <NavLink to="/archive" className={navClass}><Archive size={17} /><span>Archivados</span></NavLink>
+            <NavLink to="/ignored" className={navClass}><EyeOff size={17} /><span>Ignorados</span></NavLink>
+            <NavLink to="/sent" className={navClass}><Send size={17} /><span>Enviados</span></NavLink>
+            <NavLink to="/drafts" className={navClass}><FileText size={17} /><span>Borradores</span></NavLink>
+            <NavLink to="/spam" className={navClass}><ShieldAlert size={17} /><span>Spam</span></NavLink>
+            <NavLink to="/trash" className={navClass}><Trash2 size={17} /><span>Papelera</span></NavLink>
+          </>}
+        </div>
         <NavLink to="/settings/accounts" className={navClass}><Settings size={17} /><span>Configurar</span></NavLink>
         <button className="theme-switch" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}><span>{theme === 'dark' ? 'Tema claro' : 'Tema oscuro'}</span><span className="switch" data-on={theme === 'dark'} /></button>
       </nav>
