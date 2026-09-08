@@ -3,27 +3,25 @@
 .operations-clock strong { min-width: 70px; color: var(--foreground); font-size: 14px; font-variant-numeric: tabular-nums; letter-spacing: .035em; text-align: right; }
 .operations-date { max-width: 155px; overflow: hidden; text-overflow: ellipsis; }
 
-.weather-widget { height: 38px; min-width: 58px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 0 0 auto; padding: 0 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--muted-foreground); font-size: 11px; white-space: nowrap; box-shadow: var(--shadow); }
-button.weather-widget { font: inherit; cursor: pointer; }
-button.weather-widget:hover { border-color: color-mix(in srgb, var(--primary) 38%, var(--border)); background: var(--surface-hover); color: var(--foreground); }
-.weather-widget svg { color: var(--primary); }
-.weather-widget strong { color: var(--foreground); font-size: 13px; font-variant-numeric: tabular-nums; }
-.weather-enable { min-width: 70px; }
-.weather-loading { min-width: 48px; }
+.weather-widget { height: 38px; min-width: 116px; max-width: 180px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 0 1 auto; padding: 0 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--muted-foreground); font-size: 11px; white-space: nowrap; box-shadow: var(--shadow); }
+.weather-widget svg { color: var(--primary); flex: 0 0 auto; }
+.weather-widget strong { color: var(--foreground); font-size: 13px; font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+.weather-location { min-width: 0; max-width: 88px; overflow: hidden; text-overflow: ellipsis; color: var(--muted-foreground); }
+.weather-loading { min-width: 108px; }
+.weather-error { opacity: .82; }
 .topbar .weather-widget + .avatar { margin-left: 0; }
 
 @media (max-width: 900px) {
   .operations-clock { min-width: 104px; padding-inline: 9px; }
   .operations-date { display: none; }
-  .weather-widget { min-width: 52px; padding-inline: 8px; }
-  .weather-enable span { display: none; }
-  .weather-enable { min-width: 38px; }
+  .weather-widget { min-width: 104px; max-width: 140px; padding-inline: 8px; }
+  .weather-location { max-width: 68px; }
 }
 @media (max-width: 560px) {
   .operations-clock { min-width: 88px; gap: 5px; border: 0; background: transparent; box-shadow: none; padding-inline: 2px; }
   .operations-clock svg { display: none; }
   .operations-clock strong { min-width: 78px; font-size: 12px; }
-  .weather-widget { height: 34px; min-width: 46px; gap: 4px; padding-inline: 6px; border: 0; background: transparent; box-shadow: none; }
-  .weather-enable { min-width: 34px; }
+  .weather-widget { height: 34px; min-width: 96px; max-width: 112px; gap: 4px; padding-inline: 6px; border: 0; background: transparent; box-shadow: none; }
   .weather-widget strong { font-size: 12px; }
+  .weather-location { max-width: 58px; font-size: 10px; }
 }
