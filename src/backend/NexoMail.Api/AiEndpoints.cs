@@ -196,7 +196,7 @@ public static class AiEndpoints
                                         "message-detail",
                                         $"{item.AccountId:N}:{item.ProviderMessageId}",
                                         TimeSpan.FromMinutes(10),
-                                        innerToken => gateway.GetMessageAsync(item.AccountId, item.ProviderMessageId, innerToken),
+                                        async innerToken => await gateway.GetMessageAsync(item.AccountId, item.ProviderMessageId, innerToken) ?? throw new KeyNotFoundException(),
                                         token);
                                 }
                                 catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException or KeyNotFoundException)
