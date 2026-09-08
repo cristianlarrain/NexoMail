@@ -22,7 +22,26 @@ jobs:
         run: dotnet restore src/backend/NexoMail.ControlCenterSmokeTests/NexoMail.ControlCenterSmokeTests.csproj
 
       - name: Build backend smoke test
-        run: dotnet build src/backend/NexoMail.ControlCenterSmokeTests/NexoMail.ControlCenterSmokeTests.csproj --configuration Release --no-restore
+        id: backend-build
+        shell: bash
+        run: |
+          set +e
+          dotnet build src/backend/NexoMail.ControlCenterSmokeTests/NexoMail.ControlCenterSmokeTests.csproj --configuration Release --no-restore 2>&1 | tee control-center-build.log
+          status=${PIPESTATUS[0]}
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload backend build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: control-center-build-log
+          path: control-center-build.log
+          if-no-files-found: ignore
+
+      - name: Fail if backend build failed
+        if: steps.backend-build.outputs.status != '0'
+        run: exit 1
 
       - name: Run control center smoke test
         run: dotnet run --project src/backend/NexoMail.ControlCenterSmokeTests/NexoMail.ControlCenterSmokeTests.csproj --configuration Release --no-build
