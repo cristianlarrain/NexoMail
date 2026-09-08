@@ -55,13 +55,21 @@
 }
 
 :root[data-theme="dark"] .nav-item:hover,
-:root[data-theme="dark"] .nav-item.active,
 :root[data-theme="dark"] .icon-button:hover,
 :root[data-theme="dark"] .format-toolbar button:hover,
 :root[data-theme="dark"] .message-row:hover,
 :root[data-theme="dark"] .priority-row:hover,
 :root[data-theme="dark"] .activity-account-card:hover {
   background: var(--surface-hover);
+}
+
+:root[data-theme="dark"] .sidebar .nav-item.active {
+  background: color-mix(in srgb, var(--primary) 15%, var(--surface));
+  color: var(--primary);
+}
+
+:root[data-theme="dark"] .sidebar .control-center-nav.active {
+  background: color-mix(in srgb, var(--primary) 17%, var(--surface));
 }
 
 :root[data-theme="dark"] .message-list,
