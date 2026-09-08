@@ -24,6 +24,26 @@ export interface AiSearchInterpretation {
   special: 'none' | 'sent_without_response' | 'received_without_reply'
   explanation: string
 }
+export interface AiMessageInsight {
+  summary: string
+  meaning: string
+  requestedAction?: string | null
+  keyPoints: string[]
+}
+export interface AiMailReportItem {
+  sender: string
+  subject: string
+  summary: string
+  requestedAction?: string | null
+  importance: 'alta' | 'media' | 'baja'
+}
+export interface AiMailReport {
+  periodLabel: string
+  messageCount: number
+  summary: string
+  items: AiMailReportItem[]
+  actions: string[]
+}
 
 export interface ControlCenterDay { date: string; received: number; sent: number }
 export interface ControlCenterPendingItem {
