@@ -1,3 +1,5 @@
+import { withActionIndicator } from '../utils/actionIndicator'
+
 let csrfToken: string | null = null
 let csrfTokenRequest: Promise<string> | null = null
 
@@ -13,6 +15,46 @@ function requestPath(input: RequestInfo | URL) {
   } catch {
     return value
   }
+}
+
+function actionLabel(input: RequestInfo | URL, init?: RequestInit) {
+  const method = (init?.method ?? 'GET').toUpperCase()
+  if (!isUnsafeMethod(method)) return null
+
+  const path = requestPath(input)
+
+  if (path.includes('/api/mail/ai/report')) return 'Generando reporte con Nexi…'
+  if (path.includes('/api/mail/ai/context') || path.includes('/api/mail/ai/search')) return 'Analizando con Nexi…'
+  if (path.includes('/ai-summary')) return 'Resumiendo correo con Nexi…'
+  if (path.includes('/ai-reply')) return 'Preparando respuesta con Nexi…'
+  if (path.includes('/api/mail/ai/draft')) return 'Generando texto con Nexi…'
+
+  if (path.includes('/drafts/') && path.endsWith('/send')) return 'Enviando borrador…'
+  if (path.includes('/reply')) return 'Enviando respuesta…'
+  if (path.includes('/forward')) return 'Reenviando correo…'
+  if (path === '/api/mail/send') return 'Enviando correo…'
+  if (path.includes('/drafts')) return 'Guardando borrador…'
+
+  if (path.includes('/trash')) return 'Moviendo correo a Papelera…'
+  if (path.includes('/move')) return 'Moviendo correo…'
+  if (path.includes('/read')) return 'Actualizando estado del correo…'
+  if (path.includes('/folders/') && path.endsWith('/empty')) return 'Vaciando carpeta…'
+  if (path.includes('/ignored-senders')) return method === 'DELETE' ? 'Quitando remitente de ignorados…' : 'Ignorando remitente…'
+
+  if (path.includes('/control-center')) {
+    if (method === 'DELETE') return 'Eliminando acción del Centro de Control…'
+    if (path.includes('/index/sync')) return 'Actualizando índice del Centro de Control…'
+    return 'Actualizando Centro de Control…'
+  }
+
+  if (path.includes('/accounts')) return method === 'DELETE' ? 'Eliminando cuenta…' : 'Guardando configuración de cuenta…'
+  if (path.includes('/mail/refresh')) return 'Actualizando correo…'
+
+  if (path === '/api/auth/login') return 'Iniciando sesión…'
+  if (path === '/api/auth/signout') return 'Cerrando sesión…'
+  if (path.includes('/reset-password')) return 'Actualizando contraseña…'
+
+  return 'Procesando acción…'
 }
 
 function changesAuthenticationState(input: RequestInfo | URL) {
@@ -74,19 +116,24 @@ async function buildRequest(init?: RequestInit) {
 }
 
 export async function csrfFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const unsafe = isUnsafeMethod(init?.method)
-  let response = await fetch(input, await buildRequest(init))
+  const execute = async () => {
+    const unsafe = isUnsafeMethod(init?.method)
+    let response = await fetch(input, await buildRequest(init))
 
-  if (response.status === 403 && response.headers.get('X-NexoMail-CSRF') === 'invalid' && unsafe) {
-    clearCsrfToken()
-    response = await fetch(input, await buildRequest(init))
+    if (response.status === 403 && response.headers.get('X-NexoMail-CSRF') === 'invalid' && unsafe) {
+      clearCsrfToken()
+      response = await fetch(input, await buildRequest(init))
+    }
+
+    if (response.ok && changesAuthenticationState(input))
+      clearCsrfToken()
+
+    if (response.status === 401 && requiresActiveSession(input))
+      redirectToLogin()
+
+    return response
   }
 
-  if (response.ok && changesAuthenticationState(input))
-    clearCsrfToken()
-
-  if (response.status === 401 && requiresActiveSession(input))
-    redirectToLogin()
-
-  return response
+  const label = actionLabel(input, init)
+  return label ? withActionIndicator(label, execute) : execute()
 }
