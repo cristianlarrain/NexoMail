@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from 'react-router-dom'
 import { ComposeValidationNotice } from './components/ComposeValidationNotice'
+import { GlobalActionIndicator } from './components/GlobalActionIndicator'
 import { router } from './router'
 import './styles/theme.css'
 import './styles/overrides.css'
@@ -42,6 +43,7 @@ import './styles/universal-search.css'
 import './styles/search-context.css'
 import './styles/nexi-search-actions.css'
 import './styles/search-bar.css'
+import './styles/global-action-indicator.css'
 
 const client = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, retry: 1 } } })
 createRoot(document.getElementById('root')!).render(
@@ -49,6 +51,7 @@ createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={client}>
       <RouterProvider router={router} />
       <ComposeValidationNotice />
+      <GlobalActionIndicator />
     </QueryClientProvider>
   </StrictMode>,
 )
