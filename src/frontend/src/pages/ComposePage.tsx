@@ -329,7 +329,7 @@ export function ComposePage() {
             <div className="ai-compose-footer-actions">
               <button type="button" className="secondary-button compose-discard-button" disabled={composerBusy} onClick={() => setConfirmDiscard(true)}><Trash2 size={15} /> Descartar</button>
               <button type="button" className="secondary-button" disabled={composerBusy || !fromAccountId} onClick={() => { recognition.current?.stop(); saveDraft.mutate() }}><Save size={15} /> {saveDraft.isPending ? 'Guardando…' : 'Guardar borrador'}</button>
-              <button type="submit" className="primary-button" disabled={composerBusy}><Send size={16} /> {send.isPending ? 'Enviando…' : action}</button>
+              <button type="submit" className="primary-button" disabled={composerBusy}><Send size={16} /> {send.isPending ? 'Enviando…' : 'Enviar'}</button>
             </div>
           </footer>
         </section>
