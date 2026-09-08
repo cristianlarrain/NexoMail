@@ -7,48 +7,112 @@
   font-weight: 750;
 }
 
+/* The two primary sidebar actions share the same visual height and weight. */
+.sidebar .compose-button,
+.sidebar .control-center-nav {
+  height: 42px;
+  min-height: 42px;
+}
+
+.sidebar .compose-button {
+  border-radius: 9px;
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--primary) 16%, transparent);
+}
+
 .sidebar nav > a[href="/inbox"] {
   height: 42px;
 }
 
 .control-center-nav {
-  min-height: 42px;
-  margin: 7px 0 5px;
+  position: relative;
+  margin: 6px 0 7px;
   padding-inline: 7px 10px;
-  border: 1px solid transparent;
-  background: color-mix(in srgb, var(--primary) 2.5%, var(--surface));
-  color: color-mix(in srgb, var(--foreground) 88%, var(--primary));
-  font-weight: 700;
-  box-shadow: none;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border));
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--primary) 10%, var(--surface)),
+    color-mix(in srgb, #69d4ef 5%, var(--surface)));
+  color: color-mix(in srgb, var(--foreground) 90%, var(--primary));
+  font-weight: 760;
+  box-shadow:
+    inset 3px 0 0 color-mix(in srgb, var(--primary) 82%, #6edcf0),
+    0 4px 12px color-mix(in srgb, var(--primary) 8%, transparent);
+}
+
+.control-center-nav::after {
+  content: "";
+  position: absolute;
+  right: -14px;
+  top: -20px;
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  background: color-mix(in srgb, #6edcf0 10%, transparent);
+  pointer-events: none;
+}
+
+.control-center-nav > span {
+  position: relative;
+  z-index: 1;
+  letter-spacing: -.01em;
 }
 
 .control-center-nav:hover:not(.active) {
-  border-color: color-mix(in srgb, var(--primary) 22%, transparent);
-  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary) 52%, var(--border));
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--primary) 15%, var(--surface)),
+    color-mix(in srgb, #69d4ef 9%, var(--surface)));
   color: var(--primary);
+  box-shadow:
+    inset 3px 0 0 var(--primary),
+    0 6px 16px color-mix(in srgb, var(--primary) 11%, transparent);
 }
 
 .sidebar .control-center-nav.active {
-  border-color: transparent;
-  background: color-mix(in srgb, var(--primary) 15%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--primary) 20%, var(--surface)),
+    color-mix(in srgb, #69d4ef 10%, var(--surface)));
   color: var(--primary);
-  box-shadow: none;
+  box-shadow:
+    inset 3px 0 0 var(--primary),
+    0 6px 18px color-mix(in srgb, var(--primary) 12%, transparent);
 }
 
 .control-center-nav-icon {
+  position: relative;
+  z-index: 1;
   width: 28px;
   height: 28px;
   flex: 0 0 28px;
   display: grid;
   place-items: center;
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, transparent);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  background: color-mix(in srgb, var(--primary) 13%, var(--surface));
   color: var(--primary);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #6edcf0 7%, transparent);
 }
 
 .control-center-nav.active .control-center-nav-icon {
+  border-color: transparent;
   background: var(--primary);
   color: var(--primary-foreground);
+  box-shadow: 0 3px 9px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+:root[data-theme="dark"] .control-center-nav {
+  border-color: color-mix(in srgb, #6cc8ef 30%, var(--border));
+  background: linear-gradient(90deg,
+    color-mix(in srgb, #164657 52%, var(--surface)),
+    color-mix(in srgb, #17343f 42%, var(--surface)));
+}
+
+:root[data-theme="dark"] .sidebar .control-center-nav.active {
+  border-color: color-mix(in srgb, #78d4f8 52%, var(--border));
+  background: linear-gradient(90deg,
+    color-mix(in srgb, #1b586c 62%, var(--surface)),
+    color-mix(in srgb, #174150 48%, var(--surface)));
 }
 
 .nav-section-toggle {
@@ -93,8 +157,13 @@
   margin-inline: 3px;
   padding: 0;
   justify-content: center;
-  box-shadow: none;
 }
+
+.sidebar.collapsed .control-center-nav {
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--primary) 82%, #6edcf0);
+}
+
+.sidebar.collapsed .control-center-nav::after { display: none; }
 
 .sidebar.collapsed .nav-section-toggle {
   width: 44px;
