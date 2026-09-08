@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Mic, MicOff, Search, X } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { requestsTrashAction } from '../utils/nexiSearchIntent'
 
 type SpeechResult = { 0?: { transcript?: string } }
 type SpeechRecognitionEventLike = { resultIndex?: number; results: { length: number; [index: number]: SpeechResult } }
@@ -24,12 +26,21 @@ type TopSearchBoxProps = {
   onSubmit: () => void
 }
 
+function accountIdFromPath(pathname: string) {
+  const accountMatch = pathname.match(/^\/account\/([^/]+)/)
+  if (accountMatch) return decodeURIComponent(accountMatch[1])
+  const messageMatch = pathname.match(/^\/message\/([^/]+)\/[^/]+$/)
+  return messageMatch ? decodeURIComponent(messageMatch[1]) : undefined
+}
+
 export function TopSearchBox({ value, onChange, onSubmit }: TopSearchBoxProps) {
   const [listening, setListening] = useState(false)
   const [voiceError, setVoiceError] = useState('')
   const recognition = useRef<SpeechRecognitionLike | null>(null)
   const input = useRef<HTMLInputElement>(null)
   const valueRef = useRef(value)
+  const navigate = useNavigate()
+  const location = useLocation()
 
   useEffect(() => { valueRef.current = value }, [value])
   useEffect(() => () => recognition.current?.stop(), [])
@@ -99,13 +110,30 @@ export function TopSearchBox({ value, onChange, onSubmit }: TopSearchBoxProps) {
     input.current?.focus()
   }
 
+  function submitSearch() {
+    const query = value.trim()
+    if (query && requestsTrashAction(query)) {
+      const params = new URLSearchParams()
+      params.set('q', query)
+      const activeAccount = accountIdFromPath(location.pathname)
+      const searchAccount = location.pathname === '/search' || location.pathname === '/search-action'
+        ? new URLSearchParams(location.search).get('account') ?? undefined
+        : undefined
+      const accountId = activeAccount ?? searchAccount
+      if (accountId) params.set('account', accountId)
+      navigate(`/search-action?${params.toString()}`)
+      return
+    }
+    onSubmit()
+  }
+
   return <div className={`search top-search ${listening ? 'listening' : ''}`} role="search" title={voiceError || 'Busca correos, contactos y documentos con lenguaje normal'}>
     <Search size={18} className="top-search-icon" />
     <input
       ref={input}
       value={value}
       onChange={event => onChange(event.target.value)}
-      onKeyDown={event => { if (event.key === 'Enter') onSubmit() }}
+      onKeyDown={event => { if (event.key === 'Enter') submitSearch() }}
       placeholder={listening ? 'Escuchando… habla con Nexi' : 'Busca o pregúntale a Nexi'}
       aria-label="Buscar en NexoMail"
     />
