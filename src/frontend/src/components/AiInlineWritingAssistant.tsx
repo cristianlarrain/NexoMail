@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useMutation } from '@tanstack/react-query'
 import { useLocation } from 'react-router-dom'
 import { Paperclip, RefreshCw, Sparkles } from 'lucide-react'
@@ -66,10 +67,14 @@ export function AiInlineWritingAssistant({ currentHtml, recipient, accountId, me
   const [tone, setTone] = useState<AiTone>('profesional')
   const [intent, setIntent] = useState(isReplyContext ? 'responder' : 'mejorar')
   const [generated, setGenerated] = useState(false)
+  const [footerTarget, setFooterTarget] = useState<HTMLElement | null>(null)
+
+  useEffect(() => {
+    setFooterTarget(document.querySelector<HTMLElement>('.ai-compose-footer-left'))
+  }, [])
 
   const currentText = useMemo(() => plainText(currentHtml), [currentHtml])
   const selectedIntent = intents.find(option => option.value === intent) ?? intents[0]
-  const selectedTone = tones.find(option => option.value === tone) ?? tones[0]
   const canGenerate = Boolean(currentText || isReplyContext)
 
   const generate = useMutation({
@@ -101,6 +106,11 @@ export function AiInlineWritingAssistant({ currentHtml, recipient, accountId, me
         ? isReplyContext ? 'Mejorar respuesta' : 'Mejorar texto'
         : isReplyContext ? 'Generar respuesta' : 'Generar texto'
 
+  const generateButton = <button type="button" className="primary-button ai-inline-generation-button" disabled={!canGenerate || generate.isPending} onClick={() => generate.mutate()}>
+    {generated ? <RefreshCw size={14} /> : <Sparkles size={14} />}
+    {generateLabel}
+  </button>
+
   return <section className="ai-inline-writing" aria-label="Opciones de redacción con Nexo IA">
     <div className="ai-inline-choice-strip">
       <fieldset className="ai-inline-radio-group">
@@ -122,6 +132,8 @@ export function AiInlineWritingAssistant({ currentHtml, recipient, accountId, me
           </label>)}
         </div>
       </fieldset>
+
+      {generate.isError && <p className="ai-inline-generation-error">{generate.error instanceof Error ? generate.error.message : 'No fue posible generar la propuesta.'}</p>}
     </div>
 
     {isForwardContext && <div className="ai-forward-attachments" aria-label="Adjuntos originales del correo reenviado">
@@ -135,16 +147,6 @@ export function AiInlineWritingAssistant({ currentHtml, recipient, accountId, me
       </div>}
     </div>}
 
-    <div className="ai-inline-generation-row">
-      <div className="ai-inline-generation-copy">
-        <Sparkles size={13} />
-        <span>Nexo IA · {selectedIntent.label} · {selectedTone.label}</span>
-        {generate.isError && <em>{generate.error instanceof Error ? generate.error.message : 'No fue posible generar la propuesta.'}</em>}
-      </div>
-      <button type="button" className="primary-button ai-inline-generation-button" disabled={!canGenerate || generate.isPending} onClick={() => generate.mutate()}>
-        {generated ? <RefreshCw size={14} /> : <Sparkles size={14} />}
-        {generateLabel}
-      </button>
-    </div>
+    {footerTarget ? createPortal(generateButton, footerTarget) : null}
   </section>
 }
