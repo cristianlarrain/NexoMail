@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, Mic, MicOff, Search, SendHorizontal, X } from 'lucide-react'
+import { Check, Mic, Search, SendHorizontal, X } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { requestsTrashAction } from '../utils/nexiSearchIntent'
 
@@ -37,7 +37,6 @@ export function TopSearchBox({ value, onChange, onSubmit }: TopSearchBoxProps) {
   const [listening, setListening] = useState(false)
   const [voiceError, setVoiceError] = useState('')
   const recognition = useRef<SpeechRecognitionLike | null>(null)
-  const keepListening = useRef(false)
   const textarea = useRef<HTMLTextAreaElement>(null)
   const valueRef = useRef(value)
   const navigate = useNavigate()
@@ -48,19 +47,17 @@ export function TopSearchBox({ value, onChange, onSubmit }: TopSearchBoxProps) {
     const field = textarea.current
     if (!field) return
     field.style.height = '28px'
-    field.style.height = `${Math.min(Math.max(field.scrollHeight, 28), 68)}px`
+    field.style.height = `${Math.min(Math.max(field.scrollHeight, 28), 88)}px`
   }, [value, listening])
   useEffect(() => () => {
-    keepListening.current = false
-    recognition.current?.stop()
+    try { recognition.current?.stop() } catch { /* already stopped */ }
   }, [])
 
   function finishListening() {
-    keepListening.current = false
-    recognition.current?.stop()
+    const current = recognition.current
     recognition.current = null
     setListening(false)
-    setVoiceError('')
+    try { current?.stop() } catch { /* already stopped */ }
     window.setTimeout(() => textarea.current?.focus(), 0)
   }
 
@@ -79,7 +76,6 @@ export function TopSearchBox({ value, onChange, onSubmit }: TopSearchBoxProps) {
 
     const instance = new Recognition()
     recognition.current = instance
-    keepListening.current = true
     instance.lang = 'es-CL'
     instance.continuous = true
     instance.interimResults = false
@@ -96,38 +92,18 @@ export function TopSearchBox({ value, onChange, onSubmit }: TopSearchBoxProps) {
       onChange(next)
     }
     instance.onerror = event => {
-      const permissionDenied = event.error === 'not-allowed' || event.error === 'service-not-allowed'
-      if (permissionDenied) {
-        keepListening.current = false
+      setListening(false)
+      recognition.current = null
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         setVoiceError('Debes permitir el acceso al micrófono para usar el dictado.')
-        setListening(false)
-        recognition.current = null
-        return
-      }
-      if (event.error && event.error !== 'no-speech' && event.error !== 'aborted') {
-        keepListening.current = false
-        setVoiceError('No fue posible continuar con el dictado. Inténtalo nuevamente.')
-        setListening(false)
-        recognition.current = null
+      } else if (event.error && event.error !== 'aborted') {
+        setVoiceError('El micrófono se detuvo. Revisa el texto y vuelve a dictar si necesitas agregar algo.')
       }
     }
     instance.onend = () => {
-      if (!keepListening.current) {
-        setListening(false)
-        recognition.current = null
-        return
-      }
-      window.setTimeout(() => {
-        if (!keepListening.current || recognition.current !== instance) return
-        try {
-          instance.start()
-        } catch {
-          keepListening.current = false
-          setListening(false)
-          recognition.current = null
-          setVoiceError('El micrófono se detuvo. Puedes revisar el texto y enviarlo o volver a dictar.')
-        }
-      }, 180)
+      setListening(false)
+      recognition.current = null
+      window.setTimeout(() => textarea.current?.focus(), 0)
     }
 
     try {
@@ -135,7 +111,6 @@ export function TopSearchBox({ value, onChange, onSubmit }: TopSearchBoxProps) {
       instance.start()
       setListening(true)
     } catch {
-      keepListening.current = false
       setVoiceError('No fue posible iniciar el micrófono. Inténtalo nuevamente.')
       setListening(false)
       recognition.current = null
@@ -143,10 +118,7 @@ export function TopSearchBox({ value, onChange, onSubmit }: TopSearchBoxProps) {
   }
 
   function clearSearch() {
-    keepListening.current = false
-    recognition.current?.stop()
-    recognition.current = null
-    setListening(false)
+    finishListening()
     valueRef.current = ''
     onChange('')
     setVoiceError('')
@@ -154,7 +126,10 @@ export function TopSearchBox({ value, onChange, onSubmit }: TopSearchBoxProps) {
   }
 
   function submitSearch() {
-    if (listening) finishListening()
+    if (listening) {
+      finishListening()
+      return
+    }
     const query = valueRef.current.trim()
     if (!query) return
     if (requestsTrashAction(query)) {
@@ -172,7 +147,7 @@ export function TopSearchBox({ value, onChange, onSubmit }: TopSearchBoxProps) {
     onSubmit()
   }
 
-  return <div className={`search top-search ${listening ? 'listening expanded' : value.length > 72 ? 'expanded' : ''}`} role="search" title={voiceError || 'Busca correos, contactos y documentos con lenguaje normal'}>
+  return <div className={`search top-search ${listening ? 'listening expanded' : value.length > 72 ? 'expanded' : ''}`} role="search" title={voiceError || 'Busca o dale instrucciones a Nexi con lenguaje normal'}>
     <Search size={18} className="top-search-icon" />
     <div className="top-search-editor">
       <textarea
@@ -190,7 +165,7 @@ export function TopSearchBox({ value, onChange, onSubmit }: TopSearchBoxProps) {
         aria-label="Buscar o dar una instrucción a Nexi"
       />
       {(listening || voiceError) && <span className={`top-search-inline-status ${voiceError ? 'error' : ''}`} aria-live="polite">
-        {voiceError || 'Escuchando… pulsa Listo cuando termines. Después revisa y envía.'}
+        {voiceError || 'Escuchando… pulsa Listo cuando termines. Después revisa el texto y pulsa Enviar.'}
       </span>}
     </div>
     {value && <button type="button" className="top-search-action clear" onClick={clearSearch} aria-label="Borrar búsqueda" title="Borrar búsqueda"><X size={16} /></button>}
@@ -198,6 +173,5 @@ export function TopSearchBox({ value, onChange, onSubmit }: TopSearchBoxProps) {
       ? <button type="button" className="top-search-done" onClick={finishListening} aria-label="Terminar dictado" title="Terminar dictado"><Check size={15} />Listo</button>
       : <button type="button" className="top-search-action voice" onClick={toggleVoice} aria-label="Dictar búsqueda por voz" title="Hablarle a Nexi"><Mic size={17} /></button>}
     {value.trim() && !listening && <button type="button" className="top-search-action submit" onClick={submitSearch} aria-label="Enviar a Nexi" title="Enviar a Nexi"><SendHorizontal size={17} /></button>}
-    {listening && <MicOff size={14} className="top-search-listening-mark" aria-hidden="true" />}
   </div>
 }
