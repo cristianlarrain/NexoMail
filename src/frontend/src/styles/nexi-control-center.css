@@ -125,6 +125,14 @@
   font-weight: 650;
 }
 
+.nexi-report-range {
+  flex: 0 0 auto;
+  margin-left: 4px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+}
+
 .nexi-report-loading {
   min-height: 170px;
   display: grid;
@@ -243,6 +251,10 @@
   margin-left: auto;
   color: var(--muted-foreground);
   font-size: 11px;
+}
+
+.nexi-report-informational > header {
+  background: color-mix(in srgb, var(--primary) 3%, var(--surface));
 }
 
 .nexi-report-item {
