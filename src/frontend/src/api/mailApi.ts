@@ -1,5 +1,5 @@
 import { csrfFetch } from './csrfFetch'
-import type { AiTone, AiWritingSuggestion, ComposeMessage, ContactAnalyticsSnapshot, ContactSuggestion, ControlCenterActivitySnapshot, ControlCenterPendingItem, ControlCenterSnapshot, DocumentIndexSnapshot, MailAccount, MailAttachment, MailMessage, MailMetadataSyncResult, MailSummary, OutgoingAttachment, PagedResult } from '../types/mail'
+import type { AiTone, AiWritingSuggestion, ComposeMessage, ContactAnalyticsSnapshot, ContactSuggestion, ControlCenterActivitySnapshot, ControlCenterPendingItem, ControlCenterSnapshot, DocumentIndexSnapshot, MailAccount, MailAttachment, MailMessage, MailMetadataSyncResult, MailSummary, MailThreadMessage, OutgoingAttachment, PagedResult } from '../types/mail'
 
 const messageAttachmentCache = new Map<string, MailAttachment[]>()
 
@@ -72,6 +72,7 @@ export const mailApi = {
     messageAttachmentCache.set(attachmentCacheKey(accountId, messageId), [...value.attachments])
     return value
   },
+  thread: (accountId: string, messageId: string) => api<MailThreadMessage[]>(`/mail/messages/${encodeURIComponent(accountId)}/${encodeURIComponent(messageId)}/thread`),
   aiReply: (accountId: string, messageId: string, tone: AiTone, instruction = '') => api<AiWritingSuggestion>(`/mail/messages/${encodeURIComponent(accountId)}/${encodeURIComponent(messageId)}/ai-reply`, { method: 'POST', body: JSON.stringify({ tone, instruction }) }),
   aiDraft: (context: string, tone: AiTone, recipient = '') => api<AiWritingSuggestion>('/mail/ai/draft', { method: 'POST', body: JSON.stringify({ context, tone, recipient }) }),
   saveDraft: (message: ComposeMessage, replyToMessageId?: string) => api<void>('/mail/drafts', { method: 'POST', body: JSON.stringify({ message, replyToMessageId: replyToMessageId || null }) }),
