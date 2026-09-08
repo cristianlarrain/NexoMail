@@ -1,0 +1,35 @@
+.universal-search-heading {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.universal-search-heading > div:first-child {
+  min-width: 0;
+  margin-right: auto;
+}
+
+.universal-context-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+}
+
+.universal-context-button:hover {
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+}
+
+@media (max-width: 760px) {
+  .universal-search-heading {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .universal-search-heading > div:first-child {
+    width: 100%;
+  }
+}
