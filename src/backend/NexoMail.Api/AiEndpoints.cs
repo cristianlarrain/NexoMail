@@ -1,6 +1,8 @@
+using System.Globalization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using NexoMail.Application;
+using NexoMail.Domain;
 using NexoMail.Infrastructure;
 using NexoMail.Infrastructure.Google;
 
@@ -26,6 +28,7 @@ public static class AiEndpoints
         });
         services.AddScoped<AiWritingService>();
         services.AddScoped<AiSearchService>();
+        services.AddScoped<AiMailInsightsService>();
         services.AddScoped<ControlCenterTrackingService>();
         services.AddScoped<GmailDraftProvider>();
         services.AddScoped<GmailMetadataIndexService>();
@@ -88,6 +91,140 @@ public static class AiEndpoints
                 return Results.BadRequest(new { error = "La búsqueda es demasiado extensa." });
 
             return Results.Ok(await ai.InterpretAsync(request.Query, ct));
+        }).RequireRateLimiting("ai-writing");
+
+        mail.MapPost("/messages/{accountId:guid}/{messageId}/ai-summary", async (
+            IMailGateway gateway,
+            MailReadCache cache,
+            IUserContext userContext,
+            AiMailInsightsService ai,
+            Guid accountId,
+            string messageId,
+            AiMessageSummaryRequest request,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                var message = await cache.GetOrCreateAsync(
+                    userContext.UserId.ToString(),
+                    "message-detail",
+                    $"{accountId:N}:{messageId}",
+                    TimeSpan.FromMinutes(10),
+                    async token => await gateway.GetMessageAsync(accountId, messageId, token) ?? throw new KeyNotFoundException(),
+                    ct);
+
+                IReadOnlyCollection<MailThreadMessage>? thread = null;
+                if (request.IncludeThread)
+                {
+                    thread = await cache.GetOrCreateAsync(
+                        userContext.UserId.ToString(),
+                        "message-thread",
+                        $"{accountId:N}:{messageId}",
+                        TimeSpan.FromMinutes(10),
+                        token => gateway.GetThreadAsync(accountId, messageId, token),
+                        ct);
+                }
+
+                var result = await cache.GetOrCreateAsync(
+                    userContext.UserId.ToString(),
+                    "ai-summary",
+                    $"{accountId:N}:{messageId}:{request.IncludeThread}",
+                    TimeSpan.FromMinutes(15),
+                    token => ai.SummarizeMessageAsync(message, thread, request.IncludeThread, token),
+                    ct);
+                return Results.Ok(result);
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Results.BadRequest(new { error = exception.Message });
+            }
+            catch (HttpRequestException)
+            {
+                return Results.Problem("No fue posible resumir el correo con Nexi. Inténtalo nuevamente.", statusCode: 502);
+            }
+        }).RequireRateLimiting("ai-writing");
+
+        mail.MapPost("/ai/report", async (
+            IMailGateway gateway,
+            MailReadCache cache,
+            IUserContext userContext,
+            AiMailInsightsService ai,
+            AiMailReportRequest request,
+            CancellationToken ct) =>
+        {
+            if (!TryReportRange(request.Period, request.LocalDate, out var start, out var end, out var periodLabel))
+                return Results.BadRequest(new { error = "El período solicitado no es válido." });
+
+            try
+            {
+                var cacheScope = $"{request.AccountId?.ToString("N") ?? "all"}:{request.Period}:{request.LocalDate}";
+                var report = await cache.GetOrCreateAsync(
+                    userContext.UserId.ToString(),
+                    "ai-report",
+                    cacheScope,
+                    TimeSpan.FromMinutes(10),
+                    async token =>
+                    {
+                        var dateSearch = $"after:{start:yyyy/MM/dd} before:{end:yyyy/MM/dd}";
+                        var page = await gateway.GetMessagesAsync(new MailQuery(request.AccountId, "inbox", 50, null, dateSearch), token);
+                        var summaries = page.Items
+                            .Where(item => item.ReceivedAt.Date >= start.ToDateTime(TimeOnly.MinValue).Date && item.ReceivedAt.Date < end.ToDateTime(TimeOnly.MinValue).Date)
+                            .OrderByDescending(item => item.ReceivedAt)
+                            .Take(25)
+                            .ToArray();
+
+                        if (summaries.Length == 0)
+                        {
+                            var fallback = await gateway.GetMessagesAsync(new MailQuery(request.AccountId, "inbox", 50), token);
+                            summaries = fallback.Items
+                                .Where(item => item.ReceivedAt.Date >= start.ToDateTime(TimeOnly.MinValue).Date && item.ReceivedAt.Date < end.ToDateTime(TimeOnly.MinValue).Date)
+                                .OrderByDescending(item => item.ReceivedAt)
+                                .Take(25)
+                                .ToArray();
+                        }
+
+                        using var semaphore = new SemaphoreSlim(5);
+                        var detailTasks = summaries.Select(async item =>
+                        {
+                            await semaphore.WaitAsync(token);
+                            try
+                            {
+                                try
+                                {
+                                    return await cache.GetOrCreateAsync(
+                                        userContext.UserId.ToString(),
+                                        "message-detail",
+                                        $"{item.AccountId:N}:{item.ProviderMessageId}",
+                                        TimeSpan.FromMinutes(10),
+                                        innerToken => gateway.GetMessageAsync(item.AccountId, item.ProviderMessageId, innerToken),
+                                        token);
+                                }
+                                catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException or KeyNotFoundException)
+                                {
+                                    return null;
+                                }
+                            }
+                            finally
+                            {
+                                semaphore.Release();
+                            }
+                        });
+
+                        var details = (await Task.WhenAll(detailTasks)).Where(value => value is not null).Cast<MailMessage>().ToArray();
+                        return await ai.GenerateReportAsync(periodLabel, details, token);
+                    },
+                    ct);
+
+                return Results.Ok(report);
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Results.BadRequest(new { error = exception.Message });
+            }
+            catch (HttpRequestException)
+            {
+                return Results.Problem("No fue posible generar el reporte de correo con Nexi. Inténtalo nuevamente.", statusCode: 502);
+            }
         }).RequireRateLimiting("ai-writing");
 
         mail.MapPost("/messages/{accountId:guid}/{messageId}/ai-reply", async (
@@ -153,8 +290,43 @@ public static class AiEndpoints
 
         return mail;
     }
+
+    private static bool TryReportRange(string period, string? localDate, out DateOnly start, out DateOnly end, out string label)
+    {
+        var today = DateOnly.TryParseExact(localDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+            ? parsed
+            : DateOnly.FromDateTime(DateTime.UtcNow);
+        var daysSinceMonday = ((int)today.DayOfWeek + 6) % 7;
+        var weekStart = today.AddDays(-daysSinceMonday);
+
+        switch (period.Trim().ToLowerInvariant())
+        {
+            case "today":
+                start = today;
+                end = today.AddDays(1);
+                label = "Hoy";
+                return true;
+            case "this_week":
+                start = weekStart;
+                end = today.AddDays(1);
+                label = "Esta semana";
+                return true;
+            case "last_week":
+                end = weekStart;
+                start = weekStart.AddDays(-7);
+                label = "Semana pasada";
+                return true;
+            default:
+                start = default;
+                end = default;
+                label = string.Empty;
+                return false;
+        }
+    }
 }
 
 public sealed record AiSearchRequest(string Query);
+public sealed record AiMessageSummaryRequest(bool IncludeThread);
+public sealed record AiMailReportRequest(string Period, string? LocalDate, Guid? AccountId);
 public sealed record AiReplyRequest(string Tone, string? Instruction);
 public sealed record AiDraftRequest(string Context, string Tone, string? Recipient);
