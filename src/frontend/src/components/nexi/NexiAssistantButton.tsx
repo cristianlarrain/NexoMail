@@ -24,6 +24,7 @@ function storedPosition(): Position | null {
 function promptForPath(pathname: string) {
   if (pathname.startsWith('/message/')) return '¿Qué quieres hacer con este correo?'
   if (pathname === '/compose') return '¿Te ayudo a redactar?'
+  if (pathname === '/search') return '¿Qué quieres encontrar?'
   if (pathname === '/control-center') return '¿Qué quieres revisar ahora?'
   if (pathname === '/settings/profile') return '¿Qué quieres ajustar de tu perfil?'
   if (pathname === '/settings/accounts') return '¿Qué cuenta quieres configurar?'
