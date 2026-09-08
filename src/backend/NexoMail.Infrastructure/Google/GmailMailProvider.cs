@@ -60,14 +60,27 @@ public sealed class GmailMailProvider(
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
         response.EnsureSuccessStatusCode();
         using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
-        var message = ParseMessage(document.RootElement, accountId);
-        if (!document.RootElement.TryGetProperty("threadId", out var threadId) || string.IsNullOrWhiteSpace(threadId.GetString())) return message;
+        return ParseMessage(document.RootElement, accountId);
+    }
+
+    public async Task<IReadOnlyCollection<MailThreadMessage>> GetThreadAsync(Guid accountId, string messageId, CancellationToken cancellationToken)
+    {
+        var client = await CreateClientAsync(accountId, cancellationToken);
+        using var messageResponse = await client.GetAsync($"users/me/messages/{Uri.EscapeDataString(messageId)}?format=minimal&fields=threadId", cancellationToken);
+        if (!messageResponse.IsSuccessStatusCode) return [];
+        using var messageDocument = JsonDocument.Parse(await messageResponse.Content.ReadAsStreamAsync(cancellationToken));
+        if (!messageDocument.RootElement.TryGetProperty("threadId", out var threadId) || string.IsNullOrWhiteSpace(threadId.GetString())) return [];
+
         using var threadResponse = await client.GetAsync($"users/me/threads/{Uri.EscapeDataString(threadId.GetString()!)}?format=full", cancellationToken);
-        if (!threadResponse.IsSuccessStatusCode) return message;
+        if (!threadResponse.IsSuccessStatusCode) return [];
         using var threadDocument = JsonDocument.Parse(await threadResponse.Content.ReadAsStreamAsync(cancellationToken));
-        if (!threadDocument.RootElement.TryGetProperty("messages", out var messages)) return message;
-        var thread = messages.EnumerateArray().Select(item => ParseMessage(item, accountId)).OrderBy(item => item.ReceivedAt).Select(item => new MailThreadMessage(item.ProviderMessageId, item.From, item.HtmlBody, item.ReceivedAt, item.ProviderMessageId == messageId)).ToArray();
-        return message with { Thread = thread };
+        if (!threadDocument.RootElement.TryGetProperty("messages", out var messages)) return [];
+
+        return messages.EnumerateArray()
+            .Select(item => ParseMessage(item, accountId))
+            .OrderBy(item => item.ReceivedAt)
+            .Select(item => new MailThreadMessage(item.ProviderMessageId, item.From, item.HtmlBody, item.ReceivedAt, item.ProviderMessageId == messageId))
+            .ToArray();
     }
 
     public async Task<MailAttachmentContent?> GetAttachmentAsync(Guid accountId, string messageId, string attachmentId, CancellationToken cancellationToken)
