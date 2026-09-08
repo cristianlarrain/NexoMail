@@ -7,11 +7,14 @@
   font-weight: 750;
 }
 
-/* Redactar and Centro de Control are the two primary sidebar actions. */
+/* Redactar, Centro de Control and Bandeja de entrada form one primary navigation group. */
 .sidebar .compose-button,
-.sidebar .control-center-nav {
+.sidebar .control-center-nav,
+.sidebar nav > a[href="/inbox"] {
+  width: 100%;
   height: 42px;
   min-height: 42px;
+  margin: 0 0 6px;
 }
 
 .sidebar .compose-button {
@@ -19,12 +22,7 @@
   box-shadow: none;
 }
 
-.sidebar nav > a[href="/inbox"] {
-  height: 42px;
-}
-
 .control-center-nav {
-  margin: 6px 0 7px;
   padding-inline: 8px 10px;
   border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--border));
   background: color-mix(in srgb, var(--primary) 5%, var(--surface));
@@ -109,12 +107,13 @@
 .nav-section-toggle svg.collapsed { transform: rotate(-90deg); }
 .nav-folder-group { display: contents; }
 
+.sidebar.collapsed .compose-button,
 .sidebar.collapsed .control-center-nav,
 .sidebar.collapsed nav > a[href="/inbox"] {
   width: 44px;
   height: 44px;
   min-height: 44px;
-  margin-inline: 3px;
+  margin: 0 3px 6px;
   padding: 0;
   justify-content: center;
   box-shadow: none;
