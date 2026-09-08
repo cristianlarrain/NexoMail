@@ -6,6 +6,7 @@ import { mailApi } from '../api/mailApi'
 import type { DocumentIndexItem, MailAttachment } from '../types/mail'
 
 const PAGE_SIZE = 80
+const DOCUMENTS_RETURN_PATH = '/control-center?tab=documents'
 
 function fileIcon(type: string) {
   if (type === 'Planilla') return <FileSpreadsheet size={15} />
@@ -75,6 +76,10 @@ export function ControlCenterDocuments() {
   const previewUrl = preview && previewAttachment ? mailApi.attachmentUrl(preview.accountId, preview.messageId, previewAttachment) : ''
   const previewDownloadUrl = preview && previewAttachment ? mailApi.attachmentUrl(preview.accountId, preview.messageId, previewAttachment, true) : ''
 
+  function openSourceMessage(item: DocumentIndexItem) {
+    navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: DOCUMENTS_RETURN_PATH } })
+  }
+
   return <section className="documents-control" aria-label="Documentos recibidos">
     <header className="documents-header">
       <div><p className="eyebrow">Registro documental</p><h2>Documentos recibidos</h2></div>
@@ -113,7 +118,7 @@ export function ControlCenterDocuments() {
         <time className="document-date" dateTime={item.receivedAt}>{dateLabel(item.receivedAt)}</time>
         <div className="document-actions">
           <button type="button" className="document-icon-action" title="Previsualizar" aria-label={`Previsualizar ${item.fileName}`} onClick={() => setPreview(item)}><Eye size={14} /></button>
-          <button type="button" className="document-icon-action" title="Ver correo" aria-label={`Ver correo de ${item.fileName}`} onClick={() => navigate(`/message/${item.accountId}/${item.messageId}`)}><Mail size={14} /></button>
+          <button type="button" className="document-icon-action" title="Ver correo" aria-label={`Ver correo de ${item.fileName}`} onClick={() => openSourceMessage(item)}><Mail size={14} /></button>
           <a className="document-icon-action" title="Descargar" aria-label={`Descargar ${item.fileName}`} href={mailApi.attachmentUrl(item.accountId, item.messageId, attachmentFrom(item), true)}><Download size={14} /></a>
         </div>
       </article>)}
@@ -134,7 +139,7 @@ export function ControlCenterDocuments() {
           <button type="button" className="document-preview-close" onClick={() => setPreview(null)} aria-label="Cerrar vista previa"><X size={17} /></button>
         </header>
         <div className="document-preview-content">
-          {preview.contentType.startsWith('image/') ? <img src={previewUrl} alt={preview.fileName} /> : canPreview(preview) ? <iframe src={previewUrl} title={`Vista previa: ${preview.fileName}`} /> : <div className="document-preview-unsupported"><FileText size={34} /><strong>Vista previa no disponible</strong><span>Este formato no puede mostrarse directamente en el navegador.</span><button type="button" className="secondary-button compact-action" onClick={() => { setPreview(null); navigate(`/message/${preview.accountId}/${preview.messageId}`) }}><Mail size={14} /> Ver correo</button></div>}
+          {preview.contentType.startsWith('image/') ? <img src={previewUrl} alt={preview.fileName} /> : canPreview(preview) ? <iframe src={previewUrl} title={`Vista previa: ${preview.fileName}`} /> : <div className="document-preview-unsupported"><FileText size={34} /><strong>Vista previa no disponible</strong><span>Este formato no puede mostrarse directamente en el navegador.</span><button type="button" className="secondary-button compact-action" onClick={() => { setPreview(null); openSourceMessage(preview) }}><Mail size={14} /> Ver correo</button></div>}
         </div>
         <footer><span>{preview.documentType}</span><a className="primary-button" href={previewDownloadUrl}><Download size={14} /> Descargar</a></footer>
       </aside>
