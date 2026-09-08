@@ -12,6 +12,7 @@ import { sanitizeEmailHtml } from '../utils/sanitizeEmailHtml'
 type ComposeState = {
   mode?: 'reply' | 'replyAll' | 'forward' | 'followUp'
   message?: MailMessage
+  fromAccountId?: string
   initialBody?: string
   returnTo?: string
   returnState?: unknown
@@ -62,7 +63,7 @@ export function ComposePage() {
   const state = (location.state ?? {}) as ComposeState
   const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: mailApi.accounts })
   const origin = state.message
-  const [from, setFrom] = useState(origin?.accountId ?? '')
+  const [from, setFrom] = useState(origin?.accountId ?? state.fromAccountId ?? '')
   const [to, setTo] = useState(origin ? state.mode === 'forward' ? '' : state.mode === 'followUp' ? origin.to.map(item => item.address).join(', ') : origin.from.address : '')
   const [cc, setCc] = useState('')
   const [bcc, setBcc] = useState('')
