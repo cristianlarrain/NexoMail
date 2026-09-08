@@ -1,5 +1,6 @@
 import { csrfFetch } from './csrfFetch'
 import type { AiMailReport, AiMessageInsight } from '../types/mail'
+import type { NexiContextResponse } from '../types/nexi'
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await csrfFetch(`/api${path}`, { headers: { 'Content-Type': 'application/json', ...init?.headers }, ...init })
@@ -22,5 +23,10 @@ export const nexiApi = {
     api<AiMailReport>('/mail/ai/report', {
       method: 'POST',
       body: JSON.stringify({ period, localDate, accountId: accountId || null }),
+    }),
+  context: (query: string, instruction: string, accountId?: string) =>
+    api<NexiContextResponse>('/mail/ai/context', {
+      method: 'POST',
+      body: JSON.stringify({ query, instruction, accountId: accountId || null }),
     }),
 }
