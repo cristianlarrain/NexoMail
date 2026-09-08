@@ -1,0 +1,362 @@
+.nexi-context-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 310px;
+  gap: 14px;
+}
+
+.nexi-context-main,
+.nexi-context-data,
+.nexi-context-empty {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.nexi-context-main {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.nexi-context-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 68px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, #e8f7ff 58%, var(--surface));
+}
+
+.nexi-context-identity {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nexi-context-identity > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.nexi-context-identity span {
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.nexi-context-identity strong {
+  max-width: 720px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.nexi-context-quick {
+  display: flex;
+  gap: 7px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.nexi-context-quick button {
+  flex: 0 0 auto;
+  min-height: 30px;
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--border));
+  border-radius: 999px;
+  padding: 0 10px;
+  background: color-mix(in srgb, var(--primary) 5%, var(--surface));
+  color: var(--foreground);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.nexi-context-quick button:hover {
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+  background: color-mix(in srgb, var(--primary) 9%, var(--surface));
+}
+
+.nexi-context-conversation {
+  min-height: 320px;
+  max-height: 54vh;
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  padding: 14px;
+  overflow-y: auto;
+}
+
+.nexi-context-welcome {
+  min-height: 170px;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-content: center;
+  justify-content: center;
+  gap: 8px;
+  max-width: 520px;
+  margin: auto;
+  color: var(--muted-foreground);
+}
+
+.nexi-context-welcome svg {
+  color: var(--primary);
+}
+
+.nexi-context-welcome div {
+  display: grid;
+  gap: 4px;
+}
+
+.nexi-context-welcome strong {
+  color: var(--foreground);
+  font-size: 13px;
+}
+
+.nexi-context-welcome span {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.nexi-context-turn {
+  max-width: 88%;
+  display: grid;
+  gap: 3px;
+  padding: 9px 11px;
+  border-radius: 11px;
+}
+
+.nexi-context-turn.user {
+  justify-self: end;
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border));
+}
+
+.nexi-context-turn.nexi {
+  justify-self: start;
+  background: var(--surface-2, color-mix(in srgb, var(--foreground) 4%, var(--surface)));
+  border: 1px solid var(--border);
+}
+
+.nexi-context-turn.loading {
+  opacity: .75;
+}
+
+.nexi-context-turn > span {
+  color: var(--primary);
+  font-size: 9px;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.nexi-context-turn p {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.nexi-context-composer {
+  display: grid;
+  gap: 7px;
+  padding: 11px 12px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--primary) 2%, var(--surface));
+}
+
+.nexi-context-composer textarea {
+  width: 100%;
+  min-height: 58px;
+  resize: vertical;
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border));
+  border-radius: 10px;
+  padding: 9px 10px;
+  background: var(--surface);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.nexi-context-composer textarea:focus {
+  outline: 0;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+.nexi-context-composer > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.nexi-context-composer small,
+.nexi-context-data small {
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+
+.nexi-context-data {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 12px;
+}
+
+.nexi-context-stat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 64px;
+  padding: 10px;
+  border-radius: 11px;
+  background: color-mix(in srgb, #e8f7ff 60%, var(--surface));
+  color: var(--primary);
+}
+
+.nexi-context-stat > div {
+  display: grid;
+  gap: 1px;
+}
+
+.nexi-context-stat strong {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.nexi-context-stat span {
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+
+.nexi-context-sample {
+  line-height: 1.4;
+}
+
+.nexi-context-chart {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.nexi-context-chart header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nexi-context-chart header svg {
+  color: var(--primary);
+}
+
+.nexi-context-chart header strong {
+  font-size: 11px;
+}
+
+.nexi-context-bar-row {
+  display: grid;
+  grid-template-columns: minmax(70px, .9fr) minmax(80px, 1fr) 24px;
+  align-items: center;
+  gap: 7px;
+}
+
+.nexi-context-bar-row > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+  font-size: 9px;
+}
+
+.nexi-context-bar-row > i {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 8%, var(--border));
+}
+
+.nexi-context-bar-row > i > b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--primary) 72%, #6edcf0);
+}
+
+.nexi-context-bar-row > strong {
+  text-align: right;
+  font-size: 9px;
+}
+
+.nexi-context-empty {
+  min-height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 30px;
+}
+
+.nexi-context-empty > div {
+  max-width: 560px;
+  display: grid;
+  gap: 4px;
+}
+
+.nexi-context-empty strong {
+  font-size: 14px;
+}
+
+.nexi-context-empty span {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+:root[data-theme="dark"] .nexi-context-header,
+:root[data-theme="dark"] .nexi-context-stat {
+  background: color-mix(in srgb, #174457 48%, var(--surface));
+}
+
+@media (max-width: 980px) {
+  .nexi-context-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .nexi-context-data {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .nexi-context-stat,
+  .nexi-context-sample {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 650px) {
+  .nexi-context-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .nexi-context-data {
+    grid-template-columns: 1fr;
+  }
+
+  .nexi-context-composer > div {
+    align-items: flex-end;
+    flex-direction: column;
+  }
+
+  .nexi-context-turn {
+    max-width: 96%;
+  }
+}
