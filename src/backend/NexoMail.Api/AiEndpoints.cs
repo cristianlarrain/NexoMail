@@ -78,6 +78,8 @@ public static class AiEndpoints
 
         mail.MapPost("/messages/{accountId:guid}/{messageId}/ai-reply", async (
             IMailGateway gateway,
+            MailReadCache cache,
+            IUserContext userContext,
             AiWritingService ai,
             Guid accountId,
             string messageId,
@@ -87,8 +89,13 @@ public static class AiEndpoints
             if (string.IsNullOrWhiteSpace(request.Tone))
                 return Results.BadRequest(new { error = "Selecciona un tono para la respuesta." });
 
-            var message = await gateway.GetMessageAsync(accountId, messageId, ct);
-            if (message is null) return Results.NotFound();
+            var message = await cache.GetOrCreateAsync(
+                userContext.UserId.ToString(),
+                "message-detail",
+                $"{accountId:N}:{messageId}",
+                TimeSpan.FromMinutes(10),
+                async token => await gateway.GetMessageAsync(accountId, messageId, token) ?? throw new KeyNotFoundException(),
+                ct);
 
             try
             {
