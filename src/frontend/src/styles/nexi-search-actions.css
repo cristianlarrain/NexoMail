@@ -1,0 +1,141 @@
+.nexi-action-page {
+  display: grid;
+  gap: 14px;
+}
+
+.nexi-action-heading {
+  align-items: center;
+}
+
+.nexi-action-command {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 13px 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, #e8f7ff 58%, var(--surface));
+}
+
+.nexi-action-command-icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+  color: var(--primary);
+}
+
+.nexi-action-command > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.nexi-action-command strong {
+  font-size: 13px;
+}
+
+.nexi-action-command span,
+.nexi-action-command small {
+  color: var(--muted-foreground, var(--muted));
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.nexi-action-command small {
+  margin-top: 3px;
+  font-style: italic;
+}
+
+.nexi-action-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.nexi-action-summary > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.nexi-action-summary > div > svg {
+  color: var(--primary);
+}
+
+.nexi-trash-action-button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid color-mix(in srgb, #c6453b 55%, var(--border));
+  border-radius: 8px;
+  padding: 0 11px;
+  background: color-mix(in srgb, #d95d52 10%, var(--surface));
+  color: #b9433a;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nexi-trash-action-button:disabled {
+  opacity: .55;
+  cursor: default;
+}
+
+.nexi-action-limit,
+.nexi-action-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.nexi-action-limit,
+.nexi-action-result.warning {
+  background: color-mix(in srgb, #d4a641 11%, var(--surface));
+  color: color-mix(in srgb, #946d15 80%, var(--foreground));
+}
+
+.nexi-action-result.success {
+  background: color-mix(in srgb, #32a66a 10%, var(--surface));
+  color: color-mix(in srgb, #237c4e 82%, var(--foreground));
+}
+
+.nexi-action-empty {
+  min-height: 45vh;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  text-align: center;
+  color: var(--muted-foreground, var(--muted));
+}
+
+:root[data-theme="dark"] .nexi-action-command {
+  background: color-mix(in srgb, #174457 50%, var(--surface));
+}
+
+@media (max-width: 680px) {
+  .nexi-action-summary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .nexi-trash-action-button {
+    justify-content: center;
+  }
+}
