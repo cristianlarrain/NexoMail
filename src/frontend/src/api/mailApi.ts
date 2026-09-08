@@ -24,7 +24,7 @@ function blobToBase64(blob: Blob) {
   })
 }
 
-async function fetchForwardAttachment(accountId: string, messageId: string, attachment: MailAttachment): Promise<OutgoingAttachment> {
+async function fetchSourceAttachment(accountId: string, messageId: string, attachment: MailAttachment): Promise<OutgoingAttachment> {
   const response = await csrfFetch(attachmentPath(accountId, messageId, attachment, true))
   if (!response.ok) {
     const problem = await response.json().catch(() => null) as { detail?: string; error?: string } | null
@@ -36,6 +36,11 @@ async function fetchForwardAttachment(accountId: string, messageId: string, atta
     contentType: attachment.contentType || blob.type || 'application/octet-stream',
     base64Content: await blobToBase64(blob),
   }
+}
+
+async function mergeSourceAttachments(accountId: string, messageId: string, message: ComposeMessage, sourceAttachments: MailAttachment[]) {
+  const retained = await Promise.all(sourceAttachments.map(file => fetchSourceAttachment(accountId, messageId, file)))
+  return { ...message, attachments: [...retained, ...(message.attachments ?? [])] }
 }
 
 function escapeHtml(value: string) {
@@ -96,6 +101,14 @@ export const mailApi = {
   aiReply: (accountId: string, messageId: string, tone: AiTone, instruction = '') => api<AiWritingSuggestion>(`/mail/messages/${encodeURIComponent(accountId)}/${encodeURIComponent(messageId)}/ai-reply`, { method: 'POST', body: JSON.stringify({ tone, instruction }) }),
   aiDraft: (context: string, tone: AiTone, recipient = '') => api<AiWritingSuggestion>('/mail/ai/draft', { method: 'POST', body: JSON.stringify({ context, tone, recipient }) }),
   saveDraft: (message: ComposeMessage, replyToMessageId?: string) => api<void>('/mail/drafts', { method: 'POST', body: JSON.stringify({ message, replyToMessageId: replyToMessageId || null }) }),
+  updateDraft: async (accountId: string, draftMessageId: string, message: ComposeMessage, sourceAttachments: MailAttachment[] = []) => {
+    const payload = await mergeSourceAttachments(accountId, draftMessageId, message, sourceAttachments)
+    return api<void>(`/mail/drafts/${encodeURIComponent(accountId)}/${encodeURIComponent(draftMessageId)}`, { method: 'PUT', body: JSON.stringify(payload) })
+  },
+  sendDraft: async (accountId: string, draftMessageId: string, message: ComposeMessage, sourceAttachments: MailAttachment[] = []) => {
+    const payload = await mergeSourceAttachments(accountId, draftMessageId, message, sourceAttachments)
+    return api<void>(`/mail/drafts/${encodeURIComponent(accountId)}/${encodeURIComponent(draftMessageId)}/send`, { method: 'POST', body: JSON.stringify(payload) })
+  },
   attachmentUrl: (accountId: string, messageId: string, attachment: MailAttachment, download = false) => {
     const base = attachmentPath(accountId, messageId, attachment, download)
     const isPdf = attachment.contentType === 'application/pdf' || /\.pdf$/i.test(attachment.name)
@@ -114,7 +127,7 @@ export const mailApi = {
     const cacheKey = attachmentCacheKey(accountId, messageId)
     const sourceAttachments = [...original.attachments]
     messageAttachmentCache.set(cacheKey, sourceAttachments)
-    const originalAttachments = await Promise.all(sourceAttachments.map(file => fetchForwardAttachment(accountId, messageId, file)))
+    const originalAttachments = await Promise.all(sourceAttachments.map(file => fetchSourceAttachment(accountId, messageId, file)))
     const attachments = [...originalAttachments, ...(message.attachments ?? [])]
     const htmlBody = `${message.htmlBody || '<p></p>'}${forwardedMessageHtml(original)}`
     return api<void>(`/mail/messages/${accountId}/${messageId}/forward`, { method: 'POST', body: JSON.stringify({ ...message, htmlBody, attachments }) })
