@@ -1,15 +1,17 @@
 import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { BarChart3, Files, Users } from 'lucide-react'
+import { BarChart3, Files, Sparkles, Users } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { ControlCenter } from '../components/ControlCenter'
 import { ControlCenterContacts } from '../components/ControlCenterContacts'
 import { ControlCenterDocuments } from '../components/ControlCenterDocuments'
+import { NexiMailReport } from '../components/NexiMailReport'
+import { NexiVisual } from '../components/nexi/NexiVisual'
 
-type ControlTab = 'summary' | 'contacts' | 'documents'
+type ControlTab = 'summary' | 'report' | 'contacts' | 'documents'
 
 function normalizedTab(value: string | null): ControlTab {
-  return value === 'contacts' || value === 'documents' ? value : 'summary'
+  return value === 'report' || value === 'contacts' || value === 'documents' ? value : 'summary'
 }
 
 export function ControlCenterPage() {
@@ -26,22 +28,28 @@ export function ControlCenterPage() {
     const updated = new URLSearchParams(params)
     if (next === 'summary') updated.delete('tab')
     else updated.set('tab', next)
+    if (next !== 'report') {
+      updated.delete('period')
+      updated.delete('account')
+    }
     setParams(updated, { replace: true })
   }
 
-  return <section className="mail-view control-center-page">
-    <div className="view-header control-page-header">
-      <div className="control-page-title">
-        <h1>Centro de control</h1>
+  return <section className="mail-view control-center-page nexi-control-center">
+    <div className="view-header control-page-header nexi-control-header">
+      <div className="control-page-title nexi-control-title">
+        <NexiVisual size="small" />
+        <div><h1>Centro de Control Nexi</h1><p>Nexi interpreta tus pendientes, actividad, contactos, documentos y reportes de correo.</p></div>
       </div>
 
-      <nav className="control-tabs control-tabs-inline" aria-label="Secciones del Centro de control">
-        <button type="button" className={tab === 'summary' ? 'active' : ''} onClick={() => selectTab('summary')}><BarChart3 size={16} /> Resumen</button>
+      <nav className="control-tabs control-tabs-inline" aria-label="Secciones del Centro de Control Nexi">
+        <button type="button" className={tab === 'summary' ? 'active' : ''} onClick={() => selectTab('summary')}><BarChart3 size={16} /> Operación</button>
+        <button type="button" className={tab === 'report' ? 'active nexi-tab' : 'nexi-tab'} onClick={() => selectTab('report')}><Sparkles size={16} /> Reporte Nexi</button>
         <button type="button" className={tab === 'contacts' ? 'active' : ''} onClick={() => selectTab('contacts')}><Users size={16} /> Contactos</button>
         <button type="button" className={tab === 'documents' ? 'active' : ''} onClick={() => selectTab('documents')}><Files size={16} /> Documentos</button>
       </nav>
     </div>
 
-    {tab === 'summary' ? <ControlCenter /> : tab === 'contacts' ? <ControlCenterContacts /> : <ControlCenterDocuments />}
+    {tab === 'summary' ? <ControlCenter /> : tab === 'report' ? <NexiMailReport /> : tab === 'contacts' ? <ControlCenterContacts /> : <ControlCenterDocuments />}
   </section>
 }
