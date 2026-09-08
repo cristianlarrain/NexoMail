@@ -9,6 +9,7 @@ import { ControlCenterPage } from './pages/ControlCenterPage'
 import { InboxPage } from './pages/InboxPage'
 import { LandingPage } from './pages/LandingPage'
 import { MessageRoute } from './pages/MessageRoute'
+import { NexiSearchActionPage } from './pages/NexiSearchActionPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { SearchPage } from './pages/SearchPage'
 
@@ -20,6 +21,7 @@ export const router = createBrowserRouter([
     children: [
       { path: '/inbox', element: <InboxPage /> },
       { path: '/search', element: <SearchPage /> },
+      { path: '/search-action', element: <NexiSearchActionPage /> },
       { path: '/control-center', element: <ControlCenterPage /> },
       { path: '/account/:accountId', element: <InboxPage /> },
       { path: '/archive', element: <InboxPage folder="archive" /> },
