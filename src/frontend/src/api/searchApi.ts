@@ -17,8 +17,8 @@ export const searchApi = {
     method: 'POST',
     body: JSON.stringify({ query }),
   }),
-  messages: (accountId: string | undefined, folder: 'inbox' | 'sent' | 'archive', search: string) =>
-    api<PagedResult<MailSummary>>(`/mail/messages?folder=${folder}&take=50${accountId ? `&accountId=${encodeURIComponent(accountId)}` : ''}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ''}`),
+  messages: (accountId: string | undefined, folder: 'inbox' | 'sent' | 'archive', search: string, cursor?: string) =>
+    api<PagedResult<MailSummary>>(`/mail/messages?folder=${folder}&take=50${accountId ? `&accountId=${encodeURIComponent(accountId)}` : ''}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ''}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
   contacts: () => api<ContactAnalyticsSnapshot>('/mail/control-center/contacts?days=90'),
   documents: (search: string, type: string) => api<DocumentIndexSnapshot>(`/mail/control-center/documents?take=100&skip=0&type=${encodeURIComponent(type)}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ''}`),
   controlCenter: (accountId?: string) => api<ControlCenterSnapshot>(`/mail/control-center${accountId ? `?accountId=${encodeURIComponent(accountId)}` : ''}`),
