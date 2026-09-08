@@ -45,10 +45,37 @@ public sealed class DemoMailProvider : IMailProvider
     public Task SaveDraftAsync(Guid accountId, string? replyToMessageId, ComposeMessage message, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var draftId = $"draft-{Guid.NewGuid():N}";
+        _messages.Add(CreateDraftMessage(accountId, draftId, message));
+        return Task.CompletedTask;
+    }
+
+    public Task UpdateDraftAsync(Guid accountId, string draftMessageId, ComposeMessage message, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var index = _messages.FindIndex(x => x.AccountId == accountId && x.ProviderMessageId == draftMessageId && x.FolderId == "drafts");
+        if (index < 0) throw new InvalidOperationException("El borrador ya no está disponible.");
+        _messages[index] = CreateDraftMessage(accountId, draftMessageId, message);
+        return Task.CompletedTask;
+    }
+
+    public Task SendDraftAsync(Guid accountId, string draftMessageId, ComposeMessage message, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var removed = _messages.RemoveAll(x => x.AccountId == accountId && x.ProviderMessageId == draftMessageId && x.FolderId == "drafts");
+        if (removed == 0) throw new InvalidOperationException("El borrador ya no está disponible.");
+        return Task.CompletedTask;
+    }
+
+    private static MailMessage CreateDraftMessage(Guid accountId, string draftMessageId, ComposeMessage message)
+    {
         var account = DemoData.Accounts.FirstOrDefault(x => x.Id == accountId);
         var from = account is null ? new MailAddress("NexoMail", "demo@nexomail.local") : new MailAddress(account.DisplayName, account.EmailAddress);
-        var draft = new MailMessage(
-            $"draft-{Guid.NewGuid():N}",
+        var attachments = (message.Attachments ?? [])
+            .Select((attachment, index) => new MailAttachment($"{draftMessageId}-att-{index}", attachment.Name, attachment.ContentType, Math.Max(0, attachment.Base64Content.Length * 3L / 4L)))
+            .ToArray();
+        return new MailMessage(
+            draftMessageId,
             accountId,
             from,
             message.To.Select(address => new MailAddress(address, address)).ToArray(),
@@ -58,10 +85,8 @@ public sealed class DemoMailProvider : IMailProvider
             string.Empty,
             DateTimeOffset.UtcNow,
             true,
-            [],
+            attachments,
             "drafts");
-        _messages.Add(draft);
-        return Task.CompletedTask;
     }
 
     public Task ReplyAsync(Guid accountId, string messageId, ComposeMessage message, CancellationToken cancellationToken) => Task.CompletedTask;
@@ -113,6 +138,8 @@ public sealed class DemoMailGateway(IEnumerable<IMailProvider> providers) : IMai
     public Task<MailAttachmentContent?> GetAttachmentAsync(Guid accountId, string messageId, string attachmentId, CancellationToken cancellationToken) => _demo.GetAttachmentAsync(accountId, messageId, attachmentId, cancellationToken);
     public Task SendAsync(ComposeMessage message, CancellationToken cancellationToken) => _demo.SendAsync(message, cancellationToken);
     public Task SaveDraftAsync(Guid accountId, string? replyToMessageId, ComposeMessage message, CancellationToken cancellationToken) => _demo.SaveDraftAsync(accountId, replyToMessageId, message, cancellationToken);
+    public Task UpdateDraftAsync(Guid accountId, string draftMessageId, ComposeMessage message, CancellationToken cancellationToken) => _demo.UpdateDraftAsync(accountId, draftMessageId, message, cancellationToken);
+    public Task SendDraftAsync(Guid accountId, string draftMessageId, ComposeMessage message, CancellationToken cancellationToken) => _demo.SendDraftAsync(accountId, draftMessageId, message, cancellationToken);
     public Task ReplyAsync(Guid accountId, string messageId, ComposeMessage message, bool replyAll, CancellationToken cancellationToken) => replyAll ? _demo.ReplyAllAsync(accountId, messageId, message, cancellationToken) : _demo.ReplyAsync(accountId, messageId, message, cancellationToken);
     public Task ForwardAsync(Guid accountId, string messageId, ComposeMessage message, CancellationToken cancellationToken) => _demo.ForwardAsync(accountId, messageId, message, cancellationToken);
     public Task MarkReadAsync(Guid accountId, string messageId, bool read, CancellationToken cancellationToken) => _demo.MarkReadAsync(accountId, messageId, read, cancellationToken);
