@@ -111,7 +111,7 @@ export function AiInlineWritingAssistant({ currentHtml, recipient, accountId, me
     {generateLabel}
   </button>
 
-  return <section className="ai-inline-writing" aria-label="Opciones de redacción con Nexo IA">
+  return <section className="ai-inline-writing" aria-label="Opciones de redacción con Nexi">
     <div className="ai-inline-choice-strip">
       <fieldset className="ai-inline-radio-group">
         <legend>Objetivo</legend>
