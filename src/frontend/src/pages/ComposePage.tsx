@@ -41,6 +41,20 @@ function textToHtml(value: string) {
   return value.trim().split(/\n{2,}/).map(paragraph => `<p>${escapeHtml(paragraph).replaceAll('\n', '<br />')}</p>`).join('')
 }
 
+function normalizedAddress(value: string) {
+  return value.trim().toLowerCase()
+}
+
+function uniqueAddresses(values: string[]) {
+  const seen = new Set<string>()
+  return values.map(value => value.trim()).filter(value => {
+    const key = normalizedAddress(value)
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 export function ComposePage() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -118,6 +132,18 @@ export function ComposePage() {
   })
 
   useEffect(() => () => recognition.current?.stop(), [])
+  useEffect(() => {
+    if (!origin || state.mode !== 'replyAll' || accounts.length === 0) return
+    const ownAddress = normalizedAddress(accounts.find(account => account.id === origin.accountId)?.emailAddress ?? '')
+    const toAddresses = uniqueAddresses([origin.from.address, ...origin.to.map(item => item.address)])
+      .filter(address => normalizedAddress(address) !== ownAddress)
+    const toSet = new Set(toAddresses.map(normalizedAddress))
+    const ccAddresses = uniqueAddresses(origin.cc.map(item => item.address))
+      .filter(address => normalizedAddress(address) !== ownAddress && !toSet.has(normalizedAddress(address)))
+    setTo(toAddresses.join(', '))
+    setCc(ccAddresses.join(', '))
+    setShowCc(ccAddresses.length > 0)
+  }, [accounts, origin, state.mode])
   useEffect(() => {
     if (!state.initialBody || !editor.current) return
     const html = textToHtml(state.initialBody)
