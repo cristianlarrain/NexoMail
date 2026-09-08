@@ -38,6 +38,12 @@ function linePoints(activity: ControlCenterDay[], field: 'received' | 'sent', ma
   }).join(' ')
 }
 
+function ActivityValue({ value, loading }: { value: number; loading: boolean }) {
+  return <b className={loading ? 'activity-count-loading' : ''} aria-label={loading ? 'Actualizando' : String(value)}>
+    {loading ? <i className="activity-count-spinner" aria-hidden="true" /> : value}
+  </b>
+}
+
 export function ControlCenterActivity({ accountId, accounts }: { accountId?: string; accounts: ControlCenterAccountSummary[] }) {
   const [days, setDays] = useState<ActivityDays>(7)
   const [offsetDays, setOffsetDays] = useState(0)
@@ -79,6 +85,7 @@ export function ControlCenterActivity({ accountId, accounts }: { accountId?: str
   const receivedLine = linePoints(activity, 'received', maximumActivity)
   const sentLine = linePoints(activity, 'sent', maximumActivity)
   const combinedTotals = totals(combinedActivity)
+  const numbersLoading = activityQuery.isFetching
 
   function changeDays(value: ActivityDays) {
     setDays(value)
@@ -103,20 +110,20 @@ export function ControlCenterActivity({ accountId, accounts }: { accountId?: str
     <div className="activity-account-selector" aria-label="Actividad por cuenta">
       {!accountId && accountActivity.length > 1 && <button type="button" className={`activity-account-card ${selectedSeries === 'all' ? 'active' : ''}`} onClick={() => setSelectedSeries('all')}>
         <span className="activity-account-name"><i className="all-accounts-dot" />Todas</span>
-        <span className="activity-account-counts"><span><b>{combinedTotals.received}</b><small>Recibidos</small></span><span><b>{combinedTotals.sent}</b><small>Enviados</small></span></span>
+        <span className="activity-account-counts"><span><ActivityValue value={combinedTotals.received} loading={numbersLoading} /><small>Recibidos</small></span><span><ActivityValue value={combinedTotals.sent} loading={numbersLoading} /><small>Enviados</small></span></span>
       </button>}
       {accountActivity.map(account => {
         const count = totals(account.activity)
         return <button type="button" disabled={!account.isAvailable} className={`activity-account-card ${selectedSeries === account.accountId ? 'active' : ''} ${account.isAvailable ? '' : 'unavailable'}`} key={account.accountId} onClick={() => setSelectedSeries(account.accountId)}>
           <span className="activity-account-name"><i style={{ background: account.accountColor }} />{account.accountName}</span>
-          {account.isAvailable ? <span className="activity-account-counts"><span><b>{count.received}</b><small>Recibidos</small></span><span><b>{count.sent}</b><small>Enviados</small></span></span> : <span className="activity-account-unavailable">No disponible</span>}
+          {account.isAvailable ? <span className="activity-account-counts"><span><ActivityValue value={count.received} loading={numbersLoading} /><small>Recibidos</small></span><span><ActivityValue value={count.sent} loading={numbersLoading} /><small>Enviados</small></span></span> : <span className="activity-account-unavailable">No disponible</span>}
         </button>
       })}
     </div>
 
     <div className="activity-insight-row">
       <div><span>Mostrando</span><strong>{selectedLabel}</strong></div>
-      <div className="activity-peak"><TrendingUp size={15} /><span>Día más activo</span><strong>{peakDay && peakTotal > 0 ? `${fullDayLabel(peakDay.date)} · ${peakTotal}` : 'Sin actividad'}</strong></div>
+      <div className="activity-peak"><TrendingUp size={15} /><span>Día más activo</span><strong>{numbersLoading ? 'Calculando…' : peakDay && peakTotal > 0 ? `${fullDayLabel(peakDay.date)} · ${peakTotal}` : 'Sin actividad'}</strong></div>
     </div>
 
     {activityQuery.isError ? <div className="notice activity-error">No fue posible consultar la actividad de este período.</div> : <div className="activity-chart-scroll">
