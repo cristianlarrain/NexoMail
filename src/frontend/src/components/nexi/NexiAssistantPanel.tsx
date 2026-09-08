@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, Clock3, FileText, Inbox, Mail, Palette, Reply, Search, Send, Settings, Sparkles, UserRound, Users, X } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { mailApi } from '../../api/mailApi'
+import { nexiApi } from '../../api/nexiApi'
 import type { ControlCenterPendingItem } from '../../types/mail'
 import { NexiVisual } from './NexiVisual'
 import { buildNexiInsights, type NexiInsightAction } from './nexiInsights'
@@ -160,6 +161,13 @@ export function NexiAssistantPanel({ open, onClose }: { open: boolean; onClose: 
     },
   })
 
+  const summaryMutation = useMutation({
+    mutationFn: async (includeThread: boolean) => {
+      if (!routeMessage) throw new Error('No hay un correo activo para resumir.')
+      return nexiApi.summarizeMessage(routeMessage.accountId, routeMessage.messageId, includeThread)
+    },
+  })
+
   function go(path: string) {
     onClose()
     navigate(path)
@@ -273,17 +281,27 @@ export function NexiAssistantPanel({ open, onClose }: { open: boolean; onClose: 
             {currentPending && <button type="button" disabled={finalizeMutation.isPending} onClick={() => finalizeMutation.mutate()}><span><Check size={14} /> Finalizar · no requiere acción</span></button>}
             {canManualTrackCurrent && <button type="button" disabled={trackingMutation.isPending || finalizeMutation.isPending} onClick={() => trackingMutation.mutate()}><span>{currentTracked ? <Check size={14} /> : <Clock3 size={14} />} {currentTracked ? 'Quitar seguimiento manual' : 'Marcar para seguimiento'}</span></button>}
             {(currentPending || currentTracked) && <button type="button" onClick={() => go('/inbox?priority=1')}>Ver en seguimiento prioritario</button>}
-            <button type="button" onClick={() => go('/control-center')}>Abrir Centro de control</button>
+            <button type="button" onClick={() => go('/control-center')}>Abrir Centro de Control Nexi</button>
+            <button type="button" disabled={!currentMessage.data || summaryMutation.isPending} onClick={() => summaryMutation.mutate(false)}><span><Sparkles size={14} /> {summaryMutation.isPending && summaryMutation.variables === false ? 'Resumiendo…' : 'Resumir este correo'}</span></button>
+            <button type="button" disabled={!currentMessage.data || summaryMutation.isPending} onClick={() => summaryMutation.mutate(true)}><span><Mail size={14} /> {summaryMutation.isPending && summaryMutation.variables === true ? 'Resumiendo conversación…' : 'Resumir conversación completa'}</span></button>
             {trackingMutation.isError && <div className="notice">{trackingMutation.error instanceof Error ? trackingMutation.error.message : 'No fue posible actualizar el seguimiento.'}</div>}
             {finalizeMutation.isError && <div className="notice">{finalizeMutation.error instanceof Error ? finalizeMutation.error.message : 'No fue posible finalizar el correo.'}</div>}
-            <button type="button" disabled title="Disponible en una etapa posterior">Resumir este correo <small>Próximamente</small></button>
+            {summaryMutation.isError && <div className="notice">{summaryMutation.error instanceof Error ? summaryMutation.error.message : 'No fue posible resumir el correo.'}</div>}
             <button type="button" disabled title="Disponible en una etapa posterior">Sugerir respuesta <small>Próximamente</small></button>
           </section>
+
+          {summaryMutation.data && <section className="nexi-mail-summary-card">
+            <div className="nexi-section-heading"><Sparkles size={15} /><div><strong>{summaryMutation.variables ? 'Resumen de la conversación' : 'Resumen del correo'}</strong><span>Explicado por Nexi en lenguaje directo.</span></div></div>
+            <p>{summaryMutation.data.summary}</p>
+            {summaryMutation.data.meaning && summaryMutation.data.meaning !== summaryMutation.data.summary && <div className="nexi-summary-meaning"><strong>Qué quiere decir</strong><span>{summaryMutation.data.meaning}</span></div>}
+            {summaryMutation.data.requestedAction && <div className="nexi-summary-action"><Check size={14} /><span><strong>Qué requiere de ti:</strong> {summaryMutation.data.requestedAction}</span></div>}
+            {summaryMutation.data.keyPoints.length > 0 && <ul>{summaryMutation.data.keyPoints.map((point, index) => <li key={`${point}-${index}`}>{point}</li>)}</ul>}
+          </section>}
         </>}
 
         {snapshot.data && context === 'control-center' && <>
           <section className="nexi-context-block">
-            <div className="nexi-section-heading"><Sparkles size={15} /><div><strong>Hallazgos del Centro de control</strong><span>Aquí Nexi muestra sólo información adicional a las métricas que ya ve en pantalla.</span></div></div>
+            <div className="nexi-section-heading"><Sparkles size={15} /><div><strong>Hallazgos del Centro de Control Nexi</strong><span>Nexi complementa las métricas con interpretación y reportes.</span></div></div>
             <div className="nexi-context-insights">
               {insights.map(insight => insight.action
                 ? <button type="button" key={insight.id} className="nexi-priority-callout" onClick={() => goInsight(insight.action)}><span><strong>{insight.title}</strong><br />{insight.description}</span></button>
@@ -292,7 +310,10 @@ export function NexiAssistantPanel({ open, onClose }: { open: boolean; onClose: 
           </section>
           <section className="nexi-panel-actions">
             <strong>Acciones desde esta vista</strong>
-            {oldestPriority && <button type="button" className="nexi-action-primary" onClick={() => openPriority(oldestPriority)}>Abrir pendiente más antiguo <small>{ageLabel(oldestPriority.item.since)}</small></button>}
+            <button type="button" className="nexi-action-primary" onClick={() => go('/control-center?tab=report&period=today')}><span><Sparkles size={14} /> Reporte de hoy</span></button>
+            <button type="button" onClick={() => go('/control-center?tab=report&period=this_week')}>Reporte de esta semana</button>
+            <button type="button" onClick={() => go('/control-center?tab=report&period=last_week')}>Reporte de la semana pasada</button>
+            {oldestPriority && <button type="button" onClick={() => openPriority(oldestPriority)}>Abrir pendiente más antiguo <small>{ageLabel(oldestPriority.item.since)}</small></button>}
             <button type="button" onClick={() => go('/inbox?priority=1')}>Abrir seguimiento prioritario <small>{priorityItems.length}</small></button>
             <button type="button" onClick={() => go('/inbox')}>Volver a Bandeja de entrada</button>
           </section>
@@ -318,7 +339,8 @@ export function NexiAssistantPanel({ open, onClose }: { open: boolean; onClose: 
 
           <section className="nexi-panel-actions">
             <strong>Acciones rápidas</strong>
-            {oldestPriority && <button type="button" className="nexi-action-primary" onClick={() => openPriority(oldestPriority)}>Abrir pendiente más antiguo <small>{ageLabel(oldestPriority.item.since)}</small></button>}
+            <button type="button" className="nexi-action-primary" onClick={() => go('/control-center?tab=report&period=today')}><span><Sparkles size={14} /> Resumen de correos de hoy</span></button>
+            {oldestPriority && <button type="button" onClick={() => openPriority(oldestPriority)}>Abrir pendiente más antiguo <small>{ageLabel(oldestPriority.item.since)}</small></button>}
             <button type="button" onClick={() => go('/inbox?priority=1')}>Revisar seguimiento prioritario <small>{priorityItems.length}</small></button>
             <button type="button" onClick={() => go(`/search?q=${encodeURIComponent('correos sin leer')}&scope=mail&unread=1`)}>Revisar correos sin leer <small>{snapshot.data.unread}</small></button>
           </section>
@@ -326,13 +348,14 @@ export function NexiAssistantPanel({ open, onClose }: { open: boolean; onClose: 
 
         {snapshot.data && context === 'general' && <>
           <section className="nexi-context-block">
-            <div className="nexi-section-heading"><Sparkles size={15} /><div><strong>Nexi en esta sección</strong><span>No hay un correo específico abierto. Puede revisar seguimiento o Centro de control.</span></div></div>
+            <div className="nexi-section-heading"><Sparkles size={15} /><div><strong>Nexi en esta sección</strong><span>No hay un correo específico abierto. Puede revisar seguimiento o Centro de Control Nexi.</span></div></div>
           </section>
           <section className="nexi-panel-actions">
             <strong>Accesos rápidos</strong>
-            {oldestPriority && <button type="button" className="nexi-action-primary" onClick={() => openPriority(oldestPriority)}>Abrir pendiente más antiguo <small>{ageLabel(oldestPriority.item.since)}</small></button>}
+            <button type="button" className="nexi-action-primary" onClick={() => go('/control-center?tab=report&period=today')}>Reporte de correos de hoy</button>
+            {oldestPriority && <button type="button" onClick={() => openPriority(oldestPriority)}>Abrir pendiente más antiguo <small>{ageLabel(oldestPriority.item.since)}</small></button>}
             <button type="button" onClick={() => go('/inbox?priority=1')}>Revisar seguimientos <small>{priorityItems.length}</small></button>
-            <button type="button" onClick={() => go('/control-center')}>Abrir Centro de control</button>
+            <button type="button" onClick={() => go('/control-center')}>Abrir Centro de Control Nexi</button>
           </section>
         </>}
       </div>
