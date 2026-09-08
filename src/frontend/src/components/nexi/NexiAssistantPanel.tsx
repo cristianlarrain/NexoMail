@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, Clock3, Inbox, Mail, Reply, Send, Sparkles, X } from 'lucide-react'
+import { Check, Clock3, Inbox, Mail, Palette, Reply, Send, Settings, Sparkles, UserRound, X } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { mailApi } from '../../api/mailApi'
 import type { ControlCenterPendingItem } from '../../types/mail'
@@ -8,6 +8,11 @@ import { NexiVisual } from './NexiVisual'
 import { buildNexiInsights, type NexiInsightAction } from './nexiInsights'
 
 type PriorityDisplayItem = { item: ControlCenterPendingItem; automatic: boolean; manual: boolean }
+
+type SettingsContext = {
+  title: string
+  description: string
+}
 
 function messageKey(accountId: string, messageId: string) {
   return `${accountId}:${messageId}`
@@ -29,8 +34,28 @@ function messageRoute(pathname: string) {
 function viewContext(pathname: string) {
   if (messageRoute(pathname)) return 'message'
   if (pathname === '/control-center') return 'control-center'
+  if (pathname.startsWith('/settings/')) return 'settings'
   if (pathname === '/inbox' || pathname.startsWith('/account/')) return 'inbox'
   return 'general'
+}
+
+function settingsContext(pathname: string): SettingsContext {
+  if (pathname === '/settings/profile') return {
+    title: 'Mi perfil',
+    description: 'Aquí puedes revisar y ajustar la información de tu perfil de NexoMail.',
+  }
+  if (pathname === '/settings/accounts') return {
+    title: 'Cuentas conectadas',
+    description: 'Aquí puedes administrar las cuentas de correo conectadas y su configuración.',
+  }
+  if (pathname === '/settings/appearance') return {
+    title: 'Apariencia',
+    description: 'Aquí puedes personalizar cómo se ve NexoMail.',
+  }
+  return {
+    title: 'Configuración',
+    description: 'Nexi está usando esta sección de configuración como contexto.',
+  }
 }
 
 export function NexiAssistantPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -39,18 +64,20 @@ export function NexiAssistantPanel({ open, onClose }: { open: boolean; onClose: 
   const queryClient = useQueryClient()
   const context = viewContext(location.pathname)
   const routeMessage = messageRoute(location.pathname)
+  const currentSettings = settingsContext(location.pathname)
+  const mailContextEnabled = open && context !== 'settings'
 
   const snapshot = useQuery({
     queryKey: ['control-center', 'all'],
     queryFn: () => mailApi.controlCenter(),
-    enabled: open,
+    enabled: mailContextEnabled,
     staleTime: 10 * 60_000,
     refetchOnWindowFocus: false,
   })
   const tracking = useQuery({
     queryKey: ['control-center-tracking', 'all'],
     queryFn: () => mailApi.controlCenterTrackedItems(),
-    enabled: open,
+    enabled: mailContextEnabled,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   })
@@ -160,8 +187,20 @@ export function NexiAssistantPanel({ open, onClose }: { open: boolean; onClose: 
       </header>
 
       <div className="nexi-panel-content">
-        {snapshot.isLoading && <div className="nexi-panel-loading"><span className="nexi-loading-line" /><span className="nexi-loading-line short" /><small>Revisando el contexto actual…</small></div>}
-        {snapshot.isError && <div className="notice">No fue posible recuperar los indicadores de Nexi.</div>}
+        {context !== 'settings' && snapshot.isLoading && <div className="nexi-panel-loading"><span className="nexi-loading-line" /><span className="nexi-loading-line short" /><small>Revisando el contexto actual…</small></div>}
+        {context !== 'settings' && snapshot.isError && <div className="notice">No fue posible recuperar los indicadores de Nexi.</div>}
+
+        {context === 'settings' && <>
+          <section className="nexi-context-block">
+            <div className="nexi-section-heading"><Settings size={15} /><div><strong>{currentSettings.title}</strong><span>{currentSettings.description}</span></div></div>
+          </section>
+          <section className="nexi-panel-actions">
+            <strong>Acciones de configuración</strong>
+            {location.pathname !== '/settings/profile' && <button type="button" onClick={() => go('/settings/profile')}><span><UserRound size={14} /> Mi perfil</span></button>}
+            {location.pathname !== '/settings/accounts' && <button type="button" onClick={() => go('/settings/accounts')}><span><Settings size={14} /> Configurar cuentas</span></button>}
+            {location.pathname !== '/settings/appearance' && <button type="button" onClick={() => go('/settings/appearance')}><span><Palette size={14} /> Apariencia</span></button>}
+          </section>
+        </>}
 
         {snapshot.data && context === 'message' && <>
           <section className="nexi-context-block">
