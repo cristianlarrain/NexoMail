@@ -38,6 +38,26 @@ async function fetchForwardAttachment(accountId: string, messageId: string, atta
   }
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
+function forwardedMessageHtml(message: MailMessage) {
+  const sender = message.from.name?.trim()
+    ? `${escapeHtml(message.from.name)} &lt;${escapeHtml(message.from.address)}&gt;`
+    : escapeHtml(message.from.address)
+  const recipients = message.to.map(item => escapeHtml(item.address)).join(', ')
+  const copies = message.cc.map(item => escapeHtml(item.address)).join(', ')
+  const sentAt = new Date(message.receivedAt).toLocaleString('es-CL')
+
+  return `<div style="margin-top:24px;padding-top:16px;border-top:1px solid #d9dfe1"><p><strong>---------- Mensaje reenviado ----------</strong></p><p><strong>De:</strong> ${sender}<br><strong>Fecha:</strong> ${escapeHtml(sentAt)}<br><strong>Asunto:</strong> ${escapeHtml(message.subject)}${recipients ? `<br><strong>Para:</strong> ${recipients}` : ''}${copies ? `<br><strong>CC:</strong> ${copies}` : ''}</p>${message.htmlBody}</div>`
+}
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await csrfFetch(`/api${path}`, { headers: { 'Content-Type': 'application/json', ...init?.headers }, ...init })
   if (!response.ok) {
@@ -90,15 +110,13 @@ export const mailApi = {
   send: (message: ComposeMessage) => api<void>('/mail/send', { method: 'POST', body: JSON.stringify(message) }),
   reply: (accountId: string, messageId: string, message: ComposeMessage, replyAll: boolean) => api<void>(`/mail/messages/${accountId}/${messageId}/reply`, { method: 'POST', body: JSON.stringify({ message, replyAll }) }),
   forward: async (accountId: string, messageId: string, message: ComposeMessage) => {
+    const original = await api<MailMessage>(`/mail/messages/${accountId}/${messageId}`)
     const cacheKey = attachmentCacheKey(accountId, messageId)
-    let sourceAttachments = messageAttachmentCache.get(cacheKey)
-    if (!sourceAttachments) {
-      const original = await api<MailMessage>(`/mail/messages/${accountId}/${messageId}`)
-      sourceAttachments = [...original.attachments]
-      messageAttachmentCache.set(cacheKey, sourceAttachments)
-    }
+    const sourceAttachments = [...original.attachments]
+    messageAttachmentCache.set(cacheKey, sourceAttachments)
     const originalAttachments = await Promise.all(sourceAttachments.map(file => fetchForwardAttachment(accountId, messageId, file)))
     const attachments = [...originalAttachments, ...(message.attachments ?? [])]
-    return api<void>(`/mail/messages/${accountId}/${messageId}/forward`, { method: 'POST', body: JSON.stringify({ ...message, attachments }) })
+    const htmlBody = `${message.htmlBody || '<p></p>'}${forwardedMessageHtml(original)}`
+    return api<void>(`/mail/messages/${accountId}/${messageId}/forward`, { method: 'POST', body: JSON.stringify({ ...message, htmlBody, attachments }) })
   },
 }
