@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -197,10 +198,28 @@ sealed class GmailHandler : HttpMessageHandler
 
     private static string ThreadJson(string id, long internalDate, string labels, string from, string to, string subject)
     {
-        var labelJson = string.Join(',', labels.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(label => $"\"{label}\""));
-        return $$"""
-        {"messages":[{"id":"{{id}}","labelIds":[{{labelJson}}],"internalDate":"{{internalDate}}","payload":{"headers":[{"name":"From","value":"{{from}}"},{"name":"To","value":"{{to}}"},{"name":"Subject","value":"{{subject}}"}]}}]}
-        """;
+        var labelIds = labels.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return JsonSerializer.Serialize(new
+        {
+            messages = new[]
+            {
+                new
+                {
+                    id,
+                    labelIds,
+                    internalDate = internalDate.ToString(),
+                    payload = new
+                    {
+                        headers = new[]
+                        {
+                            new { name = "From", value = from },
+                            new { name = "To", value = to },
+                            new { name = "Subject", value = subject },
+                        }
+                    }
+                }
+            }
+        });
     }
 
     private static HttpResponseMessage Json(HttpStatusCode status, string json) => new(status)
