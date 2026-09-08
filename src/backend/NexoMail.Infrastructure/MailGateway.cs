@@ -72,6 +72,7 @@ public sealed class MailGateway(
     }
 
     public async Task<MailMessage?> GetMessageAsync(Guid accountId, string messageId, CancellationToken cancellationToken) => await ProviderFor(await AccountAsync(accountId, cancellationToken)).GetMessageAsync(accountId, messageId, cancellationToken);
+    public async Task<IReadOnlyCollection<MailThreadMessage>> GetThreadAsync(Guid accountId, string messageId, CancellationToken cancellationToken) => await ProviderFor(await AccountAsync(accountId, cancellationToken)).GetThreadAsync(accountId, messageId, cancellationToken);
     public async Task<MailAttachmentContent?> GetAttachmentAsync(Guid accountId, string messageId, string attachmentId, CancellationToken cancellationToken) => await ProviderFor(await AccountAsync(accountId, cancellationToken)).GetAttachmentAsync(accountId, messageId, attachmentId, cancellationToken);
     public async Task SendAsync(ComposeMessage message, CancellationToken cancellationToken) => await ProviderFor(await AccountAsync(message.FromAccountId, cancellationToken)).SendAsync(message, cancellationToken);
 
