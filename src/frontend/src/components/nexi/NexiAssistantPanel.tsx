@@ -144,6 +144,22 @@ export function NexiAssistantPanel({ open, onClose }: { open: boolean; onClose: 
     },
   })
 
+  const finalizeMutation = useMutation({
+    mutationFn: async () => {
+      if (!currentPending) throw new Error('Este correo no tiene una acción automática pendiente.')
+      await mailApi.updateControlCenterState(currentPending.accountId, currentPending.conversationId, { messageId: currentPending.messageId, action: 'resolved' })
+      return currentPending
+    },
+    onSuccess: async item => {
+      queryClient.setQueryData(['control-center-tracking-state', item.accountId, item.messageId], { isTracked: false })
+      queryClient.setQueryData(['control-center-message-state', item.accountId, item.messageId], { status: 'resolved', conversationId: item.conversationId })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['control-center-tracking'], refetchType: 'all' }),
+        queryClient.invalidateQueries({ queryKey: ['control-center'], refetchType: 'all' }),
+      ])
+    },
+  })
+
   function go(path: string) {
     onClose()
     navigate(path)
@@ -254,10 +270,12 @@ export function NexiAssistantPanel({ open, onClose }: { open: boolean; onClose: 
             <strong>Acciones sobre este correo</strong>
             {currentPending?.direction === 'received' && <button type="button" className="nexi-action-primary" disabled={!currentMessage.data} onClick={() => openCurrentComposer('reply')}><span><Reply size={14} /> Responder</span></button>}
             {currentPending?.direction === 'sent' && <button type="button" className="nexi-action-primary" disabled={!currentMessage.data} onClick={() => openCurrentComposer('followUp')}><span><Send size={14} /> Hacer seguimiento</span></button>}
-            {canManualTrackCurrent && <button type="button" disabled={trackingMutation.isPending} onClick={() => trackingMutation.mutate()}><span>{currentTracked ? <Check size={14} /> : <Clock3 size={14} />} {currentTracked ? 'Quitar seguimiento manual' : 'Marcar para seguimiento'}</span></button>}
+            {currentPending && <button type="button" disabled={finalizeMutation.isPending} onClick={() => finalizeMutation.mutate()}><span><Check size={14} /> Finalizar · no requiere acción</span></button>}
+            {canManualTrackCurrent && <button type="button" disabled={trackingMutation.isPending || finalizeMutation.isPending} onClick={() => trackingMutation.mutate()}><span>{currentTracked ? <Check size={14} /> : <Clock3 size={14} />} {currentTracked ? 'Quitar seguimiento manual' : 'Marcar para seguimiento'}</span></button>}
             {(currentPending || currentTracked) && <button type="button" onClick={() => go('/inbox?priority=1')}>Ver en seguimiento prioritario</button>}
             <button type="button" onClick={() => go('/control-center')}>Abrir Centro de control</button>
             {trackingMutation.isError && <div className="notice">{trackingMutation.error instanceof Error ? trackingMutation.error.message : 'No fue posible actualizar el seguimiento.'}</div>}
+            {finalizeMutation.isError && <div className="notice">{finalizeMutation.error instanceof Error ? finalizeMutation.error.message : 'No fue posible finalizar el correo.'}</div>}
             <button type="button" disabled title="Disponible en una etapa posterior">Resumir este correo <small>Próximamente</small></button>
             <button type="button" disabled title="Disponible en una etapa posterior">Sugerir respuesta <small>Próximamente</small></button>
           </section>
