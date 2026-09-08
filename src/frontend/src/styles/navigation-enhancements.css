@@ -7,6 +7,10 @@
   font-weight: 750;
 }
 
+.sidebar nav > a[href="/inbox"] {
+  height: 42px;
+}
+
 .control-center-nav {
   min-height: 42px;
   margin: 7px 0 5px;
@@ -81,8 +85,10 @@
 .nav-section-toggle svg.collapsed { transform: rotate(-90deg); }
 .nav-folder-group { display: contents; }
 
-.sidebar.collapsed .control-center-nav {
+.sidebar.collapsed .control-center-nav,
+.sidebar.collapsed nav > a[href="/inbox"] {
   width: 44px;
+  height: 44px;
   min-height: 44px;
   margin-inline: 3px;
   padding: 0;
