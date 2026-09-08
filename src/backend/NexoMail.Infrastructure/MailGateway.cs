@@ -82,6 +82,18 @@ public sealed class MailGateway(
         await DraftProviderFor(account).SaveDraftAsync(accountId, replyToMessageId, message with { FromAccountId = accountId }, cancellationToken);
     }
 
+    public async Task UpdateDraftAsync(Guid accountId, string draftMessageId, ComposeMessage message, CancellationToken cancellationToken)
+    {
+        var account = await AccountAsync(accountId, cancellationToken);
+        await DraftProviderFor(account).UpdateDraftAsync(accountId, draftMessageId, message with { FromAccountId = accountId }, cancellationToken);
+    }
+
+    public async Task SendDraftAsync(Guid accountId, string draftMessageId, ComposeMessage message, CancellationToken cancellationToken)
+    {
+        var account = await AccountAsync(accountId, cancellationToken);
+        await DraftProviderFor(account).SendDraftAsync(accountId, draftMessageId, message with { FromAccountId = accountId }, cancellationToken);
+    }
+
     public async Task ReplyAsync(Guid accountId, string messageId, ComposeMessage message, bool replyAll, CancellationToken cancellationToken) { var provider = ProviderFor(await AccountAsync(accountId, cancellationToken)); if (replyAll) await provider.ReplyAllAsync(accountId, messageId, message, cancellationToken); else await provider.ReplyAsync(accountId, messageId, message, cancellationToken); }
     public async Task ForwardAsync(Guid accountId, string messageId, ComposeMessage message, CancellationToken cancellationToken) => await ProviderFor(await AccountAsync(accountId, cancellationToken)).ForwardAsync(accountId, messageId, message, cancellationToken);
     public async Task MarkReadAsync(Guid accountId, string messageId, bool read, CancellationToken cancellationToken) => await ProviderFor(await AccountAsync(accountId, cancellationToken)).MarkReadAsync(accountId, messageId, read, cancellationToken);
