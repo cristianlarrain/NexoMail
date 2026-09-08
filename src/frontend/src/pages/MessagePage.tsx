@@ -221,7 +221,7 @@ export function MessagePage() {
   const isManuallyTracked = trackingState.data?.isTracked ?? openedManualTracking
   const trackingMutationError = trackMessage.error ?? untrackMessage.error
   const destructiveActionLabel = isDraft ? 'Descartar borrador' : 'Mover a Papelera'
-  const thread = threadQuery.data ?? []
+  const thread = [...(threadQuery.data ?? [])].sort((left, right) => new Date(right.receivedAt).getTime() - new Date(left.receivedAt).getTime())
 
   return <article className={`mail-view message-reader ${preview ? 'with-preview' : ''}`}>
     <section className="message-reading-pane">
