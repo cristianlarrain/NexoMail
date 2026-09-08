@@ -74,17 +74,25 @@ export function AppLayout() {
   const dateLabel = capitalize(now.toLocaleDateString('es-CL', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, ''))
   const timeLabel = now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
   const activeAccountId = accountIdFromPath(location.pathname)
+  const searchAccountId = location.pathname === '/search' ? new URLSearchParams(location.search).get('account') ?? undefined : undefined
+  const contextualAccountId = activeAccountId ?? searchAccountId
 
   function runSearch() {
     const query = search.trim()
-    const basePath = activeAccountId ? `/account/${encodeURIComponent(activeAccountId)}` : '/inbox'
-    navigate(query ? `${basePath}?q=${encodeURIComponent(query)}` : basePath)
+    if (!query) {
+      navigate(contextualAccountId ? `/search?account=${encodeURIComponent(contextualAccountId)}` : '/search')
+      return
+    }
+    const params = new URLSearchParams()
+    params.set('q', query)
+    if (contextualAccountId) params.set('account', contextualAccountId)
+    navigate(`/search?${params.toString()}`)
   }
 
   return <div className="app-shell">
     <aside className={`sidebar ${open ? 'open' : ''} ${collapsed ? 'collapsed' : ''}`}>
       <div className="brand-row"><button className="brand-home" onClick={() => { setOpen(false); navigate('/inbox') }} aria-label="Ir a Bandeja de entrada"><NexoMailLogo compact={collapsed} /></button><button className="icon-button collapse-button" onClick={() => setCollapsed(!collapsed)} aria-label="Contraer barra lateral"><ChevronLeft size={18} /></button></div>
-      <button className="compose-button" onClick={() => { setOpen(false); navigate('/compose', { state: activeAccountId ? { fromAccountId: activeAccountId } : undefined }) }}><PenLine size={17} /><span>Redactar</span></button>
+      <button className="compose-button" onClick={() => { setOpen(false); navigate('/compose', { state: contextualAccountId ? { fromAccountId: contextualAccountId } : undefined }) }}><PenLine size={17} /><span>Redactar</span></button>
       <nav aria-label="Navegación principal">
         <NavLink to="/inbox" end className={navClass}><Inbox size={17} /><span>Bandeja de entrada</span></NavLink>
         <NavLink to="/control-center" className={controlCenterNavClass}><i className="control-center-nav-icon"><LayoutDashboard size={16} /></i><span>Centro de control</span></NavLink>
@@ -107,7 +115,7 @@ export function AppLayout() {
     <main className="main-content">
       <header className="topbar">
         <button className="icon-button menu-button" onClick={() => setOpen(true)} aria-label="Abrir menú"><Menu size={20} /></button>
-        <label className="search"><Search size={17} /><input value={search} onChange={event => setSearch(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') runSearch() }} placeholder="Buscar correos y presionar Enter" aria-label="Buscar correos" /></label>
+        <label className="search" title="Busca correos, contactos y documentos con lenguaje normal"><Search size={17} /><input value={search} onChange={event => setSearch(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') runSearch() }} placeholder="Busca correos, contactos, documentos o pregúntale a Nexi" aria-label="Buscar en NexoMail" /></label>
         <div className="operations-clock" aria-label={`${dateLabel}, ${timeLabel}`} title="Hora local"><Clock3 size={16} /><span className="operations-date">{dateLabel}</span><strong>{timeLabel}</strong></div>
         <WeatherWidget />
         <button className={`avatar ${session?.avatarDataUrl ? 'has-image' : ''}`} aria-label="Menú de perfil" aria-expanded={profileOpen} onClick={() => setProfileOpen(!profileOpen)}>{session?.avatarDataUrl ? <img src={session.avatarDataUrl} alt="" /> : initials(session?.displayName ?? session?.email ?? '')}</button>
