@@ -8,10 +8,22 @@ export interface MailAddress { name: string; address: string }
 export interface ContactSuggestion { name: string; emailAddress: string }
 export interface MailThreadMessage { providerMessageId: string; from: MailAddress; htmlBody: string; receivedAt: string; isCurrent: boolean }
 export interface MailSummary { providerMessageId: string; accountId: string; senderName: string; senderAddress: string; subject: string; preview: string; receivedAt: string; isRead: boolean; hasAttachments: boolean; folderId: string }
-export interface MailMessage extends MailSummary { from: MailAddress; to: MailAddress[]; cc: MailAddress[]; htmlBody: string; attachments: MailAttachment[]; thread?: MailThreadMessage[]; unsubscribeUrl?: string | null }
 export interface PagedResult<T> { items: T[]; nextCursor?: string }
+export interface MailMessage extends MailSummary { from: MailAddress; to: MailAddress[]; cc: MailAddress[]; htmlBody: string; attachments: MailAttachment[]; thread?: MailThreadMessage[]; unsubscribeUrl?: string | null }
 export interface ComposeMessage { fromAccountId: string; to: string[]; cc: string[]; bcc: string[]; subject: string; htmlBody: string; attachments: OutgoingAttachment[] }
 export interface AiWritingSuggestion { text: string; subject?: string | null }
+export interface AiSearchInterpretation {
+  textQuery: string
+  gmailQuery: string
+  folder: 'all' | 'inbox' | 'sent'
+  unread: boolean
+  hasAttachments: boolean
+  days?: number | null
+  scope: 'all' | 'mail' | 'contacts' | 'documents'
+  documentType: 'all' | 'pdf' | 'word' | 'excel' | 'image'
+  special: 'none' | 'sent_without_response' | 'received_without_reply'
+  explanation: string
+}
 
 export interface ControlCenterDay { date: string; received: number; sent: number }
 export interface ControlCenterPendingItem {
