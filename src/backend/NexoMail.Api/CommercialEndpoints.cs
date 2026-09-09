@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using NexoMail.Application;
 using NexoMail.Domain;
+using NexoMail.Infrastructure;
 using NexoMail.Infrastructure.Data;
 
 namespace NexoMail.Api;
@@ -14,26 +15,24 @@ public static class CommercialEndpoints
 
         commercial.MapGet("/subscription", async (NexoMailDbContext database, IUserContext userContext, CancellationToken ct) =>
         {
-            var user = await database.Users.AsNoTracking().SingleOrDefaultAsync(x => x.Id == userContext.UserId, ct);
-            if (user is null) return Results.NotFound();
+            var access = await CommercialAccessStore.GetAsync(database, userContext.UserId, ct);
+            if (access is null) return Results.NotFound();
 
             var activePlans = await database.CommercialPlans.AsNoTracking()
                 .Where(x => x.IsActive)
                 .OrderBy(x => x.SortOrder)
                 .ThenBy(x => x.Name)
                 .ToArrayAsync(ct);
-            var current = await database.CommercialPlans.AsNoTracking().SingleOrDefaultAsync(x => x.Code == user.PlanCode, ct)
-                ?? activePlans.FirstOrDefault(x => x.Code == CommercialPlanCatalog.Freemium)
-                ?? activePlans.FirstOrDefault();
-            if (current is null) return Results.Problem("No existen planes comerciales configurados.", statusCode: 500);
+            var current = access.AssignedPlan;
+            var effective = access.EffectivePlan;
 
             var connectedAccounts = await database.MailAccounts.AsNoTracking()
                 .CountAsync(x => x.UserId == userContext.UserId && x.IsActive, ct);
-            var remaining = current.MaxAccounts.HasValue
-                ? Math.Max(0, current.MaxAccounts.Value - connectedAccounts)
+            var remaining = effective.MaxAccounts.HasValue
+                ? Math.Max(0, effective.MaxAccounts.Value - connectedAccounts)
                 : (int?)null;
-            var overLimit = current.MaxAccounts.HasValue && connectedAccounts > current.MaxAccounts.Value;
-            var canAddAccount = !current.MaxAccounts.HasValue || connectedAccounts < current.MaxAccounts.Value;
+            var overLimit = effective.MaxAccounts.HasValue && connectedAccounts > effective.MaxAccounts.Value;
+            var canAddAccount = !effective.MaxAccounts.HasValue || connectedAccounts < effective.MaxAccounts.Value;
 
             return Results.Ok(new CommercialSubscriptionSnapshot(
                 ToDto(current),
@@ -41,8 +40,14 @@ public static class CommercialEndpoints
                 remaining,
                 canAddAccount,
                 overLimit,
-                activePlans.Select(ToDto).ToArray()));
+                activePlans.Select(ToDto).ToArray(),
+                ToSubscriptionDto(access.Subscription),
+                access.Entitlements,
+                access.PaidAccessActive,
+                effective.Code));
         });
+
+        commercial.MapGet("/entitlements", () => Results.Ok(CommercialEntitlements.Definitions));
 
         commercial.MapGet("/admin/status", async (NexoMailDbContext database, IUserContext userContext, CancellationToken ct) =>
         {
@@ -170,6 +175,7 @@ public static class CommercialEndpoints
         plan.MaxAccounts,
         plan.Description,
         ReadFeatures(plan.FeaturesJson),
+        CommercialAccessStore.EntitlementsFor(plan),
         plan.IsFeatured,
         plan.IsCorporate,
         plan.IsWhiteLabel,
@@ -183,6 +189,7 @@ public static class CommercialEndpoints
         plan.MaxAccounts,
         plan.Description,
         ReadFeatures(plan.FeaturesJson),
+        CommercialAccessStore.EntitlementsFor(plan),
         plan.IsFeatured,
         plan.IsCorporate,
         plan.IsWhiteLabel,
@@ -190,6 +197,19 @@ public static class CommercialEndpoints
         plan.SortOrder,
         assignedUsers,
         plan.Code != CommercialPlanCatalog.Freemium && assignedUsers == 0);
+
+    private static CommercialSubscriptionStateDto ToSubscriptionDto(CommercialSubscriptionState state) => new(
+        state.Status,
+        state.Provider,
+        state.ProviderCustomerId,
+        state.ProviderSubscriptionId,
+        state.CurrentPeriodStart,
+        state.CurrentPeriodEnd,
+        state.TrialEndsAt,
+        state.CancelAtPeriodEnd,
+        state.CanceledAt,
+        state.PaymentDueAt,
+        state.UpdatedAt);
 }
 
 public sealed record CommercialPlanDto(
@@ -200,10 +220,24 @@ public sealed record CommercialPlanDto(
     int? MaxAccounts,
     string Description,
     IReadOnlyList<string> Features,
+    IReadOnlyList<string> Entitlements,
     bool IsFeatured,
     bool IsCorporate,
     bool IsWhiteLabel,
     bool IsActive);
+
+public sealed record CommercialSubscriptionStateDto(
+    string Status,
+    string? Provider,
+    string? ProviderCustomerId,
+    string? ProviderSubscriptionId,
+    DateTimeOffset? CurrentPeriodStart,
+    DateTimeOffset? CurrentPeriodEnd,
+    DateTimeOffset? TrialEndsAt,
+    bool CancelAtPeriodEnd,
+    DateTimeOffset? CanceledAt,
+    DateTimeOffset? PaymentDueAt,
+    DateTimeOffset UpdatedAt);
 
 public sealed record CommercialSubscriptionSnapshot(
     CommercialPlanDto CurrentPlan,
@@ -211,7 +245,11 @@ public sealed record CommercialSubscriptionSnapshot(
     int? RemainingAccounts,
     bool CanAddAccount,
     bool OverLimit,
-    IReadOnlyList<CommercialPlanDto> Plans);
+    IReadOnlyList<CommercialPlanDto> Plans,
+    CommercialSubscriptionStateDto Subscription,
+    IReadOnlyList<string> Entitlements,
+    bool PaidAccessActive,
+    string EffectivePlanCode);
 
 public sealed record CommercialAdminPlanDto(
     string Code,
@@ -221,6 +259,7 @@ public sealed record CommercialAdminPlanDto(
     int? MaxAccounts,
     string Description,
     IReadOnlyList<string> Features,
+    IReadOnlyList<string> Entitlements,
     bool IsFeatured,
     bool IsCorporate,
     bool IsWhiteLabel,
