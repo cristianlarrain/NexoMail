@@ -9,7 +9,6 @@ import { ControlCenterActivity } from './ControlCenterActivity'
 import { NexiPriorityQueue } from './NexiPriorityQueue'
 import { NexiEmptyState } from './nexi/NexiEmptyState'
 import { NexiInsightCard } from './nexi/NexiInsightCard'
-import { NexiVisual } from './nexi/NexiVisual'
 import { buildNexiInsights, type NexiInsightAction } from './nexi/nexiInsights'
 
 type ManagementView = 'received' | 'sent' | 'overdue' | null
@@ -128,16 +127,16 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
     }
   }
 
-  if (snapshot.isLoading) return <section className="control-center control-center-cinematic control-center-loading" role="status" aria-live="polite" aria-label="Recuperando información del Centro de control">
+  if (snapshot.isLoading) return <section className="control-center control-center-cinematic control-center-loading" role="status" aria-live="polite" aria-label="Recuperando información operativa">
     <div className="control-loading-copy">
       <span className="control-loading-icon" aria-hidden="true"><RefreshCw size={18} /></span>
-      <div><strong>Recuperando información</strong><span>Consultando actividad, pendientes y seguimiento de tus cuentas. La primera carga puede tardar unos segundos.</span></div>
+      <div><strong>Recuperando información</strong><span>Consultando indicadores, pendientes y seguimiento de tus cuentas. La primera carga puede tardar unos segundos.</span></div>
     </div>
     <div className="control-loading-progress" aria-hidden="true"><span /></div>
-    <div className="control-loading-steps" aria-hidden="true"><span>Conectando cuentas</span><span>Procesando actividad</span><span>Preparando seguimiento</span></div>
+    <div className="control-loading-steps" aria-hidden="true"><span>Conectando cuentas</span><span>Procesando indicadores</span><span>Preparando prioridades</span></div>
   </section>
 
-  if (snapshot.isError || !snapshot.data) return <section className="control-center control-center-cinematic"><div className="control-center-header"><div><h2>Centro de control</h2><p>No fue posible cargar los indicadores.</p></div><button className="icon-button" onClick={() => snapshot.refetch()} aria-label="Reintentar centro de control"><RefreshCw size={17} /></button></div></section>
+  if (snapshot.isError || !snapshot.data) return <section className="control-center control-center-cinematic"><div className="control-center-header"><div><h2>Estado operativo</h2><p>No fue posible cargar los indicadores.</p></div><button className="icon-button" onClick={() => snapshot.refetch()} aria-label="Reintentar indicadores"><RefreshCw size={17} /></button></div></section>
 
   const data = snapshot.data
   const updatedAt = new Date(data.generatedAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
@@ -178,16 +177,15 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
 
   return <section className="control-center control-center-cinematic" aria-labelledby="control-center-title">
     <div className="control-center-header">
-      <div><div className="control-center-title-line"><h2 id="control-center-title">Centro de control</h2><span>Seguimiento · 14 días</span></div><p>{scopeLabel} · Sólo conversaciones con posible acción pendiente.</p></div>
+      <div><div className="control-center-title-line"><h2 id="control-center-title">Estado operativo</h2><span>Ventana · 14 días</span></div><p>{scopeLabel} · Conversaciones con posible acción pendiente.</p></div>
       <div className="control-center-refresh"><span>Actualizado {updatedAt}</span></div>
     </div>
 
-    {data.unavailableAccounts > 0 && <div className="notice control-center-warning">No se pudo consultar {data.unavailableAccounts} cuenta{data.unavailableAccounts === 1 ? '' : 's'}. Los indicadores muestran las cuentas disponibles.</div>}
+    {data.unavailableAccounts > 0 && <div className="notice control-center-warning">No se pudo consultar {data.unavailableAccounts} cuenta{data.unavailableAccounts === 1 ? '' : 's'}. Los indicadores consideran las cuentas disponibles.</div>}
 
-    <section className="nexi-insights-panel nexi-control-summary" aria-label="Resumen y sugerencias de Nexi">
+    <section className="nexi-insights-panel nexi-control-summary" aria-label="Indicadores clave">
       <header className="nexi-insights-header">
-        <NexiVisual size="small" />
-        <div><strong>Nexi · Resumen del Centro de control</strong><span>Indicadores principales y hallazgos complementarios en una sola vista.</span></div>
+        <div><strong>Indicadores clave</strong><span>Estado actual de pendientes, lectura y antigüedad.</span></div>
       </header>
 
       <div className="control-metrics nexi-control-metrics">
@@ -196,8 +194,17 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
         <MetricCard tone="unread" icon={<Mail size={19} />} value={data.unread} label="Correos sin leer" hint="Abrir y gestionar en forma masiva" onClick={() => navigate(`${inboxPath}?q=${encodeURIComponent('is:unread')}`)} />
         <MetricCard tone="overdue" icon={<Clock3 size={19} />} value={data.overdue} label="Más de 48 horas" hint="Pendientes que requieren atención" active={activeView === 'overdue'} onClick={() => setActiveView(current => current === 'overdue' ? null : 'overdue')} />
       </div>
+    </section>
 
-      <div className="nexi-findings-heading"><strong>Hallazgos adicionales</strong><span>Nexi muestra sólo información que complementa las métricas anteriores.</span></div>
+    <NexiPriorityQueue
+      items={priorityItems}
+      openingTarget={openingTarget}
+      onManage={item => void openComposer(item)}
+      onOpen={(item, manual) => navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: controlCenterPath, controlCenterItem: item, manualTracking: manual } })}
+    />
+
+    <section className="nexi-insights-panel nexi-control-summary" aria-label="Hallazgos">
+      <div className="nexi-findings-heading"><strong>Hallazgos</strong><span>Señales complementarias que no repiten los indicadores.</span></div>
       <div className="nexi-insights-grid">
         {nexiInsights.map(insight => <NexiInsightCard
           key={insight.id}
@@ -214,7 +221,7 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
     {activeView && activeCopy && <article className="control-management-panel">
       <header><div><p className="eyebrow">Gestión</p><strong>{activeCopy.title}</strong><span>{activeCopy.description}</span></div><button type="button" className="icon-button" onClick={() => { setActiveView(null); setSnoozeTarget(null) }} aria-label="Cerrar gestión"><X size={17} /></button></header>
       {actionError && <div className="notice control-management-error">{actionError}</div>}
-      {managementItems.length === 0 ? <NexiEmptyState compact title="Sin pendientes en esta vista" description="Nexi no encontró conversaciones que requieran gestión en este momento." /> : <div className="management-list">
+      {managementItems.length === 0 ? <NexiEmptyState compact title="Sin pendientes en esta vista" description="No hay conversaciones que requieran gestión en este momento." /> : <div className="management-list">
         {managementItems.map(item => {
           const key = itemKey(item)
           const pendingAction = manage.isPending || openingTarget === key
@@ -233,14 +240,6 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
       </div>}
     </article>}
 
-    <div className="control-center-grid">
-      <ControlCenterActivity accountId={accountId} accounts={data.accounts} />
-      <NexiPriorityQueue
-        items={priorityItems}
-        openingTarget={openingTarget}
-        onManage={item => void openComposer(item)}
-        onOpen={(item, manual) => navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: controlCenterPath, controlCenterItem: item, manualTracking: manual } })}
-      />
-    </div>
+    <ControlCenterActivity accountId={accountId} accounts={data.accounts} />
   </section>
 }
