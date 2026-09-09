@@ -1,0 +1,32 @@
+:root:not([data-theme="dark"]) {
+  --background: #f2f5f5;
+  --surface-hover: #edf2f3;
+  --border: #d5dee0;
+  --muted: #e8eeef;
+  --shadow: 0 1px 3px rgb(18 42 47 / .08);
+}
+
+@media (min-width: 761px) {
+  .app-shell {
+    gap: 0;
+  }
+
+  .sidebar {
+    margin-right: 0;
+  }
+
+  .main-content {
+    margin-left: 0;
+    padding-left: 0;
+  }
+
+  .topbar {
+    margin-left: 0;
+    padding-left: 0;
+    border-radius: 0;
+  }
+
+  .topbar .top-search {
+    margin-left: 0;
+  }
+}
