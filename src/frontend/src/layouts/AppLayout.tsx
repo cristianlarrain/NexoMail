@@ -11,6 +11,7 @@ import { NexoMailLogo } from '../components/brand/NexoMailLogo'
 import { NexiAssistantButton } from '../components/nexi/NexiAssistantButton'
 import { NexiAssistantPanel } from '../components/nexi/NexiAssistantPanel'
 import { WeatherWidget } from '../components/WeatherWidget'
+import { detectNexiMailAction } from '../utils/nexiSearchIntent'
 
 const FOLDERS_COLLAPSED_KEY = 'nexomail-sidebar-folders-collapsed'
 const navClass = ({ isActive }: { isActive: boolean }) => `nav-item ${isActive ? 'active' : ''}`
@@ -107,7 +108,8 @@ export function AppLayout() {
     const params = new URLSearchParams()
     params.set('q', query)
     if (contextualAccountId) params.set('account', contextualAccountId)
-    navigate(`/search?${params.toString()}`)
+    const action = detectNexiMailAction(query)
+    navigate(`${action ? '/search-action' : '/search'}?${params.toString()}`)
   }
 
   function toggleFolders() {
