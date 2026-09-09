@@ -49,6 +49,7 @@ import './styles/nexi-search-actions.css'
 import './styles/nexi-action-plan.css'
 import './styles/search-bar.css'
 import './styles/global-action-indicator.css'
+import './styles/control-center-spacing.css'
 
 const client = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, retry: 1 } } })
 createRoot(document.getElementById('root')!).render(
