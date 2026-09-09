@@ -3,6 +3,7 @@ import { RequireAuth } from './components/RequireAuth'
 import { SearchContextLauncher } from './components/SearchContextLauncher'
 import { AppLayout } from './layouts/AppLayout'
 import { AccountsPage } from './pages/AccountsPage'
+import { AdminPlansPage } from './pages/AdminPlansPage'
 import { AppearancePage } from './pages/AppearancePage'
 import { AuthPage } from './pages/AuthPage'
 import { ComposePage } from './pages/ComposePage'
@@ -39,6 +40,7 @@ export const router = createBrowserRouter([
       { path: '/settings/profile', element: <ProfilePage /> },
       { path: '/settings/appearance', element: <AppearancePage /> },
       { path: '/settings/plan', element: <PlanPage /> },
+      { path: '/admin/plans', element: <AdminPlansPage /> },
     ],
   },
 ])

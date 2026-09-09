@@ -1,5 +1,8 @@
 using System.Data;
+using System.Data.Common;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using NexoMail.Domain;
 
 namespace NexoMail.Infrastructure.Data;
 
@@ -7,7 +10,7 @@ public static class DatabaseBootstrap
 {
     /// <summary>
     /// Keeps existing development SQLite databases usable while NexoMail evolves its
-    /// authentication and operational metadata models. Fresh databases are created with the complete model by EnsureCreated.
+    /// authentication, commercial and operational metadata models.
     /// </summary>
     public static async Task EnsureAuthenticationSchemaAsync(NexoMailDbContext database, CancellationToken cancellationToken = default)
     {
@@ -36,6 +39,7 @@ public static class DatabaseBootstrap
             if (!columns.Contains("AvatarDataUrl")) await AddColumnAsync("ALTER TABLE Users ADD COLUMN AvatarDataUrl TEXT NULL;", connection, cancellationToken);
             // Existing beta users are grandfathered into Premium. New registrations use the Freemium entity default.
             if (!columns.Contains("PlanCode")) await AddColumnAsync("ALTER TABLE Users ADD COLUMN PlanCode TEXT NOT NULL DEFAULT 'premium';", connection, cancellationToken);
+            if (!columns.Contains("IsAdministrator")) await AddColumnAsync("ALTER TABLE Users ADD COLUMN IsAdministrator INTEGER NOT NULL DEFAULT 0;", connection, cancellationToken);
 
             await ExecuteAsync(@"
                 CREATE TABLE IF NOT EXISTS UserSessions (
@@ -92,6 +96,37 @@ public static class DatabaseBootstrap
                     CONSTRAINT FK_MailIndexStates_MailAccounts_AccountId FOREIGN KEY (AccountId) REFERENCES MailAccounts (Id) ON DELETE CASCADE
                 );", connection, cancellationToken);
             await ExecuteAsync("CREATE INDEX IF NOT EXISTS IX_MailIndexStates_UserId_LastIndexedAt ON MailIndexStates (UserId, LastIndexedAt);", connection, cancellationToken);
+
+            await ExecuteAsync(@"
+                CREATE TABLE IF NOT EXISTS CommercialPlans (
+                    Code TEXT NOT NULL CONSTRAINT PK_CommercialPlans PRIMARY KEY,
+                    Name TEXT NOT NULL, Price TEXT NOT NULL, Cadence TEXT NOT NULL, MaxAccounts INTEGER NULL,
+                    Description TEXT NOT NULL, FeaturesJson TEXT NOT NULL, IsFeatured INTEGER NOT NULL,
+                    IsCorporate INTEGER NOT NULL, IsWhiteLabel INTEGER NOT NULL, IsActive INTEGER NOT NULL,
+                    SortOrder INTEGER NOT NULL, UpdatedAt TEXT NOT NULL
+                );", connection, cancellationToken);
+            await ExecuteAsync("CREATE INDEX IF NOT EXISTS IX_CommercialPlans_IsActive_SortOrder ON CommercialPlans (IsActive, SortOrder);", connection, cancellationToken);
+
+            var sortOrder = 10;
+            foreach (var plan in CommercialPlanCatalog.All)
+            {
+                await SeedCommercialPlanAsync(connection, plan, sortOrder, cancellationToken);
+                sortOrder += 10;
+            }
+
+            var isDevelopment = string.Equals(
+                Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
+                "Development",
+                StringComparison.OrdinalIgnoreCase);
+            if (isDevelopment)
+            {
+                // Local development only: keep the oldest active local owner as the administrator.
+                await ExecuteAsync(@"
+                    UPDATE Users
+                    SET IsAdministrator = 1
+                    WHERE Id = (SELECT Id FROM Users WHERE IsActive = 1 ORDER BY CreatedAt LIMIT 1)
+                      AND NOT EXISTS (SELECT 1 FROM Users WHERE IsAdministrator = 1);", connection, cancellationToken);
+            }
         }
         finally
         {
@@ -99,9 +134,40 @@ public static class DatabaseBootstrap
         }
     }
 
-    private static Task AddColumnAsync(string sql, System.Data.Common.DbConnection connection, CancellationToken cancellationToken) => ExecuteAsync(sql, connection, cancellationToken);
+    private static Task AddColumnAsync(string sql, DbConnection connection, CancellationToken cancellationToken) => ExecuteAsync(sql, connection, cancellationToken);
 
-    private static async Task ExecuteAsync(string sql, System.Data.Common.DbConnection connection, CancellationToken cancellationToken)
+    private static async Task SeedCommercialPlanAsync(DbConnection connection, CommercialPlanDefinition plan, int sortOrder, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = @"
+            INSERT OR IGNORE INTO CommercialPlans
+            (Code, Name, Price, Cadence, MaxAccounts, Description, FeaturesJson, IsFeatured, IsCorporate, IsWhiteLabel, IsActive, SortOrder, UpdatedAt)
+            VALUES
+            ($code, $name, $price, $cadence, $maxAccounts, $description, $featuresJson, $isFeatured, $isCorporate, $isWhiteLabel, 1, $sortOrder, $updatedAt);";
+        AddParameter(command, "$code", plan.Code);
+        AddParameter(command, "$name", plan.Name);
+        AddParameter(command, "$price", plan.Price);
+        AddParameter(command, "$cadence", plan.Cadence);
+        AddParameter(command, "$maxAccounts", plan.MaxAccounts);
+        AddParameter(command, "$description", plan.Description);
+        AddParameter(command, "$featuresJson", JsonSerializer.Serialize(plan.Features));
+        AddParameter(command, "$isFeatured", plan.IsFeatured ? 1 : 0);
+        AddParameter(command, "$isCorporate", plan.IsCorporate ? 1 : 0);
+        AddParameter(command, "$isWhiteLabel", plan.IsWhiteLabel ? 1 : 0);
+        AddParameter(command, "$sortOrder", sortOrder);
+        AddParameter(command, "$updatedAt", DateTimeOffset.UtcNow.ToString("O"));
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static void AddParameter(DbCommand command, string name, object? value)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.Value = value ?? DBNull.Value;
+        command.Parameters.Add(parameter);
+    }
+
+    private static async Task ExecuteAsync(string sql, DbConnection connection, CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
         command.CommandText = sql;

@@ -15,6 +15,7 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
     public DbSet<MailMessageIndexEntity> MailMessageIndex => Set<MailMessageIndexEntity>();
     public DbSet<MailAttachmentIndexEntity> MailAttachmentIndex => Set<MailAttachmentIndexEntity>();
     public DbSet<MailIndexStateEntity> MailIndexStates => Set<MailIndexStateEntity>();
+    public DbSet<CommercialPlanEntity> CommercialPlans => Set<CommercialPlanEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -110,6 +111,18 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
             entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne<MailAccountEntity>().WithOne().HasForeignKey<MailIndexStateEntity>(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
         });
+        modelBuilder.Entity<CommercialPlanEntity>(entity =>
+        {
+            entity.ToTable("CommercialPlans");
+            entity.HasKey(x => x.Code);
+            entity.Property(x => x.Code).HasMaxLength(32);
+            entity.Property(x => x.Name).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.Price).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.Cadence).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(600).IsRequired();
+            entity.Property(x => x.FeaturesJson).HasMaxLength(6000).IsRequired();
+            entity.HasIndex(x => new { x.IsActive, x.SortOrder });
+        });
     }
 }
 
@@ -128,9 +141,27 @@ public sealed class UserEntity
     public int EmailVerificationAttempts { get; set; }
     public string? AvatarDataUrl { get; set; }
     public string PlanCode { get; set; } = CommercialPlanCatalog.Freemium;
+    public bool IsAdministrator { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? LastLoginAt { get; set; }
     public bool IsActive { get; set; } = true;
+}
+
+public sealed class CommercialPlanEntity
+{
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Price { get; set; } = string.Empty;
+    public string Cadence { get; set; } = string.Empty;
+    public int? MaxAccounts { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public string FeaturesJson { get; set; } = "[]";
+    public bool IsFeatured { get; set; }
+    public bool IsCorporate { get; set; }
+    public bool IsWhiteLabel { get; set; }
+    public bool IsActive { get; set; } = true;
+    public int SortOrder { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
 }
 
 public sealed class UserSessionEntity

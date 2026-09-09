@@ -26,7 +26,9 @@ public sealed class GoogleOAuthService(
         var userId = userContext.UserId;
         var user = await database.Users.AsNoTracking().SingleOrDefaultAsync(x => x.Id == userId, cancellationToken)
             ?? throw new InvalidOperationException("No fue posible determinar el plan de la cuenta.");
-        var plan = CommercialPlanCatalog.Resolve(user.PlanCode);
+        var plan = await database.CommercialPlans.AsNoTracking().SingleOrDefaultAsync(x => x.Code == user.PlanCode, cancellationToken)
+            ?? await database.CommercialPlans.AsNoTracking().SingleOrDefaultAsync(x => x.Code == CommercialPlanCatalog.Freemium, cancellationToken)
+            ?? throw new InvalidOperationException("No existe un plan comercial configurado para esta cuenta.");
         if (!plan.MaxAccounts.HasValue) return;
 
         var connectedAccounts = await database.MailAccounts.AsNoTracking()
