@@ -1,0 +1,75 @@
+.nexo-perspective {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--primary) 16%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary) 3%, var(--surface));
+  overflow: hidden;
+}
+
+.nexo-perspective-icon {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: color-mix(in srgb, var(--primary) 78%, var(--foreground));
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+}
+
+.nexo-perspective-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.nexo-perspective-label {
+  color: color-mix(in srgb, var(--primary) 72%, var(--muted-foreground));
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.nexo-perspective p {
+  margin: 0;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--foreground) 88%, var(--muted-foreground));
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 12px;
+  font-style: italic;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nexo-perspective cite {
+  color: var(--muted-foreground);
+  font-family: inherit;
+  font-size: 10px;
+  font-style: normal;
+}
+
+:root[data-theme="dark"] .nexo-perspective {
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+}
+
+@media (max-width: 760px) {
+  .nexo-perspective {
+    align-items: flex-start;
+  }
+
+  .nexo-perspective p {
+    white-space: normal;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nexo-perspective {
+    scroll-behavior: auto;
+  }
+}
