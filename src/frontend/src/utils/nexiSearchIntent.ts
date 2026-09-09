@@ -157,7 +157,7 @@ export function sanitizeActionSearch(value: string) {
     .replace(/\b(?:con\s+)?(?:archivo|archivos|adjunto|adjuntos)\b/g, ' ')
     .replace(/\bdar(?:los|las)?\s+por\s+(?:resuelto|resueltos|resuelta|resueltas|finalizado|finalizados|finalizada|finalizadas)\b/g, ' ')
     .replace(/\b(?:busca|buscar|buscame|muestra|mostrar|muestrame|encuentra|encontrar|quiero|necesito|por favor|ahora|solo|solamente|unicamente|luego|despues|posteriormente|continuacion)\b/g, ' ')
-    .replace(/\b(?:los|las|el|la|estos|estas|todos|todas|correos|correo|mensajes|mensaje|de|del|en|mi|mis|usuario|usuarios|bandeja|entrada)\b/g, ' ')
+    .replace(/\b(?:los|las|el|la|estos|estas|todos|todas|correos|correo|mensajes|mensaje|de|del|en|mi|mis|usuario|usuarios|bandeja|entrada|inbox|recibidos?|enviados?|archivados?|spam|papelera)\b/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
 }
