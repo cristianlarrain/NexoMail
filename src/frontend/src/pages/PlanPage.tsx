@@ -1,13 +1,30 @@
 import { useQuery } from '@tanstack/react-query'
-import { Building2, Check, CreditCard, Crown, MailPlus, Palette, Settings2, Sparkles } from 'lucide-react'
+import { Building2, Check, Crown, Mail, Paintbrush, Settings2, Sparkles, Tag, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { commercialApi, type CommercialPlan } from '../api/commercialApi'
 
-function planIcon(plan: CommercialPlan) {
-  if (plan.isWhiteLabel) return <Palette size={20} />
-  if (plan.isCorporate) return <Building2 size={20} />
-  if (plan.isFeatured) return <Crown size={20} />
-  return <MailPlus size={20} />
+type PlanTone = 'freemium' | 'premium' | 'corporate' | 'white-label'
+
+function planTone(plan: CommercialPlan): PlanTone {
+  if (plan.code === 'freemium') return 'freemium'
+  if (plan.code === 'premium') return 'premium'
+  if (plan.code === 'corporate' || plan.isCorporate && !plan.isWhiteLabel) return 'corporate'
+  if (plan.code === 'white_label' || plan.isWhiteLabel) return 'white-label'
+  if (plan.isFeatured) return 'premium'
+  return 'freemium'
+}
+
+function PlanBrandmark({ plan, compact = false }: { plan: CommercialPlan; compact?: boolean }) {
+  const tone = planTone(plan)
+  const size = compact ? 23 : 30
+  return <span className={`commercial-plan-brandmark tone-${tone} ${compact ? 'compact' : ''}`} aria-hidden="true">
+    {tone === 'corporate' && <Building2 className="plan-mark-building" size={compact ? 21 : 27} />}
+    <Mail className="plan-mark-mail" size={size} />
+    {tone === 'freemium' && <Sparkles className="plan-mark-spark" size={compact ? 12 : 16} />}
+    {tone === 'premium' && <Crown className="plan-mark-crown" size={compact ? 18 : 23} />}
+    {tone === 'corporate' && <Users className="plan-mark-users" size={compact ? 14 : 18} />}
+    {tone === 'white-label' && <><Tag className="plan-mark-tag" size={compact ? 17 : 21} /><Paintbrush className="plan-mark-brush" size={compact ? 9 : 12} /></>}
+  </span>
 }
 
 export function PlanPage() {
@@ -19,6 +36,7 @@ export function PlanPage() {
 
   const data = subscription.data
   const current = data.currentPlan
+  const currentTone = planTone(current)
   const usagePercent = current.maxAccounts
     ? Math.min(100, Math.round((data.connectedAccounts / current.maxAccounts) * 100))
     : 0
@@ -29,9 +47,9 @@ export function PlanPage() {
       {adminStatus.data?.isAdministrator && <Link to="/admin/plans" className="secondary-button"><Settings2 size={16} /> Administrar tipos de cuenta</Link>}
     </div>
 
-    <section className="commercial-current-plan">
+    <section className={`commercial-current-plan tone-${currentTone}`}>
       <div className="commercial-current-heading">
-        <span className="commercial-plan-icon"><CreditCard size={20} /></span>
+        <PlanBrandmark plan={current} compact />
         <div><span>Plan actual</span><strong>{current.name}</strong><small>{current.price} · {current.cadence}</small></div>
       </div>
       <div className="commercial-account-usage">
@@ -48,9 +66,10 @@ export function PlanPage() {
     <section className="commercial-plan-grid">
       {data.plans.map(plan => {
         const isCurrent = plan.code === current.code
-        return <article className={`commercial-plan-card ${plan.isFeatured ? 'featured' : ''} ${isCurrent ? 'current' : ''}`} key={plan.code}>
+        const tone = planTone(plan)
+        return <article className={`commercial-plan-card tone-${tone} ${plan.isFeatured ? 'featured' : ''} ${isCurrent ? 'current' : ''}`} key={plan.code}>
           <header>
-            <span className="commercial-plan-icon">{planIcon(plan)}</span>
+            <PlanBrandmark plan={plan} />
             <div><strong>{plan.name}</strong><span>{plan.description}</span></div>
             {isCurrent && <b className="commercial-current-badge">Plan actual</b>}
             {!isCurrent && plan.isFeatured && <b className="commercial-featured-badge">Más elegido</b>}
