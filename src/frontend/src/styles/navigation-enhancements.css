@@ -81,11 +81,7 @@
 :root[data-theme="dark"] .sidebar .inbox-primary-nav.active {
   border-color: color-mix(in srgb, #78d4f8 30%, var(--border));
   background: color-mix(in srgb, #1b586c 24%, var(--surface));
-}
-
-/* Redactar must remain readable when selected in dark mode. */
-:root[data-theme="dark"] .sidebar .compose-button.active {
-  color: #f2fbff;
+  color: var(--primary);
 }
 
 /* Secondary navigation stays readable and balanced with the primary group. */
