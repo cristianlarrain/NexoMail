@@ -4,6 +4,7 @@ import { Download, Eye, FileArchive, FileSpreadsheet, FileText, FileType2, Mail,
 import { useNavigate } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
 import type { DocumentIndexItem, MailAttachment } from '../types/mail'
+import { NexiEmptyState } from './nexi/NexiEmptyState'
 
 const PAGE_SIZE = 80
 const DOCUMENTS_RETURN_PATH = '/control-center?tab=documents'
@@ -67,8 +68,8 @@ export function ControlCenterDocuments() {
 
   const types = useMemo(() => ['all', 'PDF', 'Documento', 'Planilla', 'Presentación', 'Comprimido', 'Texto / datos'], [])
 
-  if (query.isLoading) return <section className="documents-control documents-loading"><p>Cargando índice local…</p></section>
-  if (query.isError || !query.data) return <section className="documents-control"><div className="notice">No fue posible leer el índice documental. <button type="button" className="auth-link" onClick={() => query.refetch()}>Reintentar</button></div></section>
+  if (query.isLoading) return <section className="documents-control documents-loading"><NexiEmptyState compact title="Preparando documentos" description="Nexi está leyendo el índice local de archivos adjuntos." /></section>
+  if (query.isError || !query.data) return <section className="documents-control"><NexiEmptyState compact title="No fue posible cargar los documentos" description="El índice documental no está disponible en este momento." action={<button type="button" className="secondary-button" onClick={() => query.refetch()}>Reintentar</button>} /></section>
 
   const data = query.data
   const firstIndex = data.indexedMessages === 0
@@ -86,11 +87,8 @@ export function ControlCenterDocuments() {
       <strong>{data.total} documento{data.total === 1 ? '' : 's'}</strong>
     </header>
 
-    {firstIndex && <div className="documents-index-empty">
-      <span>No hay documentos indexados todavía. Esta vista no consulta Gmail automáticamente.</span>
-      <button type="button" className="secondary-button compact-action" disabled={sync.isPending} onClick={() => sync.mutate(40)}>{sync.isPending ? 'Creando índice…' : 'Crear índice'}</button>
-    </div>}
-    {!firstIndex && sync.isPending && <div className="documents-sync-status"><span className="index-loading-dot" aria-hidden="true" />Actualizando metadatos en segundo plano. Puedes seguir usando esta vista.</div>}
+    {firstIndex && <div className="documents-index-empty"><NexiEmptyState compact title="Todavía no hay documentos indexados" description="Cree el índice para localizar archivos adjuntos por nombre, emisor, asunto y tipo de documento." action={<button type="button" className="secondary-button compact-action" disabled={sync.isPending} onClick={() => sync.mutate(40)}>{sync.isPending ? 'Creando índice…' : 'Crear índice'}</button>} /></div>}
+    {!firstIndex && sync.isPending && <div className="documents-sync-status"><span className="index-loading-dot" aria-hidden="true" />Actualizando metadatos en segundo plano. Puede seguir usando esta vista.</div>}
     {sync.isError && <div className="notice documents-error">No fue posible actualizar el índice. Los datos ya indexados siguen disponibles.</div>}
 
     <div className="documents-toolbar">
@@ -122,7 +120,7 @@ export function ControlCenterDocuments() {
           <a className="document-icon-action" title="Descargar" aria-label={`Descargar ${item.fileName}`} href={mailApi.attachmentUrl(item.accountId, item.messageId, attachmentFrom(item), true)}><Download size={14} /></a>
         </div>
       </article>)}
-      {data.items.length === 0 && !sync.isPending && !firstIndex && <div className="documents-empty">No hay documentos indexados que coincidan con el filtro.</div>}
+      {data.items.length === 0 && !sync.isPending && !firstIndex && <NexiEmptyState compact title={search.trim() || typeFilter !== 'all' ? 'Sin documentos coincidentes' : 'Sin documentos para mostrar'} description={search.trim() || typeFilter !== 'all' ? 'No hay documentos indexados que coincidan con los filtros actuales.' : 'Todavía no hay documentos disponibles en el índice.'} />}
     </div>
 
     <div className="documents-more">
