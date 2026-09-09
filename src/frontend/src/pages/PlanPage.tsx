@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query'
-import { Building2, Check, Crown, Mail, Paintbrush, Settings2, Sparkles, Tag, Users } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { useEffect } from 'react'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { Building2, Check, Crown, ExternalLink, Mail, Paintbrush, Settings2, Sparkles, Tag, Users } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { commercialApi, type CommercialPlan } from '../api/commercialApi'
 
 type PlanTone = 'freemium' | 'premium' | 'corporate' | 'white-label'
@@ -32,6 +33,7 @@ function subscriptionLabel(status: string) {
     case 'active': return 'Suscripción activa'
     case 'trialing': return 'Período de prueba'
     case 'legacy': return 'Acceso heredado'
+    case 'pending': return 'Activación pendiente'
     case 'past_due': return 'Pago pendiente'
     case 'canceled': return 'Suscripción cancelada'
     case 'expired': return 'Suscripción vencida'
@@ -45,9 +47,28 @@ function formatDate(value: string | null) {
   return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+function isSelfServicePlan(plan: CommercialPlan) {
+  return plan.code !== 'freemium' && !plan.isCorporate && !plan.isWhiteLabel
+}
+
 export function PlanPage() {
+  const [searchParams] = useSearchParams()
+  const returnedFromBilling = searchParams.get('billing') === 'return'
   const subscription = useQuery({ queryKey: ['commercial-subscription'], queryFn: commercialApi.subscription, staleTime: 30_000 })
+  const billing = useQuery({ queryKey: ['commercial-billing-status'], queryFn: commercialApi.billingStatus, staleTime: 60_000, retry: false })
   const adminStatus = useQuery({ queryKey: ['commercial-admin-status'], queryFn: commercialApi.adminStatus, staleTime: 5 * 60_000, retry: false })
+  const checkout = useMutation({
+    mutationFn: (planCode: string) => commercialApi.checkout(planCode),
+    onSuccess: result => window.location.assign(result.checkoutUrl),
+  })
+
+  useEffect(() => {
+    if (!returnedFromBilling) return
+    void subscription.refetch()
+    const first = window.setTimeout(() => void subscription.refetch(), 2_500)
+    const second = window.setTimeout(() => void subscription.refetch(), 7_500)
+    return () => { window.clearTimeout(first); window.clearTimeout(second) }
+  }, [returnedFromBilling]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (subscription.isLoading) return <section className="settings-page commercial-plan-page"><p className="eyebrow">Configuración</p><h1>Plan y uso</h1><div className="commercial-plan-loading"><Sparkles size={18} /> Cargando información del plan…</div></section>
   if (subscription.isError || !subscription.data) return <section className="settings-page commercial-plan-page"><p className="eyebrow">Configuración</p><h1>Plan y uso</h1><div className="notice">{subscription.error instanceof Error ? subscription.error.message : 'No fue posible cargar el plan.'}</div></section>
@@ -62,12 +83,16 @@ export function PlanPage() {
   const renewalDate = formatDate(data.subscription.currentPeriodEnd)
   const trialEnd = formatDate(data.subscription.trialEndsAt)
   const statusNeedsAttention = !data.paidAccessActive
+  const paymentReady = billing.data?.configured === true && billing.data?.webhookConfigured === true
 
   return <section className="settings-page commercial-plan-page">
     <div className="commercial-plan-title-row">
       <div><p className="eyebrow">Configuración</p><h1>Plan y uso</h1><p className="page-description">Revise su plan actual, el uso de cuentas y las funciones habilitadas para NexoMail.</p></div>
       {adminStatus.data?.isAdministrator && <Link to="/admin/plans" className="secondary-button"><Settings2 size={16} /> Administrar tipos de cuenta</Link>}
     </div>
+
+    {returnedFromBilling && <div className="commercial-billing-return"><Sparkles size={17} /><div><strong>Estamos verificando su suscripción</strong><span>La activación se refleja automáticamente cuando Mercado Pago confirma el estado del cobro.</span></div></div>}
+    {checkout.isError && <div className="notice">{checkout.error instanceof Error ? checkout.error.message : 'No fue posible iniciar la contratación.'}</div>}
 
     <section className={`commercial-current-plan tone-${currentTone}`}>
       <div className="commercial-current-heading">
@@ -83,7 +108,8 @@ export function PlanPage() {
         <span className={`commercial-subscription-status ${statusNeedsAttention ? 'attention' : ''}`}>{subscriptionLabel(data.subscription.status)}</span>
         {renewalDate && <small>{data.subscription.cancelAtPeriodEnd ? `Finaliza el ${renewalDate}` : `Próxima renovación: ${renewalDate}`}</small>}
         {trialEnd && <small>Prueba hasta: {trialEnd}</small>}
-        {!data.subscription.provider && data.subscription.status === 'legacy' && <small>Acceso de desarrollo previo a la integración de pagos.</small>}
+        {!data.subscription.provider && data.subscription.status === 'legacy' && <small>Acceso previo a la integración de pagos.</small>}
+        {data.subscription.provider === 'mercadopago' && <small>Pago recurrente mediante Mercado Pago.</small>}
       </div>
       {!data.paidAccessActive && <div className="commercial-limit-notice warning">El estado de la suscripción no habilita actualmente las funciones pagadas. Mientras se regulariza, NexoMail aplica las capacidades del plan Freemium.</div>}
       {!data.canAddAccount && <div className="commercial-limit-notice">Ha alcanzado el límite de cuentas efectivo de su plan. Puede seguir usando las cuentas ya conectadas, pero necesitará un plan superior o regularizar la suscripción para agregar otra.</div>}
@@ -96,6 +122,10 @@ export function PlanPage() {
       {data.plans.map(plan => {
         const isCurrent = plan.code === current.code
         const tone = planTone(plan)
+        const selfService = isSelfServicePlan(plan)
+        const regularize = isCurrent && !data.paidAccessActive && selfService
+        const pendingSamePlan = isCurrent && data.subscription.status === 'pending' && data.subscription.provider === 'mercadopago'
+        const canCheckout = selfService && paymentReady && (!isCurrent || regularize)
         return <article className={`commercial-plan-card tone-${tone} ${plan.isFeatured ? 'featured' : ''} ${isCurrent ? 'current' : ''}`} key={plan.code}>
           <header>
             <PlanBrandmark plan={plan} />
@@ -106,16 +136,20 @@ export function PlanPage() {
           <div className="commercial-price"><strong>{plan.price}</strong><span>{plan.cadence}</span></div>
           <ul>{plan.features.map(feature => <li key={feature}><Check size={15} /><span>{feature}</span></li>)}</ul>
           <footer>
-            {isCurrent
-              ? <button type="button" className="secondary-button" disabled>Plan activo</button>
-              : plan.code === 'premium'
-                ? <button type="button" className="primary-button" disabled title="El checkout se habilitará al conectar la pasarela de pago.">Contratación próximamente</button>
-                : <button type="button" className="secondary-button" disabled>{plan.isWhiteLabel ? 'Cotización próximamente' : 'Contratación próximamente'}</button>}
+            {pendingSamePlan
+              ? <button type="button" className="secondary-button" disabled>Confirmación de pago pendiente</button>
+              : isCurrent && !regularize
+                ? <button type="button" className="secondary-button" disabled>Plan activo</button>
+                : plan.code === 'freemium'
+                  ? <button type="button" className="secondary-button" disabled>Plan gratuito</button>
+                  : plan.isCorporate || plan.isWhiteLabel
+                    ? <button type="button" className="secondary-button" disabled>{plan.isWhiteLabel ? 'Cotización personalizada' : 'Contratación administrada'}</button>
+                    : <button type="button" className="primary-button" disabled={!canCheckout || checkout.isPending} onClick={() => checkout.mutate(plan.code)} title={!paymentReady ? 'Configure Mercado Pago para habilitar la contratación.' : undefined}>{checkout.isPending ? 'Abriendo pago…' : regularize ? 'Regularizar suscripción' : <><ExternalLink size={15} /> Contratar con Mercado Pago</>}</button>}
           </footer>
         </article>
       })}
     </section>
 
-    <div className="commercial-next-step"><Sparkles size={17} /><div><strong>Suscripciones y permisos preparados</strong><span>NexoMail ya separa las capacidades por plan y registra el estado de suscripción. El siguiente paso es conectar el proveedor de pagos para activar, renovar, cancelar y regularizar planes automáticamente.</span></div></div>
+    <div className="commercial-next-step"><Sparkles size={17} /><div><strong>{paymentReady ? 'Pagos recurrentes disponibles' : 'Integración de pagos preparada'}</strong><span>{paymentReady ? 'Premium puede contratarse mediante Mercado Pago. Las confirmaciones actualizan automáticamente la suscripción y las funciones habilitadas.' : 'La lógica de suscripción, checkout y webhooks está incorporada. Falta configurar las credenciales privadas de Mercado Pago en el entorno para habilitar cobros reales.'}</span></div></div>
   </section>
 }
