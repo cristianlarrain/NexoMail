@@ -78,7 +78,7 @@
 
 .nexi-trend-metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -111,12 +111,10 @@
 }
 
 .nexi-trend-metrics small,
-.nexi-trend-metrics span,
-.nexi-trend-metrics em {
+.nexi-trend-metrics span {
   color: var(--muted-foreground, var(--muted));
   font-size: 10px;
   line-height: 1.3;
-  font-style: normal;
 }
 
 .nexi-trend-metrics article > div > strong {
@@ -187,183 +185,6 @@
   line-height: 1.45;
 }
 
-.nexi-trend-comparison,
-.nexi-trend-daily-chart {
-  display: grid;
-  gap: 8px;
-  padding: 11px 12px;
-  border: 1px solid var(--border);
-  border-radius: 11px;
-  background: var(--surface);
-}
-
-.nexi-trend-comparison-copy {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  font-size: 11px;
-}
-
-.nexi-trend-comparison-copy strong {
-  color: var(--foreground);
-}
-
-.nexi-trend-comparison-copy span {
-  color: var(--muted-foreground, var(--muted));
-}
-
-.nexi-trend-compare-row {
-  display: grid;
-  grid-template-columns: 78px minmax(120px, 1fr) 62px;
-  align-items: center;
-  gap: 9px;
-}
-
-.nexi-trend-compare-row > span {
-  color: var(--muted-foreground, var(--muted));
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.nexi-trend-compare-bars {
-  display: grid;
-  gap: 3px;
-}
-
-.nexi-trend-compare-bars > i {
-  height: 6px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--border) 70%, transparent);
-}
-
-.nexi-trend-compare-bars > i > b {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-}
-
-.nexi-trend-compare-bars > i.current > b,
-.nexi-trend-legend i.current {
-  background: var(--primary);
-}
-
-.nexi-trend-compare-bars > i.previous > b,
-.nexi-trend-legend i.previous {
-  background: color-mix(in srgb, var(--muted-foreground) 55%, var(--surface));
-}
-
-.nexi-trend-compare-row > div:last-child {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 5px;
-  text-align: right;
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-}
-
-.nexi-trend-compare-row > div:last-child strong {
-  color: var(--foreground);
-}
-
-.nexi-trend-compare-row > div:last-child small {
-  color: var(--muted-foreground, var(--muted));
-}
-
-.nexi-trend-legend {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  color: var(--muted-foreground, var(--muted));
-  font-size: 10px;
-}
-
-.nexi-trend-legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.nexi-trend-legend i {
-  width: 13px;
-  height: 4px;
-  border-radius: 999px;
-}
-
-.nexi-trend-daily-chart > header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.nexi-trend-daily-chart > header strong {
-  color: var(--foreground);
-  font-size: 11px;
-}
-
-.nexi-trend-daily-chart > header span {
-  color: var(--muted-foreground, var(--muted));
-  font-size: 10px;
-}
-
-.nexi-trend-days {
-  min-height: 116px;
-  display: grid;
-  align-items: end;
-  gap: 4px;
-  overflow-x: auto;
-  padding-top: 4px;
-}
-
-.nexi-trend-day {
-  min-width: 0;
-  height: 108px;
-  display: grid;
-  grid-template-rows: 88px 18px;
-  align-items: end;
-  gap: 2px;
-}
-
-.nexi-trend-day > div {
-  height: 88px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 2px;
-}
-
-.nexi-trend-day > div > i {
-  width: min(8px, 38%);
-  min-width: 3px;
-  border-radius: 4px 4px 1px 1px;
-}
-
-.nexi-trend-day > div > i.received {
-  background: var(--primary);
-}
-
-.nexi-trend-day > div > i.sent {
-  background: color-mix(in srgb, #7a66d7 75%, var(--primary));
-}
-
-.nexi-trend-day > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: center;
-  color: var(--muted-foreground, var(--muted));
-  font-size: 9px;
-}
-
-.nexi-trend-no-data {
-  padding: 18px;
-  text-align: center;
-  color: var(--muted-foreground, var(--muted));
-  font-size: 11px;
-}
-
 .nexi-trend-loading {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -422,10 +243,5 @@
 
   .nexi-trend-metrics {
     grid-template-columns: 1fr;
-  }
-
-  .nexi-trend-compare-row {
-    grid-template-columns: 64px minmax(90px, 1fr) 52px;
-    gap: 6px;
   }
 }
