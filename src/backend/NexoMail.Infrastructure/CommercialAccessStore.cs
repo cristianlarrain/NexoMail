@@ -89,7 +89,7 @@ public static class CommercialAccessStore
                  CurrentPeriodStart, CurrentPeriodEnd, TrialEndsAt, CancelAtPeriodEnd, CanceledAt, PaymentDueAt, CreatedAt, UpdatedAt)
                 VALUES
                 ($userId, $planCode, $status, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, $createdAt, $updatedAt);";
-            AddParameter(insert, "$userId", userId.ToString());
+            AddParameter(insert, "$userId", userId);
             AddParameter(insert, "$planCode", planCode);
             AddParameter(insert, "$status", status);
             AddParameter(insert, "$createdAt", now.ToString("O"));
@@ -136,7 +136,7 @@ public static class CommercialAccessStore
             SELECT PlanCode, Status, Provider, ProviderCustomerId, ProviderSubscriptionId, CurrentPeriodStart, CurrentPeriodEnd,
                    TrialEndsAt, CancelAtPeriodEnd, CanceledAt, PaymentDueAt, UpdatedAt
             FROM CommercialSubscriptions WHERE UserId = $userId LIMIT 1;";
-        AddParameter(command, "$userId", userId.ToString());
+        AddParameter(command, "$userId", userId);
         await using var reader = await command.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) return null;
         return new CommercialSubscriptionState(
