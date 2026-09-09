@@ -39,7 +39,10 @@ function repeatedSubjects(items: ControlCenterPendingItem[]) {
     const normalized = normalizeSubject(item.subject)
     if (!normalized) continue
     const current = counts.get(normalized)
-    counts.set(normalized, { label: current?.label ?? item.subject.replace(/^\s*(?:(?:re|rv|fwd|fw)\s*:\s*)+/i, '').trim(), count: (current?.count ?? 0) + 1 })
+    counts.set(normalized, {
+      label: current?.label ?? item.subject.replace(/^\s*(?:(?:re|rv|fwd|fw)\s*:\s*)+/i, '').trim(),
+      count: (current?.count ?? 0) + 1,
+    })
   }
   return [...counts.values()]
     .filter(item => item.count > 1)
@@ -138,6 +141,6 @@ export function NexiDailyBrief() {
       </article>
     </div>
 
-    {brief.data.unavailableAccounts > 0 && <small className="nexi-daily-brief-footnote">El resumen considera sólo las cuentas disponibles; {brief.data.unavailableAccounts} no pudo{brief.data.unavailableAccounts === 1 ? '' : 'ieron'} consultarse.</small>}
+    {brief.data.unavailableAccounts > 0 && <small className="nexi-daily-brief-footnote">El resumen considera sólo las cuentas disponibles; {brief.data.unavailableAccounts === 1 ? '1 cuenta no pudo consultarse.' : `${brief.data.unavailableAccounts} cuentas no pudieron consultarse.`}</small>}
   </section>
 }
