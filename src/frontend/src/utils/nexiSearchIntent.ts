@@ -5,8 +5,9 @@ function normalized(value: string) {
     .toLocaleLowerCase('es')
 }
 
-export type NexiMailAction = 'trash' | 'archive' | 'mark_read' | 'mark_unread' | 'track' | 'untrack' | 'finalize' | 'prepare_reply'
+export type NexiMailAction = 'trash' | 'archive' | 'move_inbox' | 'move_spam' | 'mark_read' | 'mark_unread' | 'track' | 'untrack' | 'finalize' | 'prepare_reply'
 export type NexiMailSubset = 'all' | 'unread' | 'read' | 'with_attachments' | 'pending' | 'informational'
+export type NexiMailSourceFolder = 'inbox' | 'sent' | 'archive' | 'spam' | 'trash'
 export type NexiMailPlanStep = {
   action: NexiMailAction
   subset: NexiMailSubset
@@ -38,6 +39,17 @@ export function detectNexiMailSubset(query: string): NexiMailSubset {
   return 'all'
 }
 
+export function detectNexiSourceFolder(query: string): NexiMailSourceFolder | null {
+  const value = normalized(query)
+  if (/\b(?:de|desde|en)\s+(?:la\s+)?papelera\b/.test(value)) return 'trash'
+  if (/\b(?:de|desde|en)\s+(?:el\s+)?spam\b/.test(value)) return 'spam'
+  if (/\b(?:de|desde|en)\s+(?:los\s+)?archivados?\b/.test(value)
+    || (/\barchivad(?:o|os|a|as)\b/.test(value) && !/\b(?:a|hacia)\s+(?:los\s+)?archivados?\b/.test(value))) return 'archive'
+  if (/\b(?:de|desde|en)\s+(?:los\s+)?enviados?\b/.test(value)) return 'sent'
+  if (/\b(?:de|desde|en)\s+(?:la\s+)?(?:bandeja(?:\s+de\s+entrada)?|inbox|recibidos?)\b/.test(value)) return 'inbox'
+  return null
+}
+
 function detectSingleNexiMailAction(query: string): NexiMailAction | null {
   const value = normalized(query)
 
@@ -52,6 +64,13 @@ function detectSingleNexiMailAction(query: string): NexiMailAction | null {
 
   const track = /\b(?:marca|marcar|poner|pon|agrega|agregar|deja|dejar)\b[^.]{0,30}\bseguimiento\b|\b(?:seguir|sigue|siguelos|siguelas)\b/.test(value)
   if (track) return 'track'
+
+  const moveVerb = '(?:mueve|mover|muevelos|muevelas|manda|mandar|envia|enviar|pasa|pasar)'
+  const moveInbox = new RegExp(`\\b${moveVerb}\\b[^.]{0,55}\\b(?:a|hacia)\\s+(?:la\\s+)?(?:bandeja(?:\\s+de\\s+entrada)?|inbox)\\b`).test(value)
+  if (moveInbox) return 'move_inbox'
+
+  const moveSpam = new RegExp(`\\b${moveVerb}\\b[^.]{0,55}\\b(?:a|hacia)\\s+(?:el\\s+)?spam\\b`).test(value)
+  if (moveSpam) return 'move_spam'
 
   const archive = /\b(?:archiva|archivar|archive|archivalos|archivalas|archivarlos|archivarlas)\b/.test(value)
     || (/\barchivad(?:o|os|a|as)\b/.test(value) && /\b(?:mueve|mover|manda|mandar|envia|enviar|pasa|pasar)\b/.test(value))
@@ -82,7 +101,7 @@ function splitPlanClauses(query: string) {
   const value = query
     .replace(/\b(?:luego|despues|posteriormente|a continuacion)\b/gi, ',')
     .replace(/[;\n]+/g, ',')
-  const rough = value.split(/\s*,\s*|\s+\by\b\s+(?=(?:ahora\s+)?(?:archiv|elimin|borr|marca|pon|poner|agrega|quita|saca|deja|segu|final|resuel|prepar|redact|genera|crea|respond|contest))/i)
+  const rough = value.split(/\s*,\s*|\s+\by\b\s+(?=(?:ahora\s+)?(?:archiv|elimin|borr|marca|pon|poner|agrega|quita|saca|deja|segu|final|resuel|prepar|redact|genera|crea|respond|contest|muev|mand|envi|pasa))/i)
   return rough.map(part => part.trim()).filter(Boolean)
 }
 
@@ -119,6 +138,8 @@ export function requestsTrashAction(query: string) {
 
 export function requestsInboxScope(query: string) {
   const value = normalized(query)
+  const inboxDestination = /\b(?:mueve|mover|muevelos|muevelas|manda|mandar|envia|enviar|pasa|pasar)\b[^.]{0,55}\b(?:a|hacia)\s+(?:la\s+)?(?:bandeja(?:\s+de\s+entrada)?|inbox)\b/.test(value)
+  if (inboxDestination) return false
   return /\b(bandeja de entrada|inbox|recibidos|correo recibido|correos recibidos)\b/.test(value)
 }
 
@@ -127,14 +148,14 @@ export function sanitizeActionSearch(value: string) {
     .replace(/\b(?:elimina|eliminar|elimine|eliminen|eliminalo|eliminalos|eliminala|eliminalas|eliminarlos|eliminarlas|eliminara|borra|borrar|borre|borren|borralo|borralos|borrala|borralas|borrarlos|borrarlas|borrara)\b/g, ' ')
     .replace(/\b(?:archiva|archivar|archive|archivalos|archivalas|archivarlos|archivarlas|finaliza|finalizar|finalice|finalizalos|finalizalas|resuelve|resolver|resuelvelos|resuelvelas)\b/g, ' ')
     .replace(/\b(?:prepara|preparar|preparame|redacta|redactar|redactame|genera|generar|generame|crea|crear|creame|responde|responder|contestame|contesta|contestar)\b[^.]{0,18}\b(?:respuesta|respuestas|contestacion|contestaciones)?\b/g, ' ')
-    .replace(/\b(?:marca|marcar|marcalos|marcalas|poner|pon|deja|dejar|dejarlos|dejarlas|agrega|agregar|quita|quitar|saca|sacar|seguir|sigue|siguelos|siguelas)\b/g, ' ')
+    .replace(/\b(?:marca|marcar|marcalos|marcalas|poner|pon|deja|dejar|dejarlos|dejarlas|agrega|agregar|quita|quitar|saca|sacar|seguir|sigue|siguelos|siguelas|mueve|mover|muevelos|muevelas|manda|mandar|envia|enviar|pasa|pasar)\b/g, ' ')
     .replace(/\b(?:como\s+)?(?:no\s+leido|no\s+leidos|no\s+leida|no\s+leidas|sin\s+leer|leido|leidos|leida|leidas|seguimiento)\b/g, ' ')
+    .replace(/\b(?:a|hacia)\s+(?:la\s+|el\s+|los\s+)?(?:bandeja(?:\s+de\s+entrada)?|inbox|spam|papelera|archivados?)\b/g, ' ')
     .replace(/\b(?:informativo|informativos|informativa|informativas)\b/g, ' ')
     .replace(/\b(?:no\s+requiere|no\s+requieren|sin|requiere|requieren)\s+(?:ninguna\s+|una\s+)?(?:accion|respuesta|contestacion)\b/g, ' ')
     .replace(/\bpendiente(?:s)?\s+de\s+(?:responder|respuesta|contestar|contestacion)\b/g, ' ')
     .replace(/\b(?:con\s+)?(?:archivo|archivos|adjunto|adjuntos)\b/g, ' ')
     .replace(/\bdar(?:los|las)?\s+por\s+(?:resuelto|resueltos|resuelta|resueltas|finalizado|finalizados|finalizada|finalizadas)\b/g, ' ')
-    .replace(/\b(?:mueve|mover|muevelos|muevelas|manda|mandar|envia|enviar|pasar|pasa)\b(?:\s+(?:a|hacia))?\s+(?:la\s+)?(?:papelera|archivados?)\b/g, ' ')
     .replace(/\b(?:busca|buscar|buscame|muestra|mostrar|muestrame|encuentra|encontrar|quiero|necesito|por favor|ahora|solo|solamente|unicamente|luego|despues|posteriormente|continuacion)\b/g, ' ')
     .replace(/\b(?:los|las|el|la|estos|estas|todos|todas|correos|correo|mensajes|mensaje|de|del|en|mi|mis|usuario|usuarios|bandeja|entrada)\b/g, ' ')
     .replace(/\s+/g, ' ')
