@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Clock3, Mail, MessageSquareReply, Search, Send, Users } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
+import { NexiEmptyState } from './nexi/NexiEmptyState'
 
 function responseTimeLabel(minutes: number | null) {
   if (minutes === null) return '—'
@@ -66,8 +67,8 @@ export function ControlCenterContacts() {
     })
   }, [query.data?.contacts, search, sort])
 
-  if (query.isLoading) return <section className="contact-control contact-control-loading"><p>Cargando índice local…</p></section>
-  if (query.isError || !query.data) return <section className="contact-control"><div className="notice">No fue posible leer el índice de contactos. <button type="button" className="auth-link" onClick={() => query.refetch()}>Reintentar</button></div></section>
+  if (query.isLoading) return <section className="contact-control contact-control-loading"><NexiEmptyState compact title="Preparando contactos" description="Nexi está leyendo el índice local de interacción por contacto." /></section>
+  if (query.isError || !query.data) return <section className="contact-control"><NexiEmptyState compact title="No fue posible cargar los contactos" description="El índice local no está disponible en este momento." action={<button type="button" className="secondary-button" onClick={() => query.refetch()}>Reintentar</button>} /></section>
 
   const data = query.data
   const firstIndex = data.indexedMessages === 0
@@ -81,10 +82,7 @@ export function ControlCenterContacts() {
       </div>
     </header>
 
-    {firstIndex && <div className="contact-index-empty">
-      <span>No hay metadatos indexados todavía.</span>
-      <button type="button" className="secondary-button compact-action" disabled={sync.isPending} onClick={() => sync.mutate(40)}>{sync.isPending ? 'Creando índice…' : 'Crear índice'}</button>
-    </div>}
+    {firstIndex && <div className="contact-index-empty"><NexiEmptyState compact title="Todavía no hay contactos indexados" description="Cree el índice para analizar interacción, respuestas y pendientes por contacto." action={<button type="button" className="secondary-button compact-action" disabled={sync.isPending} onClick={() => sync.mutate(40)}>{sync.isPending ? 'Creando índice…' : 'Crear índice'}</button>} /></div>}
     {!firstIndex && sync.isPending && <div className="contact-sync-status"><span className="index-loading-dot" aria-hidden="true" />{days === 90 ? 'Ampliando el historial a 90 días en segundo plano…' : 'Actualizando metadatos en segundo plano…'}</div>}
     {sync.isError && <div className="notice contact-limit-notice">No fue posible actualizar el índice. Los datos ya indexados siguen disponibles.</div>}
 
@@ -120,7 +118,7 @@ export function ControlCenterContacts() {
         <div className="contact-subject-inline" title={contact.subjects[0] ?? ''}>{contact.subjects[0] ?? 'Sin asunto destacado'}</div>
         <div className="contact-last"><strong>{lastInteractionLabel(contact.lastInteraction)}</strong></div>
       </article>)}
-      {filtered.length === 0 && !sync.isPending && <div className="contact-empty">No hay contactos indexados para este período.</div>}
+      {filtered.length === 0 && !sync.isPending && !firstIndex && <NexiEmptyState compact title={search.trim() ? 'Sin coincidencias' : 'Sin contactos para este período'} description={search.trim() ? 'No hay contactos o asuntos que coincidan con la búsqueda actual.' : 'Todavía no hay interacción suficiente para mostrar contactos en este período.'} />}
     </div>
 
     <p className="contact-footnote">{indexedLabel(data.indexedAt)} · {data.indexedMessages} mensajes indexados · {days} días seleccionados.</p>
