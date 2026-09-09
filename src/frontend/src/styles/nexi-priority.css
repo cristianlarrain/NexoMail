@@ -1,6 +1,7 @@
 .nexi-priority-panel {
   display: grid;
   gap: 12px;
+  margin-bottom: 11px;
 }
 
 .nexi-priority-header {
