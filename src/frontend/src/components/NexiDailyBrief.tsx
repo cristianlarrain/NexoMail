@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, CalendarDays, Clock3, Sparkles, Users } from 'lucide-react'
+import { AlertTriangle, CalendarDays, ChevronRight, Clock3, Sparkles, Users } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
 import type { ControlCenterPendingItem } from '../types/mail'
@@ -43,6 +43,12 @@ function repeatedSubjects(items: ControlCenterPendingItem[]) {
     .slice(0, 3)
 }
 
+function focusPath(kind: 'overdue' | 'received' | 'sent' | 'person' | 'topic', value?: string) {
+  const params = new URLSearchParams({ focus: kind })
+  if (value) params.set('value', value)
+  return `/control-center?${params.toString()}`
+}
+
 export function NexiDailyBrief() {
   const navigate = useNavigate()
   const snapshot = useQuery({
@@ -63,18 +69,22 @@ export function NexiDailyBrief() {
 
     let priority = 'No hay una prioridad operativa crítica detectada en este momento.'
     let priorityTone = 'ok'
+    let priorityFocus: 'overdue' | 'received' | 'sent' | null = null
     if (data.overdue > 0) {
       priority = 'Hay conversaciones que superan las 48 horas; conviene revisarlas antes que el resto.'
       priorityTone = 'critical'
+      priorityFocus = 'overdue'
     } else if (data.receivedWithoutReply > 0) {
       priority = 'Hay conversaciones recibidas esperando respuesta; conviene resolverlas antes de iniciar nuevos seguimientos.'
       priorityTone = 'attention'
+      priorityFocus = 'received'
     } else if (data.sentWithoutResponse > 0) {
       priority = 'Hay conversaciones enviadas que siguen sin respuesta; conviene revisar cuáles necesitan seguimiento.'
       priorityTone = 'attention'
+      priorityFocus = 'sent'
     }
 
-    return { data, people, subjects, priority, priorityTone }
+    return { data, people, subjects, priority, priorityTone, priorityFocus }
   }, [snapshot.data])
 
   if (!brief) return null
@@ -90,19 +100,23 @@ export function NexiDailyBrief() {
     </header>
 
     <div className="nexi-daily-brief-grid">
-      <article className={`nexi-daily-priority ${brief.priorityTone}`}>
+      {brief.priorityFocus ? <button type="button" className={`nexi-daily-priority nexi-daily-action-card ${brief.priorityTone}`} onClick={() => navigate(focusPath(brief.priorityFocus!))}>
         <span className="nexi-daily-card-icon"><AlertTriangle size={17} /></span>
         <div><small>Foco actual</small><strong>{brief.priority}</strong></div>
-      </article>
+        <ChevronRight size={16} className="nexi-daily-action-chevron" />
+      </button> : <article className={`nexi-daily-priority ${brief.priorityTone}`}>
+        <span className="nexi-daily-card-icon"><AlertTriangle size={17} /></span>
+        <div><small>Foco actual</small><strong>{brief.priority}</strong></div>
+      </article>}
 
       <article className="nexi-daily-list-card">
         <span className="nexi-daily-card-icon"><Users size={17} /></span>
-        <div><small>Mayor concentración</small>{brief.people.length > 0 ? <ul>{brief.people.map(person => <li key={person.label}><span title={person.label}>{person.label}</span><b>{person.count}</b></li>)}</ul> : <strong>Sin concentración relevante</strong>}</div>
+        <div><small>Mayor concentración</small>{brief.people.length > 0 ? <ul>{brief.people.map(person => <li key={person.label}><button type="button" onClick={() => navigate(focusPath('person', person.label))} title={`Ver pendientes relacionados con ${person.label}`}><span>{person.label}</span><b>{person.count}</b><ChevronRight size={13} /></button></li>)}</ul> : <strong>Sin concentración relevante</strong>}</div>
       </article>
 
       <article className="nexi-daily-list-card">
         <span className="nexi-daily-card-icon"><Clock3 size={17} /></span>
-        <div><small>Temas recurrentes</small>{brief.subjects.length > 0 ? <ul>{brief.subjects.map(subject => <li key={subject.label}><span title={subject.label}>{subject.label}</span><b>{subject.count}</b></li>)}</ul> : <strong>Sin asuntos repetidos relevantes</strong>}</div>
+        <div><small>Temas recurrentes</small>{brief.subjects.length > 0 ? <ul>{brief.subjects.map(subject => <li key={subject.label}><button type="button" onClick={() => navigate(focusPath('topic', subject.label))} title={`Ver pendientes sobre ${subject.label}`}><span>{subject.label}</span><b>{subject.count}</b><ChevronRight size={13} /></button></li>)}</ul> : <strong>Sin asuntos repetidos relevantes</strong>}</div>
       </article>
     </div>
 
