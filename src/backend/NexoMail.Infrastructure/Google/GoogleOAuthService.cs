@@ -24,17 +24,15 @@ public sealed class GoogleOAuthService(
     public async Task EnsureCanConnectAnotherAccountAsync(CancellationToken cancellationToken)
     {
         var userId = userContext.UserId;
-        var user = await database.Users.AsNoTracking().SingleOrDefaultAsync(x => x.Id == userId, cancellationToken)
+        var access = await NexoMail.Infrastructure.CommercialAccessStore.GetAsync(database, userId, cancellationToken)
             ?? throw new InvalidOperationException("No fue posible determinar el plan de la cuenta.");
-        var plan = await database.CommercialPlans.AsNoTracking().SingleOrDefaultAsync(x => x.Code == user.PlanCode, cancellationToken)
-            ?? await database.CommercialPlans.AsNoTracking().SingleOrDefaultAsync(x => x.Code == CommercialPlanCatalog.Freemium, cancellationToken)
-            ?? throw new InvalidOperationException("No existe un plan comercial configurado para esta cuenta.");
+        var plan = access.EffectivePlan;
         if (!plan.MaxAccounts.HasValue) return;
 
         var connectedAccounts = await database.MailAccounts.AsNoTracking()
             .CountAsync(x => x.UserId == userId && x.IsActive, cancellationToken);
         if (connectedAccounts >= plan.MaxAccounts.Value)
-            throw new InvalidOperationException($"Su plan {plan.Name} permite hasta {plan.MaxAccounts.Value} cuentas de correo. Cambie de plan para conectar una cuenta adicional.");
+            throw new InvalidOperationException($"Su plan efectivo {plan.Name} permite hasta {plan.MaxAccounts.Value} cuentas de correo. Cambie de plan o regularice su suscripción para conectar una cuenta adicional.");
     }
 
     public string BeginAuthorization()
