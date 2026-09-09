@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Archive, CheckCircle2, Eye, EyeOff, Flag, FlagOff, Inbox, Mail, MessageSquareReply, Search, Sparkles, Trash2 } from 'lucide-react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
@@ -18,9 +19,13 @@ function dateLabel(value: string) {
   return new Date(value).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+function selectionKey(item: MailSummary) {
+  return `${item.accountId}:${item.providerMessageId}`
+}
+
 function uniqueMessages(items: MailSummary[]) {
   const unique = new Map<string, MailSummary>()
-  for (const item of items) unique.set(`${item.accountId}:${item.providerMessageId}`, item)
+  for (const item of items) unique.set(selectionKey(item), item)
   return [...unique.values()].sort((left, right) => new Date(right.receivedAt).getTime() - new Date(left.receivedAt).getTime())
 }
 
@@ -109,8 +114,8 @@ function filterSubset(items: MailSummary[], subset: NexiMailSubset, pendingByMes
     case 'unread': return items.filter(item => !item.isRead)
     case 'read': return items.filter(item => item.isRead)
     case 'with_attachments': return items.filter(item => item.hasAttachments)
-    case 'pending': return items.filter(item => pendingByMessage.has(`${item.accountId}:${item.providerMessageId}`))
-    case 'informational': return items.filter(item => !pendingByMessage.has(`${item.accountId}:${item.providerMessageId}`))
+    case 'pending': return items.filter(item => pendingByMessage.has(selectionKey(item)))
+    case 'informational': return items.filter(item => !pendingByMessage.has(selectionKey(item)))
     default: return items
   }
 }
@@ -162,7 +167,7 @@ async function executeAction(
           await mailApi.untrackMessage(item.accountId, item.providerMessageId)
           return 'completed' as const
         case 'finalize': {
-          const pending = pendingByMessage.get(`${item.accountId}:${item.providerMessageId}`)
+          const pending = pendingByMessage.get(selectionKey(item))
           if (!pending) return 'skipped' as const
           await mailApi.updateControlCenterState(pending.accountId, pending.conversationId, { messageId: pending.messageId, action: 'resolved' })
           return 'completed' as const
@@ -212,6 +217,7 @@ export function NexiSearchActionPage() {
   const queryClient = useQueryClient()
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [operationResult, setOperationResult] = useState<ActionResult | null>(null)
+  const [excludedKeys, setExcludedKeys] = useState<Set<string>>(() => new Set())
 
   const action = detectNexiMailAction(query)
   const detectedSubset = detectNexiMailSubset(query)
@@ -267,11 +273,12 @@ export function NexiSearchActionPage() {
   const waitingForContext = requiresControlCenter && controlCenter.isLoading
   const subsetItems = waitingForContext ? [] : filterSubset(items, effectiveSubset, pendingByMessage)
   const actionableItems = action === 'prepare_reply' ? subsetItems.slice(0, MAX_REPLY_DRAFTS) : subsetItems
+  const selectedItems = actionableItems.filter(item => !excludedKeys.has(selectionKey(item)))
   const excludedBySubset = Math.max(0, items.length - subsetItems.length)
   const replyLimited = action === 'prepare_reply' && subsetItems.length > MAX_REPLY_DRAFTS
 
   const mutation = useMutation({
-    mutationFn: () => action ? executeAction(action, actionableItems, pendingByMessage) : Promise.resolve({ completed: 0, failed: 0, skipped: 0 }),
+    mutationFn: () => action ? executeAction(action, selectedItems, pendingByMessage) : Promise.resolve({ completed: 0, failed: 0, skipped: 0 }),
     onSuccess: async result => {
       setConfirmOpen(false)
       setOperationResult(result)
@@ -291,6 +298,32 @@ export function NexiSearchActionPage() {
     })
   }
 
+  function toggleSelection(item: MailSummary) {
+    const key = selectionKey(item)
+    setExcludedKeys(current => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  function selectAll() {
+    setExcludedKeys(current => {
+      const next = new Set(current)
+      actionableItems.forEach(item => next.delete(selectionKey(item)))
+      return next
+    })
+  }
+
+  function selectNone() {
+    setExcludedKeys(current => {
+      const next = new Set(current)
+      actionableItems.forEach(item => next.add(selectionKey(item)))
+      return next
+    })
+  }
+
   function continueWithNexi() {
     if (!baseQuery || !action || !operationResult) return
     const note = `${actionPastLabel(action, operationResult.completed)}${operationResult.failed > 0 ? ` ${operationResult.failed} no pudieron procesarse.` : ''}`
@@ -305,10 +338,10 @@ export function NexiSearchActionPage() {
 
   const noSubsetMatches = !waitingForContext && items.length > 0 && subsetItems.length === 0
   const confirmMessage = action === 'trash'
-    ? `Se enviarán ${actionableItems.length} correo${actionableItems.length === 1 ? '' : 's'} a Papelera. Podrás recuperarlos mientras no vacíes la Papelera.`
+    ? `Se enviarán ${selectedItems.length} correo${selectedItems.length === 1 ? '' : 's'} a Papelera. Podrás recuperarlos mientras no vacíes la Papelera.`
     : action === 'prepare_reply'
-      ? `Nexi preparará ${actionableItems.length} borrador${actionableItems.length === 1 ? '' : 'es'} de respuesta para revisar. No se enviará ningún correo automáticamente.`
-      : `Nexi aplicará “${copy.confirmTitle}” a ${actionableItems.length} correo${actionableItems.length === 1 ? '' : 's'}. Revisa la lista antes de confirmar.`
+      ? `Nexi preparará ${selectedItems.length} borrador${selectedItems.length === 1 ? '' : 'es'} de respuesta para revisar. No se enviará ningún correo automáticamente.`
+      : `Nexi aplicará “${copy.confirmTitle}” a ${selectedItems.length} correo${selectedItems.length === 1 ? '' : 's'}. Revisa la selección antes de confirmar.`
 
   return <section className="mail-view nexi-action-page">
     <div className="view-header nexi-action-heading">
@@ -343,8 +376,8 @@ export function NexiSearchActionPage() {
 
     {!preview.isLoading && items.length > 0 && <>
       <section className="nexi-action-summary">
-        <div><Inbox size={17} /><span><strong>{items.length}</strong> encontrado{items.length === 1 ? '' : 's'} · <strong>{actionableItems.length}</strong> se procesará{actionableItems.length === 1 ? '' : 'n'}</span></div>
-        <button type="button" className={action === 'trash' ? 'nexi-trash-action-button' : 'nexi-agent-action-button'} disabled={mutation.isPending || waitingForContext || actionableItems.length === 0 || (requiresControlCenter && controlCenter.isError)} onClick={() => setConfirmOpen(true)}><ActionIcon action={action} size={15} />{actionButtonLabel(action, actionableItems.length)}</button>
+        <div><Inbox size={17} /><span><strong>{items.length}</strong> encontrado{items.length === 1 ? '' : 's'} · <strong>{selectedItems.length}</strong> seleccionado{selectedItems.length === 1 ? '' : 's'} para procesar</span></div>
+        <button type="button" className={action === 'trash' ? 'nexi-trash-action-button' : 'nexi-agent-action-button'} disabled={mutation.isPending || waitingForContext || selectedItems.length === 0 || (requiresControlCenter && controlCenter.isError)} onClick={() => setConfirmOpen(true)}><ActionIcon action={action} size={15} />{actionButtonLabel(action, selectedItems.length)}</button>
       </section>
       {preview.data?.limited && <div className="nexi-action-limit"><AlertTriangle size={14} />La búsqueda supera {MAX_ACTION_RESULTS} resultados. Por seguridad, esta operación incluye sólo los primeros {MAX_ACTION_RESULTS}; puedes acotar el criterio para continuar.</div>}
       {excludedBySubset > 0 && <div className="nexi-action-subset-note"><Sparkles size={14} />Nexi excluyó {excludedBySubset} correo{excludedBySubset === 1 ? '' : 's'} porque no pertenece{excludedBySubset === 1 ? '' : 'n'} al subconjunto “{subsetLabel(effectiveSubset)}”.</div>}
@@ -352,16 +385,25 @@ export function NexiSearchActionPage() {
       {noSubsetMatches && <div className="nexi-action-limit"><AlertTriangle size={14} />Encontré correos, pero ninguno pertenece al subconjunto “{subsetLabel(effectiveSubset)}”. Nexi no ejecutará ninguna acción.</div>}
 
       {actionableItems.length > 0 && <section className="universal-result-section">
-        <header><div><Mail size={17} /><strong>Correos que se procesarán</strong></div><span>{actionableItems.length}</span></header>
-        <div className="universal-mail-results">
+        <header className="nexi-action-selection-header">
+          <div><Mail size={17} /><strong>Correos que se procesarán</strong><span>{selectedItems.length} de {actionableItems.length}</span></div>
+          <div className="nexi-action-selection-controls"><button type="button" onClick={selectAll}>Todos</button><button type="button" onClick={selectNone}>Ninguno</button></div>
+        </header>
+        <div className="universal-mail-results nexi-action-selectable-results">
           {actionableItems.map(item => {
             const account = accounts.data?.find(value => value.id === item.accountId)
-            return <button type="button" key={`${item.accountId}:${item.providerMessageId}`} className={`universal-mail-result ${item.isRead ? '' : 'unread'}`} onClick={() => openMessage(item)}>
-              <i className="account-dot" style={{ background: account?.color }} />
-              <span className="universal-result-primary"><strong>{item.senderName || item.senderAddress || 'Correo'}</strong><span>{item.subject}</span><small>{item.preview}</small></span>
-              <span />
-              <span className="universal-result-meta"><small>{account?.displayName}</small><time>{dateLabel(item.receivedAt)}</time></span>
-            </button>
+            const checked = !excludedKeys.has(selectionKey(item))
+            return <div className={`nexi-action-select-row ${checked ? 'selected' : ''}`} key={selectionKey(item)}>
+              <label className="nexi-action-checkbox" title={checked ? 'Excluir de la acción' : 'Incluir en la acción'}>
+                <input type="checkbox" checked={checked} onChange={() => toggleSelection(item)} aria-label={`${checked ? 'Excluir' : 'Incluir'} ${item.subject || 'correo'}`} />
+              </label>
+              <button type="button" className={`universal-mail-result ${item.isRead ? '' : 'unread'}`} onClick={() => openMessage(item)}>
+                <i className="account-dot" style={{ background: account?.color }} />
+                <span className="universal-result-primary"><strong>{item.senderName || item.senderAddress || 'Correo'}</strong><span>{item.subject}</span><small>{item.preview}</small></span>
+                <span />
+                <span className="universal-result-meta"><small>{account?.displayName}</small><time>{dateLabel(item.receivedAt)}</time></span>
+              </button>
+            </div>
           })}
         </div>
       </section>}
@@ -373,7 +415,7 @@ export function NexiSearchActionPage() {
       open={confirmOpen}
       title={copy.confirmTitle}
       message={confirmMessage}
-      confirmLabel={actionButtonLabel(action, actionableItems.length)}
+      confirmLabel={actionButtonLabel(action, selectedItems.length)}
       pending={mutation.isPending}
       onConfirm={() => mutation.mutate()}
       onCancel={() => setConfirmOpen(false)}
