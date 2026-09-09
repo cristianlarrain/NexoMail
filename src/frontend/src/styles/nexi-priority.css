@@ -1,0 +1,288 @@
+.nexi-priority-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.nexi-priority-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.nexi-priority-header > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.nexi-priority-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.nexi-priority-header > div > strong {
+  color: var(--foreground);
+  font-size: 14px;
+}
+
+.nexi-priority-header p {
+  max-width: 640px;
+  margin: 0;
+  color: var(--muted-foreground, var(--muted));
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+.nexi-priority-refine {
+  flex: 0 0 auto;
+  min-height: 31px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+}
+
+.nexi-priority-summary {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.nexi-priority-summary button {
+  min-width: 0;
+  min-height: 34px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted-foreground, var(--muted));
+  font: inherit;
+  font-size: 9.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nexi-priority-summary button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.nexi-priority-summary button b {
+  min-width: 18px;
+  padding: 1px 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted-foreground) 8%, var(--surface));
+  color: var(--foreground);
+  text-align: center;
+  font-size: 9px;
+}
+
+.nexi-priority-summary button.active {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+  color: var(--primary);
+}
+
+.nexi-priority-summary button.urgent.active {
+  border-color: color-mix(in srgb, #c94f45 48%, var(--border));
+  background: color-mix(in srgb, #c94f45 8%, var(--surface));
+  color: color-mix(in srgb, #c94f45 82%, var(--foreground));
+}
+
+.nexi-priority-list {
+  display: grid;
+  gap: 6px;
+}
+
+.nexi-priority-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 9px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+}
+
+.nexi-priority-row.urgent {
+  border-left: 3px solid #c94f45;
+}
+
+.nexi-priority-row.response {
+  border-left: 3px solid var(--primary);
+}
+
+.nexi-priority-row.follow_up {
+  border-left: 3px solid #8c6fd0;
+}
+
+.nexi-priority-row.informative {
+  border-left: 3px solid #6c8a99;
+}
+
+.nexi-priority-row.probably_resolved {
+  border-left: 3px solid #3f9368;
+}
+
+.nexi-priority-main {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nexi-priority-main > strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--foreground);
+  font-size: 11.5px;
+}
+
+.nexi-priority-main > span:not(.nexi-priority-badge),
+.nexi-priority-main > small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted-foreground, var(--muted));
+  font-size: 9.5px;
+}
+
+.nexi-priority-main > em {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted-foreground, var(--muted));
+  font-size: 9px;
+  font-style: normal;
+}
+
+.nexi-priority-main > em.nexi {
+  color: var(--primary);
+}
+
+.nexi-priority-badge {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 1px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted-foreground) 7%, var(--surface));
+  color: var(--muted-foreground, var(--muted));
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: .02em;
+}
+
+.nexi-priority-badge.urgent {
+  background: color-mix(in srgb, #c94f45 10%, var(--surface));
+  color: color-mix(in srgb, #c94f45 84%, var(--foreground));
+}
+
+.nexi-priority-badge.response {
+  background: color-mix(in srgb, var(--primary) 9%, var(--surface));
+  color: var(--primary);
+}
+
+.nexi-priority-badge.follow_up {
+  background: color-mix(in srgb, #8c6fd0 10%, var(--surface));
+  color: color-mix(in srgb, #8c6fd0 84%, var(--foreground));
+}
+
+.nexi-priority-badge.informative {
+  background: color-mix(in srgb, #6c8a99 9%, var(--surface));
+}
+
+.nexi-priority-badge.probably_resolved {
+  background: color-mix(in srgb, #3f9368 10%, var(--surface));
+  color: color-mix(in srgb, #3f9368 84%, var(--foreground));
+}
+
+.nexi-priority-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.nexi-priority-notice {
+  margin: 0;
+  font-size: 10px;
+}
+
+.nexi-priority-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--muted-foreground, var(--muted));
+  font-size: 9.5px;
+}
+
+.nexi-priority-footer > small {
+  flex: 1 1 100%;
+  color: var(--muted-foreground, var(--muted));
+  font-size: 9px;
+}
+
+:root[data-theme="dark"] .nexi-priority-row,
+:root[data-theme="dark"] .nexi-priority-summary button {
+  background: color-mix(in srgb, var(--surface) 96%, #0d2831 4%);
+}
+
+@media (max-width: 1120px) {
+  .nexi-priority-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .nexi-priority-header {
+    flex-direction: column;
+  }
+
+  .nexi-priority-refine {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .nexi-priority-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .nexi-priority-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .nexi-priority-actions {
+    grid-column: 2;
+    justify-content: flex-end;
+  }
+}
