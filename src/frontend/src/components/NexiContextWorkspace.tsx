@@ -12,6 +12,13 @@ type Turn = {
   text: string
 }
 
+type StoredContext = {
+  query: string
+  accountId?: string
+  turns: Turn[]
+  lastResult: NexiContextResponse | null
+}
+
 const QUICK_QUESTIONS = [
   'Resúmeme estos correos y dime de qué se tratan.',
   '¿Qué me están pidiendo y qué requiere acción?',
@@ -24,34 +31,95 @@ function shortDate(value: string) {
   return date.toLocaleDateString('es-CL', { day: '2-digit', month: 'short' }).replace(/\./g, '')
 }
 
+function contextHash(value: string) {
+  let hash = 2166136261
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return (hash >>> 0).toString(36)
+}
+
+function storageKey(query: string, accountId?: string) {
+  return `nexomail-nexi-context-v1:${accountId ?? 'all'}:${contextHash(query)}`
+}
+
+function readStoredContext(query: string, accountId?: string): StoredContext | null {
+  if (!query) return null
+  try {
+    const raw = sessionStorage.getItem(storageKey(query, accountId))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as StoredContext
+    if (parsed.query !== query || (parsed.accountId ?? undefined) !== accountId || !Array.isArray(parsed.turns)) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function writeStoredContext(query: string, accountId: string | undefined, turns: Turn[], lastResult: NexiContextResponse | null) {
+  if (!query) return
+  try {
+    const payload: StoredContext = { query, accountId, turns: turns.slice(-30), lastResult }
+    sessionStorage.setItem(storageKey(query, accountId), JSON.stringify(payload))
+  } catch {
+    // El contexto conversacional es una mejora de UX; si el navegador no permite sessionStorage, Nexi sigue funcionando.
+  }
+}
+
 export function NexiContextWorkspace() {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const query = params.get('q')?.trim() ?? ''
   const accountId = params.get('account') ?? undefined
   const auto = params.get('auto') === '1'
+  const note = params.get('note')?.trim() ?? ''
   const [prompt, setPrompt] = useState('')
   const [turns, setTurns] = useState<Turn[]>([])
   const [lastResult, setLastResult] = useState<NexiContextResponse | null>(null)
   const autoStarted = useRef('')
+  const noteHandled = useRef('')
 
   const context = useMutation({
     mutationFn: (instruction: string) => nexiApi.context(query, instruction, accountId),
     onMutate: instruction => {
-      setTurns(current => [...current, { id: crypto.randomUUID(), role: 'user', text: instruction }])
+      setTurns(current => {
+        const next = [...current, { id: crypto.randomUUID(), role: 'user' as const, text: instruction }]
+        writeStoredContext(query, accountId, next, lastResult)
+        return next
+      })
     },
     onSuccess: result => {
       setLastResult(result)
-      setTurns(current => [...current, { id: crypto.randomUUID(), role: 'nexi', text: result.answer }])
+      setTurns(current => {
+        const next = [...current, { id: crypto.randomUUID(), role: 'nexi' as const, text: result.answer }]
+        writeStoredContext(query, accountId, next, result)
+        return next
+      })
     },
   })
 
   useEffect(() => {
-    setTurns([])
-    setLastResult(null)
+    const restored = readStoredContext(query, accountId)
+    setTurns(restored?.turns ?? [])
+    setLastResult(restored?.lastResult ?? null)
     setPrompt('')
     autoStarted.current = ''
+    noteHandled.current = ''
   }, [query, accountId])
+
+  useEffect(() => {
+    if (!query || !note || noteHandled.current === note) return
+    noteHandled.current = note
+    setTurns(current => {
+      const next = [...current, { id: crypto.randomUUID(), role: 'nexi' as const, text: `Acción completada: ${note} Puedes seguir trabajando sobre el mismo contexto.` }]
+      writeStoredContext(query, accountId, next, lastResult)
+      return next
+    })
+    const nextParams = new URLSearchParams(params)
+    nextParams.delete('note')
+    setParams(nextParams, { replace: true })
+  }, [accountId, lastResult, note, params, query, setParams])
 
   useEffect(() => {
     if (!query || !auto || context.isPending || turns.length > 0 || autoStarted.current === query) return
@@ -69,7 +137,12 @@ export function NexiContextWorkspace() {
 
     const action = detectNexiMailAction(instruction)
     if (action) {
-      const next = new URLSearchParams({ q: `${instruction} ${query}`.trim() })
+      const actionTurn: Turn = { id: crypto.randomUUID(), role: 'user', text: instruction }
+      const nextTurns = [...turns, actionTurn]
+      setTurns(nextTurns)
+      writeStoredContext(query, accountId, nextTurns, lastResult)
+
+      const next = new URLSearchParams({ q: `${instruction} ${query}`.trim(), base: query })
       if (accountId) next.set('account', accountId)
       navigate(`/search-action?${next.toString()}`)
       return
@@ -104,7 +177,7 @@ export function NexiContextWorkspace() {
       </div>
 
       <div className="nexi-context-conversation" aria-live="polite">
-        {turns.length === 0 && <div className="nexi-context-welcome"><Sparkles size={18} /><div><strong>Sigue preguntando o actúa sobre este mismo conjunto</strong><span>Por ejemplo: “ahora resúmelos”, “qué me están pidiendo”, “archiva estos correos”, “márcalos como leídos” o “ponlos en seguimiento”.</span></div></div>}
+        {turns.length === 0 && <div className="nexi-context-welcome"><Sparkles size={18} /><div><strong>Sigue preguntando o actúa sobre este mismo conjunto</strong><span>Por ejemplo: “archiva sólo los no leídos”, “prepara respuestas para los pendientes”, “archiva los informativos” o “pon en seguimiento los que tienen adjuntos”.</span></div></div>}
         {turns.map(turn => <article key={turn.id} className={`nexi-context-turn ${turn.role}`}>
           <span>{turn.role === 'nexi' ? 'Nexi' : 'Tú'}</span>
           <p>{turn.text}</p>
