@@ -14,7 +14,7 @@
   width: 100%;
   height: 30px;
   min-height: 30px;
-  margin: 0 0 2px;
+  margin: 0;
   padding: 0 8px;
   display: flex;
   align-items: center;
@@ -31,6 +31,14 @@
   letter-spacing: .07em;
   line-height: 1;
   text-transform: uppercase;
+  text-align: left;
+}
+
+/* Keep the label anchored left even when the action is active. */
+.sidebar:not(.collapsed) .primary-nav-action,
+.sidebar:not(.collapsed) .primary-nav-action.active {
+  justify-content: space-between;
+  text-align: left;
 }
 
 .sidebar .primary-nav-action > span {
@@ -46,6 +54,7 @@
   width: 14px;
   height: 14px;
   flex: 0 0 14px;
+  margin-left: auto;
   color: currentColor;
 }
 
@@ -64,6 +73,7 @@
   color: var(--primary);
   font-weight: 780;
   box-shadow: none;
+  text-align: left;
 }
 
 :root[data-theme="dark"] .sidebar .compose-button.active,
@@ -124,14 +134,14 @@
   width: 38px;
   height: 38px;
   min-height: 38px;
-  margin: 0 6px 3px;
+  margin: 0 6px;
   padding: 0;
   justify-content: center;
   box-shadow: none;
 }
 
 .sidebar.collapsed .primary-nav-action > span { display: none; }
-.sidebar.collapsed .primary-nav-icon { width: 15px; height: 15px; flex-basis: 15px; }
+.sidebar.collapsed .primary-nav-icon { width: 15px; height: 15px; flex-basis: 15px; margin-left: 0; }
 
 .sidebar.collapsed .nav-section-toggle {
   width: 38px;
