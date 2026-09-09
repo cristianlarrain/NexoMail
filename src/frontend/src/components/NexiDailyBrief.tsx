@@ -4,6 +4,7 @@ import { AlertTriangle, CalendarDays, ChevronRight, Clock3, Sparkles, Users } fr
 import { useNavigate } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
 import type { ControlCenterPendingItem } from '../types/mail'
+import { NexiEmptyState } from './nexi/NexiEmptyState'
 
 function normalizeSubject(value: string) {
   return value
@@ -87,7 +88,9 @@ export function NexiDailyBrief() {
     return { data, people, subjects, priority, priorityTone, priorityFocus }
   }, [snapshot.data])
 
-  if (!brief) return null
+  if (snapshot.isLoading) return <section className="nexi-daily-brief" aria-label="Lectura del día"><NexiEmptyState compact title="Preparando lectura del día" description="Nexi está revisando los indicadores disponibles para identificar qué merece atención." /></section>
+
+  if (snapshot.isError || !brief) return <section className="nexi-daily-brief" aria-label="Lectura del día"><NexiEmptyState compact title="No fue posible preparar la lectura" description="Los demás módulos pueden seguir utilizándose. Puede volver a intentar la consulta." action={<button type="button" className="secondary-button" onClick={() => snapshot.refetch()}>Reintentar</button>} /></section>
 
   return <section className="nexi-daily-brief" aria-label="Lectura del día">
     <header className="nexi-daily-brief-header">
