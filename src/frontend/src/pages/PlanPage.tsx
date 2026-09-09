@@ -27,6 +27,24 @@ function PlanBrandmark({ plan, compact = false }: { plan: CommercialPlan; compac
   </span>
 }
 
+function subscriptionLabel(status: string) {
+  switch (status) {
+    case 'active': return 'Suscripción activa'
+    case 'trialing': return 'Período de prueba'
+    case 'legacy': return 'Acceso heredado'
+    case 'past_due': return 'Pago pendiente'
+    case 'canceled': return 'Suscripción cancelada'
+    case 'expired': return 'Suscripción vencida'
+    default: return status
+  }
+}
+
+function formatDate(value: string | null) {
+  if (!value) return null
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
 export function PlanPage() {
   const subscription = useQuery({ queryKey: ['commercial-subscription'], queryFn: commercialApi.subscription, staleTime: 30_000 })
   const adminStatus = useQuery({ queryKey: ['commercial-admin-status'], queryFn: commercialApi.adminStatus, staleTime: 5 * 60_000, retry: false })
@@ -37,13 +55,17 @@ export function PlanPage() {
   const data = subscription.data
   const current = data.currentPlan
   const currentTone = planTone(current)
-  const usagePercent = current.maxAccounts
-    ? Math.min(100, Math.round((data.connectedAccounts / current.maxAccounts) * 100))
+  const usageLimit = data.plans.find(plan => plan.code === data.effectivePlanCode)?.maxAccounts ?? current.maxAccounts
+  const usagePercent = usageLimit
+    ? Math.min(100, Math.round((data.connectedAccounts / usageLimit) * 100))
     : 0
+  const renewalDate = formatDate(data.subscription.currentPeriodEnd)
+  const trialEnd = formatDate(data.subscription.trialEndsAt)
+  const statusNeedsAttention = !data.paidAccessActive
 
   return <section className="settings-page commercial-plan-page">
     <div className="commercial-plan-title-row">
-      <div><p className="eyebrow">Configuración</p><h1>Plan y uso</h1><p className="page-description">Revise su plan actual, el uso de cuentas y las alternativas disponibles para NexoMail.</p></div>
+      <div><p className="eyebrow">Configuración</p><h1>Plan y uso</h1><p className="page-description">Revise su plan actual, el uso de cuentas y las funciones habilitadas para NexoMail.</p></div>
       {adminStatus.data?.isAdministrator && <Link to="/admin/plans" className="secondary-button"><Settings2 size={16} /> Administrar tipos de cuenta</Link>}
     </div>
 
@@ -53,12 +75,19 @@ export function PlanPage() {
         <div><span>Plan actual</span><strong>{current.name}</strong><small>{current.price} · {current.cadence}</small></div>
       </div>
       <div className="commercial-account-usage">
-        <div><span>Cuentas conectadas</span><strong>{data.connectedAccounts}{current.maxAccounts ? ` / ${current.maxAccounts}` : ''}</strong></div>
-        {current.maxAccounts && <div className="commercial-usage-track" aria-label={`${usagePercent}% del límite de cuentas utilizado`}><i style={{ width: `${usagePercent}%` }} /></div>}
-        <small>{current.maxAccounts ? `${data.remainingAccounts ?? 0} cuenta${data.remainingAccounts === 1 ? '' : 's'} disponible${data.remainingAccounts === 1 ? '' : 's'}` : 'Sin límite fijo de cuentas'}</small>
+        <div><span>Cuentas conectadas</span><strong>{data.connectedAccounts}{usageLimit ? ` / ${usageLimit}` : ''}</strong></div>
+        {usageLimit && <div className="commercial-usage-track" aria-label={`${usagePercent}% del límite de cuentas utilizado`}><i style={{ width: `${usagePercent}%` }} /></div>}
+        <small>{usageLimit ? `${data.remainingAccounts ?? 0} cuenta${data.remainingAccounts === 1 ? '' : 's'} disponible${data.remainingAccounts === 1 ? '' : 's'}` : 'Sin límite fijo de cuentas'}</small>
       </div>
-      {!data.canAddAccount && <div className="commercial-limit-notice">Ha alcanzado el límite de cuentas de su plan. Puede seguir usando las cuentas ya conectadas, pero necesitará un plan superior para agregar otra.</div>}
-      {data.overLimit && <div className="commercial-limit-notice warning">Su cantidad actual de cuentas supera el límite nominal del plan. Las cuentas existentes se mantienen activas, pero no podrá agregar nuevas hasta cambiar de plan.</div>}
+      <div className="commercial-subscription-meta">
+        <span className={`commercial-subscription-status ${statusNeedsAttention ? 'attention' : ''}`}>{subscriptionLabel(data.subscription.status)}</span>
+        {renewalDate && <small>{data.subscription.cancelAtPeriodEnd ? `Finaliza el ${renewalDate}` : `Próxima renovación: ${renewalDate}`}</small>}
+        {trialEnd && <small>Prueba hasta: {trialEnd}</small>}
+        {!data.subscription.provider && data.subscription.status === 'legacy' && <small>Acceso de desarrollo previo a la integración de pagos.</small>}
+      </div>
+      {!data.paidAccessActive && <div className="commercial-limit-notice warning">El estado de la suscripción no habilita actualmente las funciones pagadas. Mientras se regulariza, NexoMail aplica las capacidades del plan Freemium.</div>}
+      {!data.canAddAccount && <div className="commercial-limit-notice">Ha alcanzado el límite de cuentas efectivo de su plan. Puede seguir usando las cuentas ya conectadas, pero necesitará un plan superior o regularizar la suscripción para agregar otra.</div>}
+      {data.overLimit && <div className="commercial-limit-notice warning">Su cantidad actual de cuentas supera el límite efectivo. Las cuentas existentes se mantienen activas, pero no podrá agregar nuevas hasta cambiar de plan o regularizar la suscripción.</div>}
     </section>
 
     <div className="commercial-section-heading"><div><span>Planes disponibles</span><h2>Elija el nivel de servicio que necesita</h2></div><Link to="/settings/accounts" className="secondary-button">Administrar cuentas</Link></div>
@@ -80,13 +109,13 @@ export function PlanPage() {
             {isCurrent
               ? <button type="button" className="secondary-button" disabled>Plan activo</button>
               : plan.code === 'premium'
-                ? <button type="button" className="primary-button" disabled title="La contratación en línea se incorporará en la siguiente etapa.">Contratación próximamente</button>
+                ? <button type="button" className="primary-button" disabled title="El checkout se habilitará al conectar la pasarela de pago.">Contratación próximamente</button>
                 : <button type="button" className="secondary-button" disabled>{plan.isWhiteLabel ? 'Cotización próximamente' : 'Contratación próximamente'}</button>}
           </footer>
         </article>
       })}
     </section>
 
-    <div className="commercial-next-step"><Sparkles size={17} /><div><strong>Base comercial preparada</strong><span>El sistema reconoce el plan de cada usuario y aplica el límite de cuentas. Los administradores también pueden gestionar los tipos de cuenta disponibles.</span></div></div>
+    <div className="commercial-next-step"><Sparkles size={17} /><div><strong>Suscripciones y permisos preparados</strong><span>NexoMail ya separa las capacidades por plan y registra el estado de suscripción. El siguiente paso es conectar el proveedor de pagos para activar, renovar, cancelar y regularizar planes automáticamente.</span></div></div>
   </section>
 }
