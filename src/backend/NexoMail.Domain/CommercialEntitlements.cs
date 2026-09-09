@@ -58,6 +58,7 @@ public static class CommercialSubscriptionStatuses
     public const string Active = "active";
     public const string Trialing = "trialing";
     public const string Legacy = "legacy";
+    public const string Pending = "pending";
     public const string PastDue = "past_due";
     public const string Canceled = "canceled";
     public const string Expired = "expired";
