@@ -6,11 +6,9 @@
   --shadow: 0 1px 3px rgb(18 42 47 / .08);
 }
 
-/* Centro de Control: una sola separación real entre cajas visibles. */
 .control-center-page.nexi-control-center {
   display: grid !important;
-  row-gap: 10px !important;
-  column-gap: 10px !important;
+  gap: 10px !important;
 }
 
 .control-center-page.nexi-control-center > * {
@@ -31,7 +29,7 @@
 
 .control-center-page .control-center {
   display: grid !important;
-  row-gap: 10px !important;
+  gap: 10px !important;
   margin: 0 !important;
   padding: 0 !important;
 }
@@ -55,19 +53,14 @@
 }
 
 @media (min-width: 761px) {
-  .app-shell {
-    display: block;
+  .sidebar:not(.collapsed) {
+    width: 232px !important;
   }
 
-  .sidebar {
-    margin: 0 !important;
-  }
-
-  /* El contenido empieza exactamente donde termina el menú lateral fijo. */
   .main-content {
-    width: calc(100% - 248px) !important;
-    margin-left: 248px !important;
-    padding-left: 0 !important;
+    width: calc(100% - 232px) !important;
+    margin-left: 232px !important;
+    padding: 0 !important;
   }
 
   .app-shell:has(.sidebar.collapsed) .main-content {
@@ -75,7 +68,6 @@
     margin-left: 68px !important;
   }
 
-  /* La caja superior toca directamente el borde derecho del menú lateral. */
   .topbar {
     width: 100% !important;
     margin: 0 !important;
@@ -87,6 +79,6 @@
 
 @media (max-width: 760px) {
   .control-center-page.nexi-control-center {
-    row-gap: 10px !important;
+    gap: 10px !important;
   }
 }
