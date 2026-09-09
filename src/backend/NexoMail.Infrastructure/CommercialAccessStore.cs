@@ -7,7 +7,6 @@ using NexoMail.Infrastructure.Data;
 namespace NexoMail.Infrastructure;
 
 public sealed record CommercialSubscriptionState(
-    string PlanCode,
     string Status,
     string? Provider,
     string? ProviderCustomerId,
@@ -18,7 +17,10 @@ public sealed record CommercialSubscriptionState(
     bool CancelAtPeriodEnd,
     DateTimeOffset? CanceledAt,
     DateTimeOffset? PaymentDueAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt)
+{
+    public string PlanCode { get; init; } = CommercialPlanCatalog.Freemium;
+}
 
 public sealed record CommercialAccessSnapshot(
     CommercialPlanEntity AssignedPlan,
@@ -93,7 +95,7 @@ public static class CommercialAccessStore
             AddParameter(insert, "$createdAt", now.ToString("O"));
             AddParameter(insert, "$updatedAt", now.ToString("O"));
             await insert.ExecuteNonQueryAsync(ct);
-            return new(planCode, status, null, null, null, null, null, null, false, null, null, now);
+            return new(status, null, null, null, null, null, null, false, null, null, now) { PlanCode = planCode };
         }
         finally
         {
@@ -138,7 +140,6 @@ public static class CommercialAccessStore
         await using var reader = await command.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) return null;
         return new CommercialSubscriptionState(
-            reader.GetString(0),
             reader.GetString(1),
             ReadNullableString(reader, 2),
             ReadNullableString(reader, 3),
@@ -149,7 +150,10 @@ public static class CommercialAccessStore
             reader.GetInt32(8) != 0,
             ReadNullableDate(reader, 9),
             ReadNullableDate(reader, 10),
-            DateTimeOffset.Parse(reader.GetString(11)));
+            DateTimeOffset.Parse(reader.GetString(11)))
+        {
+            PlanCode = reader.GetString(0)
+        };
     }
 
     private static string? ReadNullableString(DbDataReader reader, int ordinal) => reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
