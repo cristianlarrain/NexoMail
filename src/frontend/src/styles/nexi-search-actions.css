@@ -45,6 +45,20 @@
   line-height: 1.4;
 }
 
+.nexi-action-command .nexi-action-scope {
+  width: fit-content;
+  margin-top: 3px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+  color: var(--foreground);
+}
+
+.nexi-action-command .nexi-action-scope b {
+  color: var(--primary);
+  font-weight: 750;
+}
+
 .nexi-action-command small {
   margin-top: 3px;
   font-style: italic;
@@ -109,6 +123,7 @@
 }
 
 .nexi-action-limit,
+.nexi-action-subset-note,
 .nexi-action-result {
   display: flex;
   align-items: flex-start;
@@ -125,9 +140,42 @@
   color: color-mix(in srgb, #946d15 80%, var(--foreground));
 }
 
+.nexi-action-subset-note {
+  background: color-mix(in srgb, var(--primary) 7%, var(--surface));
+  color: var(--muted-foreground, var(--muted));
+}
+
+.nexi-action-subset-note svg {
+  flex: 0 0 auto;
+  color: var(--primary);
+}
+
 .nexi-action-result.success {
   background: color-mix(in srgb, #32a66a 10%, var(--surface));
   color: color-mix(in srgb, #237c4e 82%, var(--foreground));
+}
+
+.nexi-action-result > svg {
+  flex: 0 0 auto;
+}
+
+.nexi-action-result > span {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.nexi-action-result-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+}
+
+.nexi-action-result-actions .secondary-button {
+  min-height: 30px;
+  padding-inline: 9px;
+  font-size: 11px;
 }
 
 .nexi-action-not-applicable {
@@ -169,5 +217,15 @@
   .nexi-trash-action-button,
   .nexi-agent-action-button {
     justify-content: center;
+  }
+
+  .nexi-action-result {
+    flex-wrap: wrap;
+  }
+
+  .nexi-action-result-actions {
+    width: 100%;
+    margin-left: 23px;
+    flex-wrap: wrap;
   }
 }
