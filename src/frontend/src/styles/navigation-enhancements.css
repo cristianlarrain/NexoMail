@@ -14,7 +14,7 @@
   width: 100%;
   height: 30px;
   min-height: 30px;
-  margin: 0;
+  margin: 0 0 5px;
   padding: 0 8px;
   display: flex;
   align-items: center;
@@ -83,6 +83,11 @@
   background: color-mix(in srgb, #1b586c 24%, var(--surface));
 }
 
+/* Redactar must remain readable when selected in dark mode. */
+:root[data-theme="dark"] .sidebar .compose-button.active {
+  color: #f2fbff;
+}
+
 /* Secondary navigation stays readable and balanced with the primary group. */
 .sidebar .nav-heading,
 .sidebar .nav-section-toggle {
@@ -134,7 +139,7 @@
   width: 38px;
   height: 38px;
   min-height: 38px;
-  margin: 0 6px;
+  margin: 0 6px 5px;
   padding: 0;
   justify-content: center;
   box-shadow: none;
