@@ -1,0 +1,431 @@
+.nexi-trend-report {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 96%, var(--primary) 4%);
+  box-shadow: var(--shadow);
+}
+
+.nexi-trend-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.nexi-trend-header > div:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.nexi-trend-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.nexi-trend-header > div:first-child > strong {
+  font-size: 15px;
+  color: var(--foreground);
+}
+
+.nexi-trend-header p {
+  margin: 0;
+  max-width: 760px;
+  color: var(--muted-foreground, var(--muted));
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.nexi-trend-periods {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+}
+
+.nexi-trend-periods button {
+  min-height: 28px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground, var(--muted));
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nexi-trend-periods button.active {
+  background: color-mix(in srgb, var(--primary) 11%, var(--surface));
+  color: var(--primary);
+}
+
+.nexi-trend-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.nexi-trend-metrics > article {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.nexi-trend-icon {
+  width: 31px;
+  height: 31px;
+  flex: 0 0 31px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--primary) 9%, var(--surface));
+  color: var(--primary);
+}
+
+.nexi-trend-metrics article > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.nexi-trend-metrics small,
+.nexi-trend-metrics span,
+.nexi-trend-metrics em {
+  color: var(--muted-foreground, var(--muted));
+  font-size: 10px;
+  line-height: 1.3;
+  font-style: normal;
+}
+
+.nexi-trend-metrics article > div > strong {
+  color: var(--foreground);
+  font-size: 20px;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+
+.nexi-trend-change {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 2px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.nexi-trend-change.up {
+  background: color-mix(in srgb, #d59a2d 11%, var(--surface));
+  color: color-mix(in srgb, #966d18 82%, var(--foreground));
+}
+
+.nexi-trend-change.down {
+  background: color-mix(in srgb, #2f9b66 10%, var(--surface));
+  color: color-mix(in srgb, #23784f 84%, var(--foreground));
+}
+
+.nexi-trend-change.flat {
+  background: color-mix(in srgb, var(--muted-foreground) 8%, var(--surface));
+}
+
+.nexi-trend-executive {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--primary);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--primary) 7%, var(--surface));
+}
+
+.nexi-trend-executive > span {
+  color: var(--primary);
+  flex: 0 0 auto;
+  padding-top: 1px;
+}
+
+.nexi-trend-executive > div {
+  display: grid;
+  gap: 2px;
+}
+
+.nexi-trend-executive small {
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.nexi-trend-executive p {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.nexi-trend-comparison,
+.nexi-trend-daily-chart {
+  display: grid;
+  gap: 8px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface);
+}
+
+.nexi-trend-comparison-copy {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.nexi-trend-comparison-copy strong {
+  color: var(--foreground);
+}
+
+.nexi-trend-comparison-copy span {
+  color: var(--muted-foreground, var(--muted));
+}
+
+.nexi-trend-compare-row {
+  display: grid;
+  grid-template-columns: 78px minmax(120px, 1fr) 62px;
+  align-items: center;
+  gap: 9px;
+}
+
+.nexi-trend-compare-row > span {
+  color: var(--muted-foreground, var(--muted));
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.nexi-trend-compare-bars {
+  display: grid;
+  gap: 3px;
+}
+
+.nexi-trend-compare-bars > i {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.nexi-trend-compare-bars > i > b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.nexi-trend-compare-bars > i.current > b,
+.nexi-trend-legend i.current {
+  background: var(--primary);
+}
+
+.nexi-trend-compare-bars > i.previous > b,
+.nexi-trend-legend i.previous {
+  background: color-mix(in srgb, var(--muted-foreground) 55%, var(--surface));
+}
+
+.nexi-trend-compare-row > div:last-child {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  text-align: right;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.nexi-trend-compare-row > div:last-child strong {
+  color: var(--foreground);
+}
+
+.nexi-trend-compare-row > div:last-child small {
+  color: var(--muted-foreground, var(--muted));
+}
+
+.nexi-trend-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--muted-foreground, var(--muted));
+  font-size: 10px;
+}
+
+.nexi-trend-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.nexi-trend-legend i {
+  width: 13px;
+  height: 4px;
+  border-radius: 999px;
+}
+
+.nexi-trend-daily-chart > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.nexi-trend-daily-chart > header strong {
+  color: var(--foreground);
+  font-size: 11px;
+}
+
+.nexi-trend-daily-chart > header span {
+  color: var(--muted-foreground, var(--muted));
+  font-size: 10px;
+}
+
+.nexi-trend-days {
+  min-height: 116px;
+  display: grid;
+  align-items: end;
+  gap: 4px;
+  overflow-x: auto;
+  padding-top: 4px;
+}
+
+.nexi-trend-day {
+  min-width: 0;
+  height: 108px;
+  display: grid;
+  grid-template-rows: 88px 18px;
+  align-items: end;
+  gap: 2px;
+}
+
+.nexi-trend-day > div {
+  height: 88px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+}
+
+.nexi-trend-day > div > i {
+  width: min(8px, 38%);
+  min-width: 3px;
+  border-radius: 4px 4px 1px 1px;
+}
+
+.nexi-trend-day > div > i.received {
+  background: var(--primary);
+}
+
+.nexi-trend-day > div > i.sent {
+  background: color-mix(in srgb, #7a66d7 75%, var(--primary));
+}
+
+.nexi-trend-day > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  color: var(--muted-foreground, var(--muted));
+  font-size: 9px;
+}
+
+.nexi-trend-no-data {
+  padding: 18px;
+  text-align: center;
+  color: var(--muted-foreground, var(--muted));
+  font-size: 11px;
+}
+
+.nexi-trend-loading {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.nexi-trend-loading > span {
+  height: 72px;
+  border-radius: 9px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--border) 55%, transparent), color-mix(in srgb, var(--surface) 65%, var(--primary) 7%), color-mix(in srgb, var(--border) 55%, transparent));
+  background-size: 200% 100%;
+  animation: nexi-trend-pulse 1.25s linear infinite;
+}
+
+.nexi-trend-loading small {
+  grid-column: 1 / -1;
+  color: var(--muted-foreground, var(--muted));
+  font-size: 10px;
+}
+
+@keyframes nexi-trend-pulse {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+:root[data-theme="dark"] .nexi-trend-report {
+  background: color-mix(in srgb, #102b35 24%, var(--surface));
+}
+
+:root[data-theme="dark"] .nexi-trend-change.up {
+  color: #f0c76a;
+}
+
+:root[data-theme="dark"] .nexi-trend-change.down {
+  color: #83d8ad;
+}
+
+@media (max-width: 980px) {
+  .nexi-trend-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .nexi-trend-header {
+    flex-direction: column;
+  }
+
+  .nexi-trend-periods {
+    width: 100%;
+  }
+
+  .nexi-trend-periods button {
+    flex: 1 1 0;
+  }
+
+  .nexi-trend-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .nexi-trend-compare-row {
+    grid-template-columns: 64px minmax(90px, 1fr) 52px;
+    gap: 6px;
+  }
+}
