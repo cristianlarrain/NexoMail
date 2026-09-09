@@ -178,6 +178,83 @@
   font-size: 11px;
 }
 
+.nexi-action-selection-header {
+  gap: 10px;
+}
+
+.nexi-action-selection-header > div:first-child {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.nexi-action-selection-header > div:first-child > span {
+  color: var(--muted-foreground, var(--muted));
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.nexi-action-selection-controls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.nexi-action-selection-controls button {
+  min-height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0 8px;
+  background: var(--surface);
+  color: var(--muted-foreground, var(--muted));
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.nexi-action-selection-controls button:hover {
+  border-color: color-mix(in srgb, var(--primary) 38%, var(--border));
+  color: var(--primary);
+}
+
+.nexi-action-select-row {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: stretch;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.nexi-action-select-row:last-child {
+  border-bottom: 0;
+}
+
+.nexi-action-select-row:not(.selected) {
+  opacity: .58;
+}
+
+.nexi-action-select-row .universal-mail-result {
+  border-bottom: 0;
+}
+
+.nexi-action-checkbox {
+  display: grid;
+  place-items: center;
+  border-right: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.nexi-action-checkbox:hover {
+  background: color-mix(in srgb, var(--primary) 5%, var(--surface));
+}
+
+.nexi-action-checkbox input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
 .nexi-action-not-applicable {
   opacity: .56;
 }
@@ -227,5 +304,14 @@
     width: 100%;
     margin-left: 23px;
     flex-wrap: wrap;
+  }
+
+  .nexi-action-selection-header {
+    align-items: flex-start !important;
+    flex-direction: column;
+  }
+
+  .nexi-action-select-row {
+    grid-template-columns: 34px minmax(0, 1fr);
   }
 }
