@@ -77,6 +77,16 @@
 .commercial-plan-brandmark.compact .plan-mark-tag { top: 2px; right: 2px; }
 .commercial-plan-brandmark.compact .plan-mark-brush { top: 5px; right: 5px; }
 
+.commercial-subscription-meta { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 2px; }
+.commercial-subscription-status { display: inline-flex; align-items: center; gap: 5px; padding: 5px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; background: color-mix(in srgb, #32a66a 11%, var(--surface)); color: color-mix(in srgb, #237c4e 85%, var(--foreground)); }
+.commercial-subscription-status.attention { background: color-mix(in srgb, #d95d52 10%, var(--surface)); color: color-mix(in srgb, #a1443d 85%, var(--foreground)); }
+.commercial-subscription-meta small { color: var(--muted); font-size: 10px; }
+.commercial-feature-lock { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 12px; padding: 16px; border: 1px solid color-mix(in srgb, #7c3aed 24%, var(--border)); border-radius: 14px; background: color-mix(in srgb, #7c3aed 5%, var(--surface)); }
+.commercial-feature-lock > svg { color: #7c3aed; }
+.commercial-feature-lock > div { display: grid; gap: 3px; }
+.commercial-feature-lock strong { font-size: 13px; }
+.commercial-feature-lock span { color: var(--muted); font-size: 11px; line-height: 1.45; }
+
 @media (max-width: 860px) {
   .commercial-current-plan,
   .commercial-plan-grid { grid-template-columns: 1fr; }
@@ -90,4 +100,6 @@
   .commercial-plan-card header { grid-template-columns: 58px minmax(0, 1fr); }
   .commercial-current-badge,
   .commercial-featured-badge { grid-column: 2; justify-self: start; }
+  .commercial-feature-lock { grid-template-columns: auto 1fr; }
+  .commercial-feature-lock .primary-button { grid-column: 2; width: fit-content; }
 }
