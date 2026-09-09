@@ -162,17 +162,31 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
   const priorityItems = [...priorityMap.values()].sort((left, right) => new Date(left.item.since).getTime() - new Date(right.item.since).getTime())
   const nexiInsights = buildNexiInsights(data, manualTracking.data ?? [])
 
+  function openManagementView(view: Exclude<ManagementView, null>) {
+    setActiveView(view)
+    setSnoozeTarget(null)
+    window.requestAnimationFrame(() => {
+      document.querySelector('.control-management-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
+
+  function openUnread() {
+    const params = new URLSearchParams({ q: 'correos sin leer', scope: 'mail', unread: '1' })
+    if (accountId) params.set('account', accountId)
+    navigate(`/search?${params.toString()}`)
+  }
+
   function handleNexiAction(action?: NexiInsightAction) {
     if (!action) return
     if (action === 'unread') {
-      navigate(`${inboxPath}?q=${encodeURIComponent('is:unread')}`)
+      openUnread()
       return
     }
     if (action === 'tracking') {
       navigate(`${inboxPath}?priority=1`)
       return
     }
-    setActiveView(action)
+    openManagementView(action)
   }
 
   return <section className="control-center control-center-cinematic" aria-labelledby="control-center-title">
@@ -189,10 +203,10 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
       </header>
 
       <div className="control-metrics nexi-control-metrics">
-        <MetricCard tone="received" icon={<Inbox size={19} />} value={data.receivedWithoutReply} label="Recibidos sin responder" hint="Promociones y avisos informativos se excluyen" active={activeView === 'received'} onClick={() => setActiveView(current => current === 'received' ? null : 'received')} />
-        <MetricCard tone="sent" icon={<Send size={19} />} value={data.sentWithoutResponse} label="Enviados sin respuesta" hint="Usted escribió al final" active={activeView === 'sent'} onClick={() => setActiveView(current => current === 'sent' ? null : 'sent')} />
-        <MetricCard tone="unread" icon={<Mail size={19} />} value={data.unread} label="Correos sin leer" hint="Abrir y gestionar en forma masiva" onClick={() => navigate(`${inboxPath}?q=${encodeURIComponent('is:unread')}`)} />
-        <MetricCard tone="overdue" icon={<Clock3 size={19} />} value={data.overdue} label="Más de 48 horas" hint="Pendientes que requieren atención" active={activeView === 'overdue'} onClick={() => setActiveView(current => current === 'overdue' ? null : 'overdue')} />
+        <MetricCard tone="received" icon={<Inbox size={19} />} value={data.receivedWithoutReply} label="Recibidos sin responder" hint="Promociones y avisos informativos se excluyen" active={activeView === 'received'} onClick={() => openManagementView('received')} />
+        <MetricCard tone="sent" icon={<Send size={19} />} value={data.sentWithoutResponse} label="Enviados sin respuesta" hint="Usted escribió al final" active={activeView === 'sent'} onClick={() => openManagementView('sent')} />
+        <MetricCard tone="unread" icon={<Mail size={19} />} value={data.unread} label="Correos sin leer" hint="Abrir y gestionar en forma masiva" onClick={openUnread} />
+        <MetricCard tone="overdue" icon={<Clock3 size={19} />} value={data.overdue} label="Más de 48 horas" hint="Pendientes que requieren atención" active={activeView === 'overdue'} onClick={() => openManagementView('overdue')} />
       </div>
     </section>
 
