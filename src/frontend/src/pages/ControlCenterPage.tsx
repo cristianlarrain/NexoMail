@@ -45,13 +45,13 @@ export function ControlCenterPage() {
   return <section className="mail-view control-center-page nexi-control-center">
     <div className="view-header control-page-header nexi-control-header">
       <div className="control-page-title nexi-control-title">
-        <div><h1>Centro de Control</h1><p><strong>Nexi</strong> integra tus pendientes, búsquedas, análisis, reportes, contactos y documentos en un solo espacio.</p></div>
+        <div><h1>Centro de Control</h1><p>Supervisa el correo, prioriza pendientes y consulta análisis, contactos y documentos desde un solo espacio.</p></div>
       </div>
 
-      <nav className="control-tabs control-tabs-inline" aria-label="Secciones del Centro de Control con Nexi">
+      <nav className="control-tabs control-tabs-inline" aria-label="Secciones del Centro de Control">
         <button type="button" className={tab === 'summary' ? 'active' : ''} onClick={() => selectTab('summary')}><BarChart3 size={16} /> Operación</button>
         <button type="button" className={tab === 'nexi' ? 'active nexi-tab' : 'nexi-tab'} onClick={() => selectTab('nexi')}><MessageSquareText size={16} /> Nexi</button>
-        <button type="button" className={tab === 'report' ? 'active nexi-tab' : 'nexi-tab'} onClick={() => selectTab('report')}><Sparkles size={16} /> Reportes</button>
+        <button type="button" className={tab === 'report' ? 'active nexi-tab' : 'nexi-tab'} onClick={() => selectTab('report')}><Sparkles size={16} /> Informes</button>
         <button type="button" className={tab === 'contacts' ? 'active' : ''} onClick={() => selectTab('contacts')}><Users size={16} /> Contactos</button>
         <button type="button" className={tab === 'documents' ? 'active' : ''} onClick={() => selectTab('documents')}><Files size={16} /> Documentos</button>
       </nav>
@@ -60,7 +60,7 @@ export function ControlCenterPage() {
     <NexoPerspective />
 
     {tab === 'summary'
-      ? <><NexiDailyBrief /><NexiTrendReport /><ControlCenter /></>
+      ? <><NexiDailyBrief /><ControlCenter /><NexiTrendReport /></>
       : tab === 'nexi'
         ? <NexiContextWorkspace />
         : tab === 'report'
