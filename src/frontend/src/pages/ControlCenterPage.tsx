@@ -6,6 +6,7 @@ import { ControlCenter } from '../components/ControlCenter'
 import { ControlCenterContacts } from '../components/ControlCenterContacts'
 import { ControlCenterDocuments } from '../components/ControlCenterDocuments'
 import { NexiContextWorkspace } from '../components/NexiContextWorkspace'
+import { NexiDailyBrief } from '../components/NexiDailyBrief'
 import { NexiMailReport } from '../components/NexiMailReport'
 
 type ControlTab = 'summary' | 'nexi' | 'report' | 'contacts' | 'documents'
@@ -55,7 +56,7 @@ export function ControlCenterPage() {
     </div>
 
     {tab === 'summary'
-      ? <ControlCenter />
+      ? <><NexiDailyBrief /><ControlCenter /></>
       : tab === 'nexi'
         ? <NexiContextWorkspace />
         : tab === 'report'
