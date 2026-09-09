@@ -72,9 +72,9 @@ export function ControlCenterContacts() {
   const data = query.data
   const firstIndex = data.indexedMessages === 0
 
-  return <section className="contact-control" aria-label="Estadísticas de contactos">
+  return <section className="contact-control" aria-label="Interacción por contacto">
     <header className="contact-control-header">
-      <div><p className="eyebrow">Interacción real</p><h2>Contactos</h2></div>
+      <div><p className="eyebrow">Relaciones</p><h2>Interacción por contacto</h2></div>
       <div className="contact-period" aria-label="Período de análisis">
         <button type="button" className={days === 30 ? 'active' : ''} onClick={() => selectPeriod(30)}>30 días</button>
         <button type="button" className={days === 90 ? 'active' : ''} onClick={() => selectPeriod(90)}>90 días</button>
@@ -93,7 +93,7 @@ export function ControlCenterContacts() {
       <article><Send size={14} /><div><strong>{data.totalSent}</strong><span>Enviados</span></div></article>
       <article><MessageSquareReply size={14} /><div><strong>{data.totalReplies}</strong><span>Respuestas</span></div></article>
       <article><Mail size={14} /><div><strong>{data.totalAwaiting}</strong><span>Pendientes</span></div></article>
-      <article><Clock3 size={14} /><div><strong>{responseTimeLabel(data.averageResponseMinutes)}</strong><span>Promedio</span></div></article>
+      <article><Clock3 size={14} /><div><strong>{responseTimeLabel(data.averageResponseMinutes)}</strong><span>Tiempo medio</span></div></article>
     </div>
 
     <div className="contact-toolbar">
