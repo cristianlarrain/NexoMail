@@ -26,6 +26,31 @@
   height: 18px;
 }
 
+.mail-view > .success-notice {
+  overflow: hidden;
+  animation: mailbox-success-dismiss 4.5s ease forwards;
+}
+
+@keyframes mailbox-success-dismiss {
+  0%, 72% {
+    opacity: 1;
+    visibility: visible;
+  }
+  88% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+    visibility: hidden;
+    max-height: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-width: 0;
+  }
+}
+
 @media (min-width: 761px) {
   .sidebar {
     position: fixed;

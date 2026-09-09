@@ -8,10 +8,42 @@ export interface MailAddress { name: string; address: string }
 export interface ContactSuggestion { name: string; emailAddress: string }
 export interface MailThreadMessage { providerMessageId: string; from: MailAddress; htmlBody: string; receivedAt: string; isCurrent: boolean }
 export interface MailSummary { providerMessageId: string; accountId: string; senderName: string; senderAddress: string; subject: string; preview: string; receivedAt: string; isRead: boolean; hasAttachments: boolean; folderId: string }
-export interface MailMessage extends MailSummary { from: MailAddress; to: MailAddress[]; cc: MailAddress[]; htmlBody: string; attachments: MailAttachment[]; thread?: MailThreadMessage[]; unsubscribeUrl?: string | null }
 export interface PagedResult<T> { items: T[]; nextCursor?: string }
+export interface MailMessage extends MailSummary { from: MailAddress; to: MailAddress[]; cc: MailAddress[]; htmlBody: string; attachments: MailAttachment[]; thread?: MailThreadMessage[]; unsubscribeUrl?: string | null }
 export interface ComposeMessage { fromAccountId: string; to: string[]; cc: string[]; bcc: string[]; subject: string; htmlBody: string; attachments: OutgoingAttachment[] }
 export interface AiWritingSuggestion { text: string; subject?: string | null }
+export interface AiSearchInterpretation {
+  textQuery: string
+  gmailQuery: string
+  folder: 'all' | 'inbox' | 'sent'
+  unread: boolean
+  hasAttachments: boolean
+  days?: number | null
+  scope: 'all' | 'mail' | 'contacts' | 'documents'
+  documentType: 'all' | 'pdf' | 'word' | 'excel' | 'image'
+  special: 'none' | 'sent_without_response' | 'received_without_reply'
+  explanation: string
+}
+export interface AiMessageInsight {
+  summary: string
+  meaning: string
+  requestedAction?: string | null
+  keyPoints: string[]
+}
+export interface AiMailReportItem {
+  sender: string
+  subject: string
+  summary: string
+  requestedAction?: string | null
+  importance: 'alta' | 'media' | 'baja'
+}
+export interface AiMailReport {
+  periodLabel: string
+  messageCount: number
+  summary: string
+  items: AiMailReportItem[]
+  actions: string[]
+}
 
 export interface ControlCenterDay { date: string; received: number; sent: number }
 export interface ControlCenterPendingItem {
@@ -63,4 +95,56 @@ export interface ControlCenterActivitySnapshot {
   accounts: ControlCenterAccountActivity[]
   unavailableAccounts: number
   generatedAt: string
+}
+
+export interface ContactAnalyticsItem {
+  email: string
+  name: string
+  accounts: string[]
+  sent: number
+  received: number
+  replies: number
+  awaiting: number
+  averageResponseMinutes: number | null
+  lastInteraction: string
+  subjects: string[]
+}
+export interface ContactAnalyticsSnapshot {
+  days: number
+  contacts: ContactAnalyticsItem[]
+  totalSent: number
+  totalReceived: number
+  totalReplies: number
+  totalAwaiting: number
+  averageResponseMinutes: number | null
+  indexedMessages: number
+  indexedAt?: string | null
+}
+export interface DocumentIndexItem {
+  accountId: string
+  accountName: string
+  messageId: string
+  attachmentId: string
+  fileName: string
+  contentType: string
+  size: number
+  documentType: string
+  receivedAt: string
+  senderName: string
+  senderAddress: string
+  subject: string
+  context: string
+}
+export interface DocumentIndexSnapshot {
+  items: DocumentIndexItem[]
+  total: number
+  hasMore: boolean
+  indexedMessages: number
+  indexedAt?: string | null
+}
+export interface MailMetadataSyncResult {
+  accounts: number
+  messagesIndexed: number
+  attachmentsIndexed: number
+  indexedAt: string
 }

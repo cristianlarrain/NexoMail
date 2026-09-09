@@ -10,6 +10,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexoMail.Infrastructure", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexoMail.Api", "src\\backend\\NexoMail.Api\\NexoMail.Api.csproj", "{84290CC4-7343-46D8-BB38-29C20C532CD1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexoMail.SmokeTests", "src\\backend\\NexoMail.SmokeTests\\NexoMail.SmokeTests.csproj", "{A1F14C82-1B91-4AC8-9E6E-2BAE885632E1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -32,5 +34,9 @@ Global
 		{84290CC4-7343-46D8-BB38-29C20C532CD1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{84290CC4-7343-46D8-BB38-29C20C532CD1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{84290CC4-7343-46D8-BB38-29C20C532CD1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1F14C82-1B91-4AC8-9E6E-2BAE885632E1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1F14C82-1B91-4AC8-9E6E-2BAE885632E1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1F14C82-1B91-4AC8-9E6E-2BAE885632E1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1F14C82-1B91-4AC8-9E6E-2BAE885632E1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

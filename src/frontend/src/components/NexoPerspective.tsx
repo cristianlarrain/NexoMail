@@ -19,26 +19,6 @@ const perspectives: Perspective[] = [
     area: 'Psicología',
   },
   {
-    text: 'Pensar con claridad exige reconocer los sesgos que afectan incluso nuestras decisiones más razonadas.',
-    source: 'Inspirado en Daniel Kahneman',
-    area: 'Psicología',
-  },
-  {
-    text: 'Una sociedad del rendimiento puede confundir actividad permanente con verdadero sentido.',
-    source: 'Inspirado en Byung-Chul Han',
-    area: 'Contemporáneo',
-  },
-  {
-    text: 'La educación amplía nuestra capacidad de comprender vidas, argumentos y realidades distintas de la propia.',
-    source: 'Inspirado en Martha Nussbaum',
-    area: 'Academia',
-  },
-  {
-    text: 'El conocimiento mejora cuando conecta disciplinas y acepta la complejidad en lugar de reducirla demasiado pronto.',
-    source: 'Inspirado en Edgar Morin',
-    area: 'Academia',
-  },
-  {
     text: 'Aprender no es acumular respuestas, sino mejorar la calidad de las preguntas.',
     source: 'Perspectiva académica',
     area: 'Academia',
@@ -49,9 +29,24 @@ const perspectives: Perspective[] = [
     area: 'Pensamiento crítico',
   },
   {
-    text: 'Toda conclusión mejora cuando sabemos qué evidencia la sostiene y qué podría demostrar que estamos equivocados.',
-    source: 'Pensamiento científico',
-    area: 'Pensamiento crítico',
+    text: 'La intuición decide rápido; el juicio riguroso necesita detenerse y revisar sus supuestos.',
+    source: 'Inspirado en Daniel Kahneman',
+    area: 'Psicología',
+  },
+  {
+    text: 'El exceso de información no garantiza comprensión; también necesitamos silencio, selección y criterio.',
+    source: 'Inspirado en Byung-Chul Han',
+    area: 'Contemporáneo',
+  },
+  {
+    text: 'Una educación amplia no sólo prepara para producir: también prepara para comprender a otros y deliberar mejor.',
+    source: 'Inspirado en Martha Nussbaum',
+    area: 'Academia',
+  },
+  {
+    text: 'Los problemas complejos rara vez pertenecen a una sola disciplina; comprenderlos exige conectar saberes.',
+    source: 'Inspirado en Edgar Morin',
+    area: 'Academia',
   },
   {
     text: 'La atención ordena la información; el criterio decide qué merece convertirse en acción.',
@@ -64,9 +59,14 @@ const perspectives: Perspective[] = [
     area: 'Nexo',
   },
   {
-    text: 'Organizar no es sólo clasificar: es construir una forma más clara de comprender lo que tenemos delante.',
-    source: 'Nexo',
-    area: 'Nexo',
+    text: 'La universidad no sólo transmite conocimiento: enseña a contrastarlo, justificarlo y ponerlo a prueba.',
+    source: 'Perspectiva académica',
+    area: 'Academia',
+  },
+  {
+    text: 'Toda conclusión mejora cuando sabemos qué evidencia la sostiene y qué podría demostrar que estamos equivocados.',
+    source: 'Pensamiento científico',
+    area: 'Pensamiento crítico',
   },
 ]
 
@@ -92,7 +92,7 @@ export function NexoPerspective() {
     <span className="nexo-perspective-icon" aria-hidden="true"><BookOpenText size={15} /></span>
     <div className="nexo-perspective-copy">
       <span className="nexo-perspective-label">Perspectiva · {perspective.area}</span>
-      <p>“{perspective.text}” <cite>— {perspective.source}</cite></p>
+      <p>{perspective.text} <cite>— {perspective.source}</cite></p>
     </div>
   </aside>
 }

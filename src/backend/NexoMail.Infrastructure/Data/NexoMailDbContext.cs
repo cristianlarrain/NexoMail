@@ -3,7 +3,7 @@ using NexoMail.Domain;
 
 namespace NexoMail.Infrastructure.Data;
 
-/// <summary>Operational storage only. Mail messages and attachments are never persisted here.</summary>
+/// <summary>Operational storage plus lightweight mail metadata indexes. Message bodies and attachment contents are never persisted here.</summary>
 public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> options) : DbContext(options)
 {
     public DbSet<UserEntity> Users => Set<UserEntity>();
@@ -12,6 +12,9 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
     public DbSet<OAuthCredentialEntity> OAuthCredentials => Set<OAuthCredentialEntity>();
     public DbSet<ControlCenterStateEntity> ControlCenterStates => Set<ControlCenterStateEntity>();
     public DbSet<IgnoredSenderEntity> IgnoredSenders => Set<IgnoredSenderEntity>();
+    public DbSet<MailMessageIndexEntity> MailMessageIndex => Set<MailMessageIndexEntity>();
+    public DbSet<MailAttachmentIndexEntity> MailAttachmentIndex => Set<MailAttachmentIndexEntity>();
+    public DbSet<MailIndexStateEntity> MailIndexStates => Set<MailIndexStateEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -67,6 +70,45 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
             entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne<MailAccountEntity>().WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
         });
+        modelBuilder.Entity<MailMessageIndexEntity>(entity =>
+        {
+            entity.ToTable("MailMessageIndex");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.ProviderMessageId).HasMaxLength(256).IsRequired();
+            entity.Property(x => x.ThreadId).HasMaxLength(256).IsRequired();
+            entity.Property(x => x.Direction).HasMaxLength(16).IsRequired();
+            entity.Property(x => x.FromName).HasMaxLength(320);
+            entity.Property(x => x.FromAddress).HasMaxLength(320).IsRequired();
+            entity.Property(x => x.ToAddresses).HasMaxLength(4000);
+            entity.Property(x => x.Subject).HasMaxLength(1000);
+            entity.Property(x => x.Snippet).HasMaxLength(1200);
+            entity.HasIndex(x => new { x.UserId, x.AccountId, x.ProviderMessageId }).IsUnique();
+            entity.HasIndex(x => new { x.UserId, x.OccurredAt });
+            entity.HasIndex(x => new { x.UserId, x.ThreadId, x.OccurredAt });
+            entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<MailAccountEntity>().WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<MailAttachmentIndexEntity>(entity =>
+        {
+            entity.ToTable("MailAttachmentIndex");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.ProviderMessageId).HasMaxLength(256).IsRequired();
+            entity.Property(x => x.AttachmentId).HasMaxLength(512).IsRequired();
+            entity.Property(x => x.FileName).HasMaxLength(1024).IsRequired();
+            entity.Property(x => x.ContentType).HasMaxLength(256).IsRequired();
+            entity.HasIndex(x => new { x.UserId, x.AccountId, x.ProviderMessageId, x.AttachmentId }).IsUnique();
+            entity.HasIndex(x => new { x.UserId, x.IndexedAt });
+            entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<MailAccountEntity>().WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<MailIndexStateEntity>(entity =>
+        {
+            entity.ToTable("MailIndexStates");
+            entity.HasKey(x => x.AccountId);
+            entity.HasIndex(x => new { x.UserId, x.LastIndexedAt });
+            entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<MailAccountEntity>().WithOne().HasForeignKey<MailIndexStateEntity>(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
+        });
     }
 }
 
@@ -106,3 +148,6 @@ public sealed class MailAccountEntity { public Guid Id { get; set; } public Guid
 public sealed class OAuthCredentialEntity { public Guid Id { get; set; } public Guid MailAccountId { get; set; } public string EncryptedRefreshToken { get; set; } = string.Empty; public DateTimeOffset? ExpiresAt { get; set; } public DateTimeOffset UpdatedAt { get; set; } }
 public sealed class ControlCenterStateEntity { public Guid Id { get; set; } public Guid UserId { get; set; } public Guid AccountId { get; set; } public string ConversationId { get; set; } = string.Empty; public string LastMessageId { get; set; } = string.Empty; public string Status { get; set; } = string.Empty; public DateTimeOffset? SnoozedUntil { get; set; } public DateTimeOffset UpdatedAt { get; set; } }
 public sealed class IgnoredSenderEntity { public Guid Id { get; set; } public Guid UserId { get; set; } public Guid AccountId { get; set; } public string SenderAddress { get; set; } = string.Empty; public DateTimeOffset CreatedAt { get; set; } }
+public sealed class MailMessageIndexEntity { public Guid Id { get; set; } public Guid UserId { get; set; } public Guid AccountId { get; set; } public string ProviderMessageId { get; set; } = string.Empty; public string ThreadId { get; set; } = string.Empty; public string Direction { get; set; } = string.Empty; public string FromName { get; set; } = string.Empty; public string FromAddress { get; set; } = string.Empty; public string ToAddresses { get; set; } = string.Empty; public string Subject { get; set; } = string.Empty; public string Snippet { get; set; } = string.Empty; public DateTimeOffset OccurredAt { get; set; } public bool HasAttachments { get; set; } public DateTimeOffset IndexedAt { get; set; } }
+public sealed class MailAttachmentIndexEntity { public Guid Id { get; set; } public Guid UserId { get; set; } public Guid AccountId { get; set; } public string ProviderMessageId { get; set; } = string.Empty; public string AttachmentId { get; set; } = string.Empty; public string FileName { get; set; } = string.Empty; public string ContentType { get; set; } = string.Empty; public long Size { get; set; } public DateTimeOffset IndexedAt { get; set; } }
+public sealed class MailIndexStateEntity { public Guid AccountId { get; set; } public Guid UserId { get; set; } public DateTimeOffset LastIndexedAt { get; set; } public int WindowDays { get; set; } public int IndexedMessageCount { get; set; } }

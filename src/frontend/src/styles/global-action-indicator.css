@@ -1,0 +1,61 @@
+.global-action-indicator {
+  position: fixed;
+  top: 76px;
+  left: 50%;
+  z-index: 60;
+  width: min(240px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  display: grid;
+  gap: 5px;
+  padding: 7px 10px 8px;
+  border: 1px solid color-mix(in srgb, var(--primary) 34%, var(--border));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow: 0 8px 24px rgb(0 0 0 / .12);
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+}
+
+.global-action-indicator > span {
+  color: color-mix(in srgb, var(--primary) 80%, var(--foreground));
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1;
+  text-align: center;
+}
+
+.global-action-indicator > i {
+  position: relative;
+  display: block;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 12%, var(--border));
+}
+
+.global-action-indicator > i > b {
+  position: absolute;
+  inset-block: 0;
+  left: -38%;
+  width: 38%;
+  border-radius: inherit;
+  background: var(--primary);
+  animation: global-action-progress 1s ease-in-out infinite;
+}
+
+@keyframes global-action-progress {
+  from { left: -38%; }
+  to { left: 100%; }
+}
+
+:root[data-theme="dark"] .global-action-indicator {
+  background: color-mix(in srgb, #14262d 92%, transparent);
+  border-color: color-mix(in srgb, #6cc8ef 42%, var(--border));
+}
+
+@media (max-width: 760px) {
+  .global-action-indicator {
+    top: 72px;
+    width: min(220px, calc(100vw - 24px));
+  }
+}

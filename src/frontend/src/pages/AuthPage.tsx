@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Eye, EyeOff, Mail } from 'lucide-react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { authApi, type RateLimitInfo } from '../api/authApi'
 
 type AuthMode = 'login' | 'register' | 'emailVerify' | 'forgot' | 'verify' | 'reset'
@@ -73,9 +73,8 @@ function withRequestAllowance(message: string, rateLimit?: RateLimitInfo) {
 
 export function AuthPage() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
-  const [mode, setMode] = useState<AuthMode>(() => searchParams.get('mode') === 'register' ? 'register' : 'login')
+  const [mode, setMode] = useState<AuthMode>('login')
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -208,7 +207,7 @@ export function AuthPage() {
 
   return <main className="auth-page">
     <section className="auth-card">
-      <div className="auth-brand"><span className="brand-mark"><Mail size={22} /></span><span className="auth-brand-copy"><strong>NexoMail</strong><small>by EIDOS Digital</small></span></div>
+      <div className="auth-brand"><span className="brand-mark"><Mail size={22} /></span><strong>NexoMail</strong></div>
       <div className="auth-heading"><p className="eyebrow">Correo unificado</p><h1>{heading}</h1><p>{description}</p></div>
 
       {mode === 'emailVerify' ? <form onSubmit={event => { event.preventDefault(); emailVerification.mutate() }}>

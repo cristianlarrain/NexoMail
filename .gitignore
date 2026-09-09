@@ -13,6 +13,9 @@ nexomail.db-wal
 *.db-shm
 *.db-wal
 
+# Respaldos locales de SQLite: no se versionan
+*_respaldo.db
+
 *.user
 *.suo
 

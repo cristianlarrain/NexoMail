@@ -147,9 +147,30 @@
 }
 
 .activity-account-counts b {
+  min-height: 15px;
+  display: flex;
+  align-items: center;
   font-size: 15px;
   line-height: 1;
   font-variant-numeric: tabular-nums;
+}
+
+.activity-account-counts b.activity-count-loading {
+  color: transparent;
+}
+
+.activity-count-spinner {
+  width: 12px;
+  height: 12px;
+  display: inline-block;
+  border: 2px solid color-mix(in srgb, var(--primary) 20%, var(--border));
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: activity-count-spin .65s linear infinite;
+}
+
+@keyframes activity-count-spin {
+  to { transform: rotate(360deg); }
 }
 
 .activity-account-counts small,

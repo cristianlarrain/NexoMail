@@ -10,7 +10,7 @@ using NexoMail.Infrastructure.Data;
 
 namespace NexoMail.Infrastructure.Google;
 
-/// <summary>Creates provider-resident Gmail drafts. Draft content is never persisted by NexoMail.</summary>
+/// <summary>Creates and edits provider-resident Gmail drafts. Draft content is never persisted by NexoMail.</summary>
 public sealed class GmailDraftProvider(
     IHttpClientFactory httpClientFactory,
     NexoMailDbContext database,
@@ -70,6 +70,106 @@ public sealed class GmailDraftProvider(
         {
             response.EnsureSuccessStatusCode();
         }
+    }
+
+    public async Task UpdateDraftAsync(Guid accountId, string draftMessageId, ComposeMessage message, CancellationToken cancellationToken)
+    {
+        var client = await CreateClientAsync(accountId, cancellationToken);
+        await UpdateDraftResourceAsync(client, accountId, draftMessageId, message, cancellationToken);
+    }
+
+    public async Task SendDraftAsync(Guid accountId, string draftMessageId, ComposeMessage message, CancellationToken cancellationToken)
+    {
+        var client = await CreateClientAsync(accountId, cancellationToken);
+        var draftId = await UpdateDraftResourceAsync(client, accountId, draftMessageId, message, cancellationToken);
+        using var response = await client.PostAsJsonAsync("users/me/drafts/send", new { id = draftId }, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    private static async Task<string> UpdateDraftResourceAsync(
+        HttpClient client,
+        Guid accountId,
+        string draftMessageId,
+        ComposeMessage message,
+        CancellationToken cancellationToken)
+    {
+        var draft = await GetDraftSnapshotAsync(client, draftMessageId, cancellationToken);
+        var raw = BuildRfc822(
+            message with { FromAccountId = accountId },
+            draft.InReplyTo,
+            draft.References);
+        var encodedRaw = ToBase64Url(Encoding.UTF8.GetBytes(raw));
+
+        HttpResponseMessage response;
+        if (string.IsNullOrWhiteSpace(draft.ThreadId))
+        {
+            response = await client.PutAsJsonAsync(
+                $"users/me/drafts/{Uri.EscapeDataString(draft.DraftId)}",
+                new { id = draft.DraftId, message = new { raw = encodedRaw } },
+                cancellationToken);
+        }
+        else
+        {
+            response = await client.PutAsJsonAsync(
+                $"users/me/drafts/{Uri.EscapeDataString(draft.DraftId)}",
+                new { id = draft.DraftId, message = new { raw = encodedRaw, threadId = draft.ThreadId } },
+                cancellationToken);
+        }
+
+        using (response)
+        {
+            response.EnsureSuccessStatusCode();
+        }
+
+        return draft.DraftId;
+    }
+
+    private static async Task<DraftSnapshot> GetDraftSnapshotAsync(HttpClient client, string messageId, CancellationToken cancellationToken)
+    {
+        string? pageToken = null;
+        do
+        {
+            var fields = Uri.EscapeDataString("drafts(id,message(id)),nextPageToken");
+            var url = $"users/me/drafts?maxResults=500&fields={fields}";
+            if (!string.IsNullOrWhiteSpace(pageToken)) url += $"&pageToken={Uri.EscapeDataString(pageToken)}";
+
+            using var response = await client.GetAsync(url, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
+
+            if (document.RootElement.TryGetProperty("drafts", out var drafts))
+            {
+                foreach (var draft in drafts.EnumerateArray())
+                {
+                    var currentMessageId = draft.TryGetProperty("message", out var message)
+                        && message.TryGetProperty("id", out var id) ? id.GetString() : null;
+                    if (!string.Equals(currentMessageId, messageId, StringComparison.Ordinal)) continue;
+
+                    var draftId = draft.TryGetProperty("id", out var draftIdElement) ? draftIdElement.GetString() : null;
+                    if (string.IsNullOrWhiteSpace(draftId)) break;
+
+                    using var detailResponse = await client.GetAsync(
+                        $"users/me/drafts/{Uri.EscapeDataString(draftId)}?format=full",
+                        cancellationToken);
+                    detailResponse.EnsureSuccessStatusCode();
+                    using var detail = JsonDocument.Parse(await detailResponse.Content.ReadAsStreamAsync(cancellationToken));
+                    if (!detail.RootElement.TryGetProperty("message", out var detailMessage))
+                        throw new InvalidOperationException("Gmail devolvió un borrador sin mensaje asociado.");
+
+                    var headers = Headers(detailMessage);
+                    return new DraftSnapshot(
+                        draftId,
+                        detailMessage.TryGetProperty("threadId", out var thread) ? thread.GetString() : null,
+                        Header(headers, "In-Reply-To"),
+                        Header(headers, "References"));
+                }
+            }
+
+            pageToken = document.RootElement.TryGetProperty("nextPageToken", out var nextPageToken) ? nextPageToken.GetString() : null;
+        }
+        while (!string.IsNullOrWhiteSpace(pageToken));
+
+        throw new InvalidOperationException("Gmail no encontró el borrador asociado. Actualiza Borradores e inténtalo nuevamente.");
     }
 
     private async Task<HttpClient> CreateClientAsync(Guid accountId, CancellationToken cancellationToken)
@@ -145,4 +245,6 @@ public sealed class GmailDraftProvider(
     private static string Header(Dictionary<string, string> headers, string name) => headers.TryGetValue(name, out var value) ? value : string.Empty;
     private static string EncodeHeader(string value) => value.All(character => character <= 127) ? value : $"=?UTF-8?B?{Convert.ToBase64String(Encoding.UTF8.GetBytes(value))}?=";
     private static string ToBase64Url(byte[] bytes) => Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+    private sealed record DraftSnapshot(string DraftId, string? ThreadId, string InReplyTo, string References);
 }

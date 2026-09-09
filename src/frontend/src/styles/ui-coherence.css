@@ -1,0 +1,84 @@
+:root:not([data-theme="dark"]) {
+  --background: #f2f5f5;
+  --surface-hover: #edf2f3;
+  --border: #d5dee0;
+  --muted: #e8eeef;
+  --shadow: 0 1px 3px rgb(18 42 47 / .08);
+}
+
+.control-center-page.nexi-control-center {
+  display: grid !important;
+  gap: 10px !important;
+}
+
+.control-center-page.nexi-control-center > * {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.control-center-page .nexo-perspective,
+.control-center-page .nexi-daily-brief,
+.control-center-page .nexi-trend-report,
+.control-center-page .nexi-insights-panel,
+.control-center-page .nexi-priority-panel,
+.control-center-page .control-management-panel,
+.control-center-page .activity-panel {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.control-center-page .control-center {
+  display: grid !important;
+  gap: 10px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.control-center-page .control-center > :not(.control-center-header) {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.control-center-page .nexi-daily-brief-grid,
+.control-center-page .nexi-trend-metrics,
+.control-center-page .control-metrics,
+.control-center-page .nexi-insights-grid,
+.control-center-page .nexi-priority-summary,
+.control-center-page .nexi-priority-list,
+.control-center-page .activity-account-selector,
+.control-center-page .control-center-grid,
+.control-center-page .nexi-report-view,
+.control-center-page .nexi-report-overview {
+  gap: 10px !important;
+}
+
+@media (min-width: 761px) {
+  .sidebar:not(.collapsed) {
+    width: 232px !important;
+  }
+
+  .main-content {
+    width: calc(100% - 232px) !important;
+    margin-left: 232px !important;
+    padding: 0 !important;
+  }
+
+  .app-shell:has(.sidebar.collapsed) .main-content {
+    width: calc(100% - 68px) !important;
+    margin-left: 68px !important;
+  }
+
+  .topbar {
+    width: 100% !important;
+    margin: 0 !important;
+    left: 0 !important;
+    border-left: 0 !important;
+    border-radius: 0 !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .control-center-page.nexi-control-center {
+    gap: 10px !important;
+  }
+}

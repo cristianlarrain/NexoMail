@@ -1,0 +1,166 @@
+.nexi-plan-page {
+  gap: 13px;
+}
+
+.nexi-plan-command {
+  border-color: color-mix(in srgb, var(--primary) 34%, var(--border));
+}
+
+.nexi-plan-steps {
+  display: grid;
+  gap: 8px;
+}
+
+.nexi-plan-step {
+  display: grid;
+  grid-template-columns: 24px 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface);
+}
+
+.nexi-plan-step-number {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 9%, var(--surface));
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.nexi-plan-step-icon {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--primary) 7%, var(--surface));
+  color: var(--primary);
+}
+
+.nexi-plan-step > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.nexi-plan-step strong {
+  font-size: 12px;
+}
+
+.nexi-plan-step span:not(.nexi-plan-step-number):not(.nexi-plan-step-icon),
+.nexi-plan-step small {
+  color: var(--muted-foreground, var(--muted));
+  font-size: 11px;
+}
+
+.nexi-plan-step em {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  color: color-mix(in srgb, #a36b14 80%, var(--foreground));
+  background: color-mix(in srgb, #d4a641 10%, var(--surface));
+  padding: 4px 7px;
+  border-radius: 999px;
+}
+
+.nexi-plan-summary {
+  margin-top: 1px;
+}
+
+.nexi-plan-results {
+  display: grid;
+  gap: 7px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.nexi-plan-results > header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+}
+
+.nexi-plan-results > header svg {
+  color: #2c9660;
+}
+
+.nexi-plan-result {
+  display: grid;
+  grid-template-columns: 22px 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+}
+
+.nexi-plan-result > span {
+  width: 21px;
+  height: 21px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  font-weight: 800;
+}
+
+.nexi-plan-result.success {
+  background: color-mix(in srgb, #32a66a 8%, var(--surface));
+}
+
+.nexi-plan-result.success > span {
+  background: color-mix(in srgb, #32a66a 14%, var(--surface));
+  color: color-mix(in srgb, #237c4e 82%, var(--foreground));
+}
+
+.nexi-plan-result.warning {
+  background: color-mix(in srgb, #d4a641 10%, var(--surface));
+}
+
+.nexi-plan-result.warning > span {
+  background: color-mix(in srgb, #d4a641 16%, var(--surface));
+  color: color-mix(in srgb, #946d15 80%, var(--foreground));
+}
+
+.nexi-plan-result small {
+  color: var(--muted-foreground, var(--muted));
+}
+
+.nexi-plan-results .nexi-action-result-actions {
+  margin-top: 3px;
+}
+
+:root[data-theme="dark"] .nexi-plan-step-number,
+:root[data-theme="dark"] .nexi-plan-step-icon {
+  background: color-mix(in srgb, #1b586c 28%, var(--surface));
+  color: #a9eaff;
+}
+
+@media (max-width: 680px) {
+  .nexi-plan-step {
+    grid-template-columns: 24px 30px minmax(0, 1fr);
+  }
+
+  .nexi-plan-step em {
+    grid-column: 3;
+    width: fit-content;
+  }
+
+  .nexi-plan-result {
+    grid-template-columns: 22px 20px minmax(0, 1fr);
+  }
+
+  .nexi-plan-result small {
+    grid-column: 3;
+  }
+}

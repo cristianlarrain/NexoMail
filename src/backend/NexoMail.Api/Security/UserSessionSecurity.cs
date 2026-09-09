@@ -80,35 +80,61 @@ public sealed class NexoMailCookieEvents(NexoMailDbContext database) : CookieAut
             return;
         }
 
-        var now = DateTimeOffset.UtcNow;
-        var session = await database.UserSessions.SingleOrDefaultAsync(
-            x => x.Id == sessionId && x.UserId == userId,
-            context.HttpContext.RequestAborted);
-        var user = await database.Users.AsNoTracking().SingleOrDefaultAsync(
-            x => x.Id == userId && x.IsActive && x.IsEmailVerified,
-            context.HttpContext.RequestAborted);
+        var cancellationToken = context.HttpContext.RequestAborted;
+        if (cancellationToken.IsCancellationRequested) return;
 
-        if (session is null || user is null || session.RevokedAt is not null || session.ExpiresAt <= now)
+        try
         {
-            context.RejectPrincipal();
-            return;
+            var now = DateTimeOffset.UtcNow;
+            var validation = await (
+                from session in database.UserSessions.AsNoTracking()
+                join user in database.Users.AsNoTracking() on session.UserId equals user.Id
+                where session.Id == sessionId
+                    && session.UserId == userId
+                    && user.IsActive
+                    && user.IsEmailVerified
+                select new
+                {
+                    session.Id,
+                    session.RevokedAt,
+                    session.ExpiresAt,
+                    session.LastSeenAt,
+                    session.SecurityStamp,
+                    user.PasswordHash
+                })
+                .SingleOrDefaultAsync(cancellationToken);
+
+            if (validation is null || validation.RevokedAt is not null || validation.ExpiresAt <= now)
+            {
+                context.RejectPrincipal();
+                return;
+            }
+
+            var currentStamp = CreateSecurityStamp(validation.PasswordHash);
+            if (!FixedTimeEquals(validation.SecurityStamp, currentStamp))
+            {
+                await database.UserSessions
+                    .Where(x => x.Id == sessionId && x.UserId == userId)
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.RevokedAt, now), cancellationToken);
+                context.RejectPrincipal();
+                return;
+            }
+
+            if (now - validation.LastSeenAt >= LastSeenWriteInterval)
+            {
+                var ipAddress = Trim(context.HttpContext.Connection.RemoteIpAddress?.ToString(), 64);
+                var userAgent = Trim(context.HttpContext.Request.Headers.UserAgent.ToString(), 512);
+                await database.UserSessions
+                    .Where(x => x.Id == sessionId && x.UserId == userId)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(x => x.LastSeenAt, now)
+                        .SetProperty(x => x.IpAddress, ipAddress)
+                        .SetProperty(x => x.UserAgent, userAgent), cancellationToken);
+            }
         }
-
-        var currentStamp = CreateSecurityStamp(user.PasswordHash);
-        if (!FixedTimeEquals(session.SecurityStamp, currentStamp))
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            session.RevokedAt = now;
-            await database.SaveChangesAsync(context.HttpContext.RequestAborted);
-            context.RejectPrincipal();
-            return;
-        }
-
-        if (now - session.LastSeenAt >= LastSeenWriteInterval)
-        {
-            session.LastSeenAt = now;
-            session.IpAddress = Trim(context.HttpContext.Connection.RemoteIpAddress?.ToString(), 64);
-            session.UserAgent = Trim(context.HttpContext.Request.Headers.UserAgent.ToString(), 512);
-            await database.SaveChangesAsync(context.HttpContext.RequestAborted);
+            // Navigation and prefetch requests can be canceled by the browser. That is not an invalid session.
         }
     }
 

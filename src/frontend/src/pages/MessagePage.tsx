@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Archive, ArrowLeft, Ban, Check, ChevronLeft, ChevronRight, Clock3, Download, EyeOff, FileText, Forward, Paperclip, Reply, ReplyAll, ShieldAlert, Trash2, Undo2, X } from 'lucide-react'
-import { AiWritingAssistant } from '../components/AiWritingAssistant'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { mailApi } from '../api/mailApi'
 import type { ControlCenterPendingItem, ControlCenterSnapshot, MailAttachment, MailSummary, PagedResult } from '../types/mail'
@@ -36,13 +35,48 @@ export function MessagePage() {
   const nextMessage = currentIndex >= 0 && currentIndex < navigationItems.length - 1 ? navigationItems[currentIndex + 1] : null
   const [preview, setPreview] = useState<MailAttachment | null>(null)
   const [confirmTrash, setConfirmTrash] = useState(false)
-  const [trackingResolved, setTrackingResolved] = useState(false)
-  const { data: message, isLoading } = useQuery({ queryKey: ['message', accountId, messageId], queryFn: () => mailApi.message(accountId, messageId), enabled: Boolean(accountId && messageId) })
+  const [finalizationNotice, setFinalizationNotice] = useState<'finalized' | 'reopened' | null>(null)
+  const { data: message, isLoading } = useQuery({
+    queryKey: ['message', accountId, messageId],
+    queryFn: () => mailApi.message(accountId, messageId),
+    enabled: Boolean(accountId && messageId),
+    staleTime: 10 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+  })
+  const threadQuery = useQuery({
+    queryKey: ['message-thread', accountId, messageId],
+    queryFn: () => mailApi.thread(accountId, messageId),
+    enabled: Boolean(accountId && messageId && message),
+    staleTime: 10 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    retry: false,
+  })
+  const canTrackOrFinalize = Boolean(message && !['drafts', 'trash', 'spam'].includes(message.folderId))
   const trackingState = useQuery({
     queryKey: ['control-center-tracking-state', accountId, messageId],
     queryFn: () => mailApi.controlCenterTrackingState(accountId, messageId),
-    enabled: Boolean(accountId && messageId && message && !['drafts', 'trash', 'spam'].includes(message.folderId)),
+    enabled: Boolean(accountId && messageId && canTrackOrFinalize),
     staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
+  })
+  const controlCenterQuery = useQuery({
+    queryKey: ['control-center', accountId],
+    queryFn: () => mailApi.controlCenter(accountId),
+    enabled: Boolean(accountId && messageId && canTrackOrFinalize),
+    staleTime: 90_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+  })
+  const messageStateQuery = useQuery({
+    queryKey: ['control-center-message-state', accountId, messageId],
+    queryFn: () => mailApi.controlCenterMessageState(accountId, messageId),
+    enabled: Boolean(accountId && messageId && canTrackOrFinalize),
+    staleTime: 30_000,
     refetchOnMount: 'always',
     refetchOnWindowFocus: false,
   })
@@ -50,6 +84,9 @@ export function MessagePage() {
   const openedFromIgnored = returnPath.startsWith('/ignored')
   const openedFromControlCenter = returnPath.startsWith('/control-center')
   const openedManualTracking = navigationState?.manualTracking ?? controlCenterItem?.conversationId.startsWith('manual:') ?? false
+  const navigationAutomaticPending = controlCenterItem && !controlCenterItem.conversationId.startsWith('manual:') ? controlCenterItem : undefined
+  const automaticPending = navigationAutomaticPending ?? controlCenterQuery.data?.pendingItems.find(item => item.accountId === accountId && item.messageId === messageId)
+  const isFinalized = messageStateQuery.data?.status === 'resolved' && Boolean(messageStateQuery.data.conversationId)
 
   function removeMessageFromCachedLists() {
     queryClient.setQueriesData<InfiniteData<PagedResult<MailSummary>>>({ queryKey: ['messages'] }, current => current ? {
@@ -73,6 +110,29 @@ export function MessagePage() {
         items: page.items.filter(item => !(item.accountId === accountId && item.senderAddress.trim().toLowerCase() === sender)),
       })),
     } : current)
+  }
+
+  function removePendingFromCachedControlCenter(item: ControlCenterPendingItem) {
+    const resolvedKey = trackingKey(item)
+    queryClient.setQueriesData<ControlCenterSnapshot>({ queryKey: ['control-center'] }, current => {
+      if (!current) return current
+      const pending = current.pendingItems.find(value => trackingKey(value) === resolvedKey)
+      if (!pending) return current
+      const overdueAdjustment = trackingIsOverdue(pending) ? 1 : 0
+      return {
+        ...current,
+        receivedWithoutReply: Math.max(0, current.receivedWithoutReply - (pending.direction === 'received' ? 1 : 0)),
+        sentWithoutResponse: Math.max(0, current.sentWithoutResponse - (pending.direction === 'sent' ? 1 : 0)),
+        overdue: Math.max(0, current.overdue - overdueAdjustment),
+        priorityItems: current.priorityItems.filter(value => trackingKey(value) !== resolvedKey),
+        pendingItems: current.pendingItems.filter(value => trackingKey(value) !== resolvedKey),
+        accounts: current.accounts.map(account => account.accountId !== pending.accountId ? account : {
+          ...account,
+          receivedWithoutReply: Math.max(0, account.receivedWithoutReply - (pending.direction === 'received' ? 1 : 0)),
+          sentWithoutResponse: Math.max(0, account.sentWithoutResponse - (pending.direction === 'sent' ? 1 : 0)),
+        }),
+      }
+    })
   }
 
   function refreshControlCenter() {
@@ -133,51 +193,62 @@ export function MessagePage() {
       refreshManualTracking()
     },
   })
-  const resolveTracking = useMutation({
+  const finalizeMessage = useMutation({
     mutationFn: async () => {
-      if (!controlCenterItem) throw new Error('Este correo no tiene información de seguimiento asociada.')
-      await mailApi.updateControlCenterState(controlCenterItem.accountId, controlCenterItem.conversationId, { messageId: controlCenterItem.messageId, action: 'resolved' })
+      if (!automaticPending) throw new Error('Este correo no tiene una acción automática pendiente.')
+      await mailApi.updateControlCenterState(automaticPending.accountId, automaticPending.conversationId, { messageId: automaticPending.messageId, action: 'resolved' })
+      return automaticPending
+    },
+    onSuccess: item => {
+      removePendingFromCachedControlCenter(item)
+      queryClient.setQueryData(['control-center-tracking-state', accountId, messageId], { isTracked: false })
+      queryClient.setQueryData(['control-center-message-state', accountId, messageId], { status: 'resolved', conversationId: item.conversationId })
+      setFinalizationNotice('finalized')
+      refreshManualTracking()
+    },
+  })
+  const reopenMessage = useMutation({
+    mutationFn: async () => {
+      const conversationId = messageStateQuery.data?.conversationId
+      if (!conversationId) throw new Error('No fue posible identificar la conversación finalizada.')
+      await mailApi.updateControlCenterState(accountId, conversationId, { messageId, action: 'active' })
     },
     onSuccess: () => {
-      if (controlCenterItem) {
-        const resolvedKey = trackingKey(controlCenterItem)
-        queryClient.setQueriesData<ControlCenterSnapshot>({ queryKey: ['control-center'] }, current => {
-          if (!current) return current
-          const pending = current.pendingItems.find(item => trackingKey(item) === resolvedKey)
-          if (!pending) return current
-          const overdueAdjustment = trackingIsOverdue(pending) ? 1 : 0
-          return {
-            ...current,
-            receivedWithoutReply: Math.max(0, current.receivedWithoutReply - (pending.direction === 'received' ? 1 : 0)),
-            sentWithoutResponse: Math.max(0, current.sentWithoutResponse - (pending.direction === 'sent' ? 1 : 0)),
-            overdue: Math.max(0, current.overdue - overdueAdjustment),
-            priorityItems: current.priorityItems.filter(item => trackingKey(item) !== resolvedKey),
-            pendingItems: current.pendingItems.filter(item => trackingKey(item) !== resolvedKey),
-            accounts: current.accounts.map(account => account.accountId !== pending.accountId ? account : {
-              ...account,
-              receivedWithoutReply: Math.max(0, account.receivedWithoutReply - (pending.direction === 'received' ? 1 : 0)),
-              sentWithoutResponse: Math.max(0, account.sentWithoutResponse - (pending.direction === 'sent' ? 1 : 0)),
-            }),
-          }
-        })
-      }
-      setTrackingResolved(true)
+      queryClient.setQueryData(['control-center-message-state', accountId, messageId], { status: 'active', conversationId: null })
+      setFinalizationNotice('reopened')
       refreshControlCenter()
     },
   })
 
   useEffect(() => { if (message && !message.isRead) read.mutate() }, [message])
-  useEffect(() => { setPreview(null); setConfirmTrash(false); setTrackingResolved(false) }, [accountId, messageId])
+  useEffect(() => { setPreview(null); setConfirmTrash(false); setFinalizationNotice(null) }, [accountId, messageId])
+  useEffect(() => {
+    if (!message) return
+    for (const item of [previousMessage, nextMessage]) {
+      if (!item) continue
+      void queryClient.prefetchQuery({
+        queryKey: ['message', item.accountId, item.messageId],
+        queryFn: () => mailApi.message(item.accountId, item.messageId),
+        staleTime: 10 * 60_000,
+      })
+    }
+  }, [message, nextMessage?.accountId, nextMessage?.messageId, previousMessage?.accountId, previousMessage?.messageId, queryClient])
+
   if (isLoading || !message) return <section className="mail-view"><div className="reading-skeleton" /></section>
   const compose = (mode: 'reply' | 'replyAll' | 'forward', initialBody?: string) => navigate('/compose', { state: { mode, message, initialBody, returnTo: location.pathname, returnState: navigationState } })
   const goToMessage = (item: MessageNavigationItem | null) => {
     if (!item) return
+    void queryClient.prefetchQuery({
+      queryKey: ['message', item.accountId, item.messageId],
+      queryFn: () => mailApi.message(item.accountId, item.messageId),
+      staleTime: 10 * 60_000,
+    })
     navigate(`/message/${item.accountId}/${item.messageId}`, { state: navigationState })
   }
   const returnToPreviousView = () => navigationState?.returnTo ? navigate(navigationState.returnTo) : navigate(-1)
   const previewUrl = preview ? mailApi.attachmentUrl(accountId, messageId, preview) : ''
   const downloadUrl = preview ? mailApi.attachmentUrl(accountId, messageId, preview, true) : ''
-  const mailboxActionPending = move.isPending || ignore.isPending || unignore.isPending || trash.isPending || resolveTracking.isPending || trackMessage.isPending || untrackMessage.isPending
+  const mailboxActionPending = move.isPending || ignore.isPending || unignore.isPending || trash.isPending || finalizeMessage.isPending || reopenMessage.isPending || trackMessage.isPending || untrackMessage.isPending
   const isDraft = message.folderId === 'drafts'
   const isArchived = message.folderId === 'archive'
   const canRestoreToInbox = isArchived || message.folderId === 'spam' || message.folderId === 'trash'
@@ -186,7 +257,10 @@ export function MessagePage() {
   const canManualTrack = !['drafts', 'trash', 'spam'].includes(message.folderId)
   const isManuallyTracked = trackingState.data?.isTracked ?? openedManualTracking
   const trackingMutationError = trackMessage.error ?? untrackMessage.error
+  const finalizationError = finalizeMessage.error ?? reopenMessage.error
   const destructiveActionLabel = isDraft ? 'Descartar borrador' : 'Mover a Papelera'
+  const thread = [...(threadQuery.data ?? [])].sort((left, right) => new Date(right.receivedAt).getTime() - new Date(left.receivedAt).getTime())
+
   return <article className={`mail-view message-reader ${preview ? 'with-preview' : ''}`}>
     <section className="message-reading-pane">
       <div className="message-navigation"><button className="back-link" onClick={returnToPreviousView}><ArrowLeft size={17} /> {openedFromControlCenter ? 'Volver al Centro de control' : 'Volver'}</button><div className="message-navigation-arrows" aria-label="Navegación entre correos"><button className="icon-button" onClick={() => goToMessage(previousMessage)} disabled={!previousMessage} aria-label="Correo anterior" title="Correo anterior"><ChevronLeft size={19} /></button><button className="icon-button" onClick={() => goToMessage(nextMessage)} disabled={!nextMessage} aria-label="Correo siguiente" title="Correo siguiente"><ChevronRight size={19} /></button></div></div>
@@ -203,7 +277,9 @@ export function MessagePage() {
         {message.unsubscribeUrl && <a className="message-action-button" href={message.unsubscribeUrl} target="_blank" rel="noopener noreferrer" aria-label="Desuscribirse" title="Desuscribirse"><Ban size={16} /><span>Desuscribirse</span></a>}
         {canManualTrack && !controlCenterItem && <><span className="message-action-separator" aria-hidden="true" />{isManuallyTracked ? <button className="message-action-button" aria-label="Quitar seguimiento" title="Quitar este correo del seguimiento manual" disabled={mailboxActionPending} onClick={() => untrackMessage.mutate()}><Check size={16} /><span>Quitar seguimiento</span></button> : <button className="message-action-button" aria-label="Hacer seguimiento" title="Añadir este correo a Seguimiento prioritario" disabled={mailboxActionPending || trackingState.isLoading} onClick={() => trackMessage.mutate()}><Clock3 size={16} /><span>Hacer seguimiento</span></button>}</>}
         {openedManualTracking && <><span className="message-action-separator" aria-hidden="true" /><button className="message-action-button" aria-label="Quitar seguimiento" title="Quitar este correo del seguimiento manual" disabled={mailboxActionPending} onClick={() => untrackMessage.mutate()}><Check size={16} /><span>Quitar seguimiento</span></button></>}
-        {controlCenterItem && !openedManualTracking && !trackingResolved && <><span className="message-action-separator" aria-hidden="true" /><button className="message-action-button" aria-label={controlCenterItem.direction === 'received' ? 'No requiere respuesta' : 'No requiere seguimiento'} title="Retirar esta conversación del seguimiento automático" disabled={mailboxActionPending} onClick={() => resolveTracking.mutate()}><Check size={16} /><span>{controlCenterItem.direction === 'received' ? 'No requiere respuesta' : 'No requiere seguimiento'}</span></button></>}
+        {canTrackOrFinalize && (isFinalized || automaticPending) && <span className="message-action-separator" aria-hidden="true" />}
+        {canTrackOrFinalize && isFinalized && <button className="message-action-button" aria-label="Deshacer finalización" title="Volver a evaluar esta conversación como pendiente" disabled={mailboxActionPending} onClick={() => reopenMessage.mutate()}><Undo2 size={16} /><span>Deshacer finalización</span></button>}
+        {canTrackOrFinalize && !isFinalized && automaticPending && <button className="message-action-button finalize-action" aria-label="Finalizar" title="Este correo no requiere ninguna acción. Retirarlo de pendientes." disabled={mailboxActionPending} onClick={() => finalizeMessage.mutate()}><Check size={16} /><span>Finalizar</span></button>}
         <span className="message-action-separator" aria-hidden="true" />
         <button className="message-action-button danger-action" aria-label={destructiveActionLabel} title={destructiveActionLabel} disabled={mailboxActionPending} onClick={() => setConfirmTrash(true)}><Trash2 size={16} /><span>{destructiveActionLabel}</span></button>
       </div>
@@ -211,13 +287,13 @@ export function MessagePage() {
 
       {trackMessage.isSuccess && <div className="success-notice">Correo añadido a Seguimiento prioritario.</div>}
       {untrackMessage.isSuccess && <div className="success-notice">Seguimiento manual retirado. El correo no fue movido ni eliminado.</div>}
-      {trackingResolved && <div className="success-notice">Conversación retirada del seguimiento automático. El correo no fue movido ni eliminado.</div>}
+      {finalizationNotice === 'finalized' && <div className="success-notice">Finalizado. Este correo ya no se considera pendiente y no fue movido ni eliminado.</div>}
+      {finalizationNotice === 'reopened' && <div className="success-notice">Finalización deshecha. NexoMail volverá a evaluar esta conversación.</div>}
       {trackingMutationError && <div className="notice message-mailbox-error">{trackingMutationError instanceof Error ? trackingMutationError.message : 'No fue posible actualizar el seguimiento manual.'}</div>}
-      {resolveTracking.isError && <div className="notice message-mailbox-error">{resolveTracking.error instanceof Error ? resolveTracking.error.message : 'No fue posible actualizar el seguimiento.'}</div>}
+      {finalizationError && <div className="notice message-mailbox-error">{finalizationError instanceof Error ? finalizationError.message : 'No fue posible actualizar el estado de la conversación.'}</div>}
       {(move.isError || ignore.isError || unignore.isError) && <div className="notice message-mailbox-error">No fue posible completar la acción sobre este correo.</div>}
 
-      {message.thread && message.thread.length > 1 ? <section className="thread-view"><h2>Conversación</h2>{message.thread.map(item => <article className={`thread-message ${item.isCurrent ? 'current' : ''}`} key={item.providerMessageId}><header><strong>{item.from.name}</strong><span>{item.from.address} · {new Date(item.receivedAt).toLocaleString('es-CL')}</span></header><div dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(item.htmlBody) }} /></article>)}</section> : <div className="message-body" dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(message.htmlBody) }} />}
-      {message.folderId !== 'sent' && <AiWritingAssistant mode="reply" accountId={accountId} messageId={messageId} onUse={suggestion => compose('reply', suggestion.text)} />}
+      {thread.length > 1 ? <section className="thread-view"><h2>Conversación</h2>{thread.map(item => <article className={`thread-message ${item.isCurrent ? 'current' : ''}`} key={item.providerMessageId}><header><strong>{item.from.name}</strong><span>{item.from.address} · {new Date(item.receivedAt).toLocaleString('es-CL')}</span></header><div dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(item.htmlBody) }} /></article>)}</section> : <div className="message-body" dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(message.htmlBody) }} />}
       {message.attachments.length > 0 && <div className="attachments"><h2><Paperclip size={16} /> Adjuntos</h2><div className="attachment-list">{message.attachments.map(file => <div key={file.id} className={`attachment-card ${preview?.id === file.id ? 'selected' : ''}`}><button type="button" className="attachment-preview-button" onClick={() => setPreview(file)} title="Abrir vista previa"><Paperclip size={17} /><span><strong>{file.name}</strong><small>{Math.max(1, Math.round(file.size / 1000))} KB · Vista previa</small></span></button><a href={mailApi.attachmentUrl(accountId, messageId, file, true)} className="attachment-download" title={`Descargar ${file.name}`} aria-label={`Descargar ${file.name}`}><Download size={16} /></a></div>)}</div></div>}
       <div className="reply-bar message-action-footer"><button className="message-action-button primary-action" onClick={() => compose('reply')}><Reply size={16} /> Responder</button><button className="message-action-button" onClick={() => compose('replyAll')}><ReplyAll size={16} /> Responder a todos</button><button className="message-action-button" onClick={() => compose('forward')}><Forward size={16} /> Reenviar</button></div>
     </section>

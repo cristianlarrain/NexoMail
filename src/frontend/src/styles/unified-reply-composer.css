@@ -1,0 +1,5 @@
+/* The mail reader no longer embeds the legacy AI reply form.
+   Every reply action opens the single reusable ComposePage template instead. */
+.message-reader .compact-reply-assistant {
+  display: none !important;
+}

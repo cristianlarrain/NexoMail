@@ -1,0 +1,64 @@
+name: Control center smoke test
+
+on:
+  push:
+    branches:
+      - feature/nexi-assistant
+  workflow_dispatch:
+
+jobs:
+  control-center:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore backend smoke test
+        run: dotnet restore src/backend/NexoMail.ControlCenterSmokeTests/NexoMail.ControlCenterSmokeTests.csproj
+
+      - name: Build backend smoke test
+        run: dotnet build src/backend/NexoMail.ControlCenterSmokeTests/NexoMail.ControlCenterSmokeTests.csproj --configuration Release --no-restore
+
+      - name: Run control center smoke test
+        id: smoke
+        continue-on-error: true
+        shell: bash
+        run: |
+          dotnet run --project src/backend/NexoMail.ControlCenterSmokeTests/NexoMail.ControlCenterSmokeTests.csproj --configuration Release --no-build 2>&1 | tee control-center-smoke.log
+
+      - name: Upload smoke diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: control-center-smoke-log
+          path: control-center-smoke.log
+          if-no-files-found: error
+
+      - name: Fail on smoke test error
+        if: ${{ steps.smoke.outcome == 'failure' }}
+        run: exit 1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: src/frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: src/frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        working-directory: src/frontend
+        run: pnpm build

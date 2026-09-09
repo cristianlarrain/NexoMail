@@ -1,0 +1,317 @@
+.nexi-action-page {
+  display: grid;
+  gap: 14px;
+}
+
+.nexi-action-heading {
+  align-items: center;
+}
+
+.nexi-action-command {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 13px 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, #e8f7ff 58%, var(--surface));
+}
+
+.nexi-action-command-icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+  color: var(--primary);
+}
+
+.nexi-action-command > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.nexi-action-command strong {
+  font-size: 13px;
+}
+
+.nexi-action-command span,
+.nexi-action-command small {
+  color: var(--muted-foreground, var(--muted));
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.nexi-action-command .nexi-action-scope {
+  width: fit-content;
+  margin-top: 3px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+  color: var(--foreground);
+}
+
+.nexi-action-command .nexi-action-scope b {
+  color: var(--primary);
+  font-weight: 750;
+}
+
+.nexi-action-command small {
+  margin-top: 3px;
+  font-style: italic;
+}
+
+.nexi-action-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.nexi-action-summary > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.nexi-action-summary > div > svg {
+  color: var(--primary);
+}
+
+.nexi-trash-action-button,
+.nexi-agent-action-button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 8px;
+  padding: 0 11px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nexi-trash-action-button {
+  border: 1px solid color-mix(in srgb, #c6453b 55%, var(--border));
+  background: color-mix(in srgb, #d95d52 10%, var(--surface));
+  color: #b9433a;
+}
+
+.nexi-agent-action-button {
+  border: 1px solid color-mix(in srgb, var(--primary) 38%, var(--border));
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  color: var(--primary);
+}
+
+.nexi-agent-action-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary) 15%, var(--surface));
+}
+
+.nexi-trash-action-button:disabled,
+.nexi-agent-action-button:disabled {
+  opacity: .55;
+  cursor: default;
+}
+
+.nexi-action-limit,
+.nexi-action-subset-note,
+.nexi-action-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.nexi-action-limit,
+.nexi-action-result.warning {
+  background: color-mix(in srgb, #d4a641 11%, var(--surface));
+  color: color-mix(in srgb, #946d15 80%, var(--foreground));
+}
+
+.nexi-action-subset-note {
+  background: color-mix(in srgb, var(--primary) 7%, var(--surface));
+  color: var(--muted-foreground, var(--muted));
+}
+
+.nexi-action-subset-note svg {
+  flex: 0 0 auto;
+  color: var(--primary);
+}
+
+.nexi-action-result.success {
+  background: color-mix(in srgb, #32a66a 10%, var(--surface));
+  color: color-mix(in srgb, #237c4e 82%, var(--foreground));
+}
+
+.nexi-action-result > svg {
+  flex: 0 0 auto;
+}
+
+.nexi-action-result > span {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.nexi-action-result-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+}
+
+.nexi-action-result-actions .secondary-button {
+  min-height: 30px;
+  padding-inline: 9px;
+  font-size: 11px;
+}
+
+.nexi-action-selection-header {
+  gap: 10px;
+}
+
+.nexi-action-selection-header > div:first-child {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.nexi-action-selection-header > div:first-child > span {
+  color: var(--muted-foreground, var(--muted));
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.nexi-action-selection-controls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.nexi-action-selection-controls button {
+  min-height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0 8px;
+  background: var(--surface);
+  color: var(--muted-foreground, var(--muted));
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.nexi-action-selection-controls button:hover {
+  border-color: color-mix(in srgb, var(--primary) 38%, var(--border));
+  color: var(--primary);
+}
+
+.nexi-action-select-row {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: stretch;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.nexi-action-select-row:last-child {
+  border-bottom: 0;
+}
+
+.nexi-action-select-row:not(.selected) {
+  opacity: .58;
+}
+
+.nexi-action-select-row .universal-mail-result {
+  border-bottom: 0;
+}
+
+.nexi-action-checkbox {
+  display: grid;
+  place-items: center;
+  border-right: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.nexi-action-checkbox:hover {
+  background: color-mix(in srgb, var(--primary) 5%, var(--surface));
+}
+
+.nexi-action-checkbox input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.nexi-action-not-applicable {
+  opacity: .56;
+}
+
+.nexi-action-empty {
+  min-height: 45vh;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  text-align: center;
+  color: var(--muted-foreground, var(--muted));
+}
+
+.nexi-action-empty span {
+  max-width: 520px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+:root[data-theme="dark"] .nexi-action-command {
+  background: color-mix(in srgb, #174457 50%, var(--surface));
+}
+
+:root[data-theme="dark"] .nexi-agent-action-button {
+  border-color: color-mix(in srgb, #78d4f8 34%, var(--border));
+  background: color-mix(in srgb, #1b586c 28%, var(--surface));
+  color: #a9eaff;
+}
+
+@media (max-width: 680px) {
+  .nexi-action-summary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .nexi-trash-action-button,
+  .nexi-agent-action-button {
+    justify-content: center;
+  }
+
+  .nexi-action-result {
+    flex-wrap: wrap;
+  }
+
+  .nexi-action-result-actions {
+    width: 100%;
+    margin-left: 23px;
+    flex-wrap: wrap;
+  }
+
+  .nexi-action-selection-header {
+    align-items: flex-start !important;
+    flex-direction: column;
+  }
+
+  .nexi-action-select-row {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+}

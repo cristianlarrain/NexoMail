@@ -1,25 +1,24 @@
 .nexo-perspective {
-  min-height: 52px;
+  min-height: 48px;
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 9px 13px;
-  border: 1px solid color-mix(in srgb, var(--primary) 14%, var(--border));
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--primary) 16%, var(--border));
   border-radius: 10px;
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--primary) 5%, var(--surface)), var(--surface));
-  color: var(--foreground);
+  background: color-mix(in srgb, var(--primary) 3%, var(--surface));
+  overflow: hidden;
 }
 
 .nexo-perspective-icon {
-  width: 30px;
-  height: 30px;
-  flex: 0 0 30px;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
   display: grid;
   place-items: center;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--primary) 8%, var(--surface));
   color: color-mix(in srgb, var(--primary) 78%, var(--foreground));
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .nexo-perspective-copy {
@@ -29,9 +28,9 @@
 }
 
 .nexo-perspective-label {
-  color: var(--muted-foreground);
+  color: color-mix(in srgb, var(--primary) 72%, var(--muted-foreground));
   font-size: 9px;
-  font-weight: 700;
+  font-weight: 750;
   letter-spacing: .08em;
   text-transform: uppercase;
 }
@@ -41,7 +40,8 @@
   overflow: hidden;
   color: color-mix(in srgb, var(--foreground) 88%, var(--muted-foreground));
   font-family: Georgia, 'Times New Roman', serif;
-  font-size: 12.5px;
+  font-size: 12px;
+  font-style: italic;
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -50,25 +50,26 @@
 .nexo-perspective cite {
   color: var(--muted-foreground);
   font-family: inherit;
-  font-size: 11px;
+  font-size: 10px;
   font-style: normal;
 }
 
 :root[data-theme="dark"] .nexo-perspective {
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--primary) 7%, var(--surface)), var(--surface));
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
 }
 
-@media (max-width: 700px) {
+@media (max-width: 760px) {
   .nexo-perspective {
     align-items: flex-start;
   }
 
   .nexo-perspective p {
-    display: -webkit-box;
-    overflow: hidden;
     white-space: normal;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nexo-perspective {
+    scroll-behavior: auto;
   }
 }

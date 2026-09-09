@@ -1,5 +1,7 @@
+using Microsoft.EntityFrameworkCore;
 using NexoMail.Application;
 using NexoMail.Infrastructure;
+using NexoMail.Infrastructure.Data;
 
 namespace NexoMail.Api;
 
@@ -20,6 +22,34 @@ public static class ControlCenterTrackingEndpoints
             CancellationToken ct) =>
             Results.Ok(new { isTracked = await service.IsTrackedAsync(accountId, messageId, ct) }));
 
+        mail.MapGet("/control-center/state/{accountId:guid}/{messageId}", async (
+            NexoMailDbContext database,
+            IUserContext userContext,
+            Guid accountId,
+            string messageId,
+            CancellationToken ct) =>
+        {
+            var normalizedMessageId = messageId.Trim();
+            var rows = await database.ControlCenterStates
+                .AsNoTracking()
+                .Where(x => x.UserId == userContext.UserId
+                    && x.AccountId == accountId
+                    && x.LastMessageId == normalizedMessageId
+                    && !x.ConversationId.StartsWith("manual:")
+                    && (x.Status == "resolved" || x.Status == "snoozed"))
+                .ToArrayAsync(ct);
+            var state = rows.OrderByDescending(x => x.UpdatedAt).FirstOrDefault();
+            if (state is null)
+                return Results.Ok(new { status = "active", conversationId = (string?)null });
+
+            var status = string.Equals(state.Status, "snoozed", StringComparison.OrdinalIgnoreCase)
+                && state.SnoozedUntil is { } until
+                && until <= DateTimeOffset.UtcNow
+                ? "active"
+                : state.Status;
+            return Results.Ok(new { status, conversationId = state.ConversationId });
+        });
+
         mail.MapPost("/control-center/tracking/{accountId:guid}/{messageId}", async (
             ControlCenterTrackingService service,
             MailReadCache cache,
@@ -32,7 +62,7 @@ public static class ControlCenterTrackingEndpoints
             {
                 var updated = await service.TrackAsync(accountId, messageId, ct);
                 if (!updated) return Results.NotFound();
-                cache.Invalidate(userContext.UserId.ToString());
+                cache.InvalidateAreas(userContext.UserId.ToString(), "control-center");
                 return Results.NoContent();
             }
             catch (InvalidOperationException exception)
@@ -51,7 +81,7 @@ public static class ControlCenterTrackingEndpoints
         {
             var updated = await service.UntrackAsync(accountId, messageId, ct);
             if (!updated) return Results.NotFound();
-            cache.Invalidate(userContext.UserId.ToString());
+            cache.InvalidateAreas(userContext.UserId.ToString(), "control-center");
             return Results.NoContent();
         });
 

@@ -1,0 +1,28 @@
+name: Draft lifecycle smoke test
+
+on:
+  push:
+    branches:
+      - feature/nexi-assistant
+  workflow_dispatch:
+
+jobs:
+  draft-lifecycle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore NexoMail.sln
+
+      - name: Build
+        run: dotnet build NexoMail.sln --configuration Release --no-restore
+
+      - name: Run draft lifecycle smoke test
+        run: dotnet run --project src/backend/NexoMail.SmokeTests/NexoMail.SmokeTests.csproj --configuration Release --no-build

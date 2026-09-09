@@ -70,12 +70,13 @@
   background: color-mix(in srgb, var(--muted) 22%, var(--surface));
 }
 .ai-reply-source-body {
-  max-height: 112px;
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
   padding: 10px 20px 11px;
   color: color-mix(in srgb, var(--foreground) 82%, var(--muted-foreground));
   font-size: 10.5px;
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 .ai-reply-source-body > :first-child { margin-top: 0; }
 .ai-reply-source-body > :last-child { margin-bottom: 0; }
@@ -122,19 +123,44 @@
 .ai-compose-footer {
   min-height: 64px;
   height: auto !important;
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 10px;
   padding: 11px 20px;
+  overflow-x: auto;
   border-top: 1px solid color-mix(in srgb, var(--primary) 15%, var(--border)) !important;
   background: color-mix(in srgb, var(--primary) 3%, var(--surface));
 }
 .ai-compose-footer-left,
 .ai-compose-footer-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  display: contents !important;
 }
-.ai-compose-footer-actions { margin-left: auto; }
+.ai-compose-footer .attachment-action,
+.ai-compose-footer .secondary-button,
+.ai-compose-footer .primary-button {
+  min-height: 42px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+.ai-compose-footer .attachment-action {
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--foreground);
+}
+.ai-compose-footer .attachment-action:hover {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  color: var(--primary);
+}
 .ai-compose-footer .primary-button { min-width: 118px; }
-.ai-compose-footer .secondary-button { white-space: nowrap; }
 .compose-discard-button { color: var(--muted-foreground); }
 .compose-discard-button:hover {
   border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
@@ -163,13 +189,11 @@
   .ai-compose-editor { padding-inline: 15px; }
   .ai-compose-editor-heading { align-items: flex-start; flex-direction: column; justify-content: center; gap: 2px; padding: 9px 0; }
   .ai-compose-editor-heading > div { display: flex; }
-  .ai-compose-footer { align-items: stretch; flex-direction: column; gap: 9px; padding-inline: 15px; }
-  .ai-compose-footer-left,
-  .ai-compose-footer-actions { width: 100%; }
-  .ai-compose-footer-actions { margin-left: 0; }
-  .ai-compose-footer-actions .secondary-button,
-  .ai-compose-footer-actions .primary-button { flex: 1; min-width: 0; }
+  .ai-compose-footer {
+    justify-content: flex-start !important;
+    padding-inline: 15px;
+  }
   .ai-review-banner { align-items: flex-start; flex-direction: column; padding-inline: 15px; }
   .ai-add-copy { margin-left: 0 !important; }
-  .ai-reply-source-body { max-height: 100px; padding-inline: 15px; }
+  .ai-reply-source-body { padding-inline: 15px; }
 }

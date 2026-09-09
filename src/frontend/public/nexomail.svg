@@ -1,5 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="8" fill="#0f6b78"/>
-  <rect x="6" y="9" width="20" height="14" rx="2.5" fill="none" stroke="#fff" stroke-width="2.2"/>
-  <path d="M7.5 11 16 17l8.5-6" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+  <defs>
+    <linearGradient id="nexo" x1="5" y1="5" x2="35" y2="35" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0f6b78"/>
+      <stop offset="1" stop-color="#35c8e8"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="36" height="36" rx="11" fill="url(#nexo)"/>
+  <path d="M10.5 27V13.5L29.5 27V13.5" fill="none" stroke="#fff" stroke-width="2.65" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M10.5 14.5 20 21.2l9.5-6.7" fill="none" stroke="#fff" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round" opacity=".92"/>
 </svg>

@@ -1,0 +1,62 @@
+.nexi-formatted-text {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  color: var(--foreground);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.nexi-formatted-text h4 {
+  margin: 4px 0 0;
+  padding-bottom: 4px;
+  border-bottom: 1px solid color-mix(in srgb, var(--primary) 16%, var(--border));
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: .025em;
+  text-transform: uppercase;
+}
+
+.nexi-formatted-text h4:first-child {
+  margin-top: 0;
+}
+
+.nexi-formatted-text p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.nexi-formatted-text ul,
+.nexi-formatted-text ol {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.nexi-formatted-text li {
+  padding-left: 2px;
+  overflow-wrap: anywhere;
+}
+
+.nexi-formatted-text li::marker {
+  color: var(--primary);
+  font-weight: 750;
+}
+
+.nexi-formatted-text strong {
+  color: var(--foreground);
+  font-weight: 750;
+}
+
+.nexi-context-turn.nexi .nexi-formatted-text {
+  min-width: min(620px, 72vw);
+}
+
+@media (max-width: 760px) {
+  .nexi-context-turn.nexi .nexi-formatted-text {
+    min-width: 0;
+  }
+}

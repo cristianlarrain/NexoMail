@@ -1,0 +1,113 @@
+.landing-commercial-plans {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.landing-commercial-plans > article {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.landing-plan-price {
+  display: grid;
+  gap: 4px;
+  margin: 16px 0 4px;
+}
+
+.landing-plan-price strong {
+  color: var(--foreground);
+  font-size: 27px;
+  line-height: 1;
+  letter-spacing: -.045em;
+}
+
+.landing-plan-price span {
+  color: var(--muted-foreground);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
+.landing-commercial-plans > article > a {
+  margin-top: auto;
+}
+
+.landing-commercial-plans .white-label-plan {
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
+  background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 5%, var(--surface)), var(--surface));
+}
+
+.landing-pricing-note {
+  margin: 18px 0 0;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  text-align: center;
+}
+
+.landing-white-label {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) minmax(280px, .72fr);
+  align-items: center;
+  gap: 30px;
+  padding-block: 58px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.landing-white-label-icon {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--primary) 32%, var(--border));
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+  color: var(--primary);
+}
+
+.landing-white-label h2 {
+  margin: 8px 0 0;
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.08;
+  letter-spacing: -.04em;
+}
+
+.landing-white-label p {
+  margin: 13px 0 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.landing-white-label-points {
+  display: grid;
+  gap: 8px;
+}
+
+.landing-white-label-points span {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.landing-white-label-points svg { color: var(--primary); }
+
+@media (max-width: 1080px) {
+  .landing-commercial-plans { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .landing-white-label { grid-template-columns: 64px minmax(0, 1fr); }
+  .landing-white-label-points { grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 700px) {
+  .landing-commercial-plans { grid-template-columns: 1fr; }
+  .landing-white-label { grid-template-columns: 1fr; gap: 18px; }
+  .landing-white-label-points { grid-column: auto; grid-template-columns: 1fr; }
+}

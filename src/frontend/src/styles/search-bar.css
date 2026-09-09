@@ -1,0 +1,173 @@
+.top-search {
+  position: relative;
+  min-height: 40px;
+  height: auto;
+  max-width: 700px;
+  display: flex;
+  align-items: center;
+  padding: 5px 7px 5px 12px;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, var(--primary) 42%, var(--border));
+  background: color-mix(in srgb, #dff4ff 78%, var(--surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 8%, transparent), 0 4px 14px rgb(30 111 149 / .07);
+  transition: border-color .16s ease, background .16s ease, box-shadow .16s ease, min-height .16s ease;
+}
+
+.top-search:hover,
+.top-search:focus-within {
+  border-color: color-mix(in srgb, var(--primary) 72%, var(--border));
+  background: color-mix(in srgb, #e8f8ff 88%, var(--surface));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent), 0 5px 16px rgb(30 111 149 / .09);
+}
+
+.top-search.expanded {
+  min-height: 62px;
+  align-items: flex-start;
+}
+
+.top-search.listening {
+  border-color: var(--primary);
+  background: color-mix(in srgb, #d5f1ff 82%, var(--surface));
+}
+
+.top-search-icon {
+  flex: 0 0 auto;
+  margin-top: 6px;
+  color: var(--primary);
+}
+
+.top-search-editor {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: grid;
+  gap: 2px;
+}
+
+.top-search textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  max-height: 88px;
+  resize: none;
+  overflow-y: auto;
+  border: 0;
+  outline: 0;
+  padding: 4px 0;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  line-height: 20px;
+}
+
+.top-search textarea::placeholder {
+  color: color-mix(in srgb, var(--primary) 62%, var(--muted-foreground));
+}
+
+.top-search-inline-status {
+  display: block;
+  padding-bottom: 2px;
+  color: color-mix(in srgb, var(--primary) 76%, var(--muted-foreground));
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.top-search-inline-status.error {
+  color: #b9433a;
+}
+
+.top-search-action {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: color-mix(in srgb, var(--primary) 76%, var(--muted-foreground));
+  padding: 0;
+  margin-top: 1px;
+  cursor: pointer;
+}
+
+.top-search-action:hover {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary);
+}
+
+.top-search-action.voice {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+.top-search-action.clear {
+  color: var(--muted-foreground);
+}
+
+.top-search-submit,
+.top-search-done {
+  min-height: 28px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 10px;
+  margin-top: 1px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.top-search-submit:hover,
+.top-search-done:hover {
+  background: color-mix(in srgb, var(--primary) 88%, black);
+}
+
+.top-search-done {
+  animation: search-mic-pulse 1.25s ease-in-out infinite;
+}
+
+:root[data-theme="dark"] .top-search {
+  background: color-mix(in srgb, #163f54 62%, var(--surface));
+  border-color: color-mix(in srgb, #6cc8ef 45%, var(--border));
+}
+
+:root[data-theme="dark"] .top-search:hover,
+:root[data-theme="dark"] .top-search:focus-within,
+:root[data-theme="dark"] .top-search.listening {
+  background: color-mix(in srgb, #194b63 68%, var(--surface));
+  border-color: color-mix(in srgb, #78d4f8 70%, var(--primary));
+}
+
+@keyframes search-mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 28%, transparent); }
+  50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--primary) 0%, transparent); }
+}
+
+@media (max-width: 760px) {
+  .top-search {
+    max-width: none;
+    min-height: 38px;
+  }
+
+  .top-search.expanded {
+    min-height: 58px;
+  }
+
+  .top-search textarea::placeholder {
+    font-size: 12px;
+  }
+
+  .top-search-submit span {
+    display: none;
+  }
+
+  .top-search-submit,
+  .top-search-done {
+    padding: 0 7px;
+  }
+}

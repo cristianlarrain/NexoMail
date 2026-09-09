@@ -23,6 +23,7 @@ public sealed class GmailControlCenterService(
     private const int MaximumThreadsPerAccount = 75;
     private const int MaximumConcurrentThreadRequests = 8;
     private const int MaximumConcurrentAccounts = 2;
+    private const string ManualTrackingPrefix = "manual:";
     private static readonly ConcurrentDictionary<Guid, CachedAccessToken> AccessTokens = new();
     private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> TokenGates = new();
 
@@ -119,6 +120,14 @@ public sealed class GmailControlCenterService(
         var state = await database.ControlCenterStates.SingleOrDefaultAsync(
             x => x.UserId == userId && x.AccountId == accountId && x.ConversationId == conversationId,
             cancellationToken);
+
+        if (action == "active")
+        {
+            if (state is not null) database.ControlCenterStates.Remove(state);
+            await database.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+
         if (state is null)
         {
             state = new ControlCenterStateEntity
@@ -138,6 +147,12 @@ public sealed class GmailControlCenterService(
         {
             state.Status = "resolved";
             state.SnoozedUntil = null;
+
+            var manualKey = $"{ManualTrackingPrefix}{messageId.Trim()}";
+            var manualState = await database.ControlCenterStates.SingleOrDefaultAsync(
+                x => x.UserId == userId && x.AccountId == accountId && x.ConversationId == manualKey,
+                cancellationToken);
+            if (manualState is not null) database.ControlCenterStates.Remove(manualState);
         }
         else
         {

@@ -1,0 +1,47 @@
+.compose-validation-notice {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 9px;
+  margin: 8px 0 2px;
+  padding: 10px 11px;
+  border: 1px solid color-mix(in srgb, #d95d52 38%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, #d95d52 7%, var(--surface));
+  color: var(--foreground);
+}
+
+.compose-validation-icon {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+  color: var(--primary);
+}
+
+.compose-validation-notice > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.compose-validation-notice strong {
+  font-size: 12px;
+}
+
+.compose-validation-notice span:not(.compose-validation-icon) {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.compose-validation-alert {
+  color: #c44d43;
+}
+
+:root[data-theme="dark"] .compose-validation-notice {
+  background: color-mix(in srgb, #6e2c28 34%, var(--surface));
+  border-color: color-mix(in srgb, #ef8a80 42%, var(--border));
+}

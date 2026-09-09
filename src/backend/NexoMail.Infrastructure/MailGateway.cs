@@ -72,6 +72,7 @@ public sealed class MailGateway(
     }
 
     public async Task<MailMessage?> GetMessageAsync(Guid accountId, string messageId, CancellationToken cancellationToken) => await ProviderFor(await AccountAsync(accountId, cancellationToken)).GetMessageAsync(accountId, messageId, cancellationToken);
+    public async Task<IReadOnlyCollection<MailThreadMessage>> GetThreadAsync(Guid accountId, string messageId, CancellationToken cancellationToken) => await ProviderFor(await AccountAsync(accountId, cancellationToken)).GetThreadAsync(accountId, messageId, cancellationToken);
     public async Task<MailAttachmentContent?> GetAttachmentAsync(Guid accountId, string messageId, string attachmentId, CancellationToken cancellationToken) => await ProviderFor(await AccountAsync(accountId, cancellationToken)).GetAttachmentAsync(accountId, messageId, attachmentId, cancellationToken);
     public async Task SendAsync(ComposeMessage message, CancellationToken cancellationToken) => await ProviderFor(await AccountAsync(message.FromAccountId, cancellationToken)).SendAsync(message, cancellationToken);
 
@@ -79,6 +80,18 @@ public sealed class MailGateway(
     {
         var account = await AccountAsync(accountId, cancellationToken);
         await DraftProviderFor(account).SaveDraftAsync(accountId, replyToMessageId, message with { FromAccountId = accountId }, cancellationToken);
+    }
+
+    public async Task UpdateDraftAsync(Guid accountId, string draftMessageId, ComposeMessage message, CancellationToken cancellationToken)
+    {
+        var account = await AccountAsync(accountId, cancellationToken);
+        await DraftProviderFor(account).UpdateDraftAsync(accountId, draftMessageId, message with { FromAccountId = accountId }, cancellationToken);
+    }
+
+    public async Task SendDraftAsync(Guid accountId, string draftMessageId, ComposeMessage message, CancellationToken cancellationToken)
+    {
+        var account = await AccountAsync(accountId, cancellationToken);
+        await DraftProviderFor(account).SendDraftAsync(accountId, draftMessageId, message with { FromAccountId = accountId }, cancellationToken);
     }
 
     public async Task ReplyAsync(Guid accountId, string messageId, ComposeMessage message, bool replyAll, CancellationToken cancellationToken) { var provider = ProviderFor(await AccountAsync(accountId, cancellationToken)); if (replyAll) await provider.ReplyAllAsync(accountId, messageId, message, cancellationToken); else await provider.ReplyAsync(accountId, messageId, message, cancellationToken); }

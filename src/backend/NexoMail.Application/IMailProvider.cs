@@ -7,6 +7,7 @@ public interface IMailProvider
     MailProviderType ProviderType { get; }
     Task<PagedResult<MailSummary>> GetMessagesAsync(MailQuery query, CancellationToken cancellationToken);
     Task<MailMessage?> GetMessageAsync(Guid accountId, string messageId, CancellationToken cancellationToken);
+    Task<IReadOnlyCollection<MailThreadMessage>> GetThreadAsync(Guid accountId, string messageId, CancellationToken cancellationToken);
     Task<MailAttachmentContent?> GetAttachmentAsync(Guid accountId, string messageId, string attachmentId, CancellationToken cancellationToken);
     Task SendAsync(ComposeMessage message, CancellationToken cancellationToken);
     Task ReplyAsync(Guid accountId, string messageId, ComposeMessage message, CancellationToken cancellationToken);
@@ -23,6 +24,8 @@ public interface IMailDraftProvider
 {
     MailProviderType ProviderType { get; }
     Task SaveDraftAsync(Guid accountId, string? replyToMessageId, ComposeMessage message, CancellationToken cancellationToken);
+    Task UpdateDraftAsync(Guid accountId, string draftMessageId, ComposeMessage message, CancellationToken cancellationToken);
+    Task SendDraftAsync(Guid accountId, string draftMessageId, ComposeMessage message, CancellationToken cancellationToken);
 }
 
 public interface IMailGateway
@@ -31,9 +34,12 @@ public interface IMailGateway
     Task<MailAccount?> UpdateAccountAsync(Guid accountId, MailAccountSettings settings, CancellationToken cancellationToken);
     Task<PagedResult<MailSummary>> GetMessagesAsync(MailQuery query, CancellationToken cancellationToken);
     Task<MailMessage?> GetMessageAsync(Guid accountId, string messageId, CancellationToken cancellationToken);
+    Task<IReadOnlyCollection<MailThreadMessage>> GetThreadAsync(Guid accountId, string messageId, CancellationToken cancellationToken);
     Task<MailAttachmentContent?> GetAttachmentAsync(Guid accountId, string messageId, string attachmentId, CancellationToken cancellationToken);
     Task SendAsync(ComposeMessage message, CancellationToken cancellationToken);
     Task SaveDraftAsync(Guid accountId, string? replyToMessageId, ComposeMessage message, CancellationToken cancellationToken);
+    Task UpdateDraftAsync(Guid accountId, string draftMessageId, ComposeMessage message, CancellationToken cancellationToken);
+    Task SendDraftAsync(Guid accountId, string draftMessageId, ComposeMessage message, CancellationToken cancellationToken);
     Task ReplyAsync(Guid accountId, string messageId, ComposeMessage message, bool replyAll, CancellationToken cancellationToken);
     Task ForwardAsync(Guid accountId, string messageId, ComposeMessage message, CancellationToken cancellationToken);
     Task MarkReadAsync(Guid accountId, string messageId, bool read, CancellationToken cancellationToken);

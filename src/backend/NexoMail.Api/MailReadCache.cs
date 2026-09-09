@@ -5,7 +5,8 @@ namespace NexoMail.Api;
 
 public sealed class MailReadCache(IMemoryCache memoryCache)
 {
-    private readonly ConcurrentDictionary<string, long> generations = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, long> userGenerations = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, long> areaGenerations = new(StringComparer.Ordinal);
 
     public async Task<T> GetOrCreateAsync<T>(
         string userKey,
@@ -16,8 +17,9 @@ public sealed class MailReadCache(IMemoryCache memoryCache)
         CancellationToken cancellationToken)
         where T : class
     {
-        var generation = generations.GetOrAdd(userKey, 0);
-        var cacheKey = $"mail-read:{userKey}:{generation}:{area}:{key}";
+        var userGeneration = userGenerations.GetOrAdd(userKey, 0);
+        var areaGeneration = areaGenerations.GetOrAdd(AreaKey(userKey, area), 0);
+        var cacheKey = $"mail-read:{userKey}:{userGeneration}:{area}:{areaGeneration}:{key}";
 
         var value = await memoryCache.GetOrCreateAsync(cacheKey, async entry =>
         {
@@ -31,6 +33,16 @@ public sealed class MailReadCache(IMemoryCache memoryCache)
 
     public void Invalidate(string userKey)
     {
-        generations.AddOrUpdate(userKey, 1, static (_, current) => current + 1);
+        userGenerations.AddOrUpdate(userKey, 1, static (_, current) => current + 1);
     }
+
+    public void InvalidateAreas(string userKey, params string[] areas)
+    {
+        foreach (var area in areas.Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.Ordinal))
+        {
+            areaGenerations.AddOrUpdate(AreaKey(userKey, area), 1, static (_, current) => current + 1);
+        }
+    }
+
+    private static string AreaKey(string userKey, string area) => $"{userKey}:{area}";
 }
