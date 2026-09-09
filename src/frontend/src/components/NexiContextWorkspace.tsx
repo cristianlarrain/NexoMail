@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { nexiApi } from '../api/nexiApi'
 import type { NexiContextResponse } from '../types/nexi'
 import { detectNexiMailAction } from '../utils/nexiSearchIntent'
+import { NexiFormattedText } from './nexi/NexiFormattedText'
 
 type Turn = {
   id: string
@@ -180,7 +181,7 @@ export function NexiContextWorkspace() {
         {turns.length === 0 && <div className="nexi-context-welcome"><Sparkles size={18} /><div><strong>Sigue preguntando o actúa sobre este mismo conjunto</strong><span>Por ejemplo: “archiva sólo los no leídos”, “prepara respuestas para los pendientes”, “archiva los informativos” o “pon en seguimiento los que tienen adjuntos”.</span></div></div>}
         {turns.map(turn => <article key={turn.id} className={`nexi-context-turn ${turn.role}`}>
           <span>{turn.role === 'nexi' ? 'Nexi' : 'Tú'}</span>
-          <p>{turn.text}</p>
+          {turn.role === 'nexi' ? <NexiFormattedText text={turn.text} /> : <p>{turn.text}</p>}
         </article>)}
         {context.isPending && <article className="nexi-context-turn nexi loading"><span>Nexi</span><p>Analizando los correos del contexto…</p></article>}
         {context.isError && <div className="notice">{context.error instanceof Error ? context.error.message : 'No fue posible analizar este contexto.'}</div>}
