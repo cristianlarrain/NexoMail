@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { ControlCenter } from '../components/ControlCenter'
+import { NexoPerspective } from '../components/NexoPerspective'
 
 export function ControlCenterPage() {
   const queryClient = useQueryClient()
@@ -17,6 +18,7 @@ export function ControlCenterPage() {
         <p className="view-context">Todas las cuentas</p>
       </div>
     </div>
+    <NexoPerspective />
     <ControlCenter />
   </section>
 }
