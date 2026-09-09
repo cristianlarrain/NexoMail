@@ -109,11 +109,11 @@ function executiveCopy(period: TrendPeriod, current: Totals, previous: Totals) {
   const periodName = period === 'today' ? 'hoy' : period === 'week' ? 'esta semana' : 'en los últimos 30 días'
   const comparisonName = period === 'today' ? 'ayer' : period === 'week' ? 'la semana pasada' : 'los 30 días anteriores'
 
-  let opening = `La actividad ${periodName} se mantiene igual que ${comparisonName}.`
+  let opening = `El volumen ${periodName} se mantiene igual que ${comparisonName}.`
   if (activity.direction === 'up') opening = activity.percentage === null
-    ? `Hay actividad ${periodName}, mientras que en ${comparisonName} no hubo registros.`
-    : `La actividad ${periodName} aumentó ${activity.percentage}% frente a ${comparisonName}.`
-  if (activity.direction === 'down') opening = `La actividad ${periodName} disminuyó ${activity.percentage}% frente a ${comparisonName}.`
+    ? `Hay movimiento ${periodName}, mientras que en ${comparisonName} no hubo registros.`
+    : `El volumen ${periodName} aumentó ${activity.percentage}% frente a ${comparisonName}.`
+  if (activity.direction === 'down') opening = `El volumen ${periodName} disminuyó ${activity.percentage}% frente a ${comparisonName}.`
 
   const balance = current.received > current.sent
     ? `Predominan los recibidos (${current.received}) sobre los enviados (${current.sent}).`
@@ -163,12 +163,12 @@ export function NexiTrendReport() {
   const loading = primary.isLoading || (period === 'month' && previousMonth.isLoading)
   const error = primary.isError || (period === 'month' && previousMonth.isError)
 
-  return <section className="nexi-trend-report" aria-label="Reportes comparativos y tendencias">
+  return <section className="nexi-trend-report" aria-label="Evolución del correo">
     <header className="nexi-trend-header">
       <div>
-        <span className="nexi-trend-kicker"><Sparkles size={14} /> Nexi · Tendencias</span>
-        <strong>Comparación histórica</strong>
-        <p>Este bloque muestra sólo variaciones entre períodos; el detalle diario y por cuenta permanece en Actividad por cuenta.</p>
+        <span className="nexi-trend-kicker"><Sparkles size={14} /> Evolución</span>
+        <strong>Cambio entre períodos</strong>
+        <p>Compara el volumen actual con el período anterior; el detalle por día y por cuenta se consulta en Volumen por cuenta.</p>
       </div>
       <div className="nexi-trend-periods" aria-label="Período de comparación">
         {(Object.keys(PERIOD_LABELS) as TrendPeriod[]).map(value => <button type="button" key={value} className={period === value ? 'active' : ''} onClick={() => setPeriod(value)}>{PERIOD_LABELS[value]}</button>)}
@@ -176,18 +176,18 @@ export function NexiTrendReport() {
     </header>
 
     {loading && <div className="nexi-trend-loading" role="status"><span /><span /><span /><small>Comparando períodos…</small></div>}
-    {error && <div className="notice">No fue posible construir la comparación de actividad.</div>}
+    {error && <div className="notice">No fue posible construir la comparación.</div>}
 
     {report && !loading && <>
       <div className="nexi-trend-metrics">
-        <article><span className="nexi-trend-icon"><Activity size={17} /></span><div><small>Actividad total</small><strong>{report.currentTotals.total}</strong><span>{report.previousLabel}: {report.previousTotals.total}</span><TrendArrow current={report.currentTotals.total} previous={report.previousTotals.total} /></div></article>
+        <article><span className="nexi-trend-icon"><Activity size={17} /></span><div><small>Movimiento total</small><strong>{report.currentTotals.total}</strong><span>{report.previousLabel}: {report.previousTotals.total}</span><TrendArrow current={report.currentTotals.total} previous={report.previousTotals.total} /></div></article>
         <article><span className="nexi-trend-icon"><Inbox size={17} /></span><div><small>Recibidos</small><strong>{report.currentTotals.received}</strong><span>{report.previousLabel}: {report.previousTotals.received}</span><TrendArrow current={report.currentTotals.received} previous={report.previousTotals.received} /></div></article>
         <article><span className="nexi-trend-icon"><Send size={17} /></span><div><small>Enviados</small><strong>{report.currentTotals.sent}</strong><span>{report.previousLabel}: {report.previousTotals.sent}</span><TrendArrow current={report.currentTotals.sent} previous={report.previousTotals.sent} /></div></article>
       </div>
 
       <article className="nexi-trend-executive">
         <span><Sparkles size={16} /></span>
-        <div><small>Lectura ejecutiva de Nexi</small><p>{report.executive}</p></div>
+        <div><small>Lectura de tendencia</small><p>{report.executive}</p></div>
       </article>
     </>}
   </section>
