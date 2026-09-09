@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
 import type { ControlCenterPendingItem, ControlCenterSnapshot } from '../types/mail'
 import { ControlCenterActivity } from './ControlCenterActivity'
+import { NexiPriorityQueue } from './NexiPriorityQueue'
 import { NexiEmptyState } from './nexi/NexiEmptyState'
 import { NexiInsightCard } from './nexi/NexiInsightCard'
 import { NexiVisual } from './nexi/NexiVisual'
@@ -64,7 +65,6 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
   const [snoozeTarget, setSnoozeTarget] = useState<string | null>(null)
   const [openingTarget, setOpeningTarget] = useState<string | null>(null)
   const [actionError, setActionError] = useState('')
-  const [priorityVisible, setPriorityVisible] = useState(10)
   const queryKey = ['control-center', accountId ?? 'all'] as const
   const inboxPath = accountId ? `/account/${accountId}` : '/inbox'
   const controlCenterPath = '/control-center'
@@ -161,7 +161,6 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
   })
 
   const priorityItems = [...priorityMap.values()].sort((left, right) => new Date(left.item.since).getTime() - new Date(right.item.since).getTime())
-  const visiblePriorityItems = priorityItems.slice(0, priorityVisible)
   const nexiInsights = buildNexiInsights(data, manualTracking.data ?? [])
 
   function handleNexiAction(action?: NexiInsightAction) {
@@ -236,20 +235,12 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
 
     <div className="control-center-grid">
       <ControlCenterActivity accountId={accountId} accounts={data.accounts} />
-
-      <article className="control-panel priority-panel">
-        <header><div><strong>Seguimiento prioritario</strong><span>Automático: últimos 14 días · también incluye correos marcados manualmente</span></div></header>
-        {priorityItems.length === 0 ? <NexiEmptyState compact title="Todo al día" description="Nexi no encontró conversaciones pendientes ni correos marcados para seguimiento." /> : <>
-          <div className="priority-list">
-            {visiblePriorityItems.map(({ item, automatic, manual }) => <button type="button" className="priority-row" key={messageKey(item)} onClick={() => navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: controlCenterPath, controlCenterItem: item, manualTracking: manual } })}>
-              <i className="account-dot" style={{ background: item.accountColor }} />
-              <span className="priority-main"><span className={`priority-direction ${item.direction}`}>{item.direction === 'received' ? 'Responder' : 'Esperando'}</span><strong>{item.subject}</strong><small>{item.direction === 'received' ? 'De' : 'Para'}: {item.counterpart} · {manual && automatic ? 'Manual + automático' : manual ? 'Manual' : 'Automático'}</small></span>
-              <span className="priority-age">{ageLabel(item.since)}<ChevronRight size={15} /></span>
-            </button>)}
-          </div>
-          <div className="message-pagination"><span>Mostrando {visiblePriorityItems.length} de {priorityItems.length}</span>{priorityVisible < priorityItems.length && <button type="button" className="secondary-button" onClick={() => setPriorityVisible(current => current + 10)}>Cargar más</button>}</div>
-        </>}
-      </article>
+      <NexiPriorityQueue
+        items={priorityItems}
+        openingTarget={openingTarget}
+        onManage={item => void openComposer(item)}
+        onOpen={(item, manual) => navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: controlCenterPath, controlCenterItem: item, manualTracking: manual } })}
+      />
     </div>
   </section>
 }
