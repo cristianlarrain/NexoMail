@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { AlertTriangle, CheckCircle2, ChevronRight, CircleHelp, Info, LoaderCircle, MessageSquareReply, RefreshCw, Sparkles, TimerReset } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronRight, CircleHelp, Info, LoaderCircle, MessageSquareReply, Sparkles, TimerReset } from 'lucide-react'
 import { nexiApi } from '../api/nexiApi'
 import type { ControlCenterPendingItem } from '../types/mail'
 import { NexiEmptyState } from './nexi/NexiEmptyState'
@@ -98,7 +98,9 @@ export function NexiPriorityQueue({
         value.results.forEach(result => { next[result.key] = result.classification })
         return next
       })
-      if (value.failed > 0) setSemanticError(`${value.failed} correo${value.failed === 1 ? '' : 's'} no pudo${value.failed === 1 ? '' : 'ieron'} analizarse; se mantiene su clasificación por reglas.`)
+      if (value.failed > 0) setSemanticError(value.failed === 1
+        ? '1 correo no pudo analizarse; se mantiene su clasificación por reglas.'
+        : `${value.failed} correos no pudieron analizarse; se mantiene su clasificación por reglas.`)
     },
     onError: error => setSemanticError(error instanceof Error ? error.message : 'Nexi no pudo afinar la priorización.'),
   })
