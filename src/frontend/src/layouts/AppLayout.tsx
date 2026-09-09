@@ -14,7 +14,8 @@ import { WeatherWidget } from '../components/WeatherWidget'
 
 const FOLDERS_COLLAPSED_KEY = 'nexomail-sidebar-folders-collapsed'
 const navClass = ({ isActive }: { isActive: boolean }) => `nav-item ${isActive ? 'active' : ''}`
-const controlCenterNavClass = ({ isActive }: { isActive: boolean }) => `nav-item control-center-nav ${isActive ? 'active' : ''}`
+const controlCenterNavClass = ({ isActive }: { isActive: boolean }) => `nav-item primary-nav-action control-center-nav ${isActive ? 'active' : ''}`
+const inboxNavClass = ({ isActive }: { isActive: boolean }) => `nav-item primary-nav-action inbox-primary-nav ${isActive ? 'active' : ''}`
 function initials(value: string) { return value.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || 'NM' }
 function capitalize(value: string) { return value.charAt(0).toUpperCase() + value.slice(1) }
 function accountIdFromPath(pathname: string) {
@@ -120,10 +121,10 @@ export function AppLayout() {
   return <div className="app-shell">
     <aside className={`sidebar ${open ? 'open' : ''} ${collapsed ? 'collapsed' : ''}`}>
       <div className="brand-row"><button className="brand-home" onClick={() => { setOpen(false); navigate('/inbox') }} aria-label="Ir a Bandeja de entrada"><NexoMailLogo compact={collapsed} /></button><button className="icon-button collapse-button" onClick={() => setCollapsed(!collapsed)} aria-label="Contraer barra lateral"><ChevronLeft size={18} /></button></div>
-      <button className="compose-button" onClick={() => { setOpen(false); navigate('/compose', { state: contextualAccountId ? { fromAccountId: contextualAccountId } : undefined }) }}><PenLine size={17} /><span>Redactar</span></button>
+      <button className={`compose-button primary-nav-action ${location.pathname === '/compose' ? 'active' : ''}`} onClick={() => { setOpen(false); navigate('/compose', { state: contextualAccountId ? { fromAccountId: contextualAccountId } : undefined }) }}><span>Redactar</span><PenLine className="primary-nav-icon" size={15} /></button>
       <nav aria-label="Navegación principal">
-        <NavLink to="/control-center" className={controlCenterNavClass}><i className="control-center-nav-icon"><LayoutDashboard size={16} /></i><span>Centro de Control</span></NavLink>
-        <NavLink to="/inbox" end className={navClass}><Inbox size={17} /><span>Bandeja de entrada</span></NavLink>
+        <NavLink to="/control-center" className={controlCenterNavClass}><span>Centro de Control</span><LayoutDashboard className="primary-nav-icon" size={15} /></NavLink>
+        <NavLink to="/inbox" end className={inboxNavClass}><span>Bandeja de entrada</span><Inbox className="primary-nav-icon" size={15} /></NavLink>
         <p className="nav-heading">Cuentas</p>
         {accounts.map(account => <NavLink key={account.id} to={`/account/${account.id}`} className={navClass}><i className="account-dot" style={{ background: account.color }} /><span>{account.displayName}</span></NavLink>)}
         <button type="button" className="nav-section-toggle" onClick={toggleFolders} aria-expanded={!foldersCollapsed} aria-controls="sidebar-folders" title={foldersCollapsed ? 'Mostrar carpetas' : 'Ocultar carpetas'}>
