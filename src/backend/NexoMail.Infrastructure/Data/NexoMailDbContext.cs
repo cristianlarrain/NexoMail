@@ -27,6 +27,7 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
             entity.Property(x => x.PasswordResetTokenHash).HasMaxLength(128);
             entity.Property(x => x.EmailVerificationTokenHash).HasMaxLength(128);
             entity.Property(x => x.AvatarDataUrl).HasMaxLength(200_000);
+            entity.Property(x => x.PlanCode).HasMaxLength(32).IsRequired();
             entity.HasIndex(x => x.Email).IsUnique();
         });
         modelBuilder.Entity<UserSessionEntity>(entity =>
@@ -126,6 +127,7 @@ public sealed class UserEntity
     public DateTimeOffset? EmailVerificationTokenExpiresAt { get; set; }
     public int EmailVerificationAttempts { get; set; }
     public string? AvatarDataUrl { get; set; }
+    public string PlanCode { get; set; } = CommercialPlanCatalog.Freemium;
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? LastLoginAt { get; set; }
     public bool IsActive { get; set; } = true;
