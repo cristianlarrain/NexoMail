@@ -50,6 +50,7 @@ import './styles/nexi-search-actions.css'
 import './styles/nexi-action-plan.css'
 import './styles/search-bar.css'
 import './styles/global-action-indicator.css'
+import './styles/commercial-settings.css'
 import './styles/control-center-spacing.css'
 import './styles/ui-coherence.css'
 
