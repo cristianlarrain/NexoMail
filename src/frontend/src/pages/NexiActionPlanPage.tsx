@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, Archive, CheckCircle2, Eye, EyeOff, Flag, FlagOff, Inbox, Mail, MessageSquareReply, Sparkles, Trash2 } from 'lucide-react'
+import { AlertTriangle, Archive, CheckCircle2, Eye, EyeOff, Flag, FlagOff, Inbox, Mail, MessageSquareReply, ShieldAlert, Sparkles, Trash2 } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { mailApi } from '../api/mailApi'
 import { searchApi } from '../api/searchApi'
 import type { MailSummary } from '../types/mail'
 import { withActionIndicator } from '../utils/actionIndicator'
-import { detectNexiMailPlan, requestsInboxScope, sanitizeActionSearch, type NexiMailAction, type NexiMailPlanStep, type NexiMailSubset } from '../utils/nexiSearchIntent'
+import { detectNexiMailPlan, detectNexiSourceFolder, requestsInboxScope, sanitizeActionSearch, type NexiMailAction, type NexiMailPlanStep, type NexiMailSourceFolder, type NexiMailSubset } from '../utils/nexiSearchIntent'
 
 const MAX_ACTION_RESULTS = 250
 const MAX_REPLY_DRAFTS = 8
@@ -17,13 +17,21 @@ type ActionResult = { completed: number; failed: number; skipped: number }
 type PlanPreviewStep = NexiMailPlanStep & { items: MailSummary[]; limitedReplies: boolean }
 type PlanResultStep = NexiMailPlanStep & ActionResult
 
+function folderLabel(folder: NexiMailSourceFolder) {
+  if (folder === 'inbox') return 'Bandeja de entrada'
+  if (folder === 'sent') return 'Enviados'
+  if (folder === 'archive') return 'Archivados'
+  if (folder === 'spam') return 'Spam'
+  return 'Papelera'
+}
+
 function uniqueMessages(items: MailSummary[]) {
   const unique = new Map<string, MailSummary>()
   for (const item of items) unique.set(`${item.accountId}:${item.providerMessageId}`, item)
   return [...unique.values()].sort((left, right) => new Date(right.receivedAt).getTime() - new Date(left.receivedAt).getTime())
 }
 
-async function loadMatchingMessages(accountId: string | undefined, folder: 'inbox' | 'sent', search: string) {
+async function loadMatchingMessages(accountId: string | undefined, folder: NexiMailSourceFolder, search: string) {
   const items: MailSummary[] = []
   let cursor: string | undefined
   let limited = false
@@ -44,7 +52,9 @@ async function loadMatchingMessages(accountId: string | undefined, folder: 'inbo
 function actionCopy(action: NexiMailAction) {
   switch (action) {
     case 'trash': return 'Enviar a Papelera'
-    case 'archive': return 'Archivar'
+    case 'archive': return 'Mover a Archivados'
+    case 'move_inbox': return 'Mover a Bandeja'
+    case 'move_spam': return 'Mover a Spam'
     case 'mark_read': return 'Marcar como leídos'
     case 'mark_unread': return 'Marcar como no leídos'
     case 'track': return 'Agregar seguimiento'
@@ -68,6 +78,8 @@ function subsetLabel(subset: NexiMailSubset) {
 function ActionIcon({ action, size = 17 }: { action: NexiMailAction; size?: number }) {
   if (action === 'trash') return <Trash2 size={size} />
   if (action === 'archive') return <Archive size={size} />
+  if (action === 'move_inbox') return <Inbox size={size} />
+  if (action === 'move_spam') return <ShieldAlert size={size} />
   if (action === 'mark_read') return <Eye size={size} />
   if (action === 'mark_unread') return <EyeOff size={size} />
   if (action === 'track') return <Flag size={size} />
@@ -116,6 +128,12 @@ async function executeAction(action: NexiMailAction, items: MailSummary[], pendi
           return 'completed' as const
         case 'archive':
           await mailApi.move(item.accountId, item.providerMessageId, 'archive')
+          return 'completed' as const
+        case 'move_inbox':
+          await mailApi.move(item.accountId, item.providerMessageId, 'inbox')
+          return 'completed' as const
+        case 'move_spam':
+          await mailApi.move(item.accountId, item.providerMessageId, 'spam')
           return 'completed' as const
         case 'mark_read':
           await mailApi.read(item.accountId, item.providerMessageId, true)
@@ -195,11 +213,19 @@ export function NexiActionPlanPage() {
     retry: false,
   })
 
-  const folder: 'inbox' | 'sent' = includesReplyDrafts
+  const explicitSource = detectNexiSourceFolder(searchBasis)
+  const movesToInbox = plan.some(step => step.action === 'move_inbox')
+  const folder: NexiMailSourceFolder = includesReplyDrafts
     ? 'inbox'
-    : requestsInboxScope(searchBasis)
-      ? 'inbox'
-      : interpretation.data?.folder === 'sent' ? 'sent' : 'inbox'
+    : explicitSource
+      ? explicitSource
+      : requestsInboxScope(searchBasis)
+        ? 'inbox'
+        : interpretation.data?.folder === 'sent'
+          ? 'sent'
+          : movesToInbox
+            ? 'archive'
+            : 'inbox'
 
   const searchText = useMemo(
     () => sanitizeActionSearch(interpretation.data?.gmailQuery?.trim() || searchBasis),
@@ -288,7 +314,7 @@ export function NexiActionPlanPage() {
 
   return <section className="mail-view nexi-action-page nexi-plan-page">
     <div className="view-header nexi-action-heading">
-      <div><h1>Plan de Nexi</h1><p className="view-context">{selectedAccount?.displayName ?? 'Todas las cuentas'} · {folder === 'inbox' ? 'Bandeja de entrada' : 'Enviados'} · {plan.length} pasos</p></div>
+      <div><h1>Plan de Nexi</h1><p className="view-context">{selectedAccount?.displayName ?? 'Todas las cuentas'} · Origen: {folderLabel(folder)} · {plan.length} pasos</p></div>
     </div>
 
     <section className="nexi-action-command nexi-plan-command">
