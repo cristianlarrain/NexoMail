@@ -9,6 +9,7 @@ import { NexiContextWorkspace } from '../components/NexiContextWorkspace'
 import { NexiDailyBrief } from '../components/NexiDailyBrief'
 import { NexiMailReport } from '../components/NexiMailReport'
 import { NexiTrendReport } from '../components/NexiTrendReport'
+import { NexoPerspective } from '../components/NexoPerspective'
 
 type ControlTab = 'summary' | 'nexi' | 'report' | 'contacts' | 'documents'
 
@@ -55,6 +56,8 @@ export function ControlCenterPage() {
         <button type="button" className={tab === 'documents' ? 'active' : ''} onClick={() => selectTab('documents')}><Files size={16} /> Documentos</button>
       </nav>
     </div>
+
+    <NexoPerspective />
 
     {tab === 'summary'
       ? <><NexiDailyBrief /><NexiTrendReport /><ControlCenter /></>
