@@ -36,6 +36,59 @@ public static class CommercialEndpoints
             return await next(context);
         });
 
+        api.MapPost("/commercial/webhooks/mercadopago", async (
+            HttpContext http,
+            IHttpClientFactory httpClientFactory,
+            IConfiguration configuration,
+            NexoMailDbContext database,
+            CancellationToken ct) =>
+        {
+            var dataId = http.Request.Query["data.id"].FirstOrDefault() ?? http.Request.Query["data_id"].FirstOrDefault();
+            var type = http.Request.Query["type"].FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(dataId))
+            {
+                try
+                {
+                    using var body = await JsonDocument.ParseAsync(http.Request.Body, cancellationToken: ct);
+                    if (body.RootElement.TryGetProperty("type", out var typeValue) && string.IsNullOrWhiteSpace(type)) type = typeValue.GetString();
+                    if (body.RootElement.TryGetProperty("data", out var data) && data.TryGetProperty("id", out var idValue)) dataId = idValue.ToString();
+                }
+                catch (JsonException) { }
+            }
+            if (string.IsNullOrWhiteSpace(dataId)) return Results.BadRequest(new { error = "La notificación no contiene un identificador de recurso." });
+
+            var secret = BillingSetting(configuration, "WebhookSecret", "MERCADOPAGO_WEBHOOK_SECRET");
+            var accessToken = BillingSetting(configuration, "AccessToken", "MERCADOPAGO_ACCESS_TOKEN");
+            if (string.IsNullOrWhiteSpace(secret) || string.IsNullOrWhiteSpace(accessToken))
+                return Results.Problem("Mercado Pago no está configurado para procesar webhooks.", statusCode: 503);
+
+            var xSignature = http.Request.Headers["x-signature"].ToString();
+            var xRequestId = http.Request.Headers["x-request-id"].ToString();
+            if (!MercadoPagoBilling.ValidateWebhookSignature(xSignature, xRequestId, dataId, secret))
+                return Results.Unauthorized();
+
+            if (!string.Equals(type, "subscription_preapproval", StringComparison.OrdinalIgnoreCase))
+                return Results.Ok(new { received = true, ignored = true });
+
+            var providerSubscription = await MercadoPagoBilling.GetSubscriptionAsync(httpClientFactory, accessToken, dataId, ct);
+            if (!MercadoPagoBilling.TryReadExternalReference(providerSubscription.ExternalReference, out var userId, out var planCode))
+                return Results.BadRequest(new { error = "La suscripción no contiene una referencia NexoMail válida." });
+
+            var status = MercadoPagoBilling.MapStatus(providerSubscription.Status);
+            await CommercialSubscriptionMutations.ApplyProviderStateAsync(
+                database,
+                userId,
+                planCode,
+                status,
+                "mercadopago",
+                providerSubscription.Id,
+                null,
+                null,
+                ct);
+
+            return Results.Ok(new { received = true, status });
+        });
+
         var commercial = api.MapGroup("/commercial").RequireAuthorization();
 
         commercial.MapGet("/subscription", async (NexoMailDbContext database, IUserContext userContext, CancellationToken ct) =>
@@ -73,6 +126,69 @@ public static class CommercialEndpoints
         });
 
         commercial.MapGet("/entitlements", () => Results.Ok(CommercialEntitlements.Definitions));
+
+        commercial.MapGet("/billing/status", (IConfiguration configuration) =>
+        {
+            var accessToken = BillingSetting(configuration, "AccessToken", "MERCADOPAGO_ACCESS_TOKEN");
+            var webhookSecret = BillingSetting(configuration, "WebhookSecret", "MERCADOPAGO_WEBHOOK_SECRET");
+            return Results.Ok(new
+            {
+                provider = "mercadopago",
+                configured = !string.IsNullOrWhiteSpace(accessToken),
+                webhookConfigured = !string.IsNullOrWhiteSpace(webhookSecret),
+                recurring = true,
+                currency = "CLP"
+            });
+        });
+
+        commercial.MapPost("/checkout", async (
+            CommercialCheckoutRequest request,
+            NexoMailDbContext database,
+            IUserContext userContext,
+            IHttpClientFactory httpClientFactory,
+            IConfiguration configuration,
+            CancellationToken ct) =>
+        {
+            var planCode = NormalizeCode(request.PlanCode);
+            var plan = await database.CommercialPlans.AsNoTracking().SingleOrDefaultAsync(x => x.Code == planCode && x.IsActive, ct);
+            if (plan is null) return Results.NotFound(new { error = "El plan solicitado no está disponible." });
+            if (plan.Code == CommercialPlanCatalog.Freemium)
+                return Results.BadRequest(new { error = "Freemium no requiere una suscripción de pago." });
+            if (plan.IsCorporate || plan.IsWhiteLabel)
+                return Results.BadRequest(new { error = "Los planes Corporativo y White Label requieren contratación administrada." });
+            if (!TryParseClpAmount(plan.Price, out var amount))
+                return Results.BadRequest(new { error = "El plan no tiene un precio CLP válido para cobro automático." });
+
+            var user = await database.Users.AsNoTracking().SingleOrDefaultAsync(x => x.Id == userContext.UserId && x.IsActive, ct);
+            if (user is null) return Results.NotFound();
+
+            var accessToken = BillingSetting(configuration, "AccessToken", "MERCADOPAGO_ACCESS_TOKEN");
+            if (string.IsNullOrWhiteSpace(accessToken))
+                return Results.Problem("La contratación online todavía no está configurada en este entorno.", statusCode: 503);
+
+            var backUrl = configuration["Billing:MercadoPago:BackUrl"];
+            if (string.IsNullOrWhiteSpace(backUrl)) backUrl = "http://localhost:5173/settings/plan?billing=return";
+
+            try
+            {
+                var checkout = await MercadoPagoBilling.CreateSubscriptionAsync(
+                    httpClientFactory,
+                    accessToken,
+                    user.Id,
+                    plan.Code,
+                    plan.Name,
+                    amount,
+                    user.Email,
+                    backUrl,
+                    ct);
+                await CommercialSubscriptionMutations.SetPendingCheckoutAsync(database, user.Id, plan.Code, "mercadopago", checkout.SubscriptionId, ct);
+                return Results.Ok(new CommercialCheckoutResponse("mercadopago", checkout.SubscriptionId, checkout.CheckoutUrl, checkout.Status));
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Results.Problem(exception.Message, statusCode: 502);
+            }
+        });
 
         commercial.MapGet("/admin/status", async (NexoMailDbContext database, IUserContext userContext, CancellationToken ct) =>
         {
@@ -144,6 +260,15 @@ public static class CommercialEndpoints
             await database.SaveChangesAsync(ct);
             return Results.NoContent();
         });
+    }
+
+    private static string BillingSetting(IConfiguration configuration, string key, string environmentVariable)
+        => configuration[$"Billing:MercadoPago:{key}"] ?? configuration[environmentVariable] ?? string.Empty;
+
+    private static bool TryParseClpAmount(string price, out decimal amount)
+    {
+        var digits = new string(price.Where(char.IsDigit).ToArray());
+        return decimal.TryParse(digits, out amount) && amount > 0;
     }
 
     private static async Task<bool> IsAdministratorAsync(NexoMailDbContext database, Guid userId, CancellationToken ct) =>
@@ -275,6 +400,9 @@ public sealed record CommercialSubscriptionSnapshot(
     IReadOnlyList<string> Entitlements,
     bool PaidAccessActive,
     string EffectivePlanCode);
+
+public sealed record CommercialCheckoutRequest(string PlanCode);
+public sealed record CommercialCheckoutResponse(string Provider, string SubscriptionId, string CheckoutUrl, string Status);
 
 public sealed record CommercialAdminPlanDto(
     string Code,
