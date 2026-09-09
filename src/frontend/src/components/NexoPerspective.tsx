@@ -4,7 +4,7 @@ import { BookOpenText } from 'lucide-react'
 type Perspective = {
   text: string
   source: string
-  area: 'Filosofía' | 'Psicología' | 'Academia' | 'Pensamiento crítico' | 'Nexo'
+  area: 'Filosofía' | 'Psicología' | 'Academia' | 'Pensamiento crítico' | 'Contemporáneo' | 'Nexo'
 }
 
 const perspectives: Perspective[] = [
@@ -27,6 +27,26 @@ const perspectives: Perspective[] = [
     text: 'Una idea adquiere valor cuando puede ser examinada, discutida y, si corresponde, refutada.',
     source: 'Método y pensamiento crítico',
     area: 'Pensamiento crítico',
+  },
+  {
+    text: 'La intuición decide rápido; el juicio riguroso necesita detenerse y revisar sus supuestos.',
+    source: 'Inspirado en Daniel Kahneman',
+    area: 'Psicología',
+  },
+  {
+    text: 'El exceso de información no garantiza comprensión; también necesitamos silencio, selección y criterio.',
+    source: 'Inspirado en Byung-Chul Han',
+    area: 'Contemporáneo',
+  },
+  {
+    text: 'Una educación amplia no sólo prepara para producir: también prepara para comprender a otros y deliberar mejor.',
+    source: 'Inspirado en Martha Nussbaum',
+    area: 'Academia',
+  },
+  {
+    text: 'Los problemas complejos rara vez pertenecen a una sola disciplina; comprenderlos exige conectar saberes.',
+    source: 'Inspirado en Edgar Morin',
+    area: 'Academia',
   },
   {
     text: 'La atención ordena la información; el criterio decide qué merece convertirse en acción.',
@@ -72,7 +92,7 @@ export function NexoPerspective() {
     <span className="nexo-perspective-icon" aria-hidden="true"><BookOpenText size={15} /></span>
     <div className="nexo-perspective-copy">
       <span className="nexo-perspective-label">Perspectiva · {perspective.area}</span>
-      <p>“{perspective.text}” <cite>— {perspective.source}</cite></p>
+      <p>{perspective.text} <cite>— {perspective.source}</cite></p>
     </div>
   </aside>
 }
