@@ -56,12 +56,11 @@
 
 .nexi-daily-brief-grid {
   display: grid;
-  grid-template-columns: 1.35fr .85fr 1fr 1fr;
+  grid-template-columns: 1.35fr 1fr 1fr;
   gap: 9px;
 }
 
 .nexi-daily-priority,
-.nexi-daily-stat,
 .nexi-daily-list-card {
   min-width: 0;
   display: flex;
@@ -99,7 +98,6 @@
 }
 
 .nexi-daily-priority > div,
-.nexi-daily-stat > div,
 .nexi-daily-list-card > div {
   min-width: 0;
   flex: 1 1 auto;
@@ -108,7 +106,6 @@
 }
 
 .nexi-daily-priority small,
-.nexi-daily-stat small,
 .nexi-daily-list-card small {
   color: var(--muted-foreground, var(--muted));
   font-size: 10px;
@@ -122,39 +119,10 @@
   line-height: 1.4;
 }
 
-.nexi-daily-priority span:not(.nexi-daily-card-icon),
-.nexi-daily-stat span,
 .nexi-daily-list-card strong {
   color: var(--muted-foreground, var(--muted));
   font-size: 10.5px;
   line-height: 1.35;
-}
-
-.nexi-daily-stat > div > strong {
-  font-size: 22px;
-  line-height: 1;
-}
-
-.nexi-daily-stat em {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 2px;
-  font-size: 10px;
-  font-style: normal;
-  font-weight: 700;
-}
-
-.nexi-daily-stat em.up {
-  color: color-mix(in srgb, #b47b1c 78%, var(--foreground));
-}
-
-.nexi-daily-stat em.down {
-  color: color-mix(in srgb, #2f8d65 82%, var(--foreground));
-}
-
-.nexi-daily-stat em.neutral {
-  color: var(--muted-foreground, var(--muted));
 }
 
 .nexi-daily-list-card ul {
@@ -212,6 +180,10 @@
   .nexi-daily-brief-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .nexi-daily-priority {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 700px) {
@@ -226,5 +198,9 @@
 
   .nexi-daily-brief-grid {
     grid-template-columns: 1fr;
+  }
+
+  .nexi-daily-priority {
+    grid-column: auto;
   }
 }
