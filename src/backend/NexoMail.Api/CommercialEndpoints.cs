@@ -11,6 +11,31 @@ public static class CommercialEndpoints
 {
     public static void MapNexoMailCommercial(this RouteGroupBuilder api)
     {
+        api.AddEndpointFilter(async (context, next) =>
+        {
+            var http = context.HttpContext;
+            string? entitlement = null;
+            if (http.Request.Path.StartsWithSegments("/api/mail/ai")) entitlement = CommercialEntitlements.NexiAi;
+            else if (http.Request.Path.StartsWithSegments("/api/mail/control-center/activity")) entitlement = CommercialEntitlements.AdvancedAnalytics;
+
+            if (entitlement is not null && http.User.Identity?.IsAuthenticated == true)
+            {
+                var database = http.RequestServices.GetRequiredService<NexoMailDbContext>();
+                var userContext = http.RequestServices.GetRequiredService<IUserContext>();
+                if (!await CommercialAccessStore.HasEntitlementAsync(database, userContext.UserId, entitlement, http.RequestAborted))
+                {
+                    return Results.Json(new
+                    {
+                        error = "Esta función no está incluida en su plan actual.",
+                        code = "plan_feature_required",
+                        entitlement
+                    }, statusCode: StatusCodes.Status403Forbidden);
+                }
+            }
+
+            return await next(context);
+        });
+
         var commercial = api.MapGroup("/commercial").RequireAuthorization();
 
         commercial.MapGet("/subscription", async (NexoMailDbContext database, IUserContext userContext, CancellationToken ct) =>
