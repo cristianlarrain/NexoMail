@@ -103,8 +103,6 @@ export function NexiPriorityQueue({
     onError: error => setSemanticError(error instanceof Error ? error.message : 'Nexi no pudo afinar la priorización.'),
   })
 
-  if (items.length === 0) return <article className="control-panel nexi-priority-panel"><NexiEmptyState compact title="Sin pendientes" description="No hay conversaciones pendientes ni correos marcados para seguimiento." /></article>
-
   return <article className="control-panel nexi-priority-panel" aria-label="Priorización inteligente">
     <header className="nexi-priority-header">
       <div>
@@ -112,10 +110,10 @@ export function NexiPriorityQueue({
         <strong>Qué atender primero</strong>
         <p>Ordena las conversaciones por urgencia, necesidad de respuesta, seguimiento o carácter informativo. Nexi puede revisar el contenido bajo demanda.</p>
       </div>
-      <button type="button" className="secondary-button nexi-priority-refine" disabled={refine.isPending || candidates.length === 0} onClick={() => refine.mutate()}>
+      {items.length > 0 && <button type="button" className="secondary-button nexi-priority-refine" disabled={refine.isPending || candidates.length === 0} onClick={() => refine.mutate()}>
         {refine.isPending ? <LoaderCircle size={14} className="spin" /> : candidates.length === 0 ? <CheckCircle2 size={14} /> : <Sparkles size={14} />}
         {refine.isPending ? 'Analizando…' : candidates.length === 0 ? 'Revisado con Nexi' : 'Afinar con Nexi'}
-      </button>
+      </button>}
     </header>
 
     <div className="nexi-priority-summary" aria-label="Filtros de priorización">
@@ -131,7 +129,7 @@ export function NexiPriorityQueue({
     {semanticError && <div className="notice nexi-priority-notice">{semanticError}</div>}
 
     <div className="nexi-priority-list">
-      {shown.length === 0 ? <NexiEmptyState compact title="Sin correos en esta categoría" description="No hay conversaciones clasificadas en este grupo." /> : shown.map(({ entry, classification }) => {
+      {shown.length === 0 ? <NexiEmptyState compact title={items.length === 0 ? 'Sin pendientes' : 'Sin correos en esta categoría'} description={items.length === 0 ? 'No hay conversaciones pendientes ni correos marcados para seguimiento.' : 'No hay conversaciones clasificadas en este grupo.'} /> : shown.map(({ entry, classification }) => {
         const { item, automatic, manual } = entry
         const meta = CATEGORY_META[classification.category]
         const Icon = meta.icon
