@@ -1,0 +1,204 @@
+.nexi-control-center {
+  --cc-space-1: 4px;
+  --cc-space-2: 8px;
+  --cc-space-3: 12px;
+  --cc-space-4: 16px;
+  --cc-space-5: 24px;
+  --cc-panel-padding-x: 14px;
+  --cc-panel-padding-y: 12px;
+  --cc-section-gap: var(--cc-space-4);
+  --cc-inner-gap: var(--cc-space-3);
+  gap: var(--cc-section-gap);
+}
+
+/* Nivel de página: una sola separación entre cabecera, perspectiva y contenido activo. */
+.nexi-control-center > .control-page-header,
+.nexi-control-center > .nexo-perspective,
+.nexi-control-center > .nexi-daily-brief,
+.nexi-control-center > .nexi-trend-report,
+.nexi-control-center > .control-center,
+.nexi-control-center > .nexi-context-workspace,
+.nexi-control-center > .nexi-report-view,
+.nexi-control-center > .contact-control,
+.nexi-control-center > .documents-control {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* Operación: cada bloque directo usa exactamente el mismo ritmo vertical. */
+.nexi-control-center .control-center {
+  display: grid;
+  gap: var(--cc-section-gap);
+  margin: 0;
+  padding: 0;
+}
+
+.nexi-control-center .control-center > .control-center-header,
+.nexi-control-center .control-center > .control-center-warning,
+.nexi-control-center .control-center > .nexi-insights-panel,
+.nexi-control-center .control-center > .nexi-priority-panel,
+.nexi-control-center .control-center > .control-management-panel,
+.nexi-control-center .control-center > .activity-panel {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.nexi-control-center .control-center-header {
+  min-height: 44px;
+  padding: 0 var(--cc-space-1);
+}
+
+/* Los paneles principales comparten radio y encabezado. */
+.nexi-control-center .nexi-daily-brief,
+.nexi-control-center .nexi-trend-report,
+.nexi-control-center .nexi-insights-panel,
+.nexi-control-center .nexi-priority-panel,
+.nexi-control-center .control-management-panel,
+.nexi-control-center .activity-panel,
+.nexi-control-center .nexi-report-toolbar,
+.nexi-control-center .nexi-report-count,
+.nexi-control-center .nexi-report-summary,
+.nexi-control-center .nexi-report-actions,
+.nexi-control-center .nexi-report-messages {
+  border-radius: 12px;
+}
+
+.nexi-control-center .nexi-daily-brief,
+.nexi-control-center .nexi-trend-report {
+  gap: var(--cc-inner-gap);
+  padding: var(--cc-panel-padding-y) var(--cc-panel-padding-x);
+}
+
+.nexi-control-center .nexi-daily-brief-header,
+.nexi-control-center .nexi-trend-header,
+.nexi-control-center .nexi-priority-header,
+.nexi-control-center .activity-panel-header,
+.nexi-control-center .contact-control-header,
+.nexi-control-center .documents-header {
+  gap: var(--cc-space-3);
+}
+
+/* Indicadores y hallazgos: mismo margen interior del contenedor. */
+.nexi-control-center .nexi-insights-header {
+  min-height: 56px;
+  padding: var(--cc-panel-padding-y) var(--cc-panel-padding-x);
+}
+
+.nexi-control-center .nexi-control-metrics {
+  margin: 0;
+  padding: var(--cc-space-3) var(--cc-panel-padding-x) var(--cc-panel-padding-x);
+}
+
+.nexi-control-center .nexi-findings-heading {
+  margin: 0;
+  padding: var(--cc-panel-padding-y) var(--cc-panel-padding-x) 0;
+  border-top: 0;
+}
+
+.nexi-control-center .nexi-insights-grid {
+  padding: var(--cc-space-2) var(--cc-panel-padding-x) var(--cc-panel-padding-x);
+}
+
+/* Priorización: cabecera, filtros, lista y pie alineados al mismo eje. */
+.nexi-control-center .nexi-priority-panel {
+  gap: 0;
+}
+
+.nexi-control-center .nexi-priority-header {
+  min-height: 56px;
+  padding: var(--cc-panel-padding-y) var(--cc-panel-padding-x);
+}
+
+.nexi-control-center .nexi-priority-summary {
+  padding: var(--cc-space-3) var(--cc-panel-padding-x) 0;
+}
+
+.nexi-control-center .nexi-priority-list {
+  padding: var(--cc-space-3) var(--cc-panel-padding-x);
+}
+
+.nexi-control-center .nexi-priority-footer {
+  padding: 0 var(--cc-panel-padding-x) var(--cc-panel-padding-y);
+}
+
+/* Gestión y actividad siguen la misma separación exterior que los demás bloques. */
+.nexi-control-center .control-management-panel > header,
+.nexi-control-center .activity-panel-header {
+  min-height: 56px;
+  padding: var(--cc-panel-padding-y) var(--cc-panel-padding-x);
+}
+
+/* Pestaña Contactos: sustituye una cadena de márgenes distintos por un gap único. */
+.nexi-control-center .contact-control {
+  display: grid;
+  gap: var(--cc-space-2);
+  padding: 0 var(--cc-panel-padding-x) var(--cc-section-gap);
+}
+
+.nexi-control-center .contact-control-header,
+.nexi-control-center .contact-index-empty,
+.nexi-control-center .contact-sync-status,
+.nexi-control-center .contact-limit-notice,
+.nexi-control-center .contact-summary-grid,
+.nexi-control-center .contact-toolbar,
+.nexi-control-center .contact-footnote {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* Pestaña Documentos: mismo criterio que Contactos. */
+.nexi-control-center .documents-control {
+  display: grid;
+  gap: var(--cc-space-2);
+  padding: 0 var(--cc-panel-padding-x) var(--cc-section-gap);
+}
+
+.nexi-control-center .documents-header,
+.nexi-control-center .documents-index-empty,
+.nexi-control-center .documents-sync-status,
+.nexi-control-center .documents-error,
+.nexi-control-center .documents-toolbar,
+.nexi-control-center .documents-more {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.nexi-control-center .documents-more {
+  padding-top: var(--cc-space-1);
+}
+
+/* Informes: mismo ritmo entre barra, selector de período y bloques de contenido. */
+.nexi-control-center .nexi-report-view {
+  gap: var(--cc-space-3);
+}
+
+.nexi-control-center .nexi-report-toolbar {
+  padding: var(--cc-panel-padding-y) var(--cc-panel-padding-x);
+}
+
+.nexi-control-center .nexi-report-summary,
+.nexi-control-center .nexi-report-actions {
+  padding: var(--cc-panel-padding-y) var(--cc-panel-padding-x);
+}
+
+.nexi-control-center .nexi-report-messages > header {
+  min-height: 48px;
+  padding: 0 var(--cc-panel-padding-x);
+}
+
+.nexi-control-center .nexi-report-item {
+  padding: var(--cc-panel-padding-y) var(--cc-panel-padding-x);
+}
+
+@media (max-width: 760px) {
+  .nexi-control-center {
+    --cc-panel-padding-x: 12px;
+    --cc-panel-padding-y: 10px;
+    --cc-section-gap: 12px;
+  }
+
+  .nexi-control-center .contact-control,
+  .nexi-control-center .documents-control {
+    padding-inline: var(--cc-panel-padding-x);
+  }
+}
