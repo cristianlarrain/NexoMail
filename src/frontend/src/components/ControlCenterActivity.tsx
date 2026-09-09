@@ -94,7 +94,7 @@ export function ControlCenterActivity({ accountId, accounts }: { accountId?: str
 
   return <article className="control-panel activity-panel">
     <header className="activity-panel-header">
-      <div className="activity-title"><strong>Actividad por cuenta</strong><span>{activityQuery.isFetching ? 'Actualizando…' : period || `Últimos ${days} días`}</span></div>
+      <div className="activity-title"><strong>Volumen por cuenta</strong><span>{activityQuery.isFetching ? 'Actualizando…' : period || `Últimos ${days} días`}</span></div>
       <div className="activity-toolbar">
         <div className="activity-period-selector" aria-label="Período del gráfico">
           {([7, 14, 30] as ActivityDays[]).map(value => <button type="button" key={value} className={days === value ? 'active' : ''} onClick={() => changeDays(value)}>{value} días</button>)}
@@ -107,7 +107,7 @@ export function ControlCenterActivity({ accountId, accounts }: { accountId?: str
       </div>
     </header>
 
-    <div className="activity-account-selector" aria-label="Actividad por cuenta">
+    <div className="activity-account-selector" aria-label="Volumen por cuenta">
       {!accountId && accountActivity.length > 1 && <button type="button" className={`activity-account-card ${selectedSeries === 'all' ? 'active' : ''}`} onClick={() => setSelectedSeries('all')}>
         <span className="activity-account-name"><i className="all-accounts-dot" />Todas</span>
         <span className="activity-account-counts"><span><ActivityValue value={combinedTotals.received} loading={numbersLoading} /><small>Recibidos</small></span><span><ActivityValue value={combinedTotals.sent} loading={numbersLoading} /><small>Enviados</small></span></span>
@@ -123,16 +123,16 @@ export function ControlCenterActivity({ accountId, accounts }: { accountId?: str
 
     <div className="activity-insight-row">
       <div><span>Mostrando</span><strong>{selectedLabel}</strong></div>
-      <div className="activity-peak"><TrendingUp size={15} /><span>Día más activo</span><strong>{numbersLoading ? 'Calculando…' : peakDay && peakTotal > 0 ? `${fullDayLabel(peakDay.date)} · ${peakTotal}` : 'Sin actividad'}</strong></div>
+      <div className="activity-peak"><TrendingUp size={15} /><span>Día con mayor volumen</span><strong>{numbersLoading ? 'Calculando…' : peakDay && peakTotal > 0 ? `${fullDayLabel(peakDay.date)} · ${peakTotal}` : 'Sin movimiento'}</strong></div>
     </div>
 
-    {activityQuery.isError ? <div className="notice activity-error">No fue posible consultar la actividad de este período.</div> : <div className="activity-chart-scroll">
+    {activityQuery.isError ? <div className="notice activity-error">No fue posible consultar este período.</div> : <div className="activity-chart-scroll">
       <div className="activity-plot">
         <svg className="activity-line-overlay" viewBox="0 0 1000 120" preserveAspectRatio="none" aria-hidden="true">
           {receivedLine && <polyline className="received" points={receivedLine} />}
           {sentLine && <polyline className="sent" points={sentLine} />}
         </svg>
-        <div className={`activity-chart activity-chart-dynamic days-${days}`} style={{ gridTemplateColumns: `repeat(${Math.max(1, activity.length)}, minmax(0, 1fr))` }} aria-label={`Actividad de ${selectedLabel}: ${period || `${days} días`}`}>
+        <div className={`activity-chart activity-chart-dynamic days-${days}`} style={{ gridTemplateColumns: `repeat(${Math.max(1, activity.length)}, minmax(0, 1fr))` }} aria-label={`Volumen de ${selectedLabel}: ${period || `${days} días`}`}>
           {activity.map(day => <div className="activity-day" key={day.date} title={`${fullDayLabel(day.date)} · ${day.received} recibidos · ${day.sent} enviados`}>
             <div className="activity-bars">
               <span className="activity-bar-column received">{days === 7 && <b>{day.received}</b>}<i style={{ height: day.received === 0 ? '2px' : `${Math.max(8, Math.round(day.received / maximumActivity * 100))}%` }} /></span>
