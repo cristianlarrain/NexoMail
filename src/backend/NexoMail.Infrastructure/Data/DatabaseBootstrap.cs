@@ -34,6 +34,8 @@ public static class DatabaseBootstrap
             if (!columns.Contains("EmailVerificationTokenExpiresAt")) await AddColumnAsync("ALTER TABLE Users ADD COLUMN EmailVerificationTokenExpiresAt TEXT NULL;", connection, cancellationToken);
             if (!columns.Contains("EmailVerificationAttempts")) await AddColumnAsync("ALTER TABLE Users ADD COLUMN EmailVerificationAttempts INTEGER NOT NULL DEFAULT 0;", connection, cancellationToken);
             if (!columns.Contains("AvatarDataUrl")) await AddColumnAsync("ALTER TABLE Users ADD COLUMN AvatarDataUrl TEXT NULL;", connection, cancellationToken);
+            // Existing beta users are grandfathered into Premium. New registrations use the Freemium entity default.
+            if (!columns.Contains("PlanCode")) await AddColumnAsync("ALTER TABLE Users ADD COLUMN PlanCode TEXT NOT NULL DEFAULT 'premium';", connection, cancellationToken);
 
             await ExecuteAsync(@"
                 CREATE TABLE IF NOT EXISTS UserSessions (
