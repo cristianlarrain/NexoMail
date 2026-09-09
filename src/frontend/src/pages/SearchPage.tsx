@@ -227,6 +227,12 @@ export function SearchPage() {
     })
   }
 
+  function analyzeWithNexi() {
+    const next = new URLSearchParams({ tab: 'nexi', q: query, auto: '1' })
+    if (explicitAccount) next.set('account', explicitAccount)
+    navigate(`/control-center?${next.toString()}`)
+  }
+
   const currentSavedKey = JSON.stringify({ query, accountId: explicitAccount, folder, unread, attachments, days, documentType, scope })
   const currentSaved = savedSearches.find(item => JSON.stringify({ query: item.query, accountId: item.accountId, folder: item.folder, unread: item.unread, attachments: item.attachments, days: item.days, documentType: item.documentType, scope: item.scope }) === currentSavedKey)
 
@@ -268,7 +274,10 @@ export function SearchPage() {
   return <section className="mail-view universal-search-page">
     <div className="view-header universal-search-heading">
       <div><h1>Resultados de búsqueda</h1><p className="view-context">{selectedAccount ? selectedAccount.displayName : 'Todas las cuentas'} · “{query}”</p></div>
-      <button type="button" className="secondary-button universal-save-button" onClick={toggleSave}>{currentSaved ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}{currentSaved ? 'Guardada' : 'Guardar búsqueda'}</button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button type="button" className="primary-button" onClick={analyzeWithNexi}><Sparkles size={15} /> Analizar con Nexi</button>
+        <button type="button" className="secondary-button universal-save-button" onClick={toggleSave}>{currentSaved ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}{currentSaved ? 'Guardada' : 'Guardar búsqueda'}</button>
+      </div>
     </div>
 
     <div className={`nexi-search-interpretation ${interpretationQuery.isLoading ? 'loading' : ''}`}>
