@@ -77,53 +77,53 @@ export function NexiMailReport() {
       <span className={`nexi-importance ${item.importance}`}>{item.importance === 'alta' && <AlertTriangle size={12} />}{item.importance}</span>
     </div>
     <p>{item.summary}</p>
-    {item.requestedAction && <div className="nexi-report-request"><CheckCircle2 size={14} /><span><strong>Qué requiere de ti:</strong> {item.requestedAction}</span></div>}
+    {item.requestedAction && <div className="nexi-report-request"><CheckCircle2 size={14} /><span><strong>Acción solicitada:</strong> {item.requestedAction}</span></div>}
   </article>
 
   return <div className="nexi-report-view">
     <section className="nexi-report-toolbar">
       <div className="nexi-report-toolbar-copy">
         <span className="nexi-report-icon"><Sparkles size={18} /></span>
-        <div><strong>Reporte inteligente de Nexi</strong><span>Quién te escribió, qué necesita y qué conviene atender.</span></div>
+        <div><strong>Síntesis del período</strong><span>Quién escribió, qué necesita y qué conviene atender.</span></div>
       </div>
-      <select value={accountId} onChange={event => updateParam('account', event.target.value || null)} aria-label="Cuenta para el reporte">
+      <select value={accountId} onChange={event => updateParam('account', event.target.value || null)} aria-label="Cuenta para el informe">
         <option value="">Todas las cuentas</option>
         {(accounts.data ?? []).map(account => <option key={account.id} value={account.id}>{account.displayName}</option>)}
       </select>
     </section>
 
-    <div className="nexi-report-periods" aria-label="Período del reporte">
+    <div className="nexi-report-periods" aria-label="Período del informe">
       {(Object.keys(labels) as NexiReportPeriod[]).map(value => <button key={value} type="button" className={period === value ? 'active' : ''} onClick={() => updateParam('period', value)}><CalendarDays size={14} />{labels[value]}</button>)}
       <span className="nexi-report-range">{rangeLabel}</span>
     </div>
 
     {report.isLoading && <section className="nexi-report-loading"><span className="reading-skeleton" /><span className="reading-skeleton" /><span className="reading-skeleton" /><small>Nexi está leyendo y organizando los correos del período…</small></section>}
-    {report.isError && <div className="notice">{report.error instanceof Error ? report.error.message : 'No fue posible generar el reporte.'}</div>}
+    {report.isError && <div className="notice">{report.error instanceof Error ? report.error.message : 'No fue posible generar el informe.'}</div>}
 
     {report.data && <>
       <section className="nexi-report-overview">
         <div className="nexi-report-count"><Inbox size={18} /><strong>{report.data.messageCount}</strong><span>correos analizados</span></div>
-        <div className="nexi-report-summary"><span>Nexi resume</span><p>{report.data.summary}</p></div>
+        <div className="nexi-report-summary"><span>Resumen ejecutivo</span><p>{report.data.summary}</p></div>
       </section>
 
       {report.data.actions.length > 0 && <section className="nexi-report-actions">
-        <header><CheckCircle2 size={16} /><strong>Acciones que requieren atención</strong></header>
+        <header><CheckCircle2 size={16} /><strong>Acciones detectadas</strong></header>
         <ul>{report.data.actions.map((action, index) => <li key={`${action}-${index}`}>{action}</li>)}</ul>
       </section>}
 
       {attentionItems.length > 0 && <section className="nexi-report-messages">
-        <header><AlertTriangle size={16} /><strong>Requiere atención</strong><span>{attentionItems.length} · {rangeLabel}</span></header>
+        <header><AlertTriangle size={16} /><strong>Con acción pendiente</strong><span>{attentionItems.length} · {rangeLabel}</span></header>
         {attentionItems.map(renderItem)}
       </section>}
 
       {informationalItems.length > 0 && <section className="nexi-report-messages nexi-report-informational">
-        <header><Info size={16} /><strong>Informativos</strong><span>{informationalItems.length} · {rangeLabel}</span></header>
+        <header><Info size={16} /><strong>Sólo informativos</strong><span>{informationalItems.length} · {rangeLabel}</span></header>
         {informationalItems.map(renderItem)}
       </section>}
 
       {report.data.items.length === 0 && <section className="nexi-report-messages">
-        <header><Sparkles size={16} /><strong>Resumen del período</strong><span>{rangeLabel}</span></header>
-        <div className="nexi-report-empty">No hay detalles adicionales para mostrar.</div>
+        <header><Sparkles size={16} /><strong>Sin detalle adicional</strong><span>{rangeLabel}</span></header>
+        <div className="nexi-report-empty">No hay elementos adicionales para mostrar.</div>
       </section>}
     </>}
   </div>
