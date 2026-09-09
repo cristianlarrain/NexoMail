@@ -80,9 +80,9 @@ export function ControlCenterDocuments() {
     navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: DOCUMENTS_RETURN_PATH } })
   }
 
-  return <section className="documents-control" aria-label="Documentos recibidos">
+  return <section className="documents-control" aria-label="Archivo documental">
     <header className="documents-header">
-      <div><p className="eyebrow">Registro documental</p><h2>Documentos recibidos</h2></div>
+      <div><p className="eyebrow">Archivo</p><h2>Documentos indexados</h2></div>
       <strong>{data.total} documento{data.total === 1 ? '' : 's'}</strong>
     </header>
 
