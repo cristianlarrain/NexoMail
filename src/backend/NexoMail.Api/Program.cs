@@ -172,9 +172,21 @@ app.MapNexoMailSessions();
 
 var api = app.MapGroup("/api");
 api.MapGet("/health", () => Results.Ok(new { status = "ok", demoMode }));
+NexoMail.Api.CommercialEndpoints.MapNexoMailCommercial(api);
 
 var oauth = api.MapGroup("/oauth").RequireAuthorization();
-oauth.MapGet("/google/start", (GoogleOAuthService service) => Results.Redirect(service.BeginAuthorization()));
+oauth.MapGet("/google/start", async (GoogleOAuthService service, CancellationToken ct) =>
+{
+    try
+    {
+        await service.EnsureCanConnectAnotherAccountAsync(ct);
+        return Results.Redirect(service.BeginAuthorization());
+    }
+    catch (InvalidOperationException exception)
+    {
+        return Results.Redirect(service.FailureRedirect(exception.Message));
+    }
+});
 oauth.MapGet("/google/callback", async (string? code, string? state, string? error, GoogleOAuthService service, CancellationToken ct) =>
 {
     if (!string.IsNullOrWhiteSpace(error)) return Results.Redirect(service.FailureRedirect("Google canceló la autorización."));
