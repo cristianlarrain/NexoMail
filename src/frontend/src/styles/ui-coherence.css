@@ -6,36 +6,87 @@
   --shadow: 0 1px 3px rgb(18 42 47 / .08);
 }
 
+/* Centro de Control: una sola separación real entre cajas visibles. */
+.control-center-page.nexi-control-center {
+  display: grid !important;
+  row-gap: 10px !important;
+  column-gap: 10px !important;
+}
+
+.control-center-page.nexi-control-center > * {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.control-center-page .nexo-perspective,
+.control-center-page .nexi-daily-brief,
+.control-center-page .nexi-trend-report,
+.control-center-page .nexi-insights-panel,
+.control-center-page .nexi-priority-panel,
+.control-center-page .control-management-panel,
+.control-center-page .activity-panel {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.control-center-page .control-center {
+  display: grid !important;
+  row-gap: 10px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.control-center-page .control-center > :not(.control-center-header) {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.control-center-page .nexi-daily-brief-grid,
+.control-center-page .nexi-trend-metrics,
+.control-center-page .control-metrics,
+.control-center-page .nexi-insights-grid,
+.control-center-page .nexi-priority-summary,
+.control-center-page .nexi-priority-list,
+.control-center-page .activity-account-selector,
+.control-center-page .control-center-grid,
+.control-center-page .nexi-report-view,
+.control-center-page .nexi-report-overview {
+  gap: 10px !important;
+}
+
 @media (min-width: 761px) {
   .app-shell {
-    display: flex;
-    gap: 0 !important;
-    align-items: stretch;
+    display: block;
   }
 
   .sidebar {
-    flex: 0 0 auto;
     margin: 0 !important;
   }
 
+  /* El contenido empieza exactamente donde termina el menú lateral fijo. */
   .main-content {
-    min-width: 0;
-    flex: 1 1 auto;
-    margin: 0 !important;
-    padding: 0 !important;
+    width: calc(100% - 248px) !important;
+    margin-left: 248px !important;
+    padding-left: 0 !important;
   }
 
-  /* La barra superior comienza exactamente donde termina el menú lateral. */
+  .app-shell:has(.sidebar.collapsed) .main-content {
+    width: calc(100% - 68px) !important;
+    margin-left: 68px !important;
+  }
+
+  /* La caja superior toca directamente el borde derecho del menú lateral. */
   .topbar {
-    left: 0;
-    width: 100%;
+    width: 100% !important;
     margin: 0 !important;
-    padding-left: 0 !important;
-    border-left: 0;
+    left: 0 !important;
+    border-left: 0 !important;
     border-radius: 0 !important;
   }
+}
 
-  .topbar .top-search {
-    margin-left: 0 !important;
+@media (max-width: 760px) {
+  .control-center-page.nexi-control-center {
+    row-gap: 10px !important;
   }
 }
