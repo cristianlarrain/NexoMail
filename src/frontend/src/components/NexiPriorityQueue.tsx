@@ -98,21 +98,19 @@ export function NexiPriorityQueue({
         value.results.forEach(result => { next[result.key] = result.classification })
         return next
       })
-      if (value.failed > 0) setSemanticError(value.failed === 1
-        ? '1 correo no pudo analizarse; se mantiene su clasificación por reglas.'
-        : `${value.failed} correos no pudieron analizarse; se mantiene su clasificación por reglas.`)
+      if (value.failed > 0) setSemanticError(`${value.failed} correo${value.failed === 1 ? '' : 's'} no pudo${value.failed === 1 ? '' : 'ieron'} analizarse; se mantiene su clasificación por reglas.`)
     },
     onError: error => setSemanticError(error instanceof Error ? error.message : 'Nexi no pudo afinar la priorización.'),
   })
 
-  if (items.length === 0) return <article className="control-panel nexi-priority-panel"><NexiEmptyState compact title="Todo al día" description="Nexi no encontró conversaciones pendientes ni correos marcados para seguimiento." /></article>
+  if (items.length === 0) return <article className="control-panel nexi-priority-panel"><NexiEmptyState compact title="Sin pendientes" description="No hay conversaciones pendientes ni correos marcados para seguimiento." /></article>
 
-  return <article className="control-panel nexi-priority-panel">
+  return <article className="control-panel nexi-priority-panel" aria-label="Priorización inteligente">
     <header className="nexi-priority-header">
       <div>
-        <span className="nexi-priority-kicker"><Sparkles size={14} /> Nexi · Priorización inteligente</span>
+        <span className="nexi-priority-kicker"><Sparkles size={14} /> Priorización inteligente</span>
         <strong>Qué atender primero</strong>
-        <p>La clasificación inmediata usa reglas operativas. Nexi puede revisar el contenido de los correos de mayor prioridad bajo demanda.</p>
+        <p>Ordena las conversaciones por urgencia, necesidad de respuesta, seguimiento o carácter informativo. Nexi puede revisar el contenido bajo demanda.</p>
       </div>
       <button type="button" className="secondary-button nexi-priority-refine" disabled={refine.isPending || candidates.length === 0} onClick={() => refine.mutate()}>
         {refine.isPending ? <LoaderCircle size={14} className="spin" /> : candidates.length === 0 ? <CheckCircle2 size={14} /> : <Sparkles size={14} />}
@@ -120,7 +118,7 @@ export function NexiPriorityQueue({
       </button>
     </header>
 
-    <div className="nexi-priority-summary" aria-label="Resumen de prioridades">
+    <div className="nexi-priority-summary" aria-label="Filtros de priorización">
       <button type="button" className={filter === 'all' ? 'active all' : 'all'} onClick={() => { setFilter('all'); setVisible(10) }}><CircleHelp size={14} /><span>Todos</span><b>{classified.length}</b></button>
       {(Object.keys(CATEGORY_META) as NexiPriorityCategory[]).map(category => {
         const Icon = CATEGORY_META[category].icon
@@ -133,7 +131,7 @@ export function NexiPriorityQueue({
     {semanticError && <div className="notice nexi-priority-notice">{semanticError}</div>}
 
     <div className="nexi-priority-list">
-      {shown.length === 0 ? <NexiEmptyState compact title="Sin correos en esta prioridad" description="No hay conversaciones clasificadas en este grupo." /> : shown.map(({ entry, classification }) => {
+      {shown.length === 0 ? <NexiEmptyState compact title="Sin correos en esta categoría" description="No hay conversaciones clasificadas en este grupo." /> : shown.map(({ entry, classification }) => {
         const { item, automatic, manual } = entry
         const meta = CATEGORY_META[classification.category]
         const Icon = meta.icon
@@ -159,7 +157,7 @@ export function NexiPriorityQueue({
     <footer className="nexi-priority-footer">
       <span>Mostrando {Math.min(visible, filtered.length)} de {filtered.length}{Object.keys(semantic).length > 0 ? ` · ${Object.keys(semantic).length} revisados por Nexi` : ''}</span>
       {visible < filtered.length && <button type="button" className="secondary-button" onClick={() => setVisible(current => current + 10)}>Cargar más</button>}
-      {candidates.length > 0 && !refine.isPending && <small>Nexi revisa hasta 5 correos por tanda para mantener rápida la carga del Centro de Control.</small>}
+      {candidates.length > 0 && !refine.isPending && <small>Nexi revisa hasta 5 correos por tanda para mantener rápida esta vista.</small>}
     </footer>
   </article>
 }
