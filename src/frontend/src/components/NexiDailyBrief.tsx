@@ -79,33 +79,33 @@ export function NexiDailyBrief() {
 
   if (!brief) return null
 
-  return <section className="nexi-daily-brief" aria-label="Resumen inteligente del día">
+  return <section className="nexi-daily-brief" aria-label="Lectura del día">
     <header className="nexi-daily-brief-header">
       <div>
-        <span className="nexi-daily-brief-kicker"><Sparkles size={14} /> Nexi · Resumen inteligente del día</span>
-        <strong>Qué requiere atención ahora</strong>
-        <p>Interpretación operativa sin repetir los indicadores numéricos del Centro de Control.</p>
+        <span className="nexi-daily-brief-kicker"><Sparkles size={14} /> Lectura del día</span>
+        <strong>Qué merece atención</strong>
+        <p>Prioridad, concentración y temas recurrentes sin repetir las cifras operativas.</p>
       </div>
-      <button type="button" className="secondary-button nexi-daily-report-button" onClick={() => navigate('/control-center?tab=report&period=today')}><CalendarDays size={14} /> Reporte de hoy</button>
+      <button type="button" className="secondary-button nexi-daily-report-button" onClick={() => navigate('/control-center?tab=report&period=today')}><CalendarDays size={14} /> Informe de hoy</button>
     </header>
 
     <div className="nexi-daily-brief-grid">
       <article className={`nexi-daily-priority ${brief.priorityTone}`}>
         <span className="nexi-daily-card-icon"><AlertTriangle size={17} /></span>
-        <div><small>Prioridad</small><strong>{brief.priority}</strong></div>
+        <div><small>Foco actual</small><strong>{brief.priority}</strong></div>
       </article>
 
       <article className="nexi-daily-list-card">
         <span className="nexi-daily-card-icon"><Users size={17} /></span>
-        <div><small>Personas con más pendientes</small>{brief.people.length > 0 ? <ul>{brief.people.map(person => <li key={person.label}><span title={person.label}>{person.label}</span><b>{person.count}</b></li>)}</ul> : <strong>Sin concentración de pendientes</strong>}</div>
+        <div><small>Mayor concentración</small>{brief.people.length > 0 ? <ul>{brief.people.map(person => <li key={person.label}><span title={person.label}>{person.label}</span><b>{person.count}</b></li>)}</ul> : <strong>Sin concentración relevante</strong>}</div>
       </article>
 
       <article className="nexi-daily-list-card">
         <span className="nexi-daily-card-icon"><Clock3 size={17} /></span>
-        <div><small>Temas repetidos entre pendientes</small>{brief.subjects.length > 0 ? <ul>{brief.subjects.map(subject => <li key={subject.label}><span title={subject.label}>{subject.label}</span><b>{subject.count}</b></li>)}</ul> : <strong>No hay asuntos repetidos relevantes</strong>}</div>
+        <div><small>Temas recurrentes</small>{brief.subjects.length > 0 ? <ul>{brief.subjects.map(subject => <li key={subject.label}><span title={subject.label}>{subject.label}</span><b>{subject.count}</b></li>)}</ul> : <strong>Sin asuntos repetidos relevantes</strong>}</div>
       </article>
     </div>
 
-    {brief.data.unavailableAccounts > 0 && <small className="nexi-daily-brief-footnote">El resumen considera sólo las cuentas disponibles; {brief.data.unavailableAccounts === 1 ? '1 cuenta no pudo consultarse.' : `${brief.data.unavailableAccounts} cuentas no pudieron consultarse.`}</small>}
+    {brief.data.unavailableAccounts > 0 && <small className="nexi-daily-brief-footnote">Se consideran sólo las cuentas disponibles; {brief.data.unavailableAccounts === 1 ? '1 cuenta no pudo consultarse.' : `${brief.data.unavailableAccounts} cuentas no pudieron consultarse.`}</small>}
   </section>
 }
