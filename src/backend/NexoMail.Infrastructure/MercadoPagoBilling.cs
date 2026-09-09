@@ -28,10 +28,7 @@ public static class MercadoPagoBilling
         if (string.IsNullOrWhiteSpace(accessToken)) throw new InvalidOperationException("Mercado Pago no está configurado.");
         if (amount <= 0) throw new InvalidOperationException("El plan no tiene un monto válido para cobro recurrente.");
 
-        var client = httpClientFactory.CreateClient();
-        client.BaseAddress = new Uri(BaseUrl);
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Trim());
-
+        var client = CreateClient(httpClientFactory, accessToken);
         var request = new
         {
             reason = $"NexoMail {planName}",
@@ -70,9 +67,7 @@ public static class MercadoPagoBilling
         string subscriptionId,
         CancellationToken ct)
     {
-        var client = httpClientFactory.CreateClient();
-        client.BaseAddress = new Uri(BaseUrl);
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Trim());
+        var client = CreateClient(httpClientFactory, accessToken);
         using var response = await client.GetAsync($"preapproval/{Uri.EscapeDataString(subscriptionId)}", ct);
         var json = await response.Content.ReadAsStringAsync(ct);
         if (!response.IsSuccessStatusCode)
@@ -93,6 +88,19 @@ public static class MercadoPagoBilling
         return new MercadoPagoSubscriptionSnapshot(id, status, externalReference, lastModified);
     }
 
+    public static async Task<MercadoPagoSubscriptionSnapshot> CancelSubscriptionAsync(
+        IHttpClientFactory httpClientFactory,
+        string accessToken,
+        string subscriptionId,
+        CancellationToken ct)
+    {
+        var client = CreateClient(httpClientFactory, accessToken);
+        using var response = await client.PutAsJsonAsync($"preapproval/{Uri.EscapeDataString(subscriptionId)}", new { status = "canceled" }, ct);
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException($"Mercado Pago no pudo cancelar la suscripción ({(int)response.StatusCode}).");
+        return await GetSubscriptionAsync(httpClientFactory, accessToken, subscriptionId, ct);
+    }
+
     public static bool ValidateWebhookSignature(string xSignature, string xRequestId, string dataId, string secret)
     {
         if (string.IsNullOrWhiteSpace(xSignature) || string.IsNullOrWhiteSpace(xRequestId) || string.IsNullOrWhiteSpace(dataId) || string.IsNullOrWhiteSpace(secret))
@@ -111,7 +119,8 @@ public static class MercadoPagoBilling
         }
         if (string.IsNullOrWhiteSpace(ts) || string.IsNullOrWhiteSpace(v1)) return false;
 
-        var manifest = $"id:{dataId};request-id:{xRequestId};ts:{ts};";
+        var normalizedDataId = dataId.Any(char.IsLetter) ? dataId.ToLowerInvariant() : dataId;
+        var manifest = $"id:{normalizedDataId};request-id:{xRequestId};ts:{ts};";
         using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
         var calculated = Convert.ToHexString(hmac.ComputeHash(Encoding.UTF8.GetBytes(manifest))).ToLowerInvariant();
         var supplied = v1.ToLowerInvariant();
@@ -137,5 +146,14 @@ public static class MercadoPagoBilling
         if (parts.Length != 2 || !Guid.TryParseExact(parts[0], "N", out userId) || string.IsNullOrWhiteSpace(parts[1])) return false;
         planCode = parts[1];
         return true;
+    }
+
+    private static HttpClient CreateClient(IHttpClientFactory httpClientFactory, string accessToken)
+    {
+        if (string.IsNullOrWhiteSpace(accessToken)) throw new InvalidOperationException("Mercado Pago no está configurado.");
+        var client = httpClientFactory.CreateClient();
+        client.BaseAddress = new Uri(BaseUrl);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Trim());
+        return client;
     }
 }
