@@ -72,6 +72,31 @@
   background: var(--surface);
 }
 
+.nexi-daily-action-card {
+  width: 100%;
+  color: var(--foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .16s ease, transform .16s ease, box-shadow .16s ease;
+}
+
+.nexi-daily-action-card:hover {
+  border-color: color-mix(in srgb, var(--primary) 42%, var(--border));
+  box-shadow: 0 4px 14px rgb(20 60 68 / .08);
+  transform: translateY(-1px);
+}
+
+.nexi-daily-action-chevron {
+  flex: 0 0 auto;
+  margin: 7px 0 0 auto;
+  color: var(--muted-foreground, var(--muted));
+}
+
+.nexi-daily-action-card:hover .nexi-daily-action-chevron {
+  color: var(--primary);
+}
+
 .nexi-daily-priority.critical {
   border-color: color-mix(in srgb, #c84d43 38%, var(--border));
   background: color-mix(in srgb, #c84d43 6%, var(--surface));
@@ -135,11 +160,29 @@
 
 .nexi-daily-list-card li {
   min-width: 0;
+}
+
+.nexi-daily-list-card li button {
+  width: 100%;
+  min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
+  padding: 3px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
   font-size: 10.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nexi-daily-list-card li button:hover {
+  background: color-mix(in srgb, var(--primary) 7%, transparent);
+  color: var(--primary);
 }
 
 .nexi-daily-list-card li span {
@@ -157,6 +200,14 @@
   color: var(--primary);
   text-align: center;
   font-size: 10px;
+}
+
+.nexi-daily-list-card li button > svg {
+  color: var(--muted-foreground, var(--muted));
+}
+
+.nexi-daily-list-card li button:hover > svg {
+  color: var(--primary);
 }
 
 .nexi-daily-brief-footnote {
