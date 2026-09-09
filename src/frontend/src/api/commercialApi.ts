@@ -16,7 +16,7 @@ export interface CommercialPlan {
 }
 
 export interface CommercialSubscriptionState {
-  status: 'active' | 'trialing' | 'legacy' | 'past_due' | 'canceled' | 'expired' | string
+  status: 'active' | 'trialing' | 'legacy' | 'pending' | 'past_due' | 'canceled' | 'expired' | string
   provider: string | null
   providerCustomerId: string | null
   providerSubscriptionId: string | null
@@ -46,6 +46,21 @@ export interface CommercialEntitlementDefinition {
   code: string
   name: string
   description: string
+}
+
+export interface CommercialBillingStatus {
+  provider: string
+  configured: boolean
+  webhookConfigured: boolean
+  recurring: boolean
+  currency: string
+}
+
+export interface CommercialCheckoutResponse {
+  provider: string
+  subscriptionId: string
+  checkoutUrl: string
+  status: string
 }
 
 export interface CommercialAdminPlan extends CommercialPlan {
@@ -86,6 +101,8 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 export const commercialApi = {
   subscription: () => api<CommercialSubscription>('/subscription'),
   entitlements: () => api<CommercialEntitlementDefinition[]>('/entitlements'),
+  billingStatus: () => api<CommercialBillingStatus>('/billing/status'),
+  checkout: (planCode: string) => api<CommercialCheckoutResponse>('/checkout', { method: 'POST', body: JSON.stringify({ planCode }) }),
   adminStatus: () => api<{ isAdministrator: boolean }>('/admin/status'),
   adminPlans: () => api<CommercialAdminPlan[]>('/admin/plans'),
   createPlan: (request: CommercialPlanWriteRequest) => api<CommercialAdminPlan>('/admin/plans', { method: 'POST', body: JSON.stringify(request) }),
