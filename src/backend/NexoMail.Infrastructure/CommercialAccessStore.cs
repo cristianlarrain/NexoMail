@@ -7,6 +7,7 @@ using NexoMail.Infrastructure.Data;
 namespace NexoMail.Infrastructure;
 
 public sealed record CommercialSubscriptionState(
+    string PlanCode,
     string Status,
     string? Provider,
     string? ProviderCustomerId,
@@ -40,7 +41,8 @@ public static class CommercialAccessStore
         var subscription = await EnsureSubscriptionAsync(database, userId, assigned.Code, ct);
 
         var isFree = string.Equals(assigned.Code, CommercialPlanCatalog.Freemium, StringComparison.OrdinalIgnoreCase);
-        var paidAccessActive = isFree || CommercialSubscriptionStatuses.GrantsPaidAccess(subscription.Status);
+        var subscriptionMatchesPlan = string.Equals(subscription.PlanCode, assigned.Code, StringComparison.OrdinalIgnoreCase);
+        var paidAccessActive = isFree || subscriptionMatchesPlan && CommercialSubscriptionStatuses.GrantsPaidAccess(subscription.Status);
         var effective = paidAccessActive ? assigned : freemium;
         return new CommercialAccessSnapshot(assigned, effective, subscription, EntitlementsFor(effective), paidAccessActive);
     }
@@ -91,7 +93,7 @@ public static class CommercialAccessStore
             AddParameter(insert, "$createdAt", now.ToString("O"));
             AddParameter(insert, "$updatedAt", now.ToString("O"));
             await insert.ExecuteNonQueryAsync(ct);
-            return new(status, null, null, null, null, null, null, false, null, null, now);
+            return new(planCode, status, null, null, null, null, null, null, false, null, null, now);
         }
         finally
         {
@@ -129,7 +131,7 @@ public static class CommercialAccessStore
     {
         await using var command = connection.CreateCommand();
         command.CommandText = @"
-            SELECT Status, Provider, ProviderCustomerId, ProviderSubscriptionId, CurrentPeriodStart, CurrentPeriodEnd,
+            SELECT PlanCode, Status, Provider, ProviderCustomerId, ProviderSubscriptionId, CurrentPeriodStart, CurrentPeriodEnd,
                    TrialEndsAt, CancelAtPeriodEnd, CanceledAt, PaymentDueAt, UpdatedAt
             FROM CommercialSubscriptions WHERE UserId = $userId LIMIT 1;";
         AddParameter(command, "$userId", userId.ToString());
@@ -137,16 +139,17 @@ public static class CommercialAccessStore
         if (!await reader.ReadAsync(ct)) return null;
         return new CommercialSubscriptionState(
             reader.GetString(0),
-            ReadNullableString(reader, 1),
+            reader.GetString(1),
             ReadNullableString(reader, 2),
             ReadNullableString(reader, 3),
-            ReadNullableDate(reader, 4),
+            ReadNullableString(reader, 4),
             ReadNullableDate(reader, 5),
             ReadNullableDate(reader, 6),
-            reader.GetInt32(7) != 0,
-            ReadNullableDate(reader, 8),
+            ReadNullableDate(reader, 7),
+            reader.GetInt32(8) != 0,
             ReadNullableDate(reader, 9),
-            DateTimeOffset.Parse(reader.GetString(10)));
+            ReadNullableDate(reader, 10),
+            DateTimeOffset.Parse(reader.GetString(11)));
     }
 
     private static string? ReadNullableString(DbDataReader reader, int ordinal) => reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
