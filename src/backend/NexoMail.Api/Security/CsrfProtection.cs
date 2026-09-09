@@ -21,26 +21,41 @@ public static class CsrfProtection
     {
         return app.Use(async (context, next) =>
         {
-            if (!RequiresValidation(context.Request))
-            {
-                await next();
-                return;
-            }
-
-            var antiforgery = context.RequestServices.GetRequiredService<IAntiforgery>();
             try
             {
-                await antiforgery.ValidateRequestAsync(context);
-                await next();
-            }
-            catch (AntiforgeryValidationException)
-            {
-                context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                context.Response.Headers["X-NexoMail-CSRF"] = "invalid";
-                await context.Response.WriteAsJsonAsync(new
+                if (!RequiresValidation(context.Request))
                 {
-                    error = "La solicitud no superó la validación de seguridad. Actualiza la página e inténtalo nuevamente."
-                });
+                    await next();
+                    return;
+                }
+
+                var antiforgery = context.RequestServices.GetRequiredService<IAntiforgery>();
+                try
+                {
+                    await antiforgery.ValidateRequestAsync(context);
+                    await next();
+                }
+                catch (AntiforgeryValidationException)
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    context.Response.Headers["X-NexoMail-CSRF"] = "invalid";
+                    await context.Response.WriteAsJsonAsync(new
+                    {
+                        error = "La solicitud no superó la validación de seguridad. Actualiza la página e inténtalo nuevamente."
+                    });
+                }
+            }
+            catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+            {
+                // Navigating away, reloading, or cancelling a React Query request aborts the
+                // underlying Gmail HttpClient call. That is an expected client cancellation,
+                // not an application failure. Real provider timeouts still propagate because
+                // RequestAborted is not set in that case.
+                if (!context.Response.HasStarted)
+                {
+                    context.Response.Clear();
+                    context.Response.StatusCode = 499; // Client Closed Request
+                }
             }
         });
     }
