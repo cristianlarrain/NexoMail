@@ -39,23 +39,7 @@ export function buildNexiInsights(data: ControlCenterSnapshot, manualTracking: C
   const topPendingAccount = [...data.accounts]
     .map(account => ({ account, pending: account.receivedWithoutReply + account.sentWithoutResponse }))
     .sort((left, right) => right.pending - left.pending)[0]
-  const topUnreadAccount = [...data.accounts]
-    .filter(account => account.isAvailable)
-    .sort((left, right) => right.unread - left.unread)[0]
   const oldest = priorityItems[0]
-
-  if (priorityItems.length > 0) {
-    insights.push({
-      id: 'tracking-total',
-      title: 'Seguimiento consolidado',
-      description: manualCount > 0
-        ? `${priorityItems.length} ${plural(priorityItems.length, 'conversación forma', 'conversaciones forman')} su seguimiento prioritario al combinar detección automática y marcas manuales.`
-        : `${priorityItems.length} ${plural(priorityItems.length, 'conversación forma', 'conversaciones forman')} el seguimiento prioritario detectado actualmente por NexoMail.`,
-      priority: data.overdue > 0 ? 'high' : 'medium',
-      action: 'tracking',
-      actionLabel: 'Ver seguimiento',
-    })
-  }
 
   if (manualCount > 0) {
     insights.push({
@@ -96,17 +80,6 @@ export function buildNexiInsights(data: ControlCenterSnapshot, manualTracking: C
       priority: Date.now() - new Date(oldest.since).getTime() >= 48 * 60 * 60 * 1000 ? 'high' : 'info',
       action: 'tracking',
       actionLabel: 'Ver seguimiento',
-    })
-  }
-
-  if (topUnreadAccount && topUnreadAccount.unread > 0 && data.accounts.length > 1) {
-    insights.push({
-      id: 'unread-concentration',
-      title: 'No leídos por cuenta',
-      description: `${topUnreadAccount.accountName} concentra ${topUnreadAccount.unread} ${plural(topUnreadAccount.unread, 'correo sin leer', 'correos sin leer')}.`,
-      priority: 'info',
-      action: 'unread',
-      actionLabel: 'Ver sin leer',
     })
   }
 
