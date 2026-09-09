@@ -1,16 +1,9 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, CalendarDays, Clock3, Mail, Sparkles, Users } from 'lucide-react'
+import { AlertTriangle, CalendarDays, Clock3, Sparkles, Users } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
 import type { ControlCenterPendingItem } from '../types/mail'
-
-function localDateKey(date: Date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
 
 function normalizeSubject(value: string) {
   return value
@@ -50,14 +43,6 @@ function repeatedSubjects(items: ControlCenterPendingItem[]) {
     .slice(0, 3)
 }
 
-function changeCopy(today: number, yesterday: number) {
-  if (today === yesterday) return { icon: <ArrowRight size={15} />, tone: 'neutral', text: `Sin cambio frente a ayer (${today}).` }
-  if (yesterday === 0) return { icon: <ArrowUpRight size={15} />, tone: 'up', text: `Hoy van ${today}; ayer no hubo actividad registrada.` }
-  const percentage = Math.round(Math.abs((today - yesterday) / yesterday) * 100)
-  if (today > yesterday) return { icon: <ArrowUpRight size={15} />, tone: 'up', text: `${percentage}% más actividad que ayer (${yesterday}).` }
-  return { icon: <ArrowDownRight size={15} />, tone: 'down', text: `${percentage}% menos actividad que ayer (${yesterday}).` }
-}
-
 export function NexiDailyBrief() {
   const navigate = useNavigate()
   const snapshot = useQuery({
@@ -73,38 +58,23 @@ export function NexiDailyBrief() {
   const brief = useMemo(() => {
     if (!snapshot.data) return null
     const data = snapshot.data
-    const now = new Date()
-    const yesterdayDate = new Date(now)
-    yesterdayDate.setDate(now.getDate() - 1)
-    const todayKey = localDateKey(now)
-    const yesterdayKey = localDateKey(yesterdayDate)
-    const today = data.activity.find(item => item.date.slice(0, 10) === todayKey)
-    const yesterday = data.activity.find(item => item.date.slice(0, 10) === yesterdayKey)
-    const todayReceived = today?.received ?? 0
-    const todaySent = today?.sent ?? 0
-    const yesterdayReceived = yesterday?.received ?? 0
-    const yesterdaySent = yesterday?.sent ?? 0
-    const todayTotal = todayReceived + todaySent
-    const yesterdayTotal = yesterdayReceived + yesterdaySent
-    const pendingTotal = data.receivedWithoutReply + data.sentWithoutResponse
     const people = topCounterparts(data.pendingItems)
     const subjects = repeatedSubjects(data.pendingItems)
-    const comparison = changeCopy(todayTotal, yesterdayTotal)
 
-    let priority = 'No hay pendientes críticos detectados en este momento.'
+    let priority = 'No hay una prioridad operativa crítica detectada en este momento.'
     let priorityTone = 'ok'
     if (data.overdue > 0) {
-      priority = `${data.overdue} pendiente${data.overdue === 1 ? '' : 's'} supera${data.overdue === 1 ? '' : 'n'} las 48 horas y conviene revisarlo${data.overdue === 1 ? '' : 's'} primero.`
+      priority = 'Hay conversaciones que superan las 48 horas; conviene revisarlas antes que el resto.'
       priorityTone = 'critical'
     } else if (data.receivedWithoutReply > 0) {
-      priority = `${data.receivedWithoutReply} correo${data.receivedWithoutReply === 1 ? '' : 's'} recibido${data.receivedWithoutReply === 1 ? '' : 's'} sigue${data.receivedWithoutReply === 1 ? '' : 'n'} esperando respuesta.`
+      priority = 'Hay conversaciones recibidas esperando respuesta; conviene resolverlas antes de iniciar nuevos seguimientos.'
       priorityTone = 'attention'
     } else if (data.sentWithoutResponse > 0) {
-      priority = `${data.sentWithoutResponse} correo${data.sentWithoutResponse === 1 ? '' : 's'} enviado${data.sentWithoutResponse === 1 ? '' : 's'} sigue${data.sentWithoutResponse === 1 ? '' : 'n'} sin respuesta.`
+      priority = 'Hay conversaciones enviadas que siguen sin respuesta; conviene revisar cuáles necesitan seguimiento.'
       priorityTone = 'attention'
     }
 
-    return { data, todayReceived, todaySent, todayTotal, pendingTotal, people, subjects, comparison, priority, priorityTone }
+    return { data, people, subjects, priority, priorityTone }
   }, [snapshot.data])
 
   if (!brief) return null
@@ -114,7 +84,7 @@ export function NexiDailyBrief() {
       <div>
         <span className="nexi-daily-brief-kicker"><Sparkles size={14} /> Nexi · Resumen inteligente del día</span>
         <strong>Qué requiere atención ahora</strong>
-        <p>Lectura operativa construida con datos reales del Centro de Control. El reporte con IA profundiza en el contenido de los correos.</p>
+        <p>Interpretación operativa sin repetir los indicadores numéricos del Centro de Control.</p>
       </div>
       <button type="button" className="secondary-button nexi-daily-report-button" onClick={() => navigate('/control-center?tab=report&period=today')}><CalendarDays size={14} /> Reporte de hoy</button>
     </header>
@@ -122,12 +92,7 @@ export function NexiDailyBrief() {
     <div className="nexi-daily-brief-grid">
       <article className={`nexi-daily-priority ${brief.priorityTone}`}>
         <span className="nexi-daily-card-icon"><AlertTriangle size={17} /></span>
-        <div><small>Prioridad</small><strong>{brief.priority}</strong><span>{brief.pendingTotal} pendiente{brief.pendingTotal === 1 ? '' : 's'} operativo{brief.pendingTotal === 1 ? '' : 's'} en total.</span></div>
-      </article>
-
-      <article className="nexi-daily-stat">
-        <span className="nexi-daily-card-icon"><Mail size={17} /></span>
-        <div><small>Actividad de hoy</small><strong>{brief.todayTotal}</strong><span>{brief.todayReceived} recibidos · {brief.todaySent} enviados</span><em className={brief.comparison.tone}>{brief.comparison.icon}{brief.comparison.text}</em></div>
+        <div><small>Prioridad</small><strong>{brief.priority}</strong></div>
       </article>
 
       <article className="nexi-daily-list-card">
