@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { AlertTriangle, CheckCircle2, ChevronRight, CircleHelp, Info, LoaderCircle, MessageSquareReply, Sparkles, TimerReset } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronRight, CircleHelp, Info, LoaderCircle, MessageSquareReply, Sparkles, TimerReset, X } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
 import { nexiApi } from '../api/nexiApi'
 import type { ControlCenterPendingItem } from '../types/mail'
 import { NexiEmptyState } from './nexi/NexiEmptyState'
@@ -15,6 +16,7 @@ import {
 } from './nexi/priorityEngine'
 
 type PriorityFilter = 'all' | NexiPriorityCategory
+type ContextFocus = 'overdue' | 'received' | 'sent' | 'person' | 'topic'
 
 const CATEGORY_META: Record<NexiPriorityCategory, { label: string; short: string; icon: typeof AlertTriangle }> = {
   urgent: { label: 'Urgente', short: 'Urgentes', icon: AlertTriangle },
@@ -37,6 +39,31 @@ function ageLabel(value: string) {
   return `hace ${days} día${days === 1 ? '' : 's'}`
 }
 
+function isOverdue(item: ControlCenterPendingItem) {
+  return Date.now() - new Date(item.since).getTime() >= 48 * 60 * 60 * 1000
+}
+
+function normalizeSubject(value: string) {
+  return value
+    .replace(/^\s*(?:(?:re|rv|fwd|fw)\s*:\s*)+/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLocaleLowerCase('es')
+}
+
+function validFocus(value: string | null): ContextFocus | null {
+  return value === 'overdue' || value === 'received' || value === 'sent' || value === 'person' || value === 'topic' ? value : null
+}
+
+function focusLabel(focus: ContextFocus | null, value: string) {
+  if (focus === 'overdue') return 'Más de 48 horas'
+  if (focus === 'received') return 'Recibidos sin responder'
+  if (focus === 'sent') return 'Enviados sin respuesta'
+  if (focus === 'person') return value ? `Persona · ${value}` : 'Persona'
+  if (focus === 'topic') return value ? `Tema · ${value}` : 'Tema'
+  return ''
+}
+
 export function NexiPriorityQueue({
   items,
   openingTarget,
@@ -48,10 +75,14 @@ export function NexiPriorityQueue({
   onManage: (item: ControlCenterPendingItem) => void
   onOpen: (item: ControlCenterPendingItem, manual: boolean) => void
 }) {
+  const [params, setParams] = useSearchParams()
+  const panelRef = useRef<HTMLElement>(null)
   const [filter, setFilter] = useState<PriorityFilter>('all')
   const [visible, setVisible] = useState(10)
   const [semantic, setSemantic] = useState<Record<string, NexiPriorityClassification>>({})
   const [semanticError, setSemanticError] = useState('')
+  const focus = validFocus(params.get('focus'))
+  const focusValue = params.get('value')?.trim() ?? ''
 
   const classified = useMemo(() => items.map(entry => {
     const key = priorityKey(entry.item)
@@ -63,17 +94,38 @@ export function NexiPriorityQueue({
     return new Date(left.entry.item.since).getTime() - new Date(right.entry.item.since).getTime()
   }), [items, semantic])
 
-  const counts = useMemo(() => classified.reduce((result, value) => {
+  const focused = useMemo(() => {
+    if (!focus) return classified
+    const normalizedValue = focusValue.toLocaleLowerCase('es')
+    const normalizedTopic = normalizeSubject(focusValue)
+    return classified.filter(({ entry }) => {
+      const item = entry.item
+      if (focus === 'overdue') return isOverdue(item)
+      if (focus === 'received' || focus === 'sent') return item.direction === focus
+      if (focus === 'person') return normalizedValue.length > 0 && item.counterpart.trim().toLocaleLowerCase('es') === normalizedValue
+      if (focus === 'topic') return normalizedTopic.length > 0 && normalizeSubject(item.subject) === normalizedTopic
+      return true
+    })
+  }, [classified, focus, focusValue])
+
+  useEffect(() => {
+    if (!focus) return
+    setFilter('all')
+    setVisible(10)
+    window.requestAnimationFrame(() => panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }, [focus, focusValue])
+
+  const counts = useMemo(() => focused.reduce((result, value) => {
     result[value.classification.category] += 1
     return result
-  }, { urgent: 0, response: 0, follow_up: 0, informative: 0, probably_resolved: 0 } as Record<NexiPriorityCategory, number>), [classified])
+  }, { urgent: 0, response: 0, follow_up: 0, informative: 0, probably_resolved: 0 } as Record<NexiPriorityCategory, number>), [focused])
 
-  const filtered = filter === 'all' ? classified : classified.filter(value => value.classification.category === filter)
+  const filtered = filter === 'all' ? focused : focused.filter(value => value.classification.category === filter)
   const shown = filtered.slice(0, visible)
 
-  const candidates = useMemo(() => classified
+  const candidates = useMemo(() => focused
     .filter(value => !semantic[priorityKey(value.entry.item)])
-    .slice(0, 5), [classified, semantic])
+    .slice(0, 5), [focused, semantic])
 
   const refine = useMutation({
     mutationFn: async () => {
@@ -103,7 +155,16 @@ export function NexiPriorityQueue({
     onError: error => setSemanticError(error instanceof Error ? error.message : 'Nexi no pudo afinar la priorización.'),
   })
 
-  return <article className="control-panel nexi-priority-panel" aria-label="Priorización inteligente">
+  function clearContextFocus() {
+    const next = new URLSearchParams(params)
+    next.delete('focus')
+    next.delete('value')
+    setParams(next, { replace: true })
+    setFilter('all')
+    setVisible(10)
+  }
+
+  return <article ref={panelRef} className="control-panel nexi-priority-panel" aria-label="Priorización inteligente">
     <header className="nexi-priority-header">
       <div>
         <span className="nexi-priority-kicker"><Sparkles size={14} /> Priorización inteligente</span>
@@ -116,8 +177,13 @@ export function NexiPriorityQueue({
       </button>}
     </header>
 
+    {focus && <div className="nexi-priority-context-filter">
+      <span>Mostrando pendientes relacionados con <strong>{focusLabel(focus, focusValue)}</strong></span>
+      <button type="button" onClick={clearContextFocus}><X size={13} /> Quitar filtro</button>
+    </div>}
+
     <div className="nexi-priority-summary" aria-label="Filtros de priorización">
-      <button type="button" className={filter === 'all' ? 'active all' : 'all'} onClick={() => { setFilter('all'); setVisible(10) }}><CircleHelp size={14} /><span>Todos</span><b>{classified.length}</b></button>
+      <button type="button" className={filter === 'all' ? 'active all' : 'all'} onClick={() => { setFilter('all'); setVisible(10) }}><CircleHelp size={14} /><span>Todos</span><b>{focused.length}</b></button>
       {(Object.keys(CATEGORY_META) as NexiPriorityCategory[]).map(category => {
         const Icon = CATEGORY_META[category].icon
         return <button type="button" key={category} className={`${filter === category ? 'active ' : ''}${category}`} onClick={() => { setFilter(category); setVisible(10) }}>
@@ -129,7 +195,7 @@ export function NexiPriorityQueue({
     {semanticError && <div className="notice nexi-priority-notice">{semanticError}</div>}
 
     <div className="nexi-priority-list">
-      {shown.length === 0 ? <NexiEmptyState compact title={items.length === 0 ? 'Sin pendientes' : 'Sin correos en esta categoría'} description={items.length === 0 ? 'No hay conversaciones pendientes ni correos marcados para seguimiento.' : 'No hay conversaciones clasificadas en este grupo.'} /> : shown.map(({ entry, classification }) => {
+      {shown.length === 0 ? <NexiEmptyState compact title={items.length === 0 ? 'Sin pendientes' : focus ? 'Sin pendientes relacionados' : 'Sin correos en esta categoría'} description={items.length === 0 ? 'No hay conversaciones pendientes ni correos marcados para seguimiento.' : focus ? 'No quedan conversaciones pendientes que coincidan con este foco.' : 'No hay conversaciones clasificadas en este grupo.'} /> : shown.map(({ entry, classification }) => {
         const { item, automatic, manual } = entry
         const meta = CATEGORY_META[classification.category]
         const Icon = meta.icon
