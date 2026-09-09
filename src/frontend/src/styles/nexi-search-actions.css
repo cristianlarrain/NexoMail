@@ -72,23 +72,38 @@
   color: var(--primary);
 }
 
-.nexi-trash-action-button {
+.nexi-trash-action-button,
+.nexi-agent-action-button {
   min-height: 34px;
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  border: 1px solid color-mix(in srgb, #c6453b 55%, var(--border));
   border-radius: 8px;
   padding: 0 11px;
-  background: color-mix(in srgb, #d95d52 10%, var(--surface));
-  color: #b9433a;
   font: inherit;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 }
 
-.nexi-trash-action-button:disabled {
+.nexi-trash-action-button {
+  border: 1px solid color-mix(in srgb, #c6453b 55%, var(--border));
+  background: color-mix(in srgb, #d95d52 10%, var(--surface));
+  color: #b9433a;
+}
+
+.nexi-agent-action-button {
+  border: 1px solid color-mix(in srgb, var(--primary) 38%, var(--border));
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  color: var(--primary);
+}
+
+.nexi-agent-action-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary) 15%, var(--surface));
+}
+
+.nexi-trash-action-button:disabled,
+.nexi-agent-action-button:disabled {
   opacity: .55;
   cursor: default;
 }
@@ -115,6 +130,10 @@
   color: color-mix(in srgb, #237c4e 82%, var(--foreground));
 }
 
+.nexi-action-not-applicable {
+  opacity: .56;
+}
+
 .nexi-action-empty {
   min-height: 45vh;
   display: grid;
@@ -125,8 +144,20 @@
   color: var(--muted-foreground, var(--muted));
 }
 
+.nexi-action-empty span {
+  max-width: 520px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 :root[data-theme="dark"] .nexi-action-command {
   background: color-mix(in srgb, #174457 50%, var(--surface));
+}
+
+:root[data-theme="dark"] .nexi-agent-action-button {
+  border-color: color-mix(in srgb, #78d4f8 34%, var(--border));
+  background: color-mix(in srgb, #1b586c 28%, var(--surface));
+  color: #a9eaff;
 }
 
 @media (max-width: 680px) {
@@ -135,7 +166,8 @@
     flex-direction: column;
   }
 
-  .nexi-trash-action-button {
+  .nexi-trash-action-button,
+  .nexi-agent-action-button {
     justify-content: center;
   }
 }
