@@ -8,25 +8,34 @@
 
 @media (min-width: 761px) {
   .app-shell {
-    gap: 0;
+    display: flex;
+    gap: 0 !important;
+    align-items: stretch;
   }
 
   .sidebar {
-    margin-right: 0;
+    flex: 0 0 auto;
+    margin: 0 !important;
   }
 
   .main-content {
-    margin-left: 0;
-    padding-left: 0;
+    min-width: 0;
+    flex: 1 1 auto;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
+  /* La barra superior comienza exactamente donde termina el menú lateral. */
   .topbar {
-    margin-left: 0;
-    padding-left: 0;
-    border-radius: 0;
+    left: 0;
+    width: 100%;
+    margin: 0 !important;
+    padding-left: 0 !important;
+    border-left: 0;
+    border-radius: 0 !important;
   }
 
   .topbar .top-search {
-    margin-left: 0;
+    margin-left: 0 !important;
   }
 }
