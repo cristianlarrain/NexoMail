@@ -90,7 +90,7 @@ public static class CommercialSubscriptionMutations
                     CanceledAt = excluded.CanceledAt,
                     PaymentDueAt = excluded.PaymentDueAt,
                     UpdatedAt = excluded.UpdatedAt;";
-            AddParameter(command, "$userId", userId.ToString());
+            AddParameter(command, "$userId", userId);
             AddParameter(command, "$planCode", planCode);
             AddParameter(command, "$status", status);
             AddParameter(command, "$provider", provider);
