@@ -8,6 +8,7 @@ import { ControlCenterDocuments } from '../components/ControlCenterDocuments'
 import { NexiContextWorkspace } from '../components/NexiContextWorkspace'
 import { NexiDailyBrief } from '../components/NexiDailyBrief'
 import { NexiMailReport } from '../components/NexiMailReport'
+import { NexiTrendReport } from '../components/NexiTrendReport'
 
 type ControlTab = 'summary' | 'nexi' | 'report' | 'contacts' | 'documents'
 
@@ -56,7 +57,7 @@ export function ControlCenterPage() {
     </div>
 
     {tab === 'summary'
-      ? <><NexiDailyBrief /><ControlCenter /></>
+      ? <><NexiDailyBrief /><NexiTrendReport /><ControlCenter /></>
       : tab === 'nexi'
         ? <NexiContextWorkspace />
         : tab === 'report'
