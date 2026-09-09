@@ -4,6 +4,7 @@ import { BarChart3, Mail, Search, SendHorizontal, Sparkles, Users } from 'lucide
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { nexiApi } from '../api/nexiApi'
 import type { NexiContextResponse } from '../types/nexi'
+import { detectNexiMailAction } from '../utils/nexiSearchIntent'
 
 type Turn = {
   id: string
@@ -65,6 +66,15 @@ export function NexiContextWorkspace() {
     const instruction = value.trim()
     if (!query || !instruction || context.isPending) return
     setPrompt('')
+
+    const action = detectNexiMailAction(instruction)
+    if (action) {
+      const next = new URLSearchParams({ q: `${instruction} ${query}`.trim() })
+      if (accountId) next.set('account', accountId)
+      navigate(`/search-action?${next.toString()}`)
+      return
+    }
+
     context.mutate(instruction)
   }
 
@@ -94,7 +104,7 @@ export function NexiContextWorkspace() {
       </div>
 
       <div className="nexi-context-conversation" aria-live="polite">
-        {turns.length === 0 && <div className="nexi-context-welcome"><Sparkles size={18} /><div><strong>Sigue preguntando sobre este mismo conjunto</strong><span>Por ejemplo: “ahora resúmelos”, “qué me están pidiendo”, “cuáles son importantes” o “dame un informe”.</span></div></div>}
+        {turns.length === 0 && <div className="nexi-context-welcome"><Sparkles size={18} /><div><strong>Sigue preguntando o actúa sobre este mismo conjunto</strong><span>Por ejemplo: “ahora resúmelos”, “qué me están pidiendo”, “archiva estos correos”, “márcalos como leídos” o “ponlos en seguimiento”.</span></div></div>}
         {turns.map(turn => <article key={turn.id} className={`nexi-context-turn ${turn.role}`}>
           <span>{turn.role === 'nexi' ? 'Nexi' : 'Tú'}</span>
           <p>{turn.text}</p>
@@ -104,7 +114,7 @@ export function NexiContextWorkspace() {
       </div>
 
       <form className="nexi-context-composer" onSubmit={event => { event.preventDefault(); ask(prompt) }}>
-        <textarea value={prompt} onChange={event => setPrompt(event.target.value)} rows={2} maxLength={3500} placeholder="Pregúntale algo más a Nexi sobre estos mismos correos…" onKeyDown={event => {
+        <textarea value={prompt} onChange={event => setPrompt(event.target.value)} rows={2} maxLength={3500} placeholder="Pregunta o pídele una acción a Nexi sobre estos mismos correos…" onKeyDown={event => {
           if (event.key === 'Enter' && !event.shiftKey) {
             event.preventDefault()
             ask(prompt)
