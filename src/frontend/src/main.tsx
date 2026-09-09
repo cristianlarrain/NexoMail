@@ -52,6 +52,7 @@ import './styles/search-bar.css'
 import './styles/global-action-indicator.css'
 import './styles/commercial-settings.css'
 import './styles/commercial-admin.css'
+import './styles/commercial-billing.css'
 import './styles/control-center-spacing.css'
 import './styles/ui-coherence.css'
 
