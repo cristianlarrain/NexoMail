@@ -6,8 +6,8 @@
   --cc-space-5: 24px;
   --cc-panel-padding-x: 14px;
   --cc-panel-padding-y: 12px;
-  --cc-section-gap: 16px;
-  --cc-inner-gap: 12px;
+  --cc-section-gap: 10px;
+  --cc-inner-gap: 10px;
   gap: var(--cc-section-gap);
 }
 
@@ -25,7 +25,7 @@
   margin-bottom: 0;
 }
 
-/* Operación: todos los paneles directos quedan separados exactamente 16 px. */
+/* Operación: todos los paneles directos quedan separados exactamente 10 px. */
 .nexi-control-center .control-center {
   position: relative;
   display: grid;
@@ -181,7 +181,7 @@
 /* Contactos: sustituye una cadena de márgenes distintos por un gap único. */
 .nexi-control-center .contact-control {
   display: grid;
-  gap: var(--cc-space-2);
+  gap: var(--cc-section-gap);
   padding: 0 var(--cc-panel-padding-x) var(--cc-section-gap);
 }
 
@@ -199,7 +199,7 @@
 /* Documentos: mismo criterio que Contactos. */
 .nexi-control-center .documents-control {
   display: grid;
-  gap: var(--cc-space-2);
+  gap: var(--cc-section-gap);
   padding: 0 var(--cc-panel-padding-x) var(--cc-section-gap);
 }
 
@@ -219,7 +219,7 @@
 
 /* Informes: mismo ritmo entre barra, selector de período y bloques de contenido. */
 .nexi-control-center .nexi-report-view {
-  gap: var(--cc-space-3);
+  gap: var(--cc-section-gap);
 }
 
 .nexi-control-center .nexi-report-toolbar {
@@ -280,7 +280,7 @@
   .nexi-control-center {
     --cc-panel-padding-x: 12px;
     --cc-panel-padding-y: 10px;
-    --cc-section-gap: 12px;
+    --cc-section-gap: 10px;
   }
 
   .control-center-page .control-center > .control-center-header {
