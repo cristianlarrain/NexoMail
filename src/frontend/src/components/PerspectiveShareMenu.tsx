@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { Copy, ExternalLink, Mail, MoreHorizontal, Send, Share2 } from 'lucide-react'
+import { Copy, ExternalLink, MoreHorizontal, Send, Share2 } from 'lucide-react'
 import { perspectiveShareText, type SavedPerspective } from '../utils/perspectiveCollection'
 
 type ShareablePerspective = Pick<SavedPerspective, 'text' | 'source' | 'area'>
+type OptionalShareNavigator = Navigator & { share?: (data?: ShareData) => Promise<void> }
 
 function publicUrl() {
   return ['localhost', '127.0.0.1'].includes(window.location.hostname) ? '' : window.location.origin
@@ -21,6 +22,8 @@ export function PerspectiveShareMenu({ perspective, compact = false }: { perspec
   const encodedText = encodeURIComponent(text)
   const encodedUrl = encodeURIComponent(url)
   const title = encodeURIComponent(`Perspectiva · ${perspective.area} | NexoMail`)
+  const nativeShare = (navigator as OptionalShareNavigator).share
+  const canNativeShare = typeof nativeShare === 'function'
 
   useEffect(() => {
     if (!open) return
@@ -49,9 +52,9 @@ export function PerspectiveShareMenu({ perspective, compact = false }: { perspec
   }
 
   async function moreApps() {
-    if (navigator.share) {
+    if (canNativeShare && nativeShare) {
       try {
-        await navigator.share({
+        await nativeShare.call(navigator, {
           title: `Perspectiva · ${perspective.area} | NexoMail`,
           text,
           ...(url ? { url } : {}),
@@ -115,7 +118,7 @@ export function PerspectiveShareMenu({ perspective, compact = false }: { perspec
           <Copy size={14} /><span>Copiar</span>
         </button>
         <button type="button" role="menuitem" onClick={() => { void moreApps(); setOpen(false) }}>
-          {navigator.share ? <Send size={14} /> : <MoreHorizontal size={14} />}
+          {canNativeShare ? <Send size={14} /> : <MoreHorizontal size={14} />}
           <span>Más apps</span>
         </button>
       </div>
