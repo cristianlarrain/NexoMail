@@ -208,7 +208,7 @@ public sealed class GmailRuleService(
     private static string QuoteIfNeeded(string value)
     {
         var trimmed = value.Trim();
-        if (trimmed.Length >= 2 && ((trimmed.StartsWith('"') && trimmed.EndsWith('"')) || (trimmed.StartsWith('(') && trimmed.EndsWith(')'))))
+        if (trimmed.Length >= 2 && ((trimmed.StartsWith("\"") && trimmed.EndsWith("\"")) || (trimmed.StartsWith("(") && trimmed.EndsWith(")"))))
             return trimmed;
         return trimmed.Any(char.IsWhiteSpace)
             ? $"\"{trimmed.Replace("\"", "\\\"")}\""
@@ -218,7 +218,7 @@ public sealed class GmailRuleService(
     private static string CleanCandidate(string value)
     {
         var cleaned = Regex.Replace(value, @"\s+", " ").Trim(' ', ',', ':', ';', '-', '–', '—');
-        if (cleaned.Length >= 2 && ((cleaned.StartsWith('“') && cleaned.EndsWith('”')) || (cleaned.StartsWith('‘') && cleaned.EndsWith('’')) || (cleaned.StartsWith(''') && cleaned.EndsWith('\''))))
+        if (cleaned.Length >= 2 && ((cleaned.StartsWith("“") && cleaned.EndsWith("”")) || (cleaned.StartsWith("‘") && cleaned.EndsWith("’")) || (cleaned.StartsWith("'") && cleaned.EndsWith("'"))))
             cleaned = cleaned[1..^1].Trim();
         return cleaned;
     }
