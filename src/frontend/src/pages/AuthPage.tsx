@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Eye, EyeOff, Mail } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { authApi, type RateLimitInfo } from '../api/authApi'
 
 type AuthMode = 'login' | 'register' | 'emailVerify' | 'forgot' | 'verify' | 'reset'
@@ -82,6 +82,7 @@ export function AuthPage() {
   const [verificationCode, setVerificationCode] = useState('')
   const [resetToken, setResetToken] = useState('')
   const [statusMessage, setStatusMessage] = useState('')
+  const [acceptedLegalTerms, setAcceptedLegalTerms] = useState(false)
 
   const submit = useMutation({
     mutationFn: async () => {
@@ -89,7 +90,7 @@ export function AuthPage() {
         const session = await authApi.login({ email, password })
         return { kind: 'login' as const, session }
       }
-      const result = await authApi.register({ displayName, email, password })
+      const result = await authApi.register({ displayName, email, password, acceptedLegalTerms })
       return { kind: 'register' as const, result }
     },
     onMutate: () => setStatusMessage(''),
@@ -173,6 +174,7 @@ export function AuthPage() {
     setConfirmPassword('')
     setVerificationCode('')
     setStatusMessage('')
+    if (next !== 'register') setAcceptedLegalTerms(false)
     if (next !== 'reset') setResetToken('')
   }
 
@@ -240,10 +242,16 @@ export function AuthPage() {
         {mode === 'register' && <label>Nombre<input value={displayName} onChange={event => setDisplayName(event.target.value)} minLength={2} maxLength={120} autoComplete="name" required /></label>}
         <label>Correo<input type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" required autoFocus /></label>
         <label>Contraseña<PasswordInput value={password} onChange={setPassword} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={mode === 'register' ? 10 : undefined} /></label>
-        {mode === 'register' && <p className="auth-hint">Mínimo 10 caracteres, con mayúsculas, minúsculas y números.</p>}
+        {mode === 'register' && <>
+          <p className="auth-hint">Mínimo 10 caracteres, con mayúsculas, minúsculas y números.</p>
+          <label className="auth-consent">
+            <input type="checkbox" checked={acceptedLegalTerms} onChange={event => setAcceptedLegalTerms(event.target.checked)} required />
+            <span>Acepto los <Link to="/legal/terms" target="_blank">Términos de Servicio</Link> y la <Link to="/legal/privacy" target="_blank">Política de Privacidad</Link>, y declaro haber revisado la <Link to="/legal/security" target="_blank">Política de Seguridad</Link>.</span>
+          </label>
+        </>}
         {statusMessage && mode === 'login' && <div className="success-notice auth-error">{statusMessage}</div>}
         {submit.isError && <div className="notice auth-error">{submit.error instanceof Error ? submit.error.message : 'No fue posible completar la operación.'}</div>}
-        <button className="primary-button auth-submit" disabled={submit.isPending}>{submit.isPending ? 'Procesando…' : mode === 'login' ? 'Entrar' : 'Crear cuenta'}</button>
+        <button className="primary-button auth-submit" disabled={submit.isPending || (mode === 'register' && !acceptedLegalTerms)}>{submit.isPending ? 'Procesando…' : mode === 'login' ? 'Entrar' : 'Crear cuenta'}</button>
         {mode === 'login' && <><button type="button" className="auth-link" onClick={() => changeMode('forgot')}>Olvidé mi contraseña</button><button type="button" className="auth-link" onClick={() => changeMode('emailVerify')}>Verificar mi correo</button></>}
       </form>}
 
