@@ -5,7 +5,6 @@ import { Check, ChevronRight, Clock3, Eye, Inbox, Mail, Pause, RefreshCw, Send, 
 import { useNavigate } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
 import type { ControlCenterPendingItem, ControlCenterSnapshot } from '../types/mail'
-import { ControlCenterActivity } from './ControlCenterActivity'
 import { NexiPriorityQueue } from './NexiPriorityQueue'
 import { NexiEmptyState } from './nexi/NexiEmptyState'
 import { NexiVisual } from './nexi/NexiVisual'
@@ -201,8 +200,6 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
         <MetricCard tone="overdue" icon={<Clock3 size={19} />} value={data.overdue} label="Más de 48 horas" hint="Revisar pendientes" active={activeView === 'overdue'} onClick={() => openManagementView('overdue')} />
       </div>
     </section>
-
-    <ControlCenterActivity accountId={accountId} accounts={data.accounts} />
 
     {activeView && activeCopy && <article className="control-management-panel">
       <header><div><p className="eyebrow">Gestión</p><strong>{activeCopy.title}</strong><span>{activeCopy.description}</span></div><button type="button" className="icon-button" onClick={() => { setActiveView(null); setSnoozeTarget(null) }} aria-label="Cerrar gestión"><X size={17} /></button></header>
