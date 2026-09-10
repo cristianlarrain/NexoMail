@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react'
-import { BookOpenText, RefreshCw } from 'lucide-react'
+import { Bookmark, BookOpenText, Check, RefreshCw, Share2 } from 'lucide-react'
+import {
+  isPerspectiveSaved,
+  removeSavedPerspectiveByContent,
+  savePerspective,
+  sharePerspective,
+} from '../utils/perspectiveCollection'
 
 type PerspectiveArea =
   | 'Filosofía'
@@ -216,6 +222,8 @@ function perspectiveIndex(contextKey: string) {
 
 export function NexoPerspective({ contextKey = 'general' }: { contextKey?: string }) {
   const [index, setIndex] = useState(() => perspectiveIndex(contextKey))
+  const [saved, setSaved] = useState(false)
+  const [feedback, setFeedback] = useState<string | null>(null)
   const perspective = perspectives[index]
 
   useEffect(() => {
@@ -227,8 +235,38 @@ export function NexoPerspective({ contextKey = 'general' }: { contextKey?: strin
     return () => window.clearInterval(timer)
   }, [contextKey])
 
+  useEffect(() => {
+    setSaved(isPerspectiveSaved(perspective.text, perspective.source))
+    setFeedback(null)
+  }, [perspective.text, perspective.source])
+
   function showAnotherPerspective() {
     setIndex(current => (current + 1) % perspectives.length)
+  }
+
+  function toggleSaved() {
+    if (saved) {
+      removeSavedPerspectiveByContent(perspective.text, perspective.source)
+      setSaved(false)
+      setFeedback('Quitado de tu colección')
+    } else {
+      savePerspective(perspective)
+      setSaved(true)
+      setFeedback('Guardado en Perspectivas')
+    }
+    window.setTimeout(() => setFeedback(null), 2200)
+  }
+
+  async function share() {
+    try {
+      const result = await sharePerspective(perspective)
+      setFeedback(result === 'copied' ? 'Copiado para compartir' : 'Compartido')
+      window.setTimeout(() => setFeedback(null), 2200)
+    } catch (error) {
+      if ((error as DOMException)?.name === 'AbortError') return
+      setFeedback('No fue posible compartir')
+      window.setTimeout(() => setFeedback(null), 2200)
+    }
   }
 
   return <aside className="nexo-perspective" aria-label="Perspectiva intelectual de Nexo">
@@ -236,16 +274,39 @@ export function NexoPerspective({ contextKey = 'general' }: { contextKey?: strin
     <div className="nexo-perspective-copy">
       <span className="nexo-perspective-label">Perspectiva · {perspective.area}</span>
       <p>{perspective.text} <cite>— {perspective.source}</cite></p>
+      {feedback && <small className="nexo-perspective-feedback" role="status">{feedback}</small>}
     </div>
-    <button
-      type="button"
-      className="nexo-perspective-refresh"
-      onClick={showAnotherPerspective}
-      title="Mostrar otra perspectiva"
-      aria-label="Mostrar otra perspectiva"
-    >
-      <RefreshCw size={13} />
-      <span>Otro mensaje</span>
-    </button>
+    <div className="nexo-perspective-actions">
+      <button
+        type="button"
+        className={`nexo-perspective-action ${saved ? 'is-saved' : ''}`}
+        onClick={toggleSaved}
+        title={saved ? 'Quitar de Perspectivas' : 'Guardar en Perspectivas'}
+        aria-label={saved ? 'Quitar de Perspectivas' : 'Guardar en Perspectivas'}
+      >
+        {saved ? <Check size={13} /> : <Bookmark size={13} />}
+        <span>{saved ? 'Guardado' : 'Guardar'}</span>
+      </button>
+      <button
+        type="button"
+        className="nexo-perspective-action"
+        onClick={() => void share()}
+        title="Compartir perspectiva"
+        aria-label="Compartir perspectiva"
+      >
+        <Share2 size={13} />
+        <span>Compartir</span>
+      </button>
+      <button
+        type="button"
+        className="nexo-perspective-action"
+        onClick={showAnotherPerspective}
+        title="Mostrar otra perspectiva"
+        aria-label="Mostrar otra perspectiva"
+      >
+        <RefreshCw size={13} />
+        <span>Otro mensaje</span>
+      </button>
+    </div>
   </aside>
 }
