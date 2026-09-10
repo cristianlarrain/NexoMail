@@ -6,6 +6,8 @@ public static class MetadataIndexEndpoints
 {
     public static void Map(RouteGroupBuilder mail)
     {
+        MailRuleEndpoints.Map(mail);
+
         mail.MapPost("/control-center/index/sync", async (GmailMetadataIndexService service, int? days, int? limitPerAccount, CancellationToken ct) =>
         {
             try { return Results.Ok(await service.SyncAsync(days, limitPerAccount, ct)); }
