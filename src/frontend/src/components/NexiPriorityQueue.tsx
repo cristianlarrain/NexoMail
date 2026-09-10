@@ -3,7 +3,7 @@ import { useMutation } from '@tanstack/react-query'
 import { AlertTriangle, CheckCircle2, ChevronRight, CircleHelp, Info, MessageSquareReply, Sparkles, TimerReset, X } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { nexiApi } from '../api/nexiApi'
-import type { ControlCenterPendingItem } from '../types/mail'
+import type { AiMessageInsight, ControlCenterPendingItem } from '../types/mail'
 import { NexiEmptyState } from './nexi/NexiEmptyState'
 import { NexiVisual } from './nexi/NexiVisual'
 import {
@@ -81,6 +81,8 @@ export function NexiPriorityQueue({
   const [filter, setFilter] = useState<PriorityFilter>('all')
   const [visible, setVisible] = useState(10)
   const [semantic, setSemantic] = useState<Record<string, NexiPriorityClassification>>({})
+  const [rowInsights, setRowInsights] = useState<Record<string, AiMessageInsight>>({})
+  const [summarizingTarget, setSummarizingTarget] = useState<string | null>(null)
   const [semanticError, setSemanticError] = useState('')
   const focus = validFocus(params.get('focus'))
   const focusValue = params.get('value')?.trim() ?? ''
@@ -156,6 +158,21 @@ export function NexiPriorityQueue({
     onError: error => setSemanticError(error instanceof Error ? error.message : 'Nexi no pudo afinar la priorización.'),
   })
 
+  async function summarizeRow(item: ControlCenterPendingItem) {
+    const key = priorityKey(item)
+    if (rowInsights[key]) return
+    setSummarizingTarget(key)
+    setSemanticError('')
+    try {
+      const insight = await nexiApi.summarizeMessage(item.accountId, item.messageId, false)
+      setRowInsights(current => ({ ...current, [key]: insight }))
+    } catch (error) {
+      setSemanticError(error instanceof Error ? error.message : 'No fue posible resumir este correo.')
+    } finally {
+      setSummarizingTarget(null)
+    }
+  }
+
   function clearContextFocus() {
     const next = new URLSearchParams(params)
     next.delete('focus')
@@ -165,12 +182,12 @@ export function NexiPriorityQueue({
     setVisible(10)
   }
 
-  return <article ref={panelRef} className="control-panel nexi-priority-panel" aria-label="Priorización inteligente">
+  return <article ref={panelRef} className="control-panel nexi-priority-panel nexi-priority-featured" aria-label="Priorización inteligente">
     <header className="nexi-priority-header">
       <div>
         <span className="nexi-priority-kicker"><Sparkles size={14} /> Priorización inteligente</span>
         <strong>Qué atender primero</strong>
-        <p>Ordena las conversaciones por urgencia, respuesta, seguimiento o carácter informativo.</p>
+        <p>Nexi ordena las conversaciones y permite resumir, responder o dar seguimiento desde la misma grilla.</p>
       </div>
       {items.length > 0 && <button type="button" className="secondary-button nexi-priority-refine" disabled={refine.isPending || candidates.length === 0} onClick={() => refine.mutate()}>
         {refine.isPending ? <NexiVisual size="small" className="nexi-inline-processing" /> : candidates.length === 0 ? <CheckCircle2 size={14} /> : <Sparkles size={14} />}
@@ -198,11 +215,14 @@ export function NexiPriorityQueue({
     <div className="nexi-priority-list">
       {shown.length === 0 ? <NexiEmptyState compact title={items.length === 0 ? 'Sin pendientes' : focus ? 'Sin pendientes relacionados' : 'Sin correos en esta categoría'} description={items.length === 0 ? 'No hay conversaciones pendientes ni correos marcados para seguimiento.' : focus ? 'No quedan conversaciones pendientes que coincidan con este foco.' : 'No hay conversaciones clasificadas en este grupo.'} /> : shown.map(({ entry, classification }) => {
         const { item, automatic, manual } = entry
+        const key = priorityKey(item)
+        const insight = rowInsights[key]
         const meta = CATEGORY_META[classification.category]
         const Icon = meta.icon
         const canManage = classification.category === 'urgent' || classification.category === 'response' || classification.category === 'follow_up'
         const opening = openingTarget === rowKey(item)
-        return <div className={`nexi-priority-row ${classification.category}`} key={priorityKey(item)}>
+        const summarizing = summarizingTarget === key
+        return <div className={`nexi-priority-row ${classification.category} ${insight ? 'has-insight' : ''}`} key={key}>
           <i className="account-dot" style={{ background: item.accountColor }} />
           <button type="button" className="nexi-priority-main" onClick={() => onOpen(item, manual)}>
             <span className={`nexi-priority-badge ${classification.category}`}><Icon size={12} />{meta.label}</span>
@@ -212,9 +232,15 @@ export function NexiPriorityQueue({
             <em className={classification.source}>{classification.source === 'nexi' ? 'Nexi' : 'Regla'} · {classification.reason}</em>
           </button>
           <div className="nexi-priority-actions">
-            {canManage && <button type="button" className="secondary-button compact-action" disabled={opening} onClick={() => onManage(item)}>{opening ? <NexiVisual size="small" className="nexi-inline-processing" /> : <Sparkles size={13} />}{item.direction === 'received' ? 'Preparar respuesta con IA' : 'Preparar seguimiento'}</button>}
+            <button type="button" className="secondary-button compact-action" disabled={summarizing} onClick={() => void summarizeRow(item)}>{summarizing ? <NexiVisual size="small" className="nexi-inline-processing" /> : insight ? <CheckCircle2 size={13} /> : <Sparkles size={13} />}{insight ? 'Resumen listo' : 'Resumir'}</button>
+            {canManage && <button type="button" className="secondary-button compact-action" disabled={opening} onClick={() => onManage(item)}>{opening ? <NexiVisual size="small" className="nexi-inline-processing" /> : <Sparkles size={13} />}{item.direction === 'received' ? 'Preparar respuesta' : 'Preparar seguimiento'}</button>}
             <button type="button" className="icon-button" title="Ver correo" aria-label="Ver correo" onClick={() => onOpen(item, manual)}><ChevronRight size={16} /></button>
           </div>
+          {insight && <div className="nexi-priority-insight">
+            <div><span>Resumen</span><p>{insight.summary}</p></div>
+            {insight.requestedAction && <div><span>Acción</span><p>{insight.requestedAction}</p></div>}
+            {insight.keyPoints.length > 0 && <div><span>Puntos clave</span><ul>{insight.keyPoints.slice(0, 3).map((point, index) => <li key={`${point}-${index}`}>{point}</li>)}</ul></div>}
+          </div>}
         </div>
       })}
     </div>
