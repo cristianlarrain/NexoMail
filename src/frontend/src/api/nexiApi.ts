@@ -13,6 +13,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 export type NexiReportPeriod = 'today' | 'this_week' | 'last_week'
 export type NexiPerspectiveExpansion = { text: string }
+export type NexiGeneratedImage = { dataUrl: string; contentType: string; fileName: string }
 
 export const nexiApi = {
   summarizeMessage: (accountId: string, messageId: string, includeThread = false) =>
@@ -34,5 +35,10 @@ export const nexiApi = {
     api<NexiPerspectiveExpansion>('/mail/ai/perspective-expansion', {
       method: 'POST',
       body: JSON.stringify({ text, source, area }),
+    }),
+  generateGreetingImage: (messageText: string, style: 'formal' | 'calido' | 'corporativo' | 'festivo') =>
+    api<NexiGeneratedImage>('/mail/ai/greeting-image', {
+      method: 'POST',
+      body: JSON.stringify({ messageText, style }),
     }),
 }
