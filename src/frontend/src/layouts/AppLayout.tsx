@@ -13,6 +13,7 @@ import { NexoMailLogo } from '../components/brand/NexoMailLogo'
 import { NexiVisual } from '../components/nexi/NexiVisual'
 import { WeatherWidget } from '../components/WeatherWidget'
 import { detectNexiMailAction } from '../utils/nexiSearchIntent'
+import { detectNexiTrashRuleIntent } from '../utils/nexiRuleIntent'
 
 const FOLDERS_COLLAPSED_KEY = 'nexomail-sidebar-folders-collapsed'
 const navClass = ({ isActive }: { isActive: boolean }) => `nav-item ${isActive ? 'active' : ''}`
@@ -86,7 +87,7 @@ export function AppLayout() {
   const dateLabel = capitalize(now.toLocaleDateString('es-CL', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, ''))
   const timeLabel = now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
   const activeAccountId = accountIdFromPath(location.pathname)
-  const contextualQueryAccount = ['/search', '/search-action', '/control-center'].includes(location.pathname)
+  const contextualQueryAccount = ['/search', '/search-action', '/rules/new', '/control-center'].includes(location.pathname)
     ? new URLSearchParams(location.search).get('account') ?? undefined
     : undefined
   const contextualAccountId = activeAccountId ?? contextualQueryAccount
@@ -95,6 +96,12 @@ export function AppLayout() {
     const query = search.trim()
     if (!query) {
       navigate(contextualAccountId ? `/search?account=${encodeURIComponent(contextualAccountId)}` : '/search')
+      return
+    }
+    if (detectNexiTrashRuleIntent(query)) {
+      const params = new URLSearchParams({ q: query })
+      if (contextualAccountId) params.set('account', contextualAccountId)
+      navigate(`/rules/new?${params.toString()}`)
       return
     }
     const reportPeriod = reportPeriodFromQuery(query)
