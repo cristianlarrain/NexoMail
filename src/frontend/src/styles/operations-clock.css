@@ -3,7 +3,12 @@
 .operations-clock strong { min-width: 68px; color: var(--foreground); font-size: 14px; font-variant-numeric: tabular-nums; letter-spacing: .035em; text-align: right; }
 .operations-date { max-width: 142px; overflow: hidden; text-overflow: ellipsis; }
 
-.weather-control { position: relative; flex: 0 1 auto; min-width: 0; }
+/* The top bar must own a stacking context above the global Perspective strip.
+   Otherwise the weather/profile popovers are trapped below Perspective even
+   when the popover itself has a high z-index. */
+.topbar { z-index: 120; }
+.weather-control { position: relative; z-index: 1; flex: 0 1 auto; min-width: 0; }
+.weather-control.open { z-index: 130; }
 .weather-widget { height: 38px; min-width: 116px; max-width: 180px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 0 1 auto; padding: 0 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--muted-foreground); font: inherit; font-size: 11px; white-space: nowrap; box-shadow: var(--shadow); }
 .weather-widget svg { color: var(--primary); flex: 0 0 auto; }
 .weather-widget strong { color: var(--foreground); font-size: 13px; font-variant-numeric: tabular-nums; flex: 0 0 auto; }
@@ -18,7 +23,7 @@
 .weather-control.open .weather-chevron { transform: rotate(180deg); }
 .topbar .weather-control + .avatar { margin-left: 0; }
 
-.weather-dropdown { position: absolute; top: calc(100% + 8px); right: 0; z-index: 90; width: 360px; padding: 10px; border: 1px solid var(--border); border-radius: 12px; background: color-mix(in srgb, var(--surface) 97%, transparent); color: var(--foreground); box-shadow: 0 16px 42px color-mix(in srgb, #000 20%, transparent); backdrop-filter: blur(16px); }
+.weather-dropdown { position: absolute; top: calc(100% + 8px); right: 0; z-index: 140; width: 360px; padding: 10px; border: 1px solid var(--border); border-radius: 12px; background: color-mix(in srgb, var(--surface) 97%, transparent); color: var(--foreground); box-shadow: 0 16px 42px color-mix(in srgb, #000 20%, transparent); backdrop-filter: blur(16px); }
 .weather-dropdown > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 2px 3px 9px; border-bottom: 1px solid var(--border); }
 .weather-dropdown > header > div { min-width: 0; display: grid; gap: 2px; }
 .weather-dropdown > header strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
