@@ -5,7 +5,6 @@ import { Check, ChevronRight, Clock3, Eye, Inbox, Mail, Pause, RefreshCw, Send, 
 import { useNavigate } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
 import type { ControlCenterPendingItem, ControlCenterSnapshot } from '../types/mail'
-import { ControlCenterActivity } from './ControlCenterActivity'
 import { NexiPriorityQueue } from './NexiPriorityQueue'
 import { NexiEmptyState } from './nexi/NexiEmptyState'
 import { NexiVisual } from './nexi/NexiVisual'
@@ -150,6 +149,10 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
   })
 
   const priorityItems = [...priorityMap.values()].sort((left, right) => new Date(left.item.since).getTime() - new Date(right.item.since).getTime())
+  const actionable = data.receivedWithoutReply + data.sentWithoutResponse
+  const summaryText = actionable === 0
+    ? `No hay conversaciones pendientes de respuesta o seguimiento. Quedan ${data.unread} correo${data.unread === 1 ? '' : 's'} sin leer.`
+    : `${actionable} conversación${actionable === 1 ? '' : 'es'} requieren respuesta o seguimiento; ${data.overdue} superan las 48 horas y ${data.unread} correos siguen sin leer.`
 
   function openManagementView(view: Exclude<ManagementView, null>) {
     setActiveView(view)
@@ -167,23 +170,15 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
 
   return <section className="control-center control-center-cinematic" aria-labelledby="control-center-title">
     <div className="control-center-header">
-      <div><div className="control-center-title-line"><h2 id="control-center-title">Estado operativo</h2><span>Ventana · 14 días</span></div><p>{scopeLabel} · Conversaciones con posible acción pendiente.</p></div>
+      <div><div className="control-center-title-line"><h2 id="control-center-title">Prioridades</h2><span>Ventana · 14 días</span></div><p>{scopeLabel} · Nexi ordena lo que requiere acción.</p></div>
       <div className="control-center-refresh"><span>Actualizado {updatedAt}</span></div>
     </div>
 
     {data.unavailableAccounts > 0 && <div className="notice control-center-warning">No se pudo consultar {data.unavailableAccounts} cuenta{data.unavailableAccounts === 1 ? '' : 's'}. Los indicadores consideran las cuentas disponibles.</div>}
 
-    <section className="nexi-insights-panel nexi-control-summary" aria-label="Indicadores clave">
-      <header className="nexi-insights-header">
-        <div><strong>Indicadores clave</strong><span>Estado actual de pendientes, lectura y antigüedad.</span></div>
-      </header>
-
-      <div className="control-metrics nexi-control-metrics">
-        <MetricCard tone="received" icon={<Inbox size={19} />} value={data.receivedWithoutReply} label="Recibidos sin responder" hint="Promociones y avisos informativos se excluyen" active={activeView === 'received'} onClick={() => openManagementView('received')} />
-        <MetricCard tone="sent" icon={<Send size={19} />} value={data.sentWithoutResponse} label="Enviados sin respuesta" hint="Usted escribió al final" active={activeView === 'sent'} onClick={() => openManagementView('sent')} />
-        <MetricCard tone="unread" icon={<Mail size={19} />} value={data.unread} label="Correos sin leer" hint="Abrir y gestionar en forma masiva" onClick={openUnread} />
-        <MetricCard tone="overdue" icon={<Clock3 size={19} />} value={data.overdue} label="Más de 48 horas" hint="Pendientes que requieren atención" active={activeView === 'overdue'} onClick={() => openManagementView('overdue')} />
-      </div>
+    <section className="nexi-operational-summary" aria-label="Resumen operativo">
+      <span>Resumen operativo</span>
+      <p>{summaryText}</p>
     </section>
 
     <NexiPriorityQueue
@@ -192,6 +187,19 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
       onManage={item => void openComposer(item)}
       onOpen={(item, manual) => navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: controlCenterPath, controlCenterItem: item, manualTracking: manual } })}
     />
+
+    <section className="nexi-insights-panel nexi-control-summary" aria-label="Indicadores clave">
+      <header className="nexi-insights-header">
+        <div><strong>Indicadores clave</strong><span>Vista rápida de pendientes, lectura y antigüedad.</span></div>
+      </header>
+
+      <div className="control-metrics nexi-control-metrics">
+        <MetricCard tone="received" icon={<Inbox size={19} />} value={data.receivedWithoutReply} label="Recibidos sin responder" hint="Abrir gestión" active={activeView === 'received'} onClick={() => openManagementView('received')} />
+        <MetricCard tone="sent" icon={<Send size={19} />} value={data.sentWithoutResponse} label="Enviados sin respuesta" hint="Abrir seguimiento" active={activeView === 'sent'} onClick={() => openManagementView('sent')} />
+        <MetricCard tone="unread" icon={<Mail size={19} />} value={data.unread} label="Correos sin leer" hint="Ver correos" onClick={openUnread} />
+        <MetricCard tone="overdue" icon={<Clock3 size={19} />} value={data.overdue} label="Más de 48 horas" hint="Revisar pendientes" active={activeView === 'overdue'} onClick={() => openManagementView('overdue')} />
+      </div>
+    </section>
 
     {activeView && activeCopy && <article className="control-management-panel">
       <header><div><p className="eyebrow">Gestión</p><strong>{activeCopy.title}</strong><span>{activeCopy.description}</span></div><button type="button" className="icon-button" onClick={() => { setActiveView(null); setSnoozeTarget(null) }} aria-label="Cerrar gestión"><X size={17} /></button></header>
@@ -214,7 +222,5 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
         })}
       </div>}
     </article>}
-
-    <ControlCenterActivity accountId={accountId} accounts={data.accounts} />
   </section>
 }
