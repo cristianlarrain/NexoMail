@@ -8,6 +8,7 @@ import { ControlCenterContacts } from '../components/ControlCenterContacts'
 import { ControlCenterDocuments } from '../components/ControlCenterDocuments'
 import { ControlCenterStatistics } from '../components/ControlCenterStatistics'
 import { NexiMailReport } from '../components/NexiMailReport'
+import { NexiVisual } from '../components/nexi/NexiVisual'
 
 type ControlTab = 'summary' | 'report' | 'statistics' | 'contacts' | 'documents'
 
@@ -48,6 +49,7 @@ export function ControlCenterPage() {
   return <section className="mail-view control-center-page nexi-control-center">
     <div className="view-header control-page-header nexi-control-header">
       <div className="control-page-title nexi-control-title">
+        <span className="nexi-control-brandmark" aria-hidden="true"><NexiVisual size="small" /></span>
         <div><h1>Nexi Control Center</h1><p>Prioridades, resúmenes, informes y estadísticas para decidir y actuar más rápido.</p></div>
       </div>
 
