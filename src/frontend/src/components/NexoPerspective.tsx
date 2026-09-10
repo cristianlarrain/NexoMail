@@ -70,23 +70,25 @@ const perspectives: Perspective[] = [
   },
 ]
 
-function initialPerspectiveIndex() {
+function perspectiveIndex(contextKey: string) {
   const today = new Date()
   const dayKey = Number(`${today.getFullYear()}${today.getMonth() + 1}${today.getDate()}`)
-  return dayKey % perspectives.length
+  const contextHash = [...contextKey].reduce((total, character) => total + character.charCodeAt(0), 0)
+  return (dayKey + contextHash) % perspectives.length
 }
 
-export function NexoPerspective() {
-  const [index, setIndex] = useState(initialPerspectiveIndex)
+export function NexoPerspective({ contextKey = 'general' }: { contextKey?: string }) {
+  const [index, setIndex] = useState(() => perspectiveIndex(contextKey))
   const perspective = perspectives[index]
 
   useEffect(() => {
+    setIndex(perspectiveIndex(contextKey))
     const timer = window.setInterval(() => {
       setIndex(current => (current + 1) % perspectives.length)
     }, 30000)
 
     return () => window.clearInterval(timer)
-  }, [])
+  }, [contextKey])
 
   return <aside className="nexo-perspective" aria-label="Perspectiva intelectual de Nexo">
     <span className="nexo-perspective-icon" aria-hidden="true"><BookOpenText size={15} /></span>
