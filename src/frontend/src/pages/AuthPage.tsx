@@ -209,7 +209,6 @@ export function AuthPage() {
 
   return <main className="auth-page">
     <section className="auth-card">
-      <Link to="/" className="auth-back-home"><ArrowLeft size={14} /> Volver al sitio NexoMail</Link>
       <div className="auth-brand"><span className="brand-mark"><Mail size={22} /></span><strong>NexoMail</strong></div>
       <div className="auth-heading"><p className="eyebrow">Correo unificado</p><h1>{heading}</h1><p>{description}</p></div>
 
@@ -261,6 +260,7 @@ export function AuthPage() {
           : mode === 'register' ? <>¿Ya tienes una cuenta? <button type="button" onClick={() => changeMode('login')}>Iniciar sesión</button></>
             : <>Volver a <button type="button" onClick={() => changeMode('login')}>Iniciar sesión</button></>}
       </div>
+      <Link to="/" className="auth-back-home"><ArrowLeft size={14} /> Volver a NexoMail</Link>
     </section>
   </main>
 }
