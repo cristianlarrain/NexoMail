@@ -1,0 +1,36 @@
+.topbar {
+  position: sticky !important;
+  top: 0;
+  z-index: 1000 !important;
+  isolation: isolate;
+  background: var(--surface) !important;
+  box-shadow: 0 1px 0 var(--border), 0 8px 24px rgba(0, 0, 0, .04);
+}
+
+.topbar .weather-control,
+.topbar .avatar,
+.topbar .operations-clock,
+.topbar .search,
+.topbar .top-search-box {
+  position: relative;
+}
+
+.topbar .weather-dropdown,
+.topbar .profile-menu {
+  z-index: 1200 !important;
+}
+
+:root[data-theme="dark"] .topbar {
+  background: var(--surface) !important;
+  box-shadow: 0 1px 0 var(--border), 0 10px 28px rgba(0, 0, 0, .24);
+}
+
+@media (max-width: 760px) {
+  .backdrop {
+    z-index: 1200 !important;
+  }
+
+  .sidebar.open {
+    z-index: 1300 !important;
+  }
+}
