@@ -19,53 +19,83 @@ public static class MailRuleEndpoints
             IUserContext userContext,
             IHostEnvironment environment,
             ILoggerFactory loggerFactory,
+            HttpContext httpContext,
             Guid accountId,
             CancellationToken ct) =>
         {
             var logger = loggerFactory.CreateLogger("NexoMail.MailRules");
+            httpContext.Response.Headers["X-NexoMail-Rules"] = "2026-09-10.3";
+
             try
             {
                 var userId = userContext.UserId;
                 var account = await database.MailAccounts.AsNoTracking()
                     .SingleOrDefaultAsync(value => value.Id == accountId && value.UserId == userId && value.IsActive, ct);
-                if (account is null) return Results.NotFound(new { error = "La cuenta de correo no está disponible." });
+
+                if (account is null)
+                {
+                    httpContext.Response.StatusCode = StatusCodes.Status404NotFound;
+                    await httpContext.Response.WriteAsJsonAsync(new { error = "La cuenta de correo no está disponible." }, ct);
+                    return;
+                }
+
                 if (account.Provider != MailProviderType.Gmail)
-                    return Results.BadRequest(new { error = "Las reglas automáticas están disponibles actualmente para cuentas Gmail." });
+                {
+                    httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+                    await httpContext.Response.WriteAsJsonAsync(new { error = "Las reglas automáticas están disponibles actualmente para cuentas Gmail." }, ct);
+                    return;
+                }
 
                 var service = new GmailRuleService(httpClientFactory, database, tokenProtector, gmailOptions);
                 var rules = await service.ListTrashRulesAsync(account.Id, ct);
-                return Results.Ok(rules.Select(rule => new
+                var payload = rules.Select(rule => new
                 {
                     filterId = rule.FilterId,
                     query = rule.Query,
                     accountId = account.Id,
                     account = account.EmailAddress,
                     action = "trash"
-                }));
-            }
-            catch (InvalidOperationException exception)
-            {
-                logger.LogWarning(exception, "No fue posible consultar reglas Gmail por un problema de autorización o configuración.");
-                return Results.BadRequest(new { error = exception.Message });
-            }
-            catch (HttpRequestException exception)
-            {
-                logger.LogWarning(exception, "Gmail rechazó o interrumpió la consulta de reglas.");
-                return Results.Problem(
-                    $"No fue posible consultar las reglas en Gmail ({exception.StatusCode?.ToString() ?? "sin código"}).",
-                    statusCode: 502);
+                }).ToArray();
+
+                httpContext.Response.StatusCode = StatusCodes.Status200OK;
+                await httpContext.Response.WriteAsJsonAsync(payload, ct);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
                 throw;
             }
+            catch (InvalidOperationException exception)
+            {
+                logger.LogWarning(exception, "No fue posible consultar reglas Gmail por un problema de autorización o configuración.");
+                if (httpContext.Response.HasStarted) throw;
+                httpContext.Response.Clear();
+                httpContext.Response.Headers["X-NexoMail-Rules"] = "2026-09-10.3";
+                httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+                await httpContext.Response.WriteAsJsonAsync(new { error = exception.Message }, ct);
+            }
+            catch (HttpRequestException exception)
+            {
+                logger.LogWarning(exception, "Gmail rechazó o interrumpió la consulta de reglas.");
+                if (httpContext.Response.HasStarted) throw;
+                httpContext.Response.Clear();
+                httpContext.Response.Headers["X-NexoMail-Rules"] = "2026-09-10.3";
+                httpContext.Response.StatusCode = StatusCodes.Status502BadGateway;
+                await httpContext.Response.WriteAsJsonAsync(new
+                {
+                    error = $"No fue posible consultar las reglas en Gmail ({exception.StatusCode?.ToString() ?? "sin código"}): {exception.Message}"
+                }, ct);
+            }
             catch (Exception exception)
             {
                 logger.LogError(exception, "Error no controlado al consultar reglas Gmail para la cuenta {AccountId}.", accountId);
-                var detail = environment.IsDevelopment()
+                if (httpContext.Response.HasStarted) throw;
+                httpContext.Response.Clear();
+                httpContext.Response.Headers["X-NexoMail-Rules"] = "2026-09-10.3";
+                httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                var error = environment.IsDevelopment()
                     ? $"Error interno al consultar reglas ({exception.GetType().Name}): {exception.Message}"
-                    : "No fue posible consultar las reglas de Gmail.";
-                return Results.Problem(detail, statusCode: 500);
+                    : $"No fue posible consultar las reglas de Gmail ({exception.GetType().Name}).";
+                await httpContext.Response.WriteAsJsonAsync(new { error }, ct);
             }
         });
 
