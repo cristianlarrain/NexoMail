@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 
-function validationMessage(input: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement) {
+type ValidatableField = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+
+function isValidatableField(value: EventTarget | Element | null): value is ValidatableField {
+  return value instanceof HTMLInputElement || value instanceof HTMLTextAreaElement || value instanceof HTMLSelectElement
+}
+
+function validationMessage(input: ValidatableField) {
   const { validity } = input
   if (validity.valueMissing) return 'Complete este campo para continuar.'
   if (validity.typeMismatch && input instanceof HTMLInputElement && input.type === 'email') return 'Ingrese un correo electrónico válido.'
@@ -24,29 +30,58 @@ export function GlobalFormValidation() {
     const show = (text: string) => {
       setMessage(text)
       if (timer) window.clearTimeout(timer)
-      timer = window.setTimeout(() => setMessage(''), 4200)
+      timer = window.setTimeout(() => setMessage(''), 3600)
+    }
+
+    const markForms = (root: ParentNode = document) => {
+      root.querySelectorAll('form').forEach(form => { form.noValidate = true })
+    }
+
+    const showFieldError = (target: ValidatableField) => {
+      show(validationMessage(target))
+      target.setAttribute('aria-invalid', 'true')
+      target.focus({ preventScroll: false })
+    }
+
+    const onSubmit = (event: Event) => {
+      const form = event.target
+      if (!(form instanceof HTMLFormElement)) return
+      const invalid = Array.from(form.elements).find(element => isValidatableField(element) && element.willValidate && !element.validity.valid)
+      if (!isValidatableField(invalid ?? null)) return
+      event.preventDefault()
+      event.stopPropagation()
+      showFieldError(invalid)
     }
 
     const onInvalid = (event: Event) => {
       event.preventDefault()
-      const target = event.target
-      if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement)) return
-      show(validationMessage(target))
-      target.focus({ preventScroll: false })
-      target.setAttribute('aria-invalid', 'true')
+      if (isValidatableField(event.target)) showFieldError(event.target)
     }
 
     const onInput = (event: Event) => {
-      const target = event.target
-      if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement)) return
-      if (target.validity.valid) target.removeAttribute('aria-invalid')
+      if (!isValidatableField(event.target)) return
+      if (event.target.validity.valid) event.target.removeAttribute('aria-invalid')
     }
 
+    markForms()
+    const observer = new MutationObserver(mutations => {
+      mutations.forEach(mutation => mutation.addedNodes.forEach(node => {
+        if (node instanceof Element) {
+          if (node instanceof HTMLFormElement) node.noValidate = true
+          markForms(node)
+        }
+      }))
+    })
+    observer.observe(document.body, { childList: true, subtree: true })
+
+    document.addEventListener('submit', onSubmit, true)
     document.addEventListener('invalid', onInvalid, true)
     document.addEventListener('input', onInput, true)
     document.addEventListener('change', onInput, true)
 
     return () => {
+      observer.disconnect()
+      document.removeEventListener('submit', onSubmit, true)
       document.removeEventListener('invalid', onInvalid, true)
       document.removeEventListener('input', onInput, true)
       document.removeEventListener('change', onInput, true)
