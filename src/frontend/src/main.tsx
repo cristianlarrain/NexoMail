@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from 'react-router-dom'
 import { ComposeValidationNotice } from './components/ComposeValidationNotice'
 import { GlobalActionIndicator } from './components/GlobalActionIndicator'
+import { GlobalFormValidation } from './components/GlobalFormValidation'
 import { router } from './router'
 import './styles/theme.css'
 import './styles/overrides.css'
@@ -50,6 +51,7 @@ import './styles/nexi-search-actions.css'
 import './styles/nexi-action-plan.css'
 import './styles/search-bar.css'
 import './styles/global-action-indicator.css'
+import './styles/form-validation.css'
 import './styles/commercial-settings.css'
 import './styles/commercial-admin.css'
 import './styles/commercial-billing.css'
@@ -63,6 +65,7 @@ createRoot(document.getElementById('root')!).render(
       <RouterProvider router={router} />
       <ComposeValidationNotice />
       <GlobalActionIndicator />
+      <GlobalFormValidation />
     </QueryClientProvider>
   </StrictMode>,
 )
