@@ -1,0 +1,29 @@
+.perspective-share-popover {
+  width: min(300px, calc(100vw - 32px));
+}
+
+.perspective-share-options button {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+}
+
+.perspective-share-options button > span {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.perspective-share-options button > svg {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 760px) {
+  .perspective-share-popover {
+    width: min(280px, calc(100vw - 24px));
+  }
+}
