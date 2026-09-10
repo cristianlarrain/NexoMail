@@ -40,6 +40,8 @@ public static class DatabaseBootstrap
             // Existing beta users are grandfathered into Premium. New registrations use the Freemium entity default.
             if (!columns.Contains("PlanCode")) await AddColumnAsync("ALTER TABLE Users ADD COLUMN PlanCode TEXT NOT NULL DEFAULT 'premium';", connection, cancellationToken);
             if (!columns.Contains("IsAdministrator")) await AddColumnAsync("ALTER TABLE Users ADD COLUMN IsAdministrator INTEGER NOT NULL DEFAULT 0;", connection, cancellationToken);
+            if (!columns.Contains("LegalConsentVersion")) await AddColumnAsync("ALTER TABLE Users ADD COLUMN LegalConsentVersion TEXT NULL;", connection, cancellationToken);
+            if (!columns.Contains("LegalConsentAcceptedAt")) await AddColumnAsync("ALTER TABLE Users ADD COLUMN LegalConsentAcceptedAt TEXT NULL;", connection, cancellationToken);
 
             await ExecuteAsync(@"
                 CREATE TABLE IF NOT EXISTS UserSessions (
