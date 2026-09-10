@@ -16,6 +16,7 @@ public sealed class AiWritingOptions
 }
 
 public sealed record AiWritingSuggestion(string Text, string? Subject = null);
+public sealed record AiPerspectiveExpansion(string Text);
 
 public sealed class AiWritingService(
     IHttpClientFactory httpClientFactory,
@@ -68,6 +69,73 @@ public sealed class AiWritingService(
             """;
 
         return GenerateAsync(input, tone, isReply: false, cancellationToken);
+    }
+
+    public async Task<AiPerspectiveExpansion> GeneratePerspectiveExpansionAsync(
+        string text,
+        string source,
+        string area,
+        CancellationToken cancellationToken)
+    {
+        var cleanText = Limit(text.Trim(), 2_000);
+        if (string.IsNullOrWhiteSpace(cleanText))
+            throw new InvalidOperationException("No hay una perspectiva para ampliar.");
+
+        var settings = options.Value;
+        if (string.IsNullOrWhiteSpace(settings.ApiKey))
+            throw new InvalidOperationException("La función de IA todavía no está configurada en el servidor.");
+
+        var input = $"""
+            Perspectiva guardada por el usuario:
+            “{cleanText}”
+
+            Área: {Limit(area.Trim(), 120)}
+            Referencia declarada: {Limit(source.Trim(), 220)}
+            """;
+
+        var instructions = """
+            Eres Nexi, la inteligencia que vive dentro de NexoMail.
+            Amplía la perspectiva como una reflexión intelectual útil y clara para una persona adulta.
+            Desarrolla la idea en 3 a 5 párrafos breves, conectando significado, implicancias prácticas y una pregunta final que invite a pensar.
+            No redactes un correo. No uses Markdown, títulos ni listas.
+            No inventes citas textuales, autores, doctrinas ni datos históricos. Si la referencia dice “inspirado en”, trátala como inspiración y no como una cita literal.
+            Mantén un tono reflexivo, sobrio, plural y respetuoso, especialmente en temas filosóficos, psicológicos o religiosos.
+            No presentes una creencia religiosa como hecho universal ni intentes persuadir al usuario hacia una fe determinada.
+            Devuelve únicamente la reflexión ampliada.
+            """;
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            model = string.IsNullOrWhiteSpace(settings.Model) ? "gpt-5.6-luna" : settings.Model,
+            reasoning = new { effort = "medium" },
+            instructions,
+            input,
+            max_output_tokens = 900
+        });
+
+        var client = httpClientFactory.CreateClient("OpenAI");
+        using var request = new HttpRequestMessage(HttpMethod.Post, "responses")
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json")
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiKey);
+
+        using var response = await client.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var detail = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new HttpRequestException(
+                $"OpenAI rechazó la solicitud ({(int)response.StatusCode}). {Limit(detail, 500)}",
+                null,
+                response.StatusCode);
+        }
+
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
+        var output = ExtractOutputText(document.RootElement).Trim();
+        if (string.IsNullOrWhiteSpace(output))
+            throw new InvalidOperationException("Nexi no devolvió una ampliación de esta perspectiva.");
+
+        return new AiPerspectiveExpansion(output);
     }
 
     private async Task<AiWritingSuggestion> GenerateAsync(
