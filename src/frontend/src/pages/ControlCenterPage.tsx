@@ -52,7 +52,10 @@ export function ControlCenterPage() {
     <div className="view-header control-page-header nexi-control-header">
       <div className="control-page-title nexi-control-title">
         <span className="nexi-control-brandmark" title="Nexi" aria-hidden="true"><NexiVisual size="small" /></span>
-        <div><h1>Nexi Control Center</h1><p>Prioridades, resúmenes, informes y estadísticas para decidir y actuar más rápido.</p></div>
+        <div>
+          <h1>Nexi Control Center</h1>
+          <p><strong>Nexi, la inteligencia que vive dentro de NexoMail.</strong> Entiende, resume, prioriza y convierte tus correos en acciones.</p>
+        </div>
       </div>
 
       <nav className="control-tabs control-tabs-inline" aria-label="Secciones de Nexi Control Center">
