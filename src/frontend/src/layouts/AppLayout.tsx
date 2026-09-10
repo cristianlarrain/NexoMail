@@ -5,6 +5,7 @@ import { Archive, BookMarked, ChevronDown, ChevronLeft, Clock3, CreditCard, EyeO
 import { authApi } from '../api/authApi'
 import { mailApi } from '../api/mailApi'
 import type { MailSummary, PagedResult } from '../types/mail'
+import { AppFooter } from '../components/AppFooter'
 import { BackToTopButton } from '../components/BackToTopButton'
 import { NexoPerspective } from '../components/NexoPerspective'
 import { TopSearchBox } from '../components/TopSearchBox'
@@ -160,6 +161,7 @@ export function AppLayout() {
       </header>
       <div className="global-nexo-perspective"><NexoPerspective contextKey={location.pathname} /></div>
       <Outlet />
+      <AppFooter />
       <BackToTopButton />
     </main>
   </div>
