@@ -58,13 +58,15 @@ export function MailRulePage() {
   const createRule = useMutation({
     mutationFn: async () => {
       const result = await ruleApi.createTrash(effectiveAccountId, ruleQuery.trim())
+      const effectiveQuery = result.query.trim()
       if (!applyExisting) return { result, existing: { completed: 0, failed: 0 } }
-      const matches = await existingMatches(effectiveAccountId, ruleQuery.trim())
+      const matches = await existingMatches(effectiveAccountId, effectiveQuery)
       const existing = await trashExisting(matches)
       return { result, existing }
     },
-    onSuccess: () => {
+    onSuccess: data => {
       setConfirmOpen(false)
+      setRuleQuery(data.result.query)
       void queryClient.invalidateQueries({ queryKey: ['messages'] })
       void queryClient.invalidateQueries({ queryKey: ['control-center'] })
       void queryClient.invalidateQueries({ queryKey: ['mail-rules'] })
@@ -100,9 +102,9 @@ export function MailRulePage() {
           onChange={event => setRuleQuery(event.target.value)}
           maxLength={500}
           disabled={createRule.isPending}
-          placeholder="Ej.: cristianlarrain/NexoMail"
+          placeholder="Ej.: from:avisos@empresa.cl"
         />
-        <small>Se usa como criterio de búsqueda de Gmail. Puedes escribir un remitente, asunto, frase o consulta de Gmail.</small>
+        <small>Nexi convierte instrucciones naturales a criterios de Gmail. También puedes escribir directamente una consulta Gmail, por ejemplo from:, subject: o has:attachment.</small>
       </label>
 
       <div className="mail-rule-action-preview">
@@ -126,6 +128,7 @@ export function MailRulePage() {
         <CheckCircle2 size={20} />
         <div>
           <strong>{createRule.data.result.created ? 'Regla creada' : 'La regla ya existía'}</strong>
+          <span>Criterio aplicado: <strong>{createRule.data.result.query}</strong>.</span>
           <span>Los nuevos mensajes que coincidan se enviarán a Papelera automáticamente.</span>
           {applyExisting && <span>{createRule.data.existing.completed} correo(s) actual(es) movido(s) a Papelera{createRule.data.existing.failed ? `; ${createRule.data.existing.failed} no pudieron procesarse` : ''}.</span>}
           <button type="button" className="text-button mail-rule-manage-link" onClick={() => navigate('/settings/rules')}><ListFilter size={14} /> Administrar reglas</button>
