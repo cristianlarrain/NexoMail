@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
-import { Archive, ChevronDown, ChevronLeft, Clock3, CreditCard, EyeOff, FileText, Inbox, LayoutDashboard, LogOut, Menu, Moon, PenLine, Send, Settings, ShieldAlert, Sun, Trash2, UserRound } from 'lucide-react'
+import { Archive, BookMarked, ChevronDown, ChevronLeft, Clock3, CreditCard, EyeOff, FileText, Inbox, LogOut, Menu, Moon, PenLine, Send, Settings, ShieldAlert, Sun, Trash2, UserRound } from 'lucide-react'
 import { authApi } from '../api/authApi'
 import { mailApi } from '../api/mailApi'
 import type { MailSummary, PagedResult } from '../types/mail'
@@ -9,6 +9,7 @@ import { BackToTopButton } from '../components/BackToTopButton'
 import { NexoPerspective } from '../components/NexoPerspective'
 import { TopSearchBox } from '../components/TopSearchBox'
 import { NexoMailLogo } from '../components/brand/NexoMailLogo'
+import { NexiVisual } from '../components/nexi/NexiVisual'
 import { WeatherWidget } from '../components/WeatherWidget'
 import { detectNexiMailAction } from '../utils/nexiSearchIntent'
 
@@ -122,8 +123,8 @@ export function AppLayout() {
       <div className="brand-row"><button className="brand-home" onClick={() => { setOpen(false); navigate('/inbox') }} aria-label="Ir a Bandeja de entrada"><NexoMailLogo compact={collapsed} /></button><button className="icon-button collapse-button" onClick={() => setCollapsed(!collapsed)} aria-label="Contraer barra lateral"><ChevronLeft size={18} /></button></div>
       <nav aria-label="Navegación principal">
         <NavLink to="/inbox" end className={inboxNavClass}><span>Bandeja de Entrada</span><Inbox className="primary-nav-icon" size={15} /></NavLink>
-        <NavLink to="/control-center" className={controlCenterNavClass}><span>Nexi Control Center</span><LayoutDashboard className="primary-nav-icon" size={15} /></NavLink>
         <button type="button" className={`compose-button primary-nav-action ${location.pathname === '/compose' ? 'active' : ''}`} onClick={() => { setOpen(false); navigate('/compose', { state: contextualAccountId ? { fromAccountId: contextualAccountId } : undefined }) }}><span>Redactar</span><PenLine className="primary-nav-icon" size={15} /></button>
+        <NavLink to="/control-center" className={controlCenterNavClass}><span>Nexi Control Center</span><span className="primary-nav-icon nexi-sidebar-icon" aria-hidden="true"><NexiVisual size="small" /></span></NavLink>
         <p className="nav-heading">Cuentas</p>
         {accounts.map(account => <NavLink key={account.id} to={`/account/${account.id}`} className={navClass}><i className="account-dot" style={{ background: account.color }} /><span>{account.displayName}</span></NavLink>)}
         <button type="button" className="nav-section-toggle" onClick={toggleFolders} aria-expanded={!foldersCollapsed} aria-controls="sidebar-folders" title={foldersCollapsed ? 'Mostrar carpetas' : 'Ocultar carpetas'}>
@@ -139,6 +140,7 @@ export function AppLayout() {
             <NavLink to="/trash" className={navClass}><Trash2 size={17} /><span>Papelera</span></NavLink>
           </>}
         </div>
+        <NavLink to="/perspectives" className={navClass}><BookMarked size={17} /><span>Perspectivas</span></NavLink>
         <NavLink to="/settings/plan" className={navClass}><CreditCard size={17} /><span>Plan y uso</span></NavLink>
         <NavLink to="/settings/accounts" className={navClass}><Settings size={17} /><span>Configurar</span></NavLink>
         <button className="theme-switch" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}><span>{theme === 'dark' ? 'Tema claro' : 'Tema oscuro'}</span><span className="switch" data-on={theme === 'dark'} /></button>
