@@ -23,7 +23,8 @@ public sealed record MailRuleCreateRequest(
     Guid AccountId,
     string Query,
     MailRuleActionType Action,
-    string? DestinationId = null);
+    string? DestinationId = null,
+    string? DestinationName = null);
 
 public sealed record MailRuleCreateResult(
     MailRuleDefinition Rule,
