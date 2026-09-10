@@ -130,20 +130,16 @@ export function NexiMailReport() {
   </article>
 
   return <div className="nexi-report-view">
-    <section className="nexi-report-toolbar">
-      <div className="nexi-report-toolbar-copy">
-        <span className="nexi-report-icon nexi-report-avatar" aria-hidden="true"><NexiVisual size="small" /></span>
-        <div><strong>Nexi · Informe</strong><span>Resumen ejecutivo, acciones y análisis visual del correo.</span></div>
-      </div>
-      <select value={accountId} onChange={event => updateParam('account', event.target.value || null)} aria-label="Cuenta para el informe">
-        <option value="">Todas las cuentas</option>
-        {(accounts.data ?? []).map(account => <option key={account.id} value={account.id}>{account.displayName}</option>)}
-      </select>
-    </section>
-
-    <div className="nexi-report-periods" aria-label="Período del informe">
+    <div className="nexi-report-periods" aria-label="Controles del informe">
       {(Object.keys(labels) as NexiReportPeriod[]).map(value => <button key={value} type="button" className={period === value ? 'active' : ''} onClick={() => updateParam('period', value)}><CalendarDays size={14} />{labels[value]}</button>)}
       <span className="nexi-report-range">{rangeLabel}</span>
+      <label className="nexi-report-account-select">
+        <span>Cuenta</span>
+        <select value={accountId} onChange={event => updateParam('account', event.target.value || null)} aria-label="Cuenta para el informe">
+          <option value="">Todas las cuentas</option>
+          {(accounts.data ?? []).map(account => <option key={account.id} value={account.id}>{account.displayName}</option>)}
+        </select>
+      </label>
     </div>
 
     {report.isLoading && <section className="nexi-report-loading nexi-integrated-loading"><NexiVisual size="small" className="nexi-inline-processing" /><small>Analizando correos…</small></section>}
