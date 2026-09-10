@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -25,17 +26,20 @@ public sealed class GmailRuleService(
         using (var listResponse = await client.GetAsync("users/me/settings/filters", cancellationToken))
         {
             await EnsureRulePermissionAsync(listResponse, cancellationToken);
-            using var list = JsonDocument.Parse(await listResponse.Content.ReadAsStreamAsync(cancellationToken));
-            if (list.RootElement.TryGetProperty("filter", out var filters))
+            using var list = await ReadJsonAsync(listResponse, cancellationToken);
+            if (list is not null && list.RootElement.TryGetProperty("filter", out var filters) && filters.ValueKind == JsonValueKind.Array)
             {
                 foreach (var filter in filters.EnumerateArray())
                 {
                     var criteriaQuery = filter.TryGetProperty("criteria", out var criteria)
+                        && criteria.ValueKind == JsonValueKind.Object
                         && criteria.TryGetProperty("query", out var queryElement)
                         ? queryElement.GetString()
                         : null;
                     var trashes = filter.TryGetProperty("action", out var action)
+                        && action.ValueKind == JsonValueKind.Object
                         && action.TryGetProperty("addLabelIds", out var labels)
+                        && labels.ValueKind == JsonValueKind.Array
                         && labels.EnumerateArray().Any(label => string.Equals(label.GetString(), "TRASH", StringComparison.OrdinalIgnoreCase));
                     if (!trashes || !string.Equals(criteriaQuery?.Trim(), normalizedQuery, StringComparison.OrdinalIgnoreCase)) continue;
 
@@ -52,7 +56,8 @@ public sealed class GmailRuleService(
         }, cancellationToken);
         await EnsureRulePermissionAsync(response, cancellationToken);
 
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
+        using var document = await ReadJsonAsync(response, cancellationToken)
+            ?? throw new InvalidOperationException("Gmail creó la regla, pero no devolvió un identificador válido.");
         var id = document.RootElement.TryGetProperty("id", out var createdIdElement) ? createdIdElement.GetString() ?? string.Empty : string.Empty;
         return new GmailTrashRuleResult(id, normalizedQuery, true);
     }
@@ -63,13 +68,15 @@ public sealed class GmailRuleService(
         using var response = await client.GetAsync("users/me/settings/filters", cancellationToken);
         await EnsureRulePermissionAsync(response, cancellationToken);
 
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
+        using var document = await ReadJsonAsync(response, cancellationToken);
         var result = new List<GmailTrashRule>();
-        if (!document.RootElement.TryGetProperty("filter", out var filters)) return result;
+        if (document is null || !document.RootElement.TryGetProperty("filter", out var filters) || filters.ValueKind != JsonValueKind.Array)
+            return result;
 
         foreach (var filter in filters.EnumerateArray())
         {
             var trashes = filter.TryGetProperty("action", out var action)
+                && action.ValueKind == JsonValueKind.Object
                 && action.TryGetProperty("addLabelIds", out var labels)
                 && labels.ValueKind == JsonValueKind.Array
                 && labels.EnumerateArray().Any(label => string.Equals(label.GetString(), "TRASH", StringComparison.OrdinalIgnoreCase));
@@ -78,6 +85,7 @@ public sealed class GmailRuleService(
             var id = filter.TryGetProperty("id", out var idElement) ? idElement.GetString() ?? string.Empty : string.Empty;
             if (string.IsNullOrWhiteSpace(id)) continue;
             var query = filter.TryGetProperty("criteria", out var criteria)
+                && criteria.ValueKind == JsonValueKind.Object
                 && criteria.TryGetProperty("query", out var queryElement)
                 ? queryElement.GetString() ?? string.Empty
                 : string.Empty;
@@ -105,10 +113,22 @@ public sealed class GmailRuleService(
     {
         var credential = await database.OAuthCredentials.AsNoTracking()
             .SingleOrDefaultAsync(value => value.MailAccountId == accountId, cancellationToken)
-            ?? throw new InvalidOperationException("No existe una credencial OAuth para esta cuenta.");
+            ?? throw new InvalidOperationException("No existe una credencial OAuth para esta cuenta. Vuelve a conectar la cuenta desde Configuración.");
 
         var settings = options.Value;
-        var refreshToken = tokenProtector.Unprotect(credential.EncryptedRefreshToken);
+        if (string.IsNullOrWhiteSpace(settings.ClientId) || string.IsNullOrWhiteSpace(settings.ClientSecret))
+            throw new InvalidOperationException("La integración de Google no está configurada en este servidor.");
+
+        string refreshToken;
+        try
+        {
+            refreshToken = tokenProtector.Unprotect(credential.EncryptedRefreshToken);
+        }
+        catch (CryptographicException)
+        {
+            throw new InvalidOperationException("La autorización guardada de Google ya no puede utilizarse. Vuelve a conectar esta cuenta desde Configuración.");
+        }
+
         var tokenClient = httpClientFactory.CreateClient();
         using var tokenResponse = await tokenClient.PostAsync("https://oauth2.googleapis.com/token", new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -117,28 +137,55 @@ public sealed class GmailRuleService(
             ["refresh_token"] = refreshToken,
             ["grant_type"] = "refresh_token"
         }), cancellationToken);
-        tokenResponse.EnsureSuccessStatusCode();
 
-        using var tokenDocument = JsonDocument.Parse(await tokenResponse.Content.ReadAsStreamAsync(cancellationToken));
+        if (!tokenResponse.IsSuccessStatusCode)
+        {
+            var tokenError = await tokenResponse.Content.ReadAsStringAsync(cancellationToken);
+            if (tokenResponse.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Unauthorized
+                || tokenError.Contains("invalid_grant", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Google rechazó la autorización guardada. Vuelve a conectar esta cuenta desde Configuración para renovar los permisos de reglas.");
+            }
+            throw new HttpRequestException($"Google no pudo renovar la autorización ({(int)tokenResponse.StatusCode}).", null, tokenResponse.StatusCode);
+        }
+
+        using var tokenDocument = await ReadJsonAsync(tokenResponse, cancellationToken)
+            ?? throw new InvalidOperationException("Google no entregó un token de acceso válido. Vuelve a conectar la cuenta desde Configuración.");
         var accessToken = tokenDocument.RootElement.TryGetProperty("access_token", out var tokenElement) ? tokenElement.GetString() : null;
         if (string.IsNullOrWhiteSpace(accessToken))
-            throw new InvalidOperationException("Google no entregó un token de acceso válido.");
+            throw new InvalidOperationException("Google no entregó un token de acceso válido. Vuelve a conectar la cuenta desde Configuración.");
 
         var client = httpClientFactory.CreateClient("Gmail");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         return client;
     }
 
+    private static async Task<JsonDocument?> ReadJsonAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        var raw = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        try
+        {
+            return JsonDocument.Parse(raw);
+        }
+        catch (JsonException exception)
+        {
+            throw new HttpRequestException("Google devolvió una respuesta no válida al administrar las reglas.", exception, response.StatusCode);
+        }
+    }
+
     private static async Task EnsureRulePermissionAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         if (response.IsSuccessStatusCode) return;
 
-        if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized)
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized
+            || body.Contains("insufficientPermissions", StringComparison.OrdinalIgnoreCase)
+            || body.Contains("insufficient authentication scopes", StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("Esta cuenta necesita autorizar el permiso para administrar reglas de Gmail. Vuelve a conectar la cuenta desde Configurar y repite la operación.");
+            throw new InvalidOperationException("Esta cuenta todavía no autorizó el permiso para administrar reglas de Gmail. Vuelve a conectar la cuenta desde Configuración y acepta los permisos de Google.");
         }
 
-        _ = await response.Content.ReadAsStringAsync(cancellationToken);
         throw new HttpRequestException($"Gmail rechazó la operación sobre reglas ({(int)response.StatusCode}).", null, response.StatusCode);
     }
 }
