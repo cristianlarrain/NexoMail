@@ -5,6 +5,7 @@ import { RouterProvider } from 'react-router-dom'
 import { ComposeValidationNotice } from './components/ComposeValidationNotice'
 import { GlobalActionIndicator } from './components/GlobalActionIndicator'
 import { GlobalFormValidation } from './components/GlobalFormValidation'
+import { GlobalVoiceDictation } from './components/GlobalVoiceDictation'
 import { router } from './router'
 import './styles/theme.css'
 import './styles/overrides.css'
@@ -57,6 +58,9 @@ import './styles/commercial-admin.css'
 import './styles/commercial-billing.css'
 import './styles/control-center-spacing.css'
 import './styles/ui-coherence.css'
+import './styles/nexi-integrated.css'
+import './styles/global-voice-dictation.css'
+import './styles/form-controls-modern.css'
 
 const client = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, retry: 1 } } })
 createRoot(document.getElementById('root')!).render(
@@ -66,6 +70,7 @@ createRoot(document.getElementById('root')!).render(
       <ComposeValidationNotice />
       <GlobalActionIndicator />
       <GlobalFormValidation />
+      <GlobalVoiceDictation />
     </QueryClientProvider>
   </StrictMode>,
 )
