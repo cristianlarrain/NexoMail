@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Navigate, useLocation, useParams } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
+import { MessageNexiReaderTools } from '../components/MessageNexiReaderTools'
 import { MessagePage } from './MessagePage'
 
 type MessageRouteState = { returnTo?: string }
@@ -33,5 +34,8 @@ export function MessageRoute() {
     />
   }
 
-  return <MessagePage />
+  return <>
+    <MessageNexiReaderTools accountId={accountId} messageId={messageId} />
+    <MessagePage />
+  </>
 }
