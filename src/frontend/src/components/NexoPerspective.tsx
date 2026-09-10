@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BookOpenText } from 'lucide-react'
+import { BookOpenText, RefreshCw } from 'lucide-react'
 
 type PerspectiveArea =
   | 'Filosofía'
@@ -227,11 +227,25 @@ export function NexoPerspective({ contextKey = 'general' }: { contextKey?: strin
     return () => window.clearInterval(timer)
   }, [contextKey])
 
+  function showAnotherPerspective() {
+    setIndex(current => (current + 1) % perspectives.length)
+  }
+
   return <aside className="nexo-perspective" aria-label="Perspectiva intelectual de Nexo">
     <span className="nexo-perspective-icon" aria-hidden="true"><BookOpenText size={15} /></span>
     <div className="nexo-perspective-copy">
       <span className="nexo-perspective-label">Perspectiva · {perspective.area}</span>
       <p>{perspective.text} <cite>— {perspective.source}</cite></p>
     </div>
+    <button
+      type="button"
+      className="nexo-perspective-refresh"
+      onClick={showAnotherPerspective}
+      title="Mostrar otra perspectiva"
+      aria-label="Mostrar otra perspectiva"
+    >
+      <RefreshCw size={13} />
+      <span>Otro mensaje</span>
+    </button>
   </aside>
 }
