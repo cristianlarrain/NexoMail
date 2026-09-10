@@ -82,7 +82,13 @@ public sealed class GmailRuleService(
 
         var client = await CreateClientAsync(request.AccountId, cancellationToken);
         var labels = await GetLabelMapAsync(client, cancellationToken);
-        var destination = ResolveDestination(request.Action, request.DestinationId, labels);
+        var destination = await ResolveDestinationAsync(
+            client,
+            request.Action,
+            request.DestinationId,
+            request.DestinationName,
+            labels,
+            cancellationToken);
         var actionPayload = BuildActionPayload(request.Action, destination?.Id);
 
         using (var listResponse = await client.GetAsync("users/me/settings/filters", cancellationToken))
@@ -182,18 +188,52 @@ public sealed class GmailRuleService(
         };
     }
 
-    private static MailRuleDestination? ResolveDestination(
+    private static async Task<MailRuleDestination?> ResolveDestinationAsync(
+        HttpClient client,
         MailRuleActionType action,
         string? destinationId,
-        IReadOnlyDictionary<string, string> labels)
+        string? destinationName,
+        IDictionary<string, string> labels,
+        CancellationToken cancellationToken)
     {
         if (action != MailRuleActionType.MoveToFolder) return null;
+
         var normalizedId = destinationId?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(normalizedId))
-            throw new InvalidOperationException("Selecciona la carpeta o etiqueta de destino.");
-        if (SystemLabelIds.Contains(normalizedId) || !labels.TryGetValue(normalizedId, out var displayName))
-            throw new InvalidOperationException("La carpeta o etiqueta de destino ya no está disponible en Gmail.");
-        return new MailRuleDestination(normalizedId, displayName);
+        if (!string.IsNullOrWhiteSpace(normalizedId))
+        {
+            if (SystemLabelIds.Contains(normalizedId) || !labels.TryGetValue(normalizedId, out var displayName))
+                throw new InvalidOperationException("La carpeta o etiqueta de destino ya no está disponible en Gmail.");
+            return new MailRuleDestination(normalizedId, displayName);
+        }
+
+        var normalizedName = Regex.Replace(destinationName?.Trim() ?? string.Empty, @"\s+", " ");
+        if (normalizedName.Length is < 1 or > 120)
+            throw new InvalidOperationException("Escribe un nombre de carpeta o etiqueta de entre 1 y 120 caracteres.");
+
+        var existing = labels.FirstOrDefault(pair =>
+            !SystemLabelIds.Contains(pair.Key)
+            && string.Equals(pair.Value, normalizedName, StringComparison.CurrentCultureIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(existing.Key))
+            return new MailRuleDestination(existing.Key, existing.Value);
+
+        using var response = await client.PostAsJsonAsync("users/me/labels", new
+        {
+            name = normalizedName,
+            labelListVisibility = "labelShow",
+            messageListVisibility = "show"
+        }, cancellationToken);
+        await EnsureRulePermissionAsync(response, cancellationToken);
+
+        using var document = await ReadJsonAsync(response, cancellationToken)
+            ?? throw new InvalidOperationException("Gmail creó la etiqueta, pero no devolvió un identificador válido.");
+        var id = document.RootElement.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+        var name = document.RootElement.TryGetProperty("name", out var nameElement) ? nameElement.GetString() : normalizedName;
+        if (string.IsNullOrWhiteSpace(id))
+            throw new InvalidOperationException("Gmail creó la etiqueta, pero no devolvió un identificador válido.");
+
+        var resolvedName = string.IsNullOrWhiteSpace(name) ? normalizedName : name;
+        labels[id] = resolvedName;
+        return new MailRuleDestination(id, resolvedName);
     }
 
     private static string[] ReadStringArray(JsonElement source, string property)
