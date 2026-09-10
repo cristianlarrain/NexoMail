@@ -9,8 +9,14 @@ namespace NexoMail.Api;
 
 public static class MailRuleEndpoints
 {
+    private static int _mapped;
+
     public static void Map(RouteGroupBuilder mail)
     {
+        // Minimal APIs can be re-executed during hot reload. Register these routes only once
+        // per process so the router never ends up with two identical /rules/trash endpoints.
+        if (System.Threading.Interlocked.Exchange(ref _mapped, 1) == 1) return;
+
         mail.MapGet("/rules/trash", async (
             IHttpClientFactory httpClientFactory,
             NexoMailDbContext database,
@@ -24,7 +30,7 @@ public static class MailRuleEndpoints
             CancellationToken ct) =>
         {
             var logger = loggerFactory.CreateLogger("NexoMail.MailRules");
-            httpContext.Response.Headers["X-NexoMail-Rules"] = "2026-09-10.3";
+            httpContext.Response.Headers["X-NexoMail-Rules"] = "2026-09-10.4";
 
             try
             {
@@ -69,7 +75,7 @@ public static class MailRuleEndpoints
                 logger.LogWarning(exception, "No fue posible consultar reglas Gmail por un problema de autorización o configuración.");
                 if (httpContext.Response.HasStarted) throw;
                 httpContext.Response.Clear();
-                httpContext.Response.Headers["X-NexoMail-Rules"] = "2026-09-10.3";
+                httpContext.Response.Headers["X-NexoMail-Rules"] = "2026-09-10.4";
                 httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
                 await httpContext.Response.WriteAsJsonAsync(new { error = exception.Message }, ct);
             }
@@ -78,7 +84,7 @@ public static class MailRuleEndpoints
                 logger.LogWarning(exception, "Gmail rechazó o interrumpió la consulta de reglas.");
                 if (httpContext.Response.HasStarted) throw;
                 httpContext.Response.Clear();
-                httpContext.Response.Headers["X-NexoMail-Rules"] = "2026-09-10.3";
+                httpContext.Response.Headers["X-NexoMail-Rules"] = "2026-09-10.4";
                 httpContext.Response.StatusCode = StatusCodes.Status502BadGateway;
                 await httpContext.Response.WriteAsJsonAsync(new
                 {
@@ -90,7 +96,7 @@ public static class MailRuleEndpoints
                 logger.LogError(exception, "Error no controlado al consultar reglas Gmail para la cuenta {AccountId}.", accountId);
                 if (httpContext.Response.HasStarted) throw;
                 httpContext.Response.Clear();
-                httpContext.Response.Headers["X-NexoMail-Rules"] = "2026-09-10.3";
+                httpContext.Response.Headers["X-NexoMail-Rules"] = "2026-09-10.4";
                 httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
                 var error = environment.IsDevelopment()
                     ? $"Error interno al consultar reglas ({exception.GetType().Name}): {exception.Message}"
