@@ -198,6 +198,7 @@ oauth.MapGet("/google/callback", async (string? code, string? state, string? err
 
 var mail = api.MapGroup("/mail").RequireAuthorization();
 NexoMail.Api.AiEndpoints.MapNexoMailAi(mail);
+NexoMail.Api.MailRuleEndpoints.Map(mail);
 mail.MapGet("/accounts", async (IMailGateway gateway, CancellationToken ct) => Results.Ok(await gateway.GetAccountsAsync(ct)));
 mail.MapPost("/refresh", (NexoMail.Api.MailReadCache cache, IUserContext userContext) =>
 {
