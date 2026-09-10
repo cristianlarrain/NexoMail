@@ -19,6 +19,12 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Restore API
+        run: dotnet restore src/backend/NexoMail.Api/NexoMail.Api.csproj
+
+      - name: Build API
+        run: dotnet build src/backend/NexoMail.Api/NexoMail.Api.csproj --configuration Release --no-restore
+
       - name: Restore backend smoke test
         run: dotnet restore src/backend/NexoMail.ControlCenterSmokeTests/NexoMail.ControlCenterSmokeTests.csproj
 
