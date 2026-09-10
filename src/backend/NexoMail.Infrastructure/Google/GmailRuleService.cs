@@ -39,7 +39,7 @@ public sealed class GmailRuleService(
                         && labels.EnumerateArray().Any(label => string.Equals(label.GetString(), "TRASH", StringComparison.OrdinalIgnoreCase));
                     if (!trashes || !string.Equals(criteriaQuery?.Trim(), normalizedQuery, StringComparison.OrdinalIgnoreCase)) continue;
 
-                    var existingId = filter.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+                    var existingId = filter.TryGetProperty("id", out var existingIdElement) ? existingIdElement.GetString() : null;
                     return new GmailTrashRuleResult(existingId ?? string.Empty, normalizedQuery, false);
                 }
             }
@@ -53,7 +53,7 @@ public sealed class GmailRuleService(
         await EnsureRulePermissionAsync(response, cancellationToken);
 
         using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
-        var id = document.RootElement.TryGetProperty("id", out var idElement) ? idElement.GetString() ?? string.Empty : string.Empty;
+        var id = document.RootElement.TryGetProperty("id", out var createdIdElement) ? createdIdElement.GetString() ?? string.Empty : string.Empty;
         return new GmailTrashRuleResult(id, normalizedQuery, true);
     }
 
@@ -94,10 +94,8 @@ public sealed class GmailRuleService(
             throw new InvalidOperationException("Esta cuenta necesita autorizar el permiso para administrar reglas de Gmail. Vuelve a conectar la cuenta desde Configurar y repite la instrucción.");
         }
 
-        var detail = await response.Content.ReadAsStringAsync(cancellationToken);
-        throw new HttpRequestException(string.IsNullOrWhiteSpace(detail)
-            ? $"Gmail rechazó la creación de la regla ({(int)response.StatusCode})."
-            : $"Gmail rechazó la creación de la regla ({(int)response.StatusCode}).", null, response.StatusCode);
+        _ = await response.Content.ReadAsStringAsync(cancellationToken);
+        throw new HttpRequestException($"Gmail rechazó la creación de la regla ({(int)response.StatusCode}).", null, response.StatusCode);
     }
 }
 
