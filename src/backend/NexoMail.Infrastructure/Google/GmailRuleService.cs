@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using NexoMail.Infrastructure.Data;
@@ -15,9 +16,17 @@ public sealed class GmailRuleService(
     ITokenProtector tokenProtector,
     IOptions<GmailOptions> options)
 {
+    private static readonly Regex EmailPattern = new(
+        @"(?<![\w.-])[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}(?![\w.-])",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    private static readonly Regex GmailOperatorPattern = new(
+        @"(?:^|\s)(?:from|to|cc|bcc|subject|label|in|is|has|larger|smaller|after|before|newer|older|filename):",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
     public async Task<GmailTrashRuleResult> CreateTrashRuleAsync(Guid accountId, string query, CancellationToken cancellationToken)
     {
-        var normalizedQuery = query.Trim();
+        var normalizedQuery = NormalizeIncomingQuery(query);
         if (normalizedQuery.Length is < 1 or > 500)
             throw new InvalidOperationException("La condición de la regla debe tener entre 1 y 500 caracteres.");
 
@@ -33,15 +42,14 @@ public sealed class GmailRuleService(
                 {
                     var criteriaQuery = filter.TryGetProperty("criteria", out var criteria)
                         && criteria.ValueKind == JsonValueKind.Object
-                        && criteria.TryGetProperty("query", out var queryElement)
-                        ? queryElement.GetString()
-                        : null;
+                        ? BuildCriteriaQuery(criteria)
+                        : string.Empty;
                     var trashes = filter.TryGetProperty("action", out var action)
                         && action.ValueKind == JsonValueKind.Object
                         && action.TryGetProperty("addLabelIds", out var labels)
                         && labels.ValueKind == JsonValueKind.Array
                         && labels.EnumerateArray().Any(label => string.Equals(label.GetString(), "TRASH", StringComparison.OrdinalIgnoreCase));
-                    if (!trashes || !string.Equals(criteriaQuery?.Trim(), normalizedQuery, StringComparison.OrdinalIgnoreCase)) continue;
+                    if (!trashes || !string.Equals(criteriaQuery.Trim(), normalizedQuery, StringComparison.OrdinalIgnoreCase)) continue;
 
                     var existingId = filter.TryGetProperty("id", out var existingIdElement) ? existingIdElement.GetString() : null;
                     return new GmailTrashRuleResult(existingId ?? string.Empty, normalizedQuery, false);
@@ -84,10 +92,10 @@ public sealed class GmailRuleService(
 
             var id = filter.TryGetProperty("id", out var idElement) ? idElement.GetString() ?? string.Empty : string.Empty;
             if (string.IsNullOrWhiteSpace(id)) continue;
+
             var query = filter.TryGetProperty("criteria", out var criteria)
                 && criteria.ValueKind == JsonValueKind.Object
-                && criteria.TryGetProperty("query", out var queryElement)
-                ? queryElement.GetString() ?? string.Empty
+                ? BuildCriteriaQuery(criteria)
                 : string.Empty;
             result.Add(new GmailTrashRule(id, query));
         }
@@ -107,6 +115,112 @@ public sealed class GmailRuleService(
         if (response.StatusCode == HttpStatusCode.NotFound) return false;
         await EnsureRulePermissionAsync(response, cancellationToken);
         return true;
+    }
+
+    private static string NormalizeIncomingQuery(string query)
+    {
+        var value = Regex.Replace(query.Trim(), @"\s+", " ");
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+        if (GmailOperatorPattern.IsMatch(value)) return value;
+
+        var email = EmailPattern.Match(value);
+        if (email.Success)
+        {
+            var before = value[..email.Index];
+            var isRecipient = Regex.IsMatch(before, @"\b(?:destinatari[oa]s?|dirigid[oa]s?\s+a|enviad[oa]s?\s+a)\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            return $"{(isRecipient ? "to" : "from")}:{email.Value}";
+        }
+
+        var sender = Regex.Match(
+            value,
+            @"\b(?:correos?\s+(?:de|del)|mensajes?\s+(?:de|del)|remitente|desde)\s+(?<value>.+?)(?=\s+(?:se\s+)?(?:vayan|vaya|env[ií]en|env[ií]e|muevan|mueva|manden|mande|pasen|pase)\s+(?:a|al|hacia)\s+(?:la\s+|los\s+)?(?:carpeta\s+de\s+)?(?:papelera|eliminados|trash)|$)",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        if (sender.Success)
+        {
+            var senderValue = CleanCandidate(sender.Groups["value"].Value);
+            if (!string.IsNullOrWhiteSpace(senderValue)) return $"from:{QuoteIfNeeded(senderValue)}";
+        }
+
+        var subject = Regex.Match(
+            value,
+            @"\basunto\s+(?:sea|es|contenga|contiene|con)?\s*(?<value>.+?)(?=\s+(?:se\s+)?(?:vayan|vaya|env[ií]en|env[ií]e|muevan|mueva|manden|mande|pasen|pase)\s+(?:a|al|hacia)\s+(?:la\s+|los\s+)?(?:carpeta\s+de\s+)?(?:papelera|eliminados|trash)|$)",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        if (subject.Success)
+        {
+            var subjectValue = CleanCandidate(subject.Groups["value"].Value);
+            if (!string.IsNullOrWhiteSpace(subjectValue)) return $"subject:{QuoteIfNeeded(subjectValue)}";
+        }
+
+        value = Regex.Replace(value, @"\b(?:crea|crear|cr[eé]ame|configura|configurar|haz|hacer|genera|generar|define|definir|necesito)\b", " ", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        value = Regex.Replace(value, @"\b(?:una|un|la|el)\s+(?:regla|filtro)\b", " ", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        value = Regex.Replace(value, @"\bpara\s+que\b|\bpara\s+cuando\b|\bcuando\s+(?:entren|lleguen|llegue|entre|reciba|recibas)\b", " ", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        value = Regex.Replace(value, @"\b(?:todos?|todas?)\s+(?:los|las)\s+(?:correos?|mensajes?)\b", " ", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        value = Regex.Replace(value, @"\b(?:se\s+)?(?:vayan|vaya|env[ií]en|env[ií]e|muevan|mueva|manden|mande|pasen|pase)\s+(?:a|al|hacia)\s+(?:la\s+|los\s+)?(?:carpeta\s+de\s+)?(?:papelera(?:\s+de\s+reciclaje)?|eliminados|trash)\b", " ", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        return CleanCandidate(value);
+    }
+
+    private static string BuildCriteriaQuery(JsonElement criteria)
+    {
+        var parts = new List<string>();
+        AddOperator(parts, criteria, "from", "from");
+        AddOperator(parts, criteria, "to", "to");
+        AddOperator(parts, criteria, "subject", "subject");
+
+        if (criteria.TryGetProperty("query", out var queryElement) && queryElement.ValueKind == JsonValueKind.String)
+        {
+            var query = queryElement.GetString()?.Trim();
+            if (!string.IsNullOrWhiteSpace(query)) parts.Add(query);
+        }
+
+        if (criteria.TryGetProperty("negatedQuery", out var negatedElement) && negatedElement.ValueKind == JsonValueKind.String)
+        {
+            var negated = negatedElement.GetString()?.Trim();
+            if (!string.IsNullOrWhiteSpace(negated)) parts.Add($"-({negated})");
+        }
+
+        if (criteria.TryGetProperty("hasAttachment", out var attachmentElement)
+            && attachmentElement.ValueKind is JsonValueKind.True)
+            parts.Add("has:attachment");
+
+        if (criteria.TryGetProperty("excludeChats", out var excludeChatsElement)
+            && excludeChatsElement.ValueKind is JsonValueKind.True)
+            parts.Add("-label:chat");
+
+        if (criteria.TryGetProperty("size", out var sizeElement) && sizeElement.TryGetInt64(out var size) && size > 0)
+        {
+            var comparison = criteria.TryGetProperty("sizeComparison", out var comparisonElement)
+                ? comparisonElement.GetString()?.Trim().ToLowerInvariant()
+                : null;
+            if (comparison is "larger" or "smaller") parts.Add($"{comparison}:{size}");
+        }
+
+        return string.Join(" ", parts.Where(part => !string.IsNullOrWhiteSpace(part))).Trim();
+    }
+
+    private static void AddOperator(List<string> parts, JsonElement criteria, string property, string gmailOperator)
+    {
+        if (!criteria.TryGetProperty(property, out var element) || element.ValueKind != JsonValueKind.String) return;
+        var value = element.GetString()?.Trim();
+        if (string.IsNullOrWhiteSpace(value)) return;
+        parts.Add($"{gmailOperator}:{QuoteIfNeeded(value)}");
+    }
+
+    private static string QuoteIfNeeded(string value)
+    {
+        var trimmed = value.Trim();
+        if (trimmed.Length >= 2 && ((trimmed.StartsWith('"') && trimmed.EndsWith('"')) || (trimmed.StartsWith('(') && trimmed.EndsWith(')'))))
+            return trimmed;
+        return trimmed.Any(char.IsWhiteSpace)
+            ? $"\"{trimmed.Replace("\"", "\\\"")}\""
+            : trimmed;
+    }
+
+    private static string CleanCandidate(string value)
+    {
+        var cleaned = Regex.Replace(value, @"\s+", " ").Trim(' ', ',', ':', ';', '-', '–', '—');
+        if (cleaned.Length >= 2 && ((cleaned.StartsWith('“') && cleaned.EndsWith('”')) || (cleaned.StartsWith('‘') && cleaned.EndsWith('’')) || (cleaned.StartsWith(''') && cleaned.EndsWith('\''))))
+            cleaned = cleaned[1..^1].Trim();
+        return cleaned;
     }
 
     private async Task<HttpClient> CreateClientAsync(Guid accountId, CancellationToken cancellationToken)
