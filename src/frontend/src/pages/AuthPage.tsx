@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Eye, EyeOff, Mail } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, Mail } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { authApi, type RateLimitInfo } from '../api/authApi'
 
@@ -209,6 +209,7 @@ export function AuthPage() {
 
   return <main className="auth-page">
     <section className="auth-card">
+      <Link to="/" className="auth-back-home"><ArrowLeft size={14} /> Volver al sitio NexoMail</Link>
       <div className="auth-brand"><span className="brand-mark"><Mail size={22} /></span><strong>NexoMail</strong></div>
       <div className="auth-heading"><p className="eyebrow">Correo unificado</p><h1>{heading}</h1><p>{description}</p></div>
 
