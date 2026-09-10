@@ -284,7 +284,7 @@
 .rule-row {
   min-width: 0;
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-columns: 36px minmax(0, 1fr) 34px;
   gap: 11px;
   align-items: center;
   padding: 13px 14px;
@@ -338,6 +338,11 @@
   gap: 5px;
   color: var(--muted-foreground);
   font-size: 10px;
+}
+
+.rule-remove {
+  justify-self: end;
+  flex: 0 0 auto;
 }
 
 .rules-empty,
@@ -410,6 +415,11 @@
   .rules-account-selector select {
     width: 100%;
     min-width: 0;
+  }
+
+  .rule-row {
+    grid-template-columns: 34px minmax(0, 1fr) 32px;
+    padding-inline: 11px;
   }
 
   .rule-row-copy {
