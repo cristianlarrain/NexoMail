@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using NexoMail.Domain;
 using NexoMail.Infrastructure;
@@ -134,7 +135,33 @@ try
     Ensure(MercadoPagoBilling.MapStatus("pending") == CommercialSubscriptionStatuses.Pending,
         "Mercado Pago pending debe mapear a pending.");
 
-    Console.WriteLine("PASS: comercial -> FK SQLite -> heredado -> pendiente -> activo -> impago -> cancelado -> entitlements");
+    var configuredEntitlements = new[]
+    {
+        CommercialEntitlements.UnifiedMail,
+        CommercialEntitlements.NexiAi
+    };
+    await database.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE CommercialPlans SET EntitlementsJson = {JsonSerializer.Serialize(configuredEntitlements)} WHERE Code = {CommercialPlanCatalog.Premium}",
+        ct);
+    await CommercialSubscriptionMutations.ApplyProviderStateAsync(
+        database,
+        user.Id,
+        CommercialPlanCatalog.Premium,
+        CommercialSubscriptionStatuses.Active,
+        "mercadopago",
+        "smoke-configurable-entitlements",
+        DateTimeOffset.UtcNow,
+        DateTimeOffset.UtcNow.AddMonths(1),
+        ct);
+
+    var customized = await CommercialAccessStore.GetAsync(database, user.Id, ct)
+        ?? throw new InvalidOperationException("No fue posible resolver el acceso con funciones personalizadas.");
+    Ensure(customized.Entitlements.Contains(CommercialEntitlements.NexiAi),
+        "Las funciones configuradas para el plan deben habilitar Nexi e IA.");
+    Ensure(!customized.Entitlements.Contains(CommercialEntitlements.AdvancedAnalytics),
+        "Las funciones no configuradas para el plan no deben habilitarse por defecto.");
+
+    Console.WriteLine("PASS: comercial -> FK SQLite -> heredado -> pendiente -> activo -> impago -> cancelado -> entitlements configurables");
 }
 finally
 {
