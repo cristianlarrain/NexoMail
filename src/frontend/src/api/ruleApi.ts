@@ -1,20 +1,25 @@
 import { csrfFetch } from './csrfFetch'
 
-export type TrashRuleResult = {
-  filterId: string
+export type RuleAction = 'trash' | 'archive' | 'markRead' | 'moveToFolder'
+
+export type MailRule = {
+  ruleId: string
   query: string
-  created: boolean
   accountId: string
   account: string
-  action: 'trash'
+  action: RuleAction
+  destinationId?: string | null
+  destinationName?: string | null
 }
 
-export type TrashRule = {
-  filterId: string
-  query: string
-  accountId: string
-  account: string
-  action: 'trash'
+export type RuleDestination = {
+  id: string
+  displayName: string
+}
+
+export type RuleCreateResult = {
+  created: boolean
+  rule: MailRule
 }
 
 type ApiProblem = {
@@ -54,17 +59,11 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     if (response.status === 401)
       throw new Error('Tu sesión expiró. Vuelve a iniciar sesión para administrar las reglas.')
     if (response.status === 403)
-      throw new Error('La cuenta necesita autorización adicional para administrar reglas de Gmail. Vuelve a conectar la cuenta desde Configuración.')
+      throw new Error('La cuenta necesita autorización adicional para administrar reglas. Vuelve a conectar la cuenta desde Configuración.')
 
-    const backendMarker = response.headers.get('X-NexoMail-Rules')
     const rawDetail = cleanRawError(raw)
     const titleDetail = problem?.title?.trim()
-    const detail = rawDetail || titleDetail
-      ? `: ${rawDetail || titleDetail}`
-      : backendMarker
-        ? ': el módulo de reglas respondió sin detalle adicional.'
-        : ': el error ocurrió antes de que la solicitud entrara al módulo de reglas de NexoMail.'
-
+    const detail = rawDetail || titleDetail ? `: ${rawDetail || titleDetail}` : ''
     throw new Error(`No fue posible administrar las reglas (HTTP ${response.status})${detail}`)
   }
 
@@ -73,12 +72,13 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const ruleApi = {
-  listTrash: (accountId: string) => api<TrashRule[]>(`/mail/rules/trash?accountId=${encodeURIComponent(accountId)}`),
-  createTrash: (accountId: string, query: string) => api<TrashRuleResult>('/mail/rules/trash', {
+  list: (accountId: string) => api<MailRule[]>(`/mail/rules?accountId=${encodeURIComponent(accountId)}`),
+  destinations: (accountId: string) => api<RuleDestination[]>(`/mail/rules/destinations?accountId=${encodeURIComponent(accountId)}`),
+  create: (accountId: string, query: string, action: RuleAction, destinationId?: string) => api<RuleCreateResult>('/mail/rules', {
     method: 'POST',
-    body: JSON.stringify({ accountId, query }),
+    body: JSON.stringify({ accountId, query, action, destinationId: destinationId || null }),
   }),
-  removeTrash: (accountId: string, filterId: string) => api<{ removed: boolean; filterId: string }>(`/mail/rules/trash/${encodeURIComponent(accountId)}/${encodeURIComponent(filterId)}`, {
+  remove: (accountId: string, ruleId: string) => api<{ removed: boolean; ruleId: string }>(`/mail/rules/${encodeURIComponent(accountId)}/${encodeURIComponent(ruleId)}`, {
     method: 'DELETE',
   }),
 }
