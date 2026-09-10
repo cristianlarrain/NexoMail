@@ -13,10 +13,12 @@ public sealed class AiWritingOptions
     public const string SectionName = "AI";
     public string ApiKey { get; set; } = string.Empty;
     public string Model { get; set; } = "gpt-5.6-luna";
+    public string ImageModel { get; set; } = "gpt-image-2.5-flare";
 }
 
 public sealed record AiWritingSuggestion(string Text, string? Subject = null);
 public sealed record AiPerspectiveExpansion(string Text);
+public sealed record AiGeneratedImage(string DataUrl, string ContentType, string FileName);
 
 public sealed class AiWritingService(
     IHttpClientFactory httpClientFactory,
@@ -138,6 +140,68 @@ public sealed class AiWritingService(
         return new AiPerspectiveExpansion(output);
     }
 
+    public async Task<AiGeneratedImage> GenerateGreetingImageAsync(
+        string messageText,
+        string? style,
+        CancellationToken cancellationToken)
+    {
+        var cleanText = Limit(PlainText(messageText), MaximumContextCharacters);
+        if (string.IsNullOrWhiteSpace(cleanText))
+            throw new InvalidOperationException("Escribe primero el mensaje que quieres acompañar con una imagen.");
+
+        var settings = options.Value;
+        if (string.IsNullOrWhiteSpace(settings.ApiKey))
+            throw new InvalidOperationException("La generación de imágenes todavía no está configurada en el servidor.");
+
+        var visualStyle = NormalizeImageStyle(style);
+        var prompt = $"""
+            Crea una imagen cuadrada elegante para acompañar un mensaje de saludo, felicitación o celebración enviado por correo electrónico.
+            El mensaje del usuario es: “{cleanText}”
+            Estilo visual solicitado: {visualStyle}.
+            La imagen debe transmitir la intención y emoción del mensaje sin copiar literalmente sus palabras.
+            Composición limpia, moderna y apta para correo electrónico. No incluyas palabras, letras, logotipos, marcas de agua ni marcas comerciales.
+            Evita iconografía política, partidista o religiosa salvo que el mensaje del usuario la pida explícitamente.
+            """;
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            model = string.IsNullOrWhiteSpace(settings.ImageModel) ? "gpt-image-2.5-flare" : settings.ImageModel,
+            prompt,
+            size = "1024x1024",
+            quality = "low"
+        });
+
+        var client = httpClientFactory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/images/generations")
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json")
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiKey);
+
+        using var response = await client.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var detail = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new HttpRequestException(
+                $"OpenAI rechazó la generación de imagen ({(int)response.StatusCode}). {Limit(detail, 500)}",
+                null,
+                response.StatusCode);
+        }
+
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
+        if (!document.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array || data.GetArrayLength() == 0)
+            throw new InvalidOperationException("Nexi no devolvió una imagen.");
+
+        var first = data[0];
+        if (!first.TryGetProperty("b64_json", out var encoded) || string.IsNullOrWhiteSpace(encoded.GetString()))
+            throw new InvalidOperationException("Nexi no devolvió una imagen válida.");
+
+        return new AiGeneratedImage(
+            $"data:image/png;base64,{encoded.GetString()}",
+            "image/png",
+            $"nexi-saludo-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.png");
+    }
+
     private async Task<AiWritingSuggestion> GenerateAsync(
         string input,
         string tone,
@@ -241,6 +305,15 @@ public sealed class AiWritingService(
         "breve" => "breve",
         "explicito" or "explícito" => "explicito",
         _ => "profesional"
+    };
+
+    private static string NormalizeImageStyle(string? style) => style?.Trim().ToLowerInvariant() switch
+    {
+        "formal" => "formal, elegante y sobrio",
+        "calido" or "cálido" => "cálido, humano y luminoso",
+        "corporativo" => "corporativo, moderno, limpio y profesional",
+        "festivo" => "festivo, alegre y visualmente atractivo sin recargar la composición",
+        _ => "moderno, limpio, amable y visualmente atractivo"
     };
 
     private static string ToneInstruction(string tone) => tone switch
