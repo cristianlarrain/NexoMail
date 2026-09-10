@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, Filter, ShieldCheck, Trash2 } from 'lucide-react'
+import { CheckCircle2, Filter, ListFilter, ShieldCheck, Trash2 } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { NexiVisual } from '../components/nexi/NexiVisual'
@@ -67,6 +67,7 @@ export function MailRulePage() {
       setConfirmOpen(false)
       void queryClient.invalidateQueries({ queryKey: ['messages'] })
       void queryClient.invalidateQueries({ queryKey: ['control-center'] })
+      void queryClient.invalidateQueries({ queryKey: ['mail-rules'] })
     },
   })
 
@@ -127,6 +128,7 @@ export function MailRulePage() {
           <strong>{createRule.data.result.created ? 'Regla creada' : 'La regla ya existía'}</strong>
           <span>Los nuevos mensajes que coincidan se enviarán a Papelera automáticamente.</span>
           {applyExisting && <span>{createRule.data.existing.completed} correo(s) actual(es) movido(s) a Papelera{createRule.data.existing.failed ? `; ${createRule.data.existing.failed} no pudieron procesarse` : ''}.</span>}
+          <button type="button" className="text-button mail-rule-manage-link" onClick={() => navigate('/settings/rules')}><ListFilter size={14} /> Administrar reglas</button>
         </div>
       </div>}
 
