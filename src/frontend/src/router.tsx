@@ -11,6 +11,7 @@ import { InboxPage } from './pages/InboxPage'
 import { LandingPage } from './pages/LandingPage'
 import { MessageRoute } from './pages/MessageRoute'
 import { NexiSearchActionRoute } from './pages/NexiSearchActionRoute'
+import { PerspectivesPage } from './pages/PerspectivesPage'
 import { PlanPage } from './pages/PlanPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { SearchPage } from './pages/SearchPage'
@@ -25,6 +26,7 @@ export const router = createBrowserRouter([
       { path: '/search', element: <SearchPage /> },
       { path: '/search-action', element: <NexiSearchActionRoute /> },
       { path: '/control-center', element: <ControlCenterPage /> },
+      { path: '/perspectives', element: <PerspectivesPage /> },
       { path: '/account/:accountId', element: <InboxPage /> },
       { path: '/archive', element: <InboxPage folder="archive" /> },
       { path: '/ignored', element: <InboxPage folder="ignored" /> },
