@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { BookMarked, ChevronDown, ChevronUp, Sparkles, Trash2 } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
 import { nexiApi } from '../api/nexiApi'
 import { NexiVisual } from '../components/nexi/NexiVisual'
 import { PerspectiveShareMenu } from '../components/PerspectiveShareMenu'
@@ -12,12 +13,28 @@ import {
 } from '../utils/perspectiveCollection'
 
 export function PerspectivesPage() {
+  const [searchParams] = useSearchParams()
   const [items, setItems] = useState<SavedPerspective[]>(() => getSavedPerspectives())
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [collapsedReflections, setCollapsedReflections] = useState<Record<string, boolean>>({})
   const [expansionErrors, setExpansionErrors] = useState<Record<string, string>>({})
+  const handledAutoAnalysis = useRef<string | null>(null)
+  const focusId = searchParams.get('focus') ?? ''
+  const autoAnalyze = searchParams.get('analyze') === '1'
 
   useEffect(() => subscribeToPerspectiveChanges(() => setItems(getSavedPerspectives())), [])
+
+  useEffect(() => {
+    if (!focusId) return
+    window.requestAnimationFrame(() => {
+      document.getElementById(`perspective-${focusId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+
+    const focused = items.find(item => item.id === focusId)
+    if (!focused || !autoAnalyze || focused.nexiReflection || handledAutoAnalysis.current === focusId) return
+    handledAutoAnalysis.current = focusId
+    void expandWithNexi(focused)
+  }, [autoAnalyze, focusId, items])
 
   async function expandWithNexi(item: SavedPerspective) {
     if (item.nexiReflection) {
@@ -32,6 +49,7 @@ export function PerspectivesPage() {
       savePerspectiveReflection(item.id, result.text)
       setCollapsedReflections(current => ({ ...current, [item.id]: false }))
     } catch (error) {
+      handledAutoAnalysis.current = null
       setExpansionErrors(current => ({
         ...current,
         [item.id]: error instanceof Error ? error.message : 'Nexi no pudo ampliar esta perspectiva.',
@@ -79,7 +97,8 @@ export function PerspectivesPage() {
           {items.map(item => {
             const reflection = item.nexiReflection?.trim() ?? ''
             const collapsed = Boolean(collapsedReflections[item.id])
-            return <article className="perspective-card" key={item.id}>
+            const focused = item.id === focusId
+            return <article id={`perspective-${item.id}`} className={`perspective-card ${focused ? 'is-focused' : ''}`} key={item.id}>
               <header>
                 <span>Perspectiva · {item.area}</span>
                 <time dateTime={new Date(item.savedAt).toISOString()}>{new Date(item.savedAt).toLocaleDateString('es-CL')}</time>
@@ -89,7 +108,7 @@ export function PerspectivesPage() {
               <footer>
                 {!reflection && <button type="button" className="perspective-nexi-expand" disabled={Boolean(loadingId)} onClick={() => void expandWithNexi(item)}>
                   {loadingId === item.id ? <NexiVisual size="small" /> : <Sparkles size={14} />}
-                  {loadingId === item.id ? 'Nexi está pensando…' : 'Profundizar con Nexi'}
+                  {loadingId === item.id ? 'Nexi está pensando…' : 'Analizar con Nexi'}
                 </button>}
                 {reflection && collapsed && <button type="button" className="perspective-nexi-expand" onClick={() => toggleReflection(item.id)}>
                   <ChevronDown size={14} /> Revisar reflexión de Nexi
