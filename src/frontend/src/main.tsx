@@ -6,6 +6,7 @@ import { ComposeValidationNotice } from './components/ComposeValidationNotice'
 import { GlobalActionIndicator } from './components/GlobalActionIndicator'
 import { GlobalFormValidation } from './components/GlobalFormValidation'
 import { GlobalVoiceDictation } from './components/GlobalVoiceDictation'
+import { NexiGreetingImageAssistant } from './components/NexiGreetingImageAssistant'
 import { router } from './router'
 import './styles/theme.css'
 import './styles/overrides.css'
@@ -75,6 +76,7 @@ createRoot(document.getElementById('root')!).render(
       <GlobalActionIndicator />
       <GlobalFormValidation />
       <GlobalVoiceDictation />
+      <NexiGreetingImageAssistant />
     </QueryClientProvider>
   </StrictMode>,
 )
