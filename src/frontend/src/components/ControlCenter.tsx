@@ -1,15 +1,14 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, ChevronRight, Clock3, Eye, Inbox, Mail, MessageSquareReply, Pause, RefreshCw, Send, X } from 'lucide-react'
+import { Check, ChevronRight, Clock3, Eye, Inbox, Mail, Pause, RefreshCw, Send, Sparkles, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
 import type { ControlCenterPendingItem, ControlCenterSnapshot } from '../types/mail'
 import { ControlCenterActivity } from './ControlCenterActivity'
 import { NexiPriorityQueue } from './NexiPriorityQueue'
 import { NexiEmptyState } from './nexi/NexiEmptyState'
-import { NexiInsightCard } from './nexi/NexiInsightCard'
-import { buildNexiInsights, type NexiInsightAction } from './nexi/nexiInsights'
+import { NexiVisual } from './nexi/NexiVisual'
 
 type ManagementView = 'received' | 'sent' | 'overdue' | null
 type PriorityDisplayItem = { item: ControlCenterPendingItem; automatic: boolean; manual: boolean }
@@ -44,17 +43,9 @@ function MetricCard({ tone, icon, value, label, hint, active, onClick }: { tone:
 }
 
 function managementCopy(view: Exclude<ManagementView, null>) {
-  if (view === 'received') return { title: 'Recibidos sin responder', description: 'Conversaciones en que la otra persona escribió al final. Puede responder, posponer o indicar que no requieren respuesta.' }
-  if (view === 'sent') return { title: 'Enviados sin respuesta', description: 'Conversaciones en que usted escribió al final. Puede enviar un seguimiento, posponer o indicar que no requieren seguimiento.' }
+  if (view === 'received') return { title: 'Recibidos sin responder', description: 'Conversaciones en que la otra persona escribió al final. Puede preparar una respuesta, posponer o indicar que no requieren respuesta.' }
+  if (view === 'sent') return { title: 'Enviados sin respuesta', description: 'Conversaciones en que usted escribió al final. Puede preparar un seguimiento, posponer o indicar que no requieren seguimiento.' }
   return { title: 'Pendientes de más de 48 horas', description: 'Reúne pendientes recibidos y enviados cuya última actividad ocurrió hace 48 horas o más.' }
-}
-
-function nexiInsightIcon(action?: NexiInsightAction) {
-  if (action === 'received') return <Inbox size={15} />
-  if (action === 'sent') return <Send size={15} />
-  if (action === 'unread') return <Mail size={15} />
-  if (action === 'overdue' || action === 'tracking') return <Clock3 size={15} />
-  return <Check size={15} />
 }
 
 export function ControlCenter({ accountId, accountName }: { accountId?: string; accountName?: string }) {
@@ -65,7 +56,6 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
   const [openingTarget, setOpeningTarget] = useState<string | null>(null)
   const [actionError, setActionError] = useState('')
   const queryKey = ['control-center', accountId ?? 'all'] as const
-  const inboxPath = accountId ? `/account/${accountId}` : '/inbox'
   const controlCenterPath = '/control-center'
 
   const snapshot = useQuery({
@@ -127,13 +117,13 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
     }
   }
 
-  if (snapshot.isLoading) return <section className="control-center control-center-cinematic control-center-loading" role="status" aria-live="polite" aria-label="Recuperando información operativa">
+  if (snapshot.isLoading) return <section className="control-center control-center-cinematic control-center-loading" role="status" aria-live="polite" aria-label="Actualizando Nexi Control Center">
     <div className="control-loading-copy">
-      <span className="control-loading-icon" aria-hidden="true"><RefreshCw size={18} /></span>
-      <div><strong>Recuperando información</strong><span>Consultando indicadores, pendientes y seguimiento de tus cuentas. La primera carga puede tardar unos segundos.</span></div>
+      <span className="control-loading-icon nexi-processing-icon" aria-hidden="true"><NexiVisual size="small" /></span>
+      <div><strong>Actualizando</strong><span>Nexi está revisando indicadores y pendientes.</span></div>
     </div>
     <div className="control-loading-progress" aria-hidden="true"><span /></div>
-    <div className="control-loading-steps" aria-hidden="true"><span>Conectando cuentas</span><span>Procesando indicadores</span><span>Preparando prioridades</span></div>
+    <div className="control-loading-steps" aria-hidden="true"><span>Cuentas</span><span>Indicadores</span><span>Prioridades</span></div>
   </section>
 
   if (snapshot.isError || !snapshot.data) return <section className="control-center control-center-cinematic"><div className="control-center-header"><div><h2>Estado operativo</h2><p>No fue posible cargar los indicadores.</p></div><button className="icon-button" onClick={() => snapshot.refetch()} aria-label="Reintentar indicadores"><RefreshCw size={17} /></button></div></section>
@@ -160,7 +150,6 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
   })
 
   const priorityItems = [...priorityMap.values()].sort((left, right) => new Date(left.item.since).getTime() - new Date(right.item.since).getTime())
-  const nexiInsights = buildNexiInsights(data, manualTracking.data ?? [])
 
   function openManagementView(view: Exclude<ManagementView, null>) {
     setActiveView(view)
@@ -174,19 +163,6 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
     const params = new URLSearchParams({ q: 'correos sin leer', scope: 'mail', unread: '1' })
     if (accountId) params.set('account', accountId)
     navigate(`/search?${params.toString()}`)
-  }
-
-  function handleNexiAction(action?: NexiInsightAction) {
-    if (!action) return
-    if (action === 'unread') {
-      openUnread()
-      return
-    }
-    if (action === 'tracking') {
-      navigate(`${inboxPath}?priority=1`)
-      return
-    }
-    openManagementView(action)
   }
 
   return <section className="control-center control-center-cinematic" aria-labelledby="control-center-title">
@@ -217,21 +193,6 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
       onOpen={(item, manual) => navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: controlCenterPath, controlCenterItem: item, manualTracking: manual } })}
     />
 
-    <section className="nexi-insights-panel nexi-control-summary" aria-label="Hallazgos">
-      <div className="nexi-findings-heading"><strong>Hallazgos</strong><span>Señales complementarias que no repiten los indicadores.</span></div>
-      <div className="nexi-insights-grid">
-        {nexiInsights.map(insight => <NexiInsightCard
-          key={insight.id}
-          icon={nexiInsightIcon(insight.action)}
-          title={insight.title}
-          description={insight.description}
-          priority={insight.priority}
-          actionLabel={insight.actionLabel}
-          onAction={insight.action ? () => handleNexiAction(insight.action) : undefined}
-        />)}
-      </div>
-    </section>
-
     {activeView && activeCopy && <article className="control-management-panel">
       <header><div><p className="eyebrow">Gestión</p><strong>{activeCopy.title}</strong><span>{activeCopy.description}</span></div><button type="button" className="icon-button" onClick={() => { setActiveView(null); setSnoozeTarget(null) }} aria-label="Cerrar gestión"><X size={17} /></button></header>
       {actionError && <div className="notice control-management-error">{actionError}</div>}
@@ -243,7 +204,7 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
             <i className="account-dot" style={{ background: item.accountColor }} />
             <div className="management-main"><div className="management-heading"><span className={`priority-direction ${item.direction}`}>{item.direction === 'received' ? 'Responder' : 'Esperando'}</span><strong>{item.subject}</strong></div><span>{item.direction === 'received' ? 'De' : 'Para'}: {item.counterpart}</span><small>{item.accountName} · {ageLabel(item.since)}{isOverdue(item) ? ' · Más de 48 h' : ''}</small></div>
             <div className="management-actions">
-              <button type="button" className="primary-button compact-action" disabled={pendingAction} onClick={() => void openComposer(item)}><MessageSquareReply size={14} /> {item.direction === 'received' ? 'Responder' : 'Seguimiento'}</button>
+              <button type="button" className="primary-button compact-action" disabled={pendingAction} onClick={() => void openComposer(item)}><Sparkles size={14} /> {item.direction === 'received' ? 'Preparar respuesta con IA' : 'Preparar seguimiento'}</button>
               <button type="button" className="secondary-button compact-action" disabled={pendingAction} onClick={() => setSnoozeTarget(current => current === key ? null : key)}><Pause size={14} /> Posponer</button>
               <button type="button" className="secondary-button compact-action" disabled={pendingAction} onClick={() => manage.mutate({ item, action: 'resolved' })}><Check size={14} /> No requiere {item.direction === 'received' ? 'respuesta' : 'seguimiento'}</button>
               <button type="button" className="icon-button" disabled={pendingAction} title="Ver correo" aria-label="Ver correo" onClick={() => navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: controlCenterPath, controlCenterItem: item } })}><Eye size={16} /></button>
