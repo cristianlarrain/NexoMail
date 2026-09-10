@@ -1,0 +1,171 @@
+.mail-rule-page {
+  display: grid;
+  gap: 18px;
+}
+
+.mail-rule-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mail-rule-heading h1,
+.mail-rule-heading p {
+  margin-top: 0;
+}
+
+.mail-rule-heading > div:last-child > p:last-child {
+  margin: 7px 0 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.mail-rule-nexi {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--nexi-accent) 28%, var(--border));
+  border-radius: 12px;
+  background: var(--nexi-accent-soft);
+}
+
+.mail-rule-nexi .nexi-visual.small {
+  width: 34px;
+  height: 34px;
+}
+
+.mail-rule-card {
+  width: min(760px, 100%);
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.mail-rule-card > label:not(.mail-rule-checkbox) {
+  display: grid;
+  gap: 7px;
+}
+
+.mail-rule-card label > span:first-child {
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mail-rule-card input:not([type="checkbox"]),
+.mail-rule-card select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.mail-rule-card label small {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.mail-rule-action-preview,
+.mail-rule-security-note,
+.mail-rule-success {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
+}
+
+.mail-rule-action-preview {
+  border: 1px solid color-mix(in srgb, var(--danger) 20%, var(--border));
+  background: color-mix(in srgb, var(--danger) 5%, var(--surface));
+}
+
+.mail-rule-action-preview > div,
+.mail-rule-success > div {
+  display: grid;
+  gap: 4px;
+}
+
+.mail-rule-action-preview strong,
+.mail-rule-success strong {
+  font-size: 12px;
+}
+
+.mail-rule-action-preview span,
+.mail-rule-success span,
+.mail-rule-security-note span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.mail-rule-checkbox {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 9px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.mail-rule-checkbox input {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  accent-color: var(--primary);
+}
+
+.mail-rule-checkbox > span {
+  display: grid;
+  gap: 3px;
+}
+
+.mail-rule-security-note {
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--border));
+  background: color-mix(in srgb, var(--primary) 5%, var(--surface));
+  color: var(--primary);
+}
+
+.mail-rule-success {
+  border: 1px solid color-mix(in srgb, var(--success) 28%, var(--border));
+  background: color-mix(in srgb, var(--success) 6%, var(--surface));
+  color: var(--success);
+}
+
+.mail-rule-error {
+  display: grid;
+  gap: 8px;
+}
+
+.mail-rule-error .text-button {
+  justify-self: start;
+}
+
+.mail-rule-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+@media (max-width: 760px) {
+  .mail-rule-heading {
+    align-items: flex-start;
+  }
+
+  .mail-rule-card {
+    padding: 15px;
+  }
+}
