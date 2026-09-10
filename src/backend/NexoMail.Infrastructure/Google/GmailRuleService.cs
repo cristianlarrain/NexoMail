@@ -87,6 +87,20 @@ public sealed class GmailRuleService(
         return result;
     }
 
+    public async Task<bool> RemoveRuleAsync(Guid accountId, string filterId, CancellationToken cancellationToken)
+    {
+        var normalizedId = filterId.Trim();
+        if (normalizedId.Length is < 1 or > 300)
+            throw new InvalidOperationException("La regla indicada no es válida.");
+
+        var client = await CreateClientAsync(accountId, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Delete, $"users/me/settings/filters/{Uri.EscapeDataString(normalizedId)}");
+        using var response = await client.SendAsync(request, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound) return false;
+        await EnsureRulePermissionAsync(response, cancellationToken);
+        return true;
+    }
+
     private async Task<HttpClient> CreateClientAsync(Guid accountId, CancellationToken cancellationToken)
     {
         var credential = await database.OAuthCredentials.AsNoTracking()
@@ -121,7 +135,7 @@ public sealed class GmailRuleService(
 
         if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized)
         {
-            throw new InvalidOperationException("Esta cuenta necesita autorizar el permiso para administrar reglas de Gmail. Vuelve a conectar la cuenta desde Configurar y repite la instrucción.");
+            throw new InvalidOperationException("Esta cuenta necesita autorizar el permiso para administrar reglas de Gmail. Vuelve a conectar la cuenta desde Configurar y repite la operación.");
         }
 
         _ = await response.Content.ReadAsStringAsync(cancellationToken);
