@@ -21,7 +21,12 @@ type SpeechWindow = Window & {
 
 type Position = { top: number; left: number }
 
+function isVoiceManaged(value: Element) {
+  return Boolean(value.closest('[data-voice-managed]'))
+}
+
 function eligibleTarget(value: EventTarget | Element | null): VoiceTarget | null {
+  if (!(value instanceof Element) || isVoiceManaged(value)) return null
   if (value instanceof HTMLTextAreaElement) {
     return value.disabled || value.readOnly ? null : value
   }
