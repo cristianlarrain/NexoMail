@@ -152,7 +152,7 @@
 
 .perspectives-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 14px;
 }
 
@@ -166,15 +166,15 @@
   background: var(--surface);
 }
 
-.perspective-card header,
-.perspective-card footer {
+.perspective-card > header,
+.perspective-card > footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
 }
 
-.perspective-card header span {
+.perspective-card > header span {
   color: var(--primary);
   font-size: 10px;
   font-weight: 750;
@@ -183,7 +183,7 @@
 }
 
 .perspective-card time,
-.perspective-card cite {
+.perspective-card > cite {
   color: var(--muted-foreground);
   font-size: 11px;
   font-style: normal;
@@ -198,12 +198,13 @@
   line-height: 1.55;
 }
 
-.perspective-card footer {
+.perspective-card > footer {
   margin-top: auto;
   justify-content: flex-start;
+  flex-wrap: wrap;
 }
 
-.perspective-card footer button {
+.perspective-card > footer button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -216,9 +217,88 @@
   cursor: pointer;
 }
 
-.perspective-card footer button:hover {
+.perspective-card > footer button:hover:not(:disabled) {
   color: var(--primary);
   border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+}
+
+.perspective-card > footer button:disabled {
+  opacity: .55;
+  cursor: default;
+}
+
+.perspective-card > footer .perspective-nexi-expand {
+  border-color: color-mix(in srgb, var(--nexi-accent) 28%, var(--border));
+  color: var(--nexi-accent);
+  background: var(--nexi-accent-soft);
+  font-weight: 700;
+}
+
+.perspective-nexi-expand .nexi-visual.small {
+  width: 18px;
+  height: 18px;
+}
+
+.perspective-expansion {
+  margin-top: 3px;
+  padding: 13px 14px;
+  border: 1px solid color-mix(in srgb, var(--nexi-accent) 26%, var(--border));
+  border-radius: 11px;
+  background: linear-gradient(135deg, var(--nexi-accent-soft), var(--surface) 68%);
+}
+
+.perspective-expansion > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.perspective-expansion-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.perspective-expansion-title .nexi-visual.small {
+  width: 30px;
+  height: 30px;
+}
+
+.perspective-expansion-title > div {
+  display: grid;
+  gap: 2px;
+}
+
+.perspective-expansion-title strong {
+  color: var(--nexi-accent);
+  font-size: 12px;
+}
+
+.perspective-expansion-title span {
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+
+.perspective-expansion p {
+  margin: 0 0 9px;
+  color: var(--foreground);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.perspective-expansion p:last-child {
+  margin-bottom: 0;
+}
+
+.perspective-expansion-error {
+  padding: 9px 10px;
+  border: 1px solid color-mix(in srgb, var(--danger) 22%, var(--border));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--danger) 5%, var(--surface));
+  color: var(--danger);
+  font-size: 11px;
 }
 
 .perspectives-empty {
@@ -269,6 +349,10 @@
 
   .perspectives-header {
     display: grid;
+  }
+
+  .perspectives-grid {
+    grid-template-columns: 1fr;
   }
 }
 
