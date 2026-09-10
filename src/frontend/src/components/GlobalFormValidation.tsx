@@ -12,8 +12,8 @@ function validationMessage(input: ValidatableField) {
   if (validity.typeMismatch && input instanceof HTMLInputElement && input.type === 'email') return 'Ingrese un correo electrónico válido.'
   if (validity.typeMismatch) return 'Ingrese un valor con el formato correcto.'
   if (validity.patternMismatch) return 'Revise el formato de este campo.'
-  if (validity.tooShort) return `Ingrese al menos ${input.minLength} caracteres.`
-  if (validity.tooLong) return `Ingrese como máximo ${input.maxLength} caracteres.`
+  if (validity.tooShort && (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement)) return `Ingrese al menos ${input.minLength} caracteres.`
+  if (validity.tooLong && (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement)) return `Ingrese como máximo ${input.maxLength} caracteres.`
   if (validity.rangeUnderflow && input instanceof HTMLInputElement) return `El valor mínimo permitido es ${input.min}.`
   if (validity.rangeOverflow && input instanceof HTMLInputElement) return `El valor máximo permitido es ${input.max}.`
   if (validity.stepMismatch) return 'Ingrese un valor válido para este campo.'
