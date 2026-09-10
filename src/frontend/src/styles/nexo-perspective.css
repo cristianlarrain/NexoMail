@@ -96,6 +96,18 @@
   outline-offset: 2px;
 }
 
+.nexi-sidebar-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+}
+
+.nexi-sidebar-icon .nexi-visual.small {
+  width: 18px;
+  height: 18px;
+}
+
 .perspectives-page {
   display: grid;
   gap: 18px;
