@@ -13,6 +13,7 @@
 .main-content > .mail-view,
 .main-content > .settings-page,
 .main-content > .compose-page,
+.main-content > .message-nexi-reader,
 .main-content > .app-footer {
   width: calc(100% - (var(--app-page-gutter) * 2));
   max-width: none;
@@ -28,6 +29,13 @@
   padding-right: 0 !important;
   padding-top: var(--app-page-space) !important;
   padding-bottom: 32px !important;
+}
+
+.main-content > .message-nexi-reader {
+  position: relative;
+  z-index: 1;
+  margin-top: var(--app-block-gap) !important;
+  margin-bottom: 0 !important;
 }
 
 .main-content > .app-footer {
