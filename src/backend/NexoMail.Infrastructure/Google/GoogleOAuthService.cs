@@ -44,7 +44,7 @@ public sealed class GoogleOAuthService(
             ["client_id"] = _options.ClientId,
             ["redirect_uri"] = _options.RedirectUri,
             ["response_type"] = "code",
-            ["scope"] = "openid email https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/contacts.other.readonly",
+            ["scope"] = "openid email https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.settings.basic https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/contacts.other.readonly",
             ["access_type"] = "offline",
             ["prompt"] = "consent",
             ["state"] = state
