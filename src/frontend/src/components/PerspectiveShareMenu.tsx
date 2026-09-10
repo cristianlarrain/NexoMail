@@ -68,32 +68,26 @@ export function PerspectiveShareMenu({ perspective, compact = false }: { perspec
   const options = [
     {
       label: 'WhatsApp',
-      detail: 'Enviar por WhatsApp',
       action: () => openShareWindow(`https://wa.me/?text=${encodeURIComponent(`${text}${url ? `\n${url}` : ''}`)}`),
     },
     {
       label: 'Facebook',
-      detail: 'Compartir en Facebook',
       action: () => url ? openShareWindow(`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`) : void copy(),
     },
     {
       label: 'X',
-      detail: 'Publicar en X',
       action: () => openShareWindow(`https://twitter.com/intent/tweet?text=${encodedText}${url ? `&url=${encodedUrl}` : ''}`),
     },
     {
       label: 'LinkedIn',
-      detail: 'Compartir en LinkedIn',
       action: () => url ? openShareWindow(`https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`) : void copy(),
     },
     {
       label: 'Telegram',
-      detail: 'Enviar por Telegram',
       action: () => openShareWindow(`https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`),
     },
     {
       label: 'Correo',
-      detail: 'Compartir por correo',
       action: () => { window.location.href = `mailto:?subject=${title}&body=${encodeURIComponent(`${text}${url ? `\n\n${url}` : ''}`)}` },
     },
   ]
@@ -115,14 +109,14 @@ export function PerspectiveShareMenu({ perspective, compact = false }: { perspec
       <div className="perspective-share-heading"><Share2 size={14} /><strong>Compartir pensamiento</strong></div>
       <div className="perspective-share-options">
         {options.map(option => <button key={option.label} type="button" role="menuitem" onClick={() => { option.action(); setOpen(false) }}>
-          <span>{option.label}</span><small>{option.detail}</small><ExternalLink size={13} />
+          <span>{option.label}</span><ExternalLink size={13} />
         </button>)}
         <button type="button" role="menuitem" onClick={() => { void copy(); setOpen(false) }}>
-          <Copy size={14} /><span>Copiar texto</span><small>Copiar mensaje y enlace</small>
+          <Copy size={14} /><span>Copiar</span>
         </button>
         <button type="button" role="menuitem" onClick={() => { void moreApps(); setOpen(false) }}>
           {navigator.share ? <Send size={14} /> : <MoreHorizontal size={14} />}
-          <span>Más aplicaciones</span><small>Instagram y otras apps disponibles en el dispositivo</small>
+          <span>Más apps</span>
         </button>
       </div>
       {feedback && <div className="perspective-share-feedback" role="status">{feedback}</div>}
