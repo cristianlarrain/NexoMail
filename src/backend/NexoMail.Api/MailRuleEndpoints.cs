@@ -11,6 +11,46 @@ public static class MailRuleEndpoints
 {
     public static void Map(RouteGroupBuilder mail)
     {
+        mail.MapGet("/rules/trash", async (
+            IHttpClientFactory httpClientFactory,
+            NexoMailDbContext database,
+            ITokenProtector tokenProtector,
+            IOptions<GmailOptions> gmailOptions,
+            IUserContext userContext,
+            Guid accountId,
+            CancellationToken ct) =>
+        {
+            var account = await database.MailAccounts.AsNoTracking()
+                .SingleOrDefaultAsync(value => value.Id == accountId && value.UserId == userContext.UserId && value.IsActive, ct);
+            if (account is null) return Results.NotFound(new { error = "La cuenta de correo no está disponible." });
+            if (account.Provider != MailProviderType.Gmail)
+                return Results.BadRequest(new { error = "Las reglas automáticas están disponibles actualmente para cuentas Gmail." });
+
+            try
+            {
+                var service = new GmailRuleService(httpClientFactory, database, tokenProtector, gmailOptions);
+                var rules = await service.ListTrashRulesAsync(account.Id, ct);
+                return Results.Ok(rules.Select(rule => new
+                {
+                    filterId = rule.FilterId,
+                    query = rule.Query,
+                    accountId = account.Id,
+                    account = account.EmailAddress,
+                    action = "trash"
+                }));
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Results.BadRequest(new { error = exception.Message });
+            }
+            catch (HttpRequestException exception)
+            {
+                return Results.Problem(
+                    $"No fue posible consultar las reglas en Gmail ({exception.StatusCode?.ToString() ?? "sin código"}).",
+                    statusCode: 502);
+            }
+        });
+
         mail.MapPost("/rules/trash", async (
             IHttpClientFactory httpClientFactory,
             NexoMailDbContext database,
