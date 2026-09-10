@@ -112,6 +112,14 @@
   line-height: 1.45;
 }
 
+.mail-rule-manage-link {
+  width: max-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+}
+
 .mail-rule-checkbox {
   display: grid;
   grid-template-columns: auto 1fr;
