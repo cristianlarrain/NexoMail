@@ -16,6 +16,7 @@ public static class AuthEndpoints
     private const int MaximumRecoveryAttempts = 5;
     private const int MaximumEmailVerificationAttempts = 5;
     private const int MaximumAvatarBytes = 150_000;
+    private const string CurrentLegalConsentVersion = "2026-09-10";
 
     public static IEndpointRouteBuilder MapNexoMailAuth(this IEndpointRouteBuilder endpoints)
     {
@@ -62,6 +63,9 @@ public static class AuthEndpoints
         ILoggerFactory loggerFactory,
         CancellationToken ct)
     {
+        if (!request.AcceptedLegalTerms)
+            return Results.BadRequest(new { error = "Debes aceptar los Términos de Servicio y la Política de Privacidad para crear tu cuenta." });
+
         var displayName = request.DisplayName.Trim();
         var email = request.Email.Trim().ToLowerInvariant();
         var validation = Validate(displayName, email, request.Password);
@@ -96,6 +100,8 @@ public static class AuthEndpoints
         user.PasswordHash = passwordHasher.HashPassword(user, request.Password);
         user.IsEmailVerified = false;
         user.LastLoginAt = null;
+        user.LegalConsentVersion = CurrentLegalConsentVersion;
+        user.LegalConsentAcceptedAt = DateTimeOffset.UtcNow;
         var verificationCode = CreateVerificationCode();
         SetEmailVerificationCode(user, verificationCode);
         await database.SaveChangesAsync(ct);
@@ -440,7 +446,7 @@ public static class AuthEndpoints
     private static AuthSession ToSession(UserEntity user) => new(user.Id, user.DisplayName, user.Email, user.AvatarDataUrl);
 }
 
-public sealed record RegisterRequest(string DisplayName, string Email, string Password);
+public sealed record RegisterRequest(string DisplayName, string Email, string Password, bool AcceptedLegalTerms);
 public sealed record LoginRequest(string Email, string Password);
 public sealed record EmailOnlyRequest(string Email);
 public sealed record EmailVerificationRequest(string Email, string Code);
