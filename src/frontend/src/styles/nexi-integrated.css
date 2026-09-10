@@ -302,6 +302,33 @@
   padding-inline: 10px;
 }
 
+.nexi-report-account-select {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+}
+
+.nexi-report-account-select > span {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.nexi-report-account-select select {
+  min-height: 34px;
+  min-width: 180px;
+  max-width: 230px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 30px 0 10px;
+  background: var(--surface);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 11px;
+}
+
 .global-nexo-perspective {
   padding: 10px 16px 0;
 }
@@ -333,6 +360,16 @@
   .nexi-report-visual-statistics > header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .nexi-report-account-select {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .nexi-report-account-select select {
+    width: 100%;
+    max-width: none;
   }
 
   .global-nexo-perspective {
