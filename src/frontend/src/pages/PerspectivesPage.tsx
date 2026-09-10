@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BookMarked, Share2, Sparkles, Trash2, X } from 'lucide-react'
+import { BookMarked, ChevronDown, ChevronUp, Share2, Sparkles, Trash2 } from 'lucide-react'
 import { nexiApi } from '../api/nexiApi'
 import { NexiVisual } from '../components/nexi/NexiVisual'
 import {
@@ -15,6 +15,7 @@ export function PerspectivesPage() {
   const [feedback, setFeedback] = useState<string | null>(null)
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [expansions, setExpansions] = useState<Record<string, string>>({})
+  const [collapsedExpansions, setCollapsedExpansions] = useState<Record<string, boolean>>({})
   const [expansionErrors, setExpansionErrors] = useState<Record<string, string>>({})
 
   useEffect(() => subscribeToPerspectiveChanges(() => setItems(getSavedPerspectives())), [])
@@ -32,12 +33,17 @@ export function PerspectivesPage() {
   }
 
   async function expandWithNexi(item: SavedPerspective) {
+    if (expansions[item.id]) {
+      setCollapsedExpansions(current => ({ ...current, [item.id]: false }))
+      return
+    }
     if (loadingId) return
     setLoadingId(item.id)
     setExpansionErrors(current => ({ ...current, [item.id]: '' }))
     try {
       const result = await nexiApi.expandPerspective(item.text, item.source, item.area)
       setExpansions(current => ({ ...current, [item.id]: result.text }))
+      setCollapsedExpansions(current => ({ ...current, [item.id]: false }))
     } catch (error) {
       setExpansionErrors(current => ({
         ...current,
@@ -48,9 +54,18 @@ export function PerspectivesPage() {
     }
   }
 
+  function toggleExpansion(itemId: string) {
+    setCollapsedExpansions(current => ({ ...current, [itemId]: !current[itemId] }))
+  }
+
   function remove(item: SavedPerspective) {
     removeSavedPerspective(item.id)
     setExpansions(current => {
+      const next = { ...current }
+      delete next[item.id]
+      return next
+    })
+    setCollapsedExpansions(current => {
       const next = { ...current }
       delete next[item.id]
       return next
@@ -81,32 +96,39 @@ export function PerspectivesPage() {
           <p>Cuando una perspectiva te interese, pulsa Guardar. Aparecerá aquí para volver a leerla, compartirla o profundizarla con Nexi.</p>
         </div>
       : <div className="perspectives-grid">
-          {items.map(item => <article className="perspective-card" key={item.id}>
-            <header>
-              <span>Perspectiva · {item.area}</span>
-              <time dateTime={new Date(item.savedAt).toISOString()}>{new Date(item.savedAt).toLocaleDateString('es-CL')}</time>
-            </header>
-            <blockquote>“{item.text}”</blockquote>
-            <cite>— {item.source}</cite>
-            <footer>
-              <button type="button" className="perspective-nexi-expand" disabled={Boolean(loadingId)} onClick={() => void expandWithNexi(item)}>
-                {loadingId === item.id ? <NexiVisual size="small" /> : <Sparkles size={14} />}
-                {loadingId === item.id ? 'Nexi está pensando…' : expansions[item.id] ? 'Ampliar nuevamente' : 'Ampliar con Nexi'}
-              </button>
-              <button type="button" onClick={() => void share(item)}><Share2 size={14} /> Compartir</button>
-              <button type="button" className="danger-action" onClick={() => remove(item)}><Trash2 size={14} /> Quitar</button>
-            </footer>
-
-            {expansionErrors[item.id] && <div className="perspective-expansion-error" role="alert">{expansionErrors[item.id]}</div>}
-
-            {expansions[item.id] && <section className="perspective-expansion">
+          {items.map(item => {
+            const expansion = expansions[item.id]
+            const collapsed = Boolean(collapsedExpansions[item.id])
+            return <article className="perspective-card" key={item.id}>
               <header>
-                <div className="perspective-expansion-title"><NexiVisual size="small" /><div><strong>Nexi amplía la idea</strong><span>Una lectura más profunda de este pensamiento.</span></div></div>
-                <button type="button" className="icon-button" aria-label="Cerrar ampliación" title="Cerrar ampliación" onClick={() => setExpansions(current => ({ ...current, [item.id]: '' }))}><X size={15} /></button>
+                <span>Perspectiva · {item.area}</span>
+                <time dateTime={new Date(item.savedAt).toISOString()}>{new Date(item.savedAt).toLocaleDateString('es-CL')}</time>
               </header>
-              {expansions[item.id].split(/\n{2,}/).filter(Boolean).map((paragraph, index) => <p key={`${item.id}-${index}`}>{paragraph}</p>)}
-            </section>}
-          </article>)}
+              <blockquote>“{item.text}”</blockquote>
+              <cite>— {item.source}</cite>
+              <footer>
+                {!expansion && <button type="button" className="perspective-nexi-expand" disabled={Boolean(loadingId)} onClick={() => void expandWithNexi(item)}>
+                  {loadingId === item.id ? <NexiVisual size="small" /> : <Sparkles size={14} />}
+                  {loadingId === item.id ? 'Nexi está pensando…' : 'Profundizar con Nexi'}
+                </button>}
+                {expansion && collapsed && <button type="button" className="perspective-nexi-expand" onClick={() => toggleExpansion(item.id)}>
+                  <ChevronDown size={14} /> Ver reflexión de Nexi
+                </button>}
+                <button type="button" onClick={() => void share(item)}><Share2 size={14} /> Compartir</button>
+                <button type="button" className="danger-action" onClick={() => remove(item)}><Trash2 size={14} /> Quitar</button>
+              </footer>
+
+              {expansionErrors[item.id] && <div className="perspective-expansion-error" role="alert">{expansionErrors[item.id]}</div>}
+
+              {expansion && !collapsed && <section className="perspective-expansion">
+                <header>
+                  <div className="perspective-expansion-title"><NexiVisual size="small" /><div><strong>Reflexión de Nexi</strong><span>Una lectura más profunda de este pensamiento.</span></div></div>
+                  <button type="button" className="nexo-perspective-action" aria-label="Colapsar reflexión" title="Colapsar reflexión" onClick={() => toggleExpansion(item.id)}><ChevronUp size={14} /><span>Colapsar</span></button>
+                </header>
+                {expansion.split(/\n{2,}/).filter(Boolean).map((paragraph, index) => <p key={`${item.id}-${index}`}>{paragraph}</p>)}
+              </section>}
+            </article>
+          })}
         </div>}
   </section>
 }
