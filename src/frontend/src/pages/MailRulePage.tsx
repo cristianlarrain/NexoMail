@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Archive, CheckCheck, CheckCircle2, Filter, FolderInput, ListFilter, ShieldCheck, Trash2 } from 'lucide-react'
+import { Archive, CheckCheck, CheckCircle2, Filter, FolderInput, ListFilter, Plus, ShieldCheck, Trash2 } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { NexiVisual } from '../components/nexi/NexiVisual'
@@ -11,6 +11,7 @@ import { extractRuleDestination, extractRuleQuery, inferRuleAction } from '../ut
 import type { MailSummary } from '../types/mail'
 
 const MAX_EXISTING_MATCHES = 250
+const NEW_DESTINATION_ID = '__new__'
 
 async function existingMatches(accountId: string, query: string) {
   const unique = new Map<string, MailSummary>()
@@ -46,6 +47,10 @@ async function applyExistingAction(items: MailSummary[], action: RuleAction) {
   return { completed, failed }
 }
 
+function normalizeName(value: string) {
+  return value.toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+}
+
 function actionLabel(action: RuleAction, destinationName?: string) {
   switch (action) {
     case 'trash': return 'mover a Papelera'
@@ -77,6 +82,7 @@ export function MailRulePage() {
   const [ruleQuery, setRuleQuery] = useState(suggestedQuery)
   const [action, setAction] = useState<RuleAction>(suggestedAction)
   const [destinationId, setDestinationId] = useState('')
+  const [destinationName, setDestinationName] = useState(suggestedDestination)
   const [applyExisting, setApplyExisting] = useState(suggestedAction !== 'moveToFolder')
   const [confirmOpen, setConfirmOpen] = useState(false)
   const navigate = useNavigate()
@@ -92,26 +98,54 @@ export function MailRulePage() {
   })
 
   useEffect(() => {
-    if (action === 'moveToFolder') setApplyExisting(false)
+    if (action === 'moveToFolder') {
+      setApplyExisting(false)
+      return
+    }
+    setDestinationId('')
+    setDestinationName('')
   }, [action])
 
   useEffect(() => {
-    if (action !== 'moveToFolder') {
-      setDestinationId('')
+    setDestinationId('')
+    setDestinationName(suggestedDestination)
+  }, [effectiveAccountId, suggestedDestination])
+
+  useEffect(() => {
+    if (action !== 'moveToFolder' || destinationId || destinations.isLoading || !destinations.data) return
+
+    if (suggestedDestination) {
+      const normalizedSuggestion = normalizeName(suggestedDestination)
+      const match = destinations.data.find(item => normalizeName(item.displayName) === normalizedSuggestion)
+        ?? destinations.data.find(item => normalizeName(item.displayName).includes(normalizedSuggestion))
+      if (match) {
+        setDestinationId(match.id)
+        setDestinationName('')
+        return
+      }
+      setDestinationId(NEW_DESTINATION_ID)
+      setDestinationName(suggestedDestination)
       return
     }
-    if (destinationId || !suggestedDestination || !destinations.data?.length) return
-    const normalizedSuggestion = suggestedDestination.toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    const match = destinations.data.find(item => item.displayName.toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g, '') === normalizedSuggestion)
-      ?? destinations.data.find(item => item.displayName.toLocaleLowerCase('es').includes(suggestedDestination.toLocaleLowerCase('es')))
-    if (match) setDestinationId(match.id)
-  }, [action, destinationId, destinations.data, suggestedDestination])
+
+    if (destinations.data.length === 0) setDestinationId(NEW_DESTINATION_ID)
+  }, [action, destinationId, destinations.data, destinations.isLoading, suggestedDestination])
 
   const selectedDestination = destinations.data?.find(item => item.id === destinationId)
+  const effectiveDestinationName = destinationId === NEW_DESTINATION_ID
+    ? destinationName.trim()
+    : selectedDestination?.displayName
 
   const createRule = useMutation({
     mutationFn: async () => {
-      const result = await ruleApi.create(effectiveAccountId, ruleQuery.trim(), action, destinationId || undefined)
+      const creatingDestination = destinationId === NEW_DESTINATION_ID
+      const result = await ruleApi.create(
+        effectiveAccountId,
+        ruleQuery.trim(),
+        action,
+        creatingDestination ? undefined : destinationId || undefined,
+        creatingDestination ? destinationName.trim() : undefined,
+      )
       const effectiveQuery = result.rule.query.trim()
       if (!applyExisting) return { result, existing: { completed: 0, failed: 0 } }
       const matches = await existingMatches(effectiveAccountId, effectiveQuery)
@@ -121,15 +155,22 @@ export function MailRulePage() {
     onSuccess: data => {
       setConfirmOpen(false)
       setRuleQuery(data.result.rule.query)
+      if (data.result.rule.action === 'moveToFolder') {
+        setDestinationId(data.result.rule.destinationId ?? '')
+        setDestinationName(data.result.rule.destinationName ?? '')
+        void queryClient.invalidateQueries({ queryKey: ['mail-rule-destinations', effectiveAccountId] })
+      }
       void queryClient.invalidateQueries({ queryKey: ['messages'] })
       void queryClient.invalidateQueries({ queryKey: ['control-center'] })
       void queryClient.invalidateQueries({ queryKey: ['mail-rules'] })
     },
   })
 
-  const canCreate = Boolean(effectiveAccountId && ruleQuery.trim() && (action !== 'moveToFolder' || destinationId) && !createRule.isPending)
+  const hasDestination = action !== 'moveToFolder'
+    || (destinationId === NEW_DESTINATION_ID ? destinationName.trim().length > 0 : destinationId.length > 0)
+  const canCreate = Boolean(effectiveAccountId && ruleQuery.trim() && hasDestination && !createRule.isPending)
   const permissionIssue = createRule.error instanceof Error && /autorizar el permiso|vuelve a conectar/i.test(createRule.error.message)
-  const effectiveActionLabel = actionLabel(action, selectedDestination?.displayName)
+  const effectiveActionLabel = actionLabel(action, effectiveDestinationName)
 
   return <section className="mail-view mail-rule-page">
     <div className="mail-rule-heading">
@@ -168,11 +209,34 @@ export function MailRulePage() {
 
       {action === 'moveToFolder' && <label>
         <span>Carpeta o etiqueta de destino</span>
-        <select value={destinationId} onChange={event => setDestinationId(event.target.value)} disabled={createRule.isPending || destinations.isLoading}>
+        <select
+          value={destinationId}
+          onChange={event => {
+            const value = event.target.value
+            setDestinationId(value)
+            if (value !== NEW_DESTINATION_ID) setDestinationName('')
+          }}
+          disabled={createRule.isPending || destinations.isLoading}
+        >
           <option value="">{destinations.isLoading ? 'Cargando carpetas…' : 'Selecciona un destino'}</option>
           {(destinations.data ?? []).map(destination => <option key={destination.id} value={destination.id}>{destination.displayName}</option>)}
+          <option value={NEW_DESTINATION_ID}>＋ Crear nueva carpeta o etiqueta</option>
         </select>
+        {!destinations.isLoading && destinations.data?.length === 0 && !destinations.isError && <small>No hay carpetas o etiquetas personales en esta cuenta. Puedes crear una desde aquí.</small>}
         {destinations.isError && <small className="rules-inline-error">{destinations.error instanceof Error ? destinations.error.message : 'No fue posible consultar las carpetas.'}</small>}
+      </label>}
+
+      {action === 'moveToFolder' && destinationId === NEW_DESTINATION_ID && <label>
+        <span>Nombre de la nueva carpeta o etiqueta</span>
+        <input
+          value={destinationName}
+          onChange={event => setDestinationName(event.target.value)}
+          maxLength={120}
+          disabled={createRule.isPending}
+          placeholder="Ej.: Facturas, Universidad, Clientes"
+          autoFocus
+        />
+        <small>Si no existe, NexoMail la creará en el proveedor de correo al guardar la regla.</small>
       </label>}
 
       <div className="mail-rule-action-preview">
@@ -205,14 +269,14 @@ export function MailRulePage() {
 
       <div className="mail-rule-actions">
         <button type="button" className="secondary-button" onClick={() => navigate(-1)} disabled={createRule.isPending}>Cancelar</button>
-        <button type="button" className="primary-button" disabled={!canCreate} onClick={() => setConfirmOpen(true)}>Crear regla</button>
+        <button type="button" className="primary-button" disabled={!canCreate} onClick={() => setConfirmOpen(true)}><Plus size={16} /> Crear regla</button>
       </div>
     </div>
 
     <ConfirmDialog
       open={confirmOpen}
       title="Crear regla automática"
-      message={`En ${selectedAccount?.emailAddress ?? 'esta cuenta'}, los nuevos correos que coincidan con “${ruleQuery.trim()}” se procesarán así: ${effectiveActionLabel}.${applyExisting ? ' También se procesarán las coincidencias actuales.' : ''}`}
+      message={`En ${selectedAccount?.emailAddress ?? 'esta cuenta'}, los nuevos correos que coincidan con “${ruleQuery.trim()}” se procesarán así: ${effectiveActionLabel}.${destinationId === NEW_DESTINATION_ID ? ` Si “${destinationName.trim()}” no existe, se creará primero.` : ''}${applyExisting ? ' También se procesarán las coincidencias actuales.' : ''}`}
       confirmLabel="Crear regla"
       pending={createRule.isPending}
       onConfirm={() => createRule.mutate()}
