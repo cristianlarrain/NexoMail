@@ -2,6 +2,11 @@
 
 .topbar {
   min-width: 0;
+  height: auto !important;
+  min-height: 70px;
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+  align-items: center;
 }
 
 .topbar .top-search {
@@ -10,6 +15,7 @@
   max-width: 700px;
   flex: 1 1 0;
   overflow: hidden;
+  align-self: center;
 }
 
 .topbar .top-search-editor {
@@ -36,8 +42,16 @@
   flex: 0 0 auto;
 }
 
+/* The topbar must grow with long Nexi instructions instead of overlapping Perspective. */
+.topbar:has(.top-search.expanded),
+.topbar:has(.top-search.listening) {
+  min-height: 88px;
+}
+
 /* Keep a visible rhythm between the persistent Perspective strip and page content. */
 .global-nexo-perspective {
+  position: relative;
+  z-index: 1;
   padding-bottom: 10px;
 }
 
@@ -93,8 +107,19 @@
 }
 
 @media (max-width: 760px) {
+  .topbar {
+    min-height: 64px;
+    padding-top: 7px !important;
+    padding-bottom: 7px !important;
+  }
+
   .topbar .top-search {
     max-width: none;
+  }
+
+  .topbar:has(.top-search.expanded),
+  .topbar:has(.top-search.listening) {
+    min-height: 82px;
   }
 
   .global-nexo-perspective {
