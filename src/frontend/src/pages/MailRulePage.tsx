@@ -25,7 +25,7 @@ async function existingMatches(accountId: string, query: string) {
   return [...unique.values()].slice(0, MAX_EXISTING_MATCHES)
 }
 
-async function applyExistingAction(items: MailSummary[], action: RuleAction, destinationId?: string) {
+async function applyExistingAction(items: MailSummary[], action: RuleAction) {
   let completed = 0
   let failed = 0
   for (let offset = 0; offset < items.length; offset += 5) {
@@ -35,7 +35,7 @@ async function applyExistingAction(items: MailSummary[], action: RuleAction, des
         case 'trash': return mailApi.trash(item.accountId, item.providerMessageId)
         case 'archive': return mailApi.move(item.accountId, item.providerMessageId, 'archive')
         case 'markRead': return mailApi.read(item.accountId, item.providerMessageId, true)
-        case 'moveToFolder': return mailApi.move(item.accountId, item.providerMessageId, destinationId || '')
+        case 'moveToFolder': return Promise.reject(new Error('El traslado histórico a carpetas personalizadas no está disponible todavía.'))
       }
     }))
     for (const result of results) {
@@ -77,7 +77,7 @@ export function MailRulePage() {
   const [ruleQuery, setRuleQuery] = useState(suggestedQuery)
   const [action, setAction] = useState<RuleAction>(suggestedAction)
   const [destinationId, setDestinationId] = useState('')
-  const [applyExisting, setApplyExisting] = useState(true)
+  const [applyExisting, setApplyExisting] = useState(suggestedAction !== 'moveToFolder')
   const [confirmOpen, setConfirmOpen] = useState(false)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -90,6 +90,10 @@ export function MailRulePage() {
     enabled: Boolean(effectiveAccountId && action === 'moveToFolder'),
     staleTime: 5 * 60_000,
   })
+
+  useEffect(() => {
+    if (action === 'moveToFolder') setApplyExisting(false)
+  }, [action])
 
   useEffect(() => {
     if (action !== 'moveToFolder') {
@@ -111,7 +115,7 @@ export function MailRulePage() {
       const effectiveQuery = result.rule.query.trim()
       if (!applyExisting) return { result, existing: { completed: 0, failed: 0 } }
       const matches = await existingMatches(effectiveAccountId, effectiveQuery)
-      const existing = await applyExistingAction(matches, action, destinationId || undefined)
+      const existing = await applyExistingAction(matches, action)
       return { result, existing }
     },
     onSuccess: data => {
@@ -177,8 +181,8 @@ export function MailRulePage() {
       </div>
 
       <label className="mail-rule-checkbox">
-        <input type="checkbox" checked={applyExisting} onChange={event => setApplyExisting(event.target.checked)} disabled={createRule.isPending} />
-        <span><strong>Aplicar también a correos actuales</strong><small>Procesará las coincidencias actuales en Bandeja y Archivados, hasta {MAX_EXISTING_MATCHES} mensajes.</small></span>
+        <input type="checkbox" checked={applyExisting} onChange={event => setApplyExisting(event.target.checked)} disabled={createRule.isPending || action === 'moveToFolder'} />
+        <span><strong>Aplicar también a correos actuales</strong><small>{action === 'moveToFolder' ? 'Para carpetas personalizadas, esta primera versión aplica la regla a los nuevos mensajes.' : `Procesará las coincidencias actuales en Bandeja y Archivados, hasta ${MAX_EXISTING_MATCHES} mensajes.`}</small></span>
       </label>
 
       <div className="mail-rule-security-note"><ShieldCheck size={17} /><span>La regla se guarda en el proveedor de correo y seguirá funcionando aunque NexoMail esté cerrado. El modelo de reglas es común para Gmail y Outlook/Microsoft 365.</span></div>
