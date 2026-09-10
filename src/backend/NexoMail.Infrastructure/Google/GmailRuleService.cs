@@ -57,6 +57,36 @@ public sealed class GmailRuleService(
         return new GmailTrashRuleResult(id, normalizedQuery, true);
     }
 
+    public async Task<IReadOnlyList<GmailTrashRule>> ListTrashRulesAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+        var client = await CreateClientAsync(accountId, cancellationToken);
+        using var response = await client.GetAsync("users/me/settings/filters", cancellationToken);
+        await EnsureRulePermissionAsync(response, cancellationToken);
+
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
+        var result = new List<GmailTrashRule>();
+        if (!document.RootElement.TryGetProperty("filter", out var filters)) return result;
+
+        foreach (var filter in filters.EnumerateArray())
+        {
+            var trashes = filter.TryGetProperty("action", out var action)
+                && action.TryGetProperty("addLabelIds", out var labels)
+                && labels.ValueKind == JsonValueKind.Array
+                && labels.EnumerateArray().Any(label => string.Equals(label.GetString(), "TRASH", StringComparison.OrdinalIgnoreCase));
+            if (!trashes) continue;
+
+            var id = filter.TryGetProperty("id", out var idElement) ? idElement.GetString() ?? string.Empty : string.Empty;
+            if (string.IsNullOrWhiteSpace(id)) continue;
+            var query = filter.TryGetProperty("criteria", out var criteria)
+                && criteria.TryGetProperty("query", out var queryElement)
+                ? queryElement.GetString() ?? string.Empty
+                : string.Empty;
+            result.Add(new GmailTrashRule(id, query));
+        }
+
+        return result;
+    }
+
     private async Task<HttpClient> CreateClientAsync(Guid accountId, CancellationToken cancellationToken)
     {
         var credential = await database.OAuthCredentials.AsNoTracking()
@@ -95,8 +125,9 @@ public sealed class GmailRuleService(
         }
 
         _ = await response.Content.ReadAsStringAsync(cancellationToken);
-        throw new HttpRequestException($"Gmail rechazó la creación de la regla ({(int)response.StatusCode}).", null, response.StatusCode);
+        throw new HttpRequestException($"Gmail rechazó la operación sobre reglas ({(int)response.StatusCode}).", null, response.StatusCode);
     }
 }
 
 public sealed record GmailTrashRuleResult(string FilterId, string Query, bool Created);
+public sealed record GmailTrashRule(string FilterId, string Query);
