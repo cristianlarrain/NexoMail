@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
-import { CheckCircle2, MailPlus, Pencil, PlugZap, Trash2, X } from 'lucide-react'
+import { CheckCircle2, ListFilter, MailPlus, Pencil, PlugZap, Trash2, X } from 'lucide-react'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { commercialApi } from '../api/commercialApi'
 import { mailApi } from '../api/mailApi'
@@ -35,7 +35,10 @@ export function AccountsPage() {
     : subscription ? `${subscription.connectedAccounts}` : null
 
   return <section className="settings-page">
-    <p className="eyebrow">Configuración</p><h1>Cuentas de correo</h1><p className="page-description">Administra las cuentas que aparecen en tu bandeja unificada.</p>
+    <div className="settings-heading-row">
+      <div><p className="eyebrow">Configuración</p><h1>Cuentas de correo</h1><p className="page-description">Administra las cuentas que aparecen en tu bandeja unificada.</p></div>
+      <Link className="secondary-button settings-rules-link" to="/settings/rules"><ListFilter size={16} /> Reglas automáticas</Link>
+    </div>
     {params.get('connected') === 'google' && <div className="success-notice">La cuenta Gmail fue conectada correctamente.</div>}{error && <div className="notice">{error}</div>}
     {accountLimitReached && <div className="notice">Su plan {subscription?.currentPlan.name} alcanzó el límite de cuentas conectadas. <Link to="/settings/plan">Ver plan y alternativas</Link>.</div>}
     {remove.isSuccess && <div className="success-notice">La cuenta fue quitada de NexoMail. Sus correos permanecen en el proveedor.</div>}
