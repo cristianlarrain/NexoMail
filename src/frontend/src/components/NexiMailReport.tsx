@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, CalendarDays, CheckCircle2, FileSpreadsheet, FileText, Inbox, Info, Search, Sparkles } from 'lucide-react'
+import { AlertTriangle, BarChart3, CalendarDays, CheckCircle2, FileText, Inbox, Info, Search, Sparkles } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
 import { nexiApi, type NexiReportPeriod } from '../api/nexiApi'
@@ -62,10 +62,6 @@ function downloadFile(content: string, type: string, fileName: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
-function csvCell(value: string | number | null | undefined) {
-  return `"${String(value ?? '').replaceAll('"', '""')}"`
-}
-
 export function NexiMailReport() {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
@@ -101,45 +97,24 @@ export function NexiMailReport() {
     navigate(`/search-action?${next.toString()}`)
   }
 
-  function generateDocument(kind: 'full' | 'executive') {
+  function generateDocument() {
     if (!report.data) return
     const data = report.data
-    const title = kind === 'executive' ? 'Resumen ejecutivo' : 'Informe de correo'
     const actions = data.actions.length > 0
       ? `<h2>Acciones detectadas</h2><ul>${data.actions.map(action => `<li>${escapeHtml(action)}</li>`).join('')}</ul>`
       : '<h2>Acciones detectadas</h2><p>Sin acciones adicionales detectadas.</p>'
-    const details = kind === 'full'
-      ? `<h2>Correos analizados</h2><table><thead><tr><th>Remitente</th><th>Asunto</th><th>Importancia</th><th>Acción</th><th>Resumen</th></tr></thead><tbody>${data.items.map(item => `<tr><td>${escapeHtml(item.sender || 'Remitente')}</td><td>${escapeHtml(item.subject)}</td><td>${escapeHtml(item.importance)}</td><td>${escapeHtml(item.requestedAction ?? '')}</td><td>${escapeHtml(item.summary)}</td></tr>`).join('')}</tbody></table>`
-      : ''
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:Arial,sans-serif;color:#172126;line-height:1.45;margin:36px}h1{font-size:24px;margin:0 0 4px}h2{font-size:16px;margin-top:24px}p.meta{color:#66747b;margin-top:0}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #d9e0e3;padding:7px;text-align:left;vertical-align:top}th{background:#f3f6f7}</style></head><body><h1>Nexi Control Center · ${title}</h1><p class="meta">${escapeHtml(rangeLabel)} · ${data.messageCount} correos analizados</p><h2>Resumen ejecutivo</h2><p>${escapeHtml(data.summary)}</p>${actions}${details}</body></html>`
-    downloadFile(html, 'application/msword;charset=utf-8', `nexi-${kind === 'executive' ? 'resumen-ejecutivo' : 'informe'}-${localDate}.doc`)
-  }
-
-  function generateStatistics() {
-    if (!report.data) return
-    const data = report.data
-    const importance = data.items.reduce((result, item) => {
-      result[item.importance] += 1
-      return result
-    }, { alta: 0, media: 0, baja: 0 })
-    const rows = [
-      ['Nexi Control Center', 'Estadísticas del informe'],
-      ['Período', rangeLabel],
-      ['Correos analizados', data.messageCount],
-      ['Acciones detectadas', data.actions.length],
-      ['Importancia alta', importance.alta],
-      ['Importancia media', importance.media],
-      ['Importancia baja', importance.baja],
-      [],
-      ['Remitente', 'Asunto', 'Importancia', 'Acción solicitada', 'Resumen'],
-      ...data.items.map(item => [item.sender, item.subject, item.importance, item.requestedAction ?? '', item.summary]),
-    ]
-    const csv = `\uFEFF${rows.map(row => row.map(csvCell).join(';')).join('\r\n')}`
-    downloadFile(csv, 'text/csv;charset=utf-8', `nexi-estadisticas-${localDate}.csv`)
+    const details = `<h2>Correos analizados</h2><table><thead><tr><th>Remitente</th><th>Asunto</th><th>Importancia</th><th>Acción</th><th>Resumen</th></tr></thead><tbody>${data.items.map(item => `<tr><td>${escapeHtml(item.sender || 'Remitente')}</td><td>${escapeHtml(item.subject)}</td><td>${escapeHtml(item.importance)}</td><td>${escapeHtml(item.requestedAction ?? '')}</td><td>${escapeHtml(item.summary)}</td></tr>`).join('')}</tbody></table>`
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Informe de correo</title><style>body{font-family:Arial,sans-serif;color:#172126;line-height:1.45;margin:36px}h1{font-size:24px;margin:0 0 4px}h2{font-size:16px;margin-top:24px}p.meta{color:#66747b;margin-top:0}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #d9e0e3;padding:7px;text-align:left;vertical-align:top}th{background:#f3f6f7}</style></head><body><h1>Nexi Control Center · Informe de correo</h1><p class="meta">${escapeHtml(rangeLabel)} · ${data.messageCount} correos analizados</p>${actions}${details}</body></html>`
+    downloadFile(html, 'application/msword;charset=utf-8', `nexi-informe-${localDate}.doc`)
   }
 
   const attentionItems = report.data?.items.filter(item => Boolean(item.requestedAction)) ?? []
   const informationalItems = report.data?.items.filter(item => !item.requestedAction) ?? []
+  const importance = report.data?.items.reduce((result, item) => {
+    result[item.importance] += 1
+    return result
+  }, { alta: 0, media: 0, baja: 0 }) ?? { alta: 0, media: 0, baja: 0 }
+  const importanceMaximum = Math.max(1, importance.alta, importance.media, importance.baja)
 
   const renderItem = (item: NonNullable<typeof report.data>['items'][number], index: number) => <article key={`${item.sender}-${item.subject}-${index}`} className="nexi-report-item">
     <div className="nexi-report-item-top">
@@ -158,7 +133,7 @@ export function NexiMailReport() {
     <section className="nexi-report-toolbar">
       <div className="nexi-report-toolbar-copy">
         <span className="nexi-report-icon nexi-report-avatar" aria-hidden="true"><NexiVisual size="small" /></span>
-        <div><strong>Nexi · Informe</strong><span>Resumen ejecutivo, documentos y estadísticas del correo.</span></div>
+        <div><strong>Nexi · Informe</strong><span>Resumen ejecutivo, acciones y análisis visual del correo.</span></div>
       </div>
       <select value={accountId} onChange={event => updateParam('account', event.target.value || null)} aria-label="Cuenta para el informe">
         <option value="">Todas las cuentas</option>
@@ -177,13 +152,29 @@ export function NexiMailReport() {
     {report.data && <>
       <section className="nexi-report-overview">
         <div className="nexi-report-count"><Inbox size={18} /><strong>{report.data.messageCount}</strong><span>correos analizados</span></div>
-        <div className="nexi-report-summary"><span>Resumen ejecutivo</span><p>{report.data.summary}</p></div>
+        <div className="nexi-report-summary"><span>Resumen ejecutivo</span><p>{report.data.summary}</p><small>Vista interna · no descargable</small></div>
       </section>
 
-      <section className="nexi-report-export-actions" aria-label="Generar resultados del informe">
-        <button type="button" className="secondary-button" onClick={() => generateDocument('full')}><FileText size={15} /> Generar documento</button>
-        <button type="button" className="secondary-button" onClick={generateStatistics}><FileSpreadsheet size={15} /> Excel estadístico</button>
-        <button type="button" className="primary-button" onClick={() => generateDocument('executive')}><Sparkles size={15} /> Resumen ejecutivo</button>
+      <section className="nexi-report-visual-statistics" aria-label="Resumen estadístico">
+        <header><div><BarChart3 size={16} /><strong>Resumen estadístico</strong></div><span>Vista interna · no descargable</span></header>
+        <div className="nexi-report-stat-cards">
+          <div><span>Analizados</span><strong>{report.data.messageCount}</strong></div>
+          <div><span>Acciones</span><strong>{report.data.actions.length}</strong></div>
+          <div><span>Prioridad alta</span><strong>{importance.alta}</strong></div>
+          <div><span>Prioridad media</span><strong>{importance.media}</strong></div>
+          <div><span>Prioridad baja</span><strong>{importance.baja}</strong></div>
+        </div>
+        <div className="nexi-report-stat-bars" aria-label="Distribución por importancia">
+          {(['alta', 'media', 'baja'] as const).map(level => <div key={level} className={`nexi-report-stat-bar ${level}`}>
+            <span>{level === 'alta' ? 'Alta' : level === 'media' ? 'Media' : 'Baja'}</span>
+            <i><b style={{ width: `${importance[level] === 0 ? 0 : Math.max(8, importance[level] / importanceMaximum * 100)}%` }} /></i>
+            <strong>{importance[level]}</strong>
+          </div>)}
+        </div>
+      </section>
+
+      <section className="nexi-report-export-actions" aria-label="Generar documento del informe">
+        <button type="button" className="secondary-button" onClick={generateDocument}><FileText size={15} /> Generar documento</button>
       </section>
 
       {report.data.actions.length > 0 && <section className="nexi-report-actions">
