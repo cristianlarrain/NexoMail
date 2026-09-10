@@ -17,6 +17,7 @@ import { NexiSearchActionRoute } from './pages/NexiSearchActionRoute'
 import { PerspectivesPage } from './pages/PerspectivesPage'
 import { PlanPage } from './pages/PlanPage'
 import { ProfilePage } from './pages/ProfilePage'
+import { RulesPage } from './pages/RulesPage'
 import { SearchPage } from './pages/SearchPage'
 
 export const router = createBrowserRouter([
@@ -50,6 +51,7 @@ export const router = createBrowserRouter([
       { path: '/compose', element: <ComposePage /> },
       { path: '/settings', element: <Navigate to="/settings/accounts" replace /> },
       { path: '/settings/accounts', element: <AccountsPage /> },
+      { path: '/settings/rules', element: <RulesPage /> },
       { path: '/settings/profile', element: <ProfilePage /> },
       { path: '/settings/appearance', element: <AppearancePage /> },
       { path: '/settings/plan', element: <PlanPage /> },
