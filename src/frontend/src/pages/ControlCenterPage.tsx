@@ -7,12 +7,14 @@ import { ControlCenter } from '../components/ControlCenter'
 import { ControlCenterContacts } from '../components/ControlCenterContacts'
 import { ControlCenterDocuments } from '../components/ControlCenterDocuments'
 import { ControlCenterStatistics } from '../components/ControlCenterStatistics'
+import { NexiContextWorkspace } from '../components/NexiContextWorkspace'
 import { NexiMailReport } from '../components/NexiMailReport'
 import { NexiVisual } from '../components/nexi/NexiVisual'
 
-type ControlTab = 'summary' | 'report' | 'statistics' | 'contacts' | 'documents'
+type ControlTab = 'summary' | 'report' | 'statistics' | 'contacts' | 'documents' | 'context'
 
 function normalizedTab(value: string | null): ControlTab {
+  if (value === 'nexi' || value === 'context') return 'context'
   return value === 'report' || value === 'statistics' || value === 'contacts' || value === 'documents' ? value : 'summary'
 }
 
@@ -29,7 +31,7 @@ export function ControlCenterPage() {
     if (hasAdvancedAnalytics) void queryClient.invalidateQueries({ queryKey: ['control-center-activity'], refetchType: 'active' })
   }, [hasAdvancedAnalytics, queryClient])
 
-  function selectTab(next: ControlTab) {
+  function selectTab(next: Exclude<ControlTab, 'context'>) {
     if (next === 'report' && !hasNexi) return
     const updated = new URLSearchParams(params)
     if (next === 'summary') updated.delete('tab')
@@ -44,12 +46,12 @@ export function ControlCenterPage() {
     setParams(updated, { replace: true })
   }
 
-  const premiumLocked = tab === 'report' && !hasNexi
+  const premiumLocked = (tab === 'report' || tab === 'context') && !hasNexi
 
   return <section className="mail-view control-center-page nexi-control-center">
     <div className="view-header control-page-header nexi-control-header">
       <div className="control-page-title nexi-control-title">
-        <span className="nexi-control-brandmark" aria-hidden="true"><NexiVisual size="small" /></span>
+        <span className="nexi-control-brandmark" title="Nexi" aria-hidden="true"><NexiVisual size="small" /></span>
         <div><h1>Nexi Control Center</h1><p>Prioridades, resúmenes, informes y estadísticas para decidir y actuar más rápido.</p></div>
       </div>
 
@@ -63,7 +65,7 @@ export function ControlCenterPage() {
     </div>
 
     {premiumLocked
-      ? <div className="commercial-feature-lock"><LockKeyhole size={22} /><div><strong>Función disponible desde Premium</strong><span>Los informes con IA forman parte de los planes con Nexi habilitado.</span></div><Link to="/settings/plan" className="primary-button">Ver planes</Link></div>
+      ? <div className="commercial-feature-lock"><LockKeyhole size={22} /><div><strong>Función disponible desde Premium</strong><span>Los análisis con IA forman parte de los planes con Nexi habilitado.</span></div><Link to="/settings/plan" className="primary-button">Ver planes</Link></div>
       : tab === 'summary'
         ? <ControlCenter />
         : tab === 'report'
@@ -72,6 +74,8 @@ export function ControlCenterPage() {
             ? <ControlCenterStatistics />
             : tab === 'contacts'
               ? <ControlCenterContacts />
-              : <ControlCenterDocuments />}
+              : tab === 'documents'
+                ? <ControlCenterDocuments />
+                : <NexiContextWorkspace />}
   </section>
 }
