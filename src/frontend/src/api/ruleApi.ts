@@ -23,6 +23,16 @@ type ApiProblem = {
   title?: string
 }
 
+function cleanRawError(value: string) {
+  return value
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 500)
+}
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await csrfFetch(`/api${path}`, {
     headers: { 'Content-Type': 'application/json', ...init?.headers },
@@ -46,8 +56,16 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     if (response.status === 403)
       throw new Error('La cuenta necesita autorización adicional para administrar reglas de Gmail. Vuelve a conectar la cuenta desde Configuración.')
 
-    const suffix = problem?.title ? `: ${problem.title}` : raw && raw.length < 180 ? `: ${raw}` : ''
-    throw new Error(`No fue posible administrar las reglas (HTTP ${response.status})${suffix}`)
+    const backendMarker = response.headers.get('X-NexoMail-Rules')
+    const rawDetail = cleanRawError(raw)
+    const titleDetail = problem?.title?.trim()
+    const detail = rawDetail || titleDetail
+      ? `: ${rawDetail || titleDetail}`
+      : backendMarker
+        ? ': el módulo de reglas respondió sin detalle adicional.'
+        : ': el error ocurrió antes de que la solicitud entrara al módulo de reglas de NexoMail.'
+
+    throw new Error(`No fue posible administrar las reglas (HTTP ${response.status})${detail}`)
   }
 
   if (response.status === 204) return undefined as T
