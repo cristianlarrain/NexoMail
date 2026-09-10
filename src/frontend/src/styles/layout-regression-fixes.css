@@ -2,19 +2,20 @@
 
 :root {
   --app-content-rail: 1116px;
-  --app-page-gutter: 42px;
+  --app-page-gutter: 20px;
   --app-page-space: 20px;
   --app-block-gap: 16px;
 }
 
 /* One horizontal rail for the authenticated product: Perspective, pages and footer
-   now start and end on the same visual guides. */
+   now start and end on the same visual guides. Keep the rail close to the top search
+   instead of creating an oversized empty border around the application. */
 .main-content > .global-nexo-perspective,
 .main-content > .mail-view,
 .main-content > .settings-page,
 .main-content > .compose-page,
 .main-content > .app-footer {
-  width: min(var(--app-content-rail), calc(100% - 84px));
+  width: min(var(--app-content-rail), calc(100% - 40px));
   max-width: none;
   margin-left: auto !important;
   margin-right: auto !important;
@@ -181,7 +182,7 @@
 
 @media (max-width: 760px) {
   :root {
-    --app-page-gutter: 18px;
+    --app-page-gutter: 14px;
     --app-page-space: 14px;
     --app-block-gap: 12px;
   }
@@ -191,7 +192,7 @@
   .main-content > .settings-page,
   .main-content > .compose-page,
   .main-content > .app-footer {
-    width: calc(100% - 36px);
+    width: calc(100% - 28px);
   }
 
   .main-content > .mail-view,
