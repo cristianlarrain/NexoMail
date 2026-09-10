@@ -199,6 +199,28 @@
   gap: 16px;
 }
 
+.rules-page-header .eyebrow {
+  font-size: 11px;
+  letter-spacing: .08em;
+}
+
+.rules-page-header h1 {
+  margin: 4px 0 8px;
+  font-size: 30px;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+}
+
+.rules-page-header .page-description {
+  margin-top: 0;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.rules-page-header .primary-button {
+  font-size: 13px;
+}
+
 .rules-account-selector {
   display: flex;
   align-items: center;
@@ -223,6 +245,8 @@
   padding: 0 30px 0 10px;
   background: var(--background);
   color: var(--foreground);
+  font-size: 14px;
+  line-height: 1.25;
 }
 
 .rules-panel {
@@ -336,7 +360,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 1.3;
 }
 
 .rule-row-copy small {
@@ -345,7 +370,8 @@
   align-items: center;
   gap: 5px;
   color: var(--muted-foreground);
-  font-size: 10px;
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .rule-remove {
@@ -386,7 +412,8 @@
   align-items: center;
   gap: 7px;
   color: var(--muted-foreground);
-  font-size: 10px;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .rules-footnote svg {
@@ -411,6 +438,14 @@
     width: 100%;
   }
 
+  .rules-page-header h1 {
+    font-size: 26px;
+  }
+
+  .rules-page-header .page-description {
+    font-size: 14px;
+  }
+
   .mail-rule-card {
     padding: 15px;
   }
@@ -423,6 +458,7 @@
   .rules-account-selector select {
     width: 100%;
     min-width: 0;
+    font-size: 14px;
   }
 
   .rule-row {
