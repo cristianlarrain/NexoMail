@@ -74,9 +74,15 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 export const ruleApi = {
   list: (accountId: string) => api<MailRule[]>(`/mail/rules?accountId=${encodeURIComponent(accountId)}`),
   destinations: (accountId: string) => api<RuleDestination[]>(`/mail/rules/destinations?accountId=${encodeURIComponent(accountId)}`),
-  create: (accountId: string, query: string, action: RuleAction, destinationId?: string) => api<RuleCreateResult>('/mail/rules', {
+  create: (accountId: string, query: string, action: RuleAction, destinationId?: string, destinationName?: string) => api<RuleCreateResult>('/mail/rules', {
     method: 'POST',
-    body: JSON.stringify({ accountId, query, action, destinationId: destinationId || null }),
+    body: JSON.stringify({
+      accountId,
+      query,
+      action,
+      destinationId: destinationId || null,
+      destinationName: destinationName?.trim() || null,
+    }),
   }),
   remove: (accountId: string, ruleId: string) => api<{ removed: boolean; ruleId: string }>(`/mail/rules/${encodeURIComponent(accountId)}/${encodeURIComponent(ruleId)}`, {
     method: 'DELETE',
