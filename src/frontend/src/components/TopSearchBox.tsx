@@ -162,6 +162,7 @@ export function TopSearchBox({ value, onChange, onSubmit }: TopSearchBoxProps) {
         rows={1}
         maxLength={6000}
         value={value}
+        data-voice-managed="top-search"
         onChange={event => onChange(event.target.value)}
         onKeyDown={event => {
           if (event.key !== 'Enter' || event.shiftKey) return
