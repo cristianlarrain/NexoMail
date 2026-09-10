@@ -1,7 +1,7 @@
 /* Final containment and spacing fixes for shared application chrome. */
 
 :root {
-  --app-page-gutter: 24px;
+  --app-page-gutter: 26px;
   --app-page-space: 20px;
   --app-block-gap: 16px;
 }
