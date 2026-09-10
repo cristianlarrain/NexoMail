@@ -144,12 +144,14 @@
   color: var(--success);
 }
 
-.mail-rule-error {
+.mail-rule-error,
+.rules-error {
   display: grid;
   gap: 8px;
 }
 
-.mail-rule-error .text-button {
+.mail-rule-error .text-button,
+.rules-error .text-button {
   justify-self: start;
 }
 
@@ -160,12 +162,261 @@
   padding-top: 2px;
 }
 
+.settings-heading-row,
+.rules-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.settings-heading-row > div,
+.rules-page-header > div {
+  min-width: 0;
+}
+
+.settings-heading-row .page-description,
+.rules-page-header .page-description {
+  margin-bottom: 18px;
+}
+
+.settings-rules-link {
+  flex: 0 0 auto;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.rules-settings-page {
+  display: grid;
+  gap: 16px;
+}
+
+.rules-account-selector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface);
+}
+
+.rules-account-selector label {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.rules-account-selector select {
+  min-width: min(360px, 100%);
+  min-height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 30px 0 10px;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.rules-panel {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.rules-panel > header {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.rules-panel > header > div {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rules-panel > header > div > svg {
+  color: var(--primary);
+  flex: 0 0 auto;
+}
+
+.rules-panel > header span:not(.rules-count) {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.rules-panel > header strong {
+  font-size: 13px;
+}
+
+.rules-panel > header small {
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rules-count {
+  min-width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 9%, var(--surface));
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.rules-list {
+  display: grid;
+}
+
+.rule-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 11px;
+  align-items: center;
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.rule-row:last-child {
+  border-bottom: 0;
+}
+
+.rule-row-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+  color: var(--primary);
+}
+
+.rule-row-copy {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 8px;
+  align-items: center;
+}
+
+.rule-status {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--success) 11%, var(--surface));
+  color: var(--success);
+  font-size: 9px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.rule-row-copy strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.rule-row-copy small {
+  grid-column: 1 / -1;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+
+.rules-empty,
+.rules-loading {
+  min-height: 150px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+  color: var(--muted-foreground);
+}
+
+.rules-empty strong {
+  color: var(--foreground);
+  font-size: 13px;
+}
+
+.rules-empty span {
+  max-width: 520px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.rules-loading .reading-skeleton {
+  width: min(520px, 100%);
+  height: 12px;
+}
+
+.rules-footnote {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+
+.rules-footnote svg {
+  color: var(--primary);
+  flex: 0 0 auto;
+}
+
 @media (max-width: 760px) {
-  .mail-rule-heading {
+  .mail-rule-heading,
+  .settings-heading-row,
+  .rules-page-header {
     align-items: flex-start;
+  }
+
+  .settings-heading-row,
+  .rules-page-header {
+    flex-direction: column;
+  }
+
+  .settings-rules-link,
+  .rules-page-header .primary-button {
+    width: 100%;
   }
 
   .mail-rule-card {
     padding: 15px;
+  }
+
+  .rules-account-selector {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .rules-account-selector select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .rule-row-copy {
+    grid-template-columns: 1fr;
+  }
+
+  .rule-row-copy small {
+    grid-column: auto;
   }
 }
