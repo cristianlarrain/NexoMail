@@ -4,6 +4,8 @@ export type SavedPerspective = {
   source: string
   area: string
   savedAt: number
+  nexiReflection?: string
+  reflectionUpdatedAt?: number
 }
 
 const STORAGE_KEY = 'nexomail-saved-perspectives-v1'
@@ -45,6 +47,14 @@ export function savePerspective(perspective: Omit<SavedPerspective, 'id' | 'save
   }
   write([saved, ...items])
   return saved
+}
+
+export function savePerspectiveReflection(id: string, text: string) {
+  const reflection = text.trim()
+  if (!reflection) return
+  write(read().map(item => item.id === id
+    ? { ...item, nexiReflection: reflection, reflectionUpdatedAt: Date.now() }
+    : item))
 }
 
 export function removeSavedPerspective(id: string) {
