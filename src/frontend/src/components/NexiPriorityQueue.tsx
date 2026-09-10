@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { AlertTriangle, CheckCircle2, ChevronRight, CircleHelp, Info, LoaderCircle, MessageSquareReply, Sparkles, TimerReset, X } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronRight, CircleHelp, Info, MessageSquareReply, Sparkles, TimerReset, X } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { nexiApi } from '../api/nexiApi'
 import type { ControlCenterPendingItem } from '../types/mail'
 import { NexiEmptyState } from './nexi/NexiEmptyState'
+import { NexiVisual } from './nexi/NexiVisual'
 import {
   classifyByRules,
   classifyFromInsight,
@@ -169,11 +170,11 @@ export function NexiPriorityQueue({
       <div>
         <span className="nexi-priority-kicker"><Sparkles size={14} /> Priorización inteligente</span>
         <strong>Qué atender primero</strong>
-        <p>Ordena las conversaciones por urgencia, necesidad de respuesta, seguimiento o carácter informativo. Nexi puede revisar el contenido bajo demanda.</p>
+        <p>Ordena las conversaciones por urgencia, respuesta, seguimiento o carácter informativo.</p>
       </div>
       {items.length > 0 && <button type="button" className="secondary-button nexi-priority-refine" disabled={refine.isPending || candidates.length === 0} onClick={() => refine.mutate()}>
-        {refine.isPending ? <LoaderCircle size={14} className="spin" /> : candidates.length === 0 ? <CheckCircle2 size={14} /> : <Sparkles size={14} />}
-        {refine.isPending ? 'Analizando…' : candidates.length === 0 ? 'Revisado con Nexi' : 'Afinar con Nexi'}
+        {refine.isPending ? <NexiVisual size="small" className="nexi-inline-processing" /> : candidates.length === 0 ? <CheckCircle2 size={14} /> : <Sparkles size={14} />}
+        {refine.isPending ? 'Analizando…' : candidates.length === 0 ? 'Revisado con Nexi' : 'Revisar con Nexi'}
       </button>}
     </header>
 
@@ -211,7 +212,7 @@ export function NexiPriorityQueue({
             <em className={classification.source}>{classification.source === 'nexi' ? 'Nexi' : 'Regla'} · {classification.reason}</em>
           </button>
           <div className="nexi-priority-actions">
-            {canManage && <button type="button" className="secondary-button compact-action" disabled={opening} onClick={() => onManage(item)}>{opening ? <LoaderCircle size={13} className="spin" /> : <MessageSquareReply size={13} />}{item.direction === 'received' ? 'Responder' : 'Seguimiento'}</button>}
+            {canManage && <button type="button" className="secondary-button compact-action" disabled={opening} onClick={() => onManage(item)}>{opening ? <NexiVisual size="small" className="nexi-inline-processing" /> : <Sparkles size={13} />}{item.direction === 'received' ? 'Preparar respuesta con IA' : 'Preparar seguimiento'}</button>}
             <button type="button" className="icon-button" title="Ver correo" aria-label="Ver correo" onClick={() => onOpen(item, manual)}><ChevronRight size={16} /></button>
           </div>
         </div>
@@ -221,7 +222,7 @@ export function NexiPriorityQueue({
     <footer className="nexi-priority-footer">
       <span>Mostrando {Math.min(visible, filtered.length)} de {filtered.length}{Object.keys(semantic).length > 0 ? ` · ${Object.keys(semantic).length} revisados por Nexi` : ''}</span>
       {visible < filtered.length && <button type="button" className="secondary-button" onClick={() => setVisible(current => current + 10)}>Cargar más</button>}
-      {candidates.length > 0 && !refine.isPending && <small>Nexi revisa hasta 5 correos por tanda para mantener rápida esta vista.</small>}
+      {candidates.length > 0 && !refine.isPending && <small>Nexi revisa hasta 5 correos por tanda.</small>}
     </footer>
   </article>
 }
