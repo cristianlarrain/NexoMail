@@ -55,7 +55,20 @@
   font-style: normal;
 }
 
-.nexo-perspective-refresh {
+.nexo-perspective-feedback {
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.nexo-perspective-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.nexo-perspective-action {
   min-height: 30px;
   flex: 0 0 auto;
   display: inline-flex;
@@ -71,19 +84,162 @@
   cursor: pointer;
 }
 
-.nexo-perspective-refresh:hover {
+.nexo-perspective-action:hover,
+.nexo-perspective-action.is-saved {
   border-color: color-mix(in srgb, var(--primary) 38%, var(--border));
   background: color-mix(in srgb, var(--primary) 8%, var(--surface));
   color: var(--primary);
 }
 
-.nexo-perspective-refresh:focus-visible {
+.nexo-perspective-action:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--primary) 42%, transparent);
   outline-offset: 2px;
 }
 
+.perspectives-page {
+  display: grid;
+  gap: 18px;
+}
+
+.perspectives-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.perspectives-header h1,
+.perspectives-header p {
+  margin-top: 0;
+}
+
+.perspectives-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--muted-foreground);
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.perspectives-feedback {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.perspectives-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.perspective-card {
+  display: grid;
+  gap: 12px;
+  min-height: 210px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.perspective-card header,
+.perspective-card footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.perspective-card header span {
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.perspective-card time,
+.perspective-card cite {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.perspective-card blockquote {
+  margin: 0;
+  color: var(--foreground);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 17px;
+  font-style: italic;
+  line-height: 1.55;
+}
+
+.perspective-card footer {
+  margin-top: auto;
+  justify-content: flex-start;
+}
+
+.perspective-card footer button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.perspective-card footer button:hover {
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+}
+
+.perspectives-empty {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  min-height: 280px;
+  padding: 28px;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  text-align: center;
+  color: var(--muted-foreground);
+}
+
+.perspectives-empty h2,
+.perspectives-empty p {
+  margin: 0;
+}
+
 :root[data-theme="dark"] .nexo-perspective {
   background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+}
+
+@media (max-width: 900px) {
+  .nexo-perspective-action span {
+    display: none;
+  }
+
+  .nexo-perspective-action {
+    width: 30px;
+    padding: 0;
+    justify-content: center;
+  }
 }
 
 @media (max-width: 760px) {
@@ -95,14 +251,12 @@
     white-space: normal;
   }
 
-  .nexo-perspective-refresh span {
-    display: none;
+  .nexo-perspective-actions {
+    gap: 4px;
   }
 
-  .nexo-perspective-refresh {
-    width: 30px;
-    padding: 0;
-    justify-content: center;
+  .perspectives-header {
+    display: grid;
   }
 }
 
