@@ -8,7 +8,8 @@ export function AppFooter({ compact = false }: { compact?: boolean }) {
       <span>v{APP_VERSION}</span>
       <span>Desarrollado por {PRODUCT_DEVELOPER}</span>
     </div>
-    <nav aria-label="Información legal">
+    <nav aria-label="Información de NexoMail">
+      <Link to="/">Sitio NexoMail</Link>
       <Link to="/legal/terms">Términos</Link>
       <Link to="/legal/privacy">Privacidad</Link>
       <Link to="/legal/security">Seguridad</Link>
