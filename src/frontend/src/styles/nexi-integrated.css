@@ -32,6 +32,23 @@
   gap: 10px;
 }
 
+.nexi-control-brandmark {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+  overflow: hidden;
+}
+
+.nexi-control-brandmark .nexi-visual.small {
+  width: 25px;
+  height: 25px;
+}
+
 .nexi-operational-summary {
   display: grid;
   gap: 4px;
@@ -107,6 +124,29 @@
   font-size: 11px;
 }
 
+.nexi-report-avatar {
+  overflow: hidden;
+}
+
+.nexi-report-avatar .nexi-visual.small {
+  width: 27px;
+  height: 27px;
+}
+
+.nexi-report-export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.nexi-report-export-actions button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .nexi-report-action-grid {
   display: grid;
   gap: 10px;
@@ -145,15 +185,25 @@
   padding-inline: 10px;
 }
 
+.global-nexo-perspective {
+  padding: 10px 16px 0;
+}
+
 @media (max-width: 680px) {
   .nexi-report-action-card > div,
-  .nexi-report-row-actions {
+  .nexi-report-row-actions,
+  .nexi-report-export-actions {
     align-items: stretch;
   }
 
   .nexi-report-action-card .compact-action,
-  .nexi-report-row-actions .compact-action {
+  .nexi-report-row-actions .compact-action,
+  .nexi-report-export-actions button {
     width: 100%;
     justify-content: center;
+  }
+
+  .global-nexo-perspective {
+    padding: 8px 10px 0;
   }
 }
