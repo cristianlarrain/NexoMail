@@ -35,4 +35,7 @@ export const ruleApi = {
     method: 'POST',
     body: JSON.stringify({ accountId, query }),
   }),
+  removeTrash: (accountId: string, filterId: string) => api<{ removed: boolean; filterId: string }>(`/mail/rules/trash/${encodeURIComponent(accountId)}/${encodeURIComponent(filterId)}`, {
+    method: 'DELETE',
+  }),
 }
