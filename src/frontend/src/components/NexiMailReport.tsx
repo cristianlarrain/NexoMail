@@ -1,9 +1,10 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, CalendarDays, CheckCircle2, Inbox, Info, Sparkles } from 'lucide-react'
-import { useSearchParams } from 'react-router-dom'
+import { AlertTriangle, CalendarDays, CheckCircle2, Inbox, Info, Search, Sparkles } from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
 import { nexiApi, type NexiReportPeriod } from '../api/nexiApi'
+import { NexiVisual } from './nexi/NexiVisual'
 
 function localDateValue() {
   const now = new Date()
@@ -47,6 +48,7 @@ function reportRangeLabel(period: NexiReportPeriod, localDate: string) {
 }
 
 export function NexiMailReport() {
+  const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const period = normalizedPeriod(params.get('period'))
   const accountId = params.get('account') ?? ''
@@ -68,6 +70,18 @@ export function NexiMailReport() {
     setParams(next, { replace: true })
   }
 
+  function openRelated(query: string) {
+    const next = new URLSearchParams({ q: query, scope: 'mail' })
+    if (accountId) next.set('account', accountId)
+    navigate(`/search?${next.toString()}`)
+  }
+
+  function openNexiTask(instruction: string) {
+    const next = new URLSearchParams({ q: instruction })
+    if (accountId) next.set('account', accountId)
+    navigate(`/search-action?${next.toString()}`)
+  }
+
   const attentionItems = report.data?.items.filter(item => Boolean(item.requestedAction)) ?? []
   const informationalItems = report.data?.items.filter(item => !item.requestedAction) ?? []
 
@@ -78,13 +92,17 @@ export function NexiMailReport() {
     </div>
     <p>{item.summary}</p>
     {item.requestedAction && <div className="nexi-report-request"><CheckCircle2 size={14} /><span><strong>Acción solicitada:</strong> {item.requestedAction}</span></div>}
+    {item.requestedAction && <div className="nexi-report-row-actions">
+      <button type="button" className="secondary-button compact-action" onClick={() => openRelated(`${item.sender} ${item.subject}`)}><Search size={13} /> Ver correos</button>
+      <button type="button" className="primary-button compact-action" onClick={() => openNexiTask(`Prepara una respuesta para el correo de ${item.sender} con asunto ${item.subject}. Acción pendiente: ${item.requestedAction}`)}><Sparkles size={13} /> Preparar respuesta con IA</button>
+    </div>}
   </article>
 
   return <div className="nexi-report-view">
     <section className="nexi-report-toolbar">
       <div className="nexi-report-toolbar-copy">
         <span className="nexi-report-icon"><Sparkles size={18} /></span>
-        <div><strong>Síntesis del período</strong><span>Quién escribió, qué necesita y qué conviene atender.</span></div>
+        <div><strong>Informe</strong><span>Resumen ejecutivo y correos analizados.</span></div>
       </div>
       <select value={accountId} onChange={event => updateParam('account', event.target.value || null)} aria-label="Cuenta para el informe">
         <option value="">Todas las cuentas</option>
@@ -97,7 +115,7 @@ export function NexiMailReport() {
       <span className="nexi-report-range">{rangeLabel}</span>
     </div>
 
-    {report.isLoading && <section className="nexi-report-loading"><span className="reading-skeleton" /><span className="reading-skeleton" /><span className="reading-skeleton" /><small>Nexi está leyendo y organizando los correos del período…</small></section>}
+    {report.isLoading && <section className="nexi-report-loading nexi-integrated-loading"><NexiVisual size="small" className="nexi-inline-processing" /><small>Analizando correos…</small></section>}
     {report.isError && <div className="notice">{report.error instanceof Error ? report.error.message : 'No fue posible generar el informe.'}</div>}
 
     {report.data && <>
@@ -108,7 +126,15 @@ export function NexiMailReport() {
 
       {report.data.actions.length > 0 && <section className="nexi-report-actions">
         <header><CheckCircle2 size={16} /><strong>Acciones detectadas</strong></header>
-        <ul>{report.data.actions.map((action, index) => <li key={`${action}-${index}`}>{action}</li>)}</ul>
+        <div className="nexi-report-action-grid">
+          {report.data.actions.map((action, index) => <article key={`${action}-${index}`} className="nexi-report-action-card">
+            <p>{action}</p>
+            <div>
+              <button type="button" className="secondary-button compact-action" onClick={() => openRelated(action)}><Search size={13} /> Ver correos</button>
+              <button type="button" className="primary-button compact-action" onClick={() => openNexiTask(`Revisa los correos relacionados y prepara la acción siguiente: ${action}`)}><Sparkles size={13} /> Preparar con IA</button>
+            </div>
+          </article>)}
+        </div>
       </section>}
 
       {attentionItems.length > 0 && <section className="nexi-report-messages">
@@ -117,7 +143,7 @@ export function NexiMailReport() {
       </section>}
 
       {informationalItems.length > 0 && <section className="nexi-report-messages nexi-report-informational">
-        <header><Info size={16} /><strong>Sólo informativos</strong><span>{informationalItems.length} · {rangeLabel}</span></header>
+        <header><Info size={16} /><strong>Correos analizados</strong><span>{informationalItems.length} · {rangeLabel}</span></header>
         {informationalItems.map(renderItem)}
       </section>}
 
