@@ -46,11 +46,19 @@ export function GlobalFormValidation() {
     const onSubmit = (event: Event) => {
       const form = event.target
       if (!(form instanceof HTMLFormElement)) return
-      const invalid = Array.from(form.elements).find(element => isValidatableField(element) && element.willValidate && !element.validity.valid)
-      if (!isValidatableField(invalid ?? null)) return
+
+      let invalidField: ValidatableField | null = null
+      for (const element of Array.from(form.elements)) {
+        if (isValidatableField(element) && element.willValidate && !element.validity.valid) {
+          invalidField = element
+          break
+        }
+      }
+
+      if (!invalidField) return
       event.preventDefault()
       event.stopPropagation()
-      showFieldError(invalid)
+      showFieldError(invalidField)
     }
 
     const onInvalid = (event: Event) => {
