@@ -66,6 +66,7 @@ import './styles/nexi-integrated.css'
 import './styles/global-voice-dictation.css'
 import './styles/form-controls-modern.css'
 import './styles/legal-footer.css'
+import './styles/topbar-stacking.css'
 
 const client = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, retry: 1 } } })
 createRoot(document.getElementById('root')!).render(
