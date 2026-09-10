@@ -73,7 +73,13 @@ public static class MailRuleEndpoints
 
                 var context = await ResolveAsync(providers, database, userContext, request.AccountId, ct);
                 var created = await context.Provider.CreateAsync(
-                    new MailRuleCreateRequest(request.AccountId, request.Query.Trim(), action, request.DestinationId), ct);
+                    new MailRuleCreateRequest(
+                        request.AccountId,
+                        request.Query.Trim(),
+                        action,
+                        request.DestinationId,
+                        request.DestinationName),
+                    ct);
                 return Results.Ok(new
                 {
                     created = created.Created,
@@ -170,4 +176,9 @@ public static class MailRuleEndpoints
     private sealed record RuleProviderContext(IMailRuleProvider Provider, string EmailAddress);
 }
 
-public sealed record RuleRequest(Guid AccountId, string Query, string Action, string? DestinationId);
+public sealed record RuleRequest(
+    Guid AccountId,
+    string Query,
+    string Action,
+    string? DestinationId,
+    string? DestinationName);
