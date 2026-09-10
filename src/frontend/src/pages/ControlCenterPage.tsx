@@ -1,21 +1,17 @@
 import { useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { BarChart3, Files, LockKeyhole, MessageSquareText, Sparkles, Users } from 'lucide-react'
+import { BarChart3, Files, LockKeyhole, Sparkles, Users } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { commercialApi } from '../api/commercialApi'
 import { ControlCenter } from '../components/ControlCenter'
 import { ControlCenterContacts } from '../components/ControlCenterContacts'
 import { ControlCenterDocuments } from '../components/ControlCenterDocuments'
-import { NexiContextWorkspace } from '../components/NexiContextWorkspace'
-import { NexiDailyBrief } from '../components/NexiDailyBrief'
 import { NexiMailReport } from '../components/NexiMailReport'
-import { NexiTrendReport } from '../components/NexiTrendReport'
-import { NexoPerspective } from '../components/NexoPerspective'
 
-type ControlTab = 'summary' | 'nexi' | 'report' | 'contacts' | 'documents'
+type ControlTab = 'summary' | 'report' | 'contacts' | 'documents'
 
 function normalizedTab(value: string | null): ControlTab {
-  return value === 'nexi' || value === 'report' || value === 'contacts' || value === 'documents' ? value : 'summary'
+  return value === 'report' || value === 'contacts' || value === 'documents' ? value : 'summary'
 }
 
 export function ControlCenterPage() {
@@ -32,50 +28,44 @@ export function ControlCenterPage() {
   }, [hasAdvancedAnalytics, queryClient])
 
   function selectTab(next: ControlTab) {
-    if ((next === 'nexi' || next === 'report') && !hasNexi) return
+    if (next === 'report' && !hasNexi) return
     const updated = new URLSearchParams(params)
     if (next === 'summary') updated.delete('tab')
     else updated.set('tab', next)
 
-    if (next !== 'report') updated.delete('period')
-    if (next !== 'nexi') {
-      updated.delete('q')
-      updated.delete('auto')
+    if (next !== 'report') {
+      updated.delete('period')
+      updated.delete('account')
     }
-    if (next !== 'nexi' && next !== 'report') updated.delete('account')
-
+    updated.delete('q')
+    updated.delete('auto')
     setParams(updated, { replace: true })
   }
 
-  const premiumLocked = (tab === 'nexi' || tab === 'report') && !hasNexi
+  const premiumLocked = tab === 'report' && !hasNexi
 
   return <section className="mail-view control-center-page nexi-control-center">
     <div className="view-header control-page-header nexi-control-header">
       <div className="control-page-title nexi-control-title">
-        <div><h1>Centro de Control</h1><p>Supervisa el correo, prioriza pendientes y consulta análisis, contactos y documentos desde un solo espacio.</p></div>
+        <div><h1>Nexi Control Center</h1><p>Indicadores, prioridades y acciones sobre el correo en un solo espacio.</p></div>
       </div>
 
-      <nav className="control-tabs control-tabs-inline" aria-label="Secciones del Centro de Control">
-        <button type="button" className={tab === 'summary' ? 'active' : ''} onClick={() => selectTab('summary')}><BarChart3 size={16} /> Operación</button>
-        <button type="button" disabled={!hasNexi} title={!hasNexi ? 'Disponible desde Premium' : undefined} className={tab === 'nexi' ? 'active nexi-tab' : 'nexi-tab'} onClick={() => selectTab('nexi')}><MessageSquareText size={16} /> Nexi {!hasNexi && <LockKeyhole size={12} />}</button>
+      <nav className="control-tabs control-tabs-inline" aria-label="Secciones de Nexi Control Center">
+        <button type="button" className={tab === 'summary' ? 'active' : ''} onClick={() => selectTab('summary')}><BarChart3 size={16} /> Resumen</button>
         <button type="button" disabled={!hasNexi} title={!hasNexi ? 'Disponible desde Premium' : undefined} className={tab === 'report' ? 'active nexi-tab' : 'nexi-tab'} onClick={() => selectTab('report')}><Sparkles size={16} /> Informes {!hasNexi && <LockKeyhole size={12} />}</button>
         <button type="button" className={tab === 'contacts' ? 'active' : ''} onClick={() => selectTab('contacts')}><Users size={16} /> Contactos</button>
         <button type="button" className={tab === 'documents' ? 'active' : ''} onClick={() => selectTab('documents')}><Files size={16} /> Documentos</button>
       </nav>
     </div>
 
-    {hasNexi && <NexoPerspective />}
-
     {premiumLocked
-      ? <div className="commercial-feature-lock"><LockKeyhole size={22} /><div><strong>Función disponible desde Premium</strong><span>Nexi e Informes avanzados forman parte de los planes con funciones de IA habilitadas.</span></div><Link to="/settings/plan" className="primary-button">Ver planes</Link></div>
+      ? <div className="commercial-feature-lock"><LockKeyhole size={22} /><div><strong>Función disponible desde Premium</strong><span>Los informes con IA forman parte de los planes con Nexi habilitado.</span></div><Link to="/settings/plan" className="primary-button">Ver planes</Link></div>
       : tab === 'summary'
-        ? <>{hasNexi && <NexiDailyBrief />}<ControlCenter />{hasAdvancedAnalytics && <NexiTrendReport />}</>
-        : tab === 'nexi'
-          ? <NexiContextWorkspace />
-          : tab === 'report'
-            ? <NexiMailReport />
-            : tab === 'contacts'
-              ? <ControlCenterContacts />
-              : <ControlCenterDocuments />}
+        ? <ControlCenter />
+        : tab === 'report'
+          ? <NexiMailReport />
+          : tab === 'contacts'
+            ? <ControlCenterContacts />
+            : <ControlCenterDocuments />}
   </section>
 }
