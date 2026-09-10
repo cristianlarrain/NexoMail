@@ -8,8 +8,6 @@ import type { MailSummary, PagedResult } from '../types/mail'
 import { BackToTopButton } from '../components/BackToTopButton'
 import { TopSearchBox } from '../components/TopSearchBox'
 import { NexoMailLogo } from '../components/brand/NexoMailLogo'
-import { NexiAssistantButton } from '../components/nexi/NexiAssistantButton'
-import { NexiAssistantPanel } from '../components/nexi/NexiAssistantPanel'
 import { WeatherWidget } from '../components/WeatherWidget'
 import { detectNexiMailAction } from '../utils/nexiSearchIntent'
 
@@ -40,7 +38,6 @@ export function AppLayout() {
   const [foldersCollapsed, setFoldersCollapsed] = useState(() => localStorage.getItem(FOLDERS_COLLAPSED_KEY) === '1')
   const [theme, setTheme] = useState(() => localStorage.getItem('nexomail-theme') ?? 'light')
   const [profileOpen, setProfileOpen] = useState(false)
-  const [nexiOpen, setNexiOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [now, setNow] = useState(() => new Date())
   const queryClient = useQueryClient()
@@ -52,7 +49,6 @@ export function AppLayout() {
 
   useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem('nexomail-theme', theme) }, [theme])
   useEffect(() => { setSearch(new URLSearchParams(location.search).get('q') ?? '') }, [location.search])
-  useEffect(() => { setNexiOpen(false) }, [location.pathname])
   useEffect(() => { setOpen(false); setProfileOpen(false) }, [location.pathname, location.search])
   useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 1000); return () => window.clearInterval(timer) }, [])
   useEffect(() => {
@@ -162,8 +158,5 @@ export function AppLayout() {
       <Outlet />
       <BackToTopButton />
     </main>
-
-    <NexiAssistantButton open={nexiOpen} onClick={() => { setProfileOpen(false); setNexiOpen(current => !current) }} />
-    <NexiAssistantPanel open={nexiOpen} onClose={() => setNexiOpen(false)} />
   </div>
 }
