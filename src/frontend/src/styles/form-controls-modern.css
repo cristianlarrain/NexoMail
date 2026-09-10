@@ -1,0 +1,51 @@
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="hidden"]),
+  textarea,
+  select
+) {
+  min-height: 38px;
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--foreground);
+  font: inherit;
+  line-height: 1.35;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="hidden"]),
+  textarea,
+  select
+):hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--primary) 20%, var(--border));
+}
+
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="hidden"]),
+  textarea,
+  select
+):focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--primary) 58%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+:where(input, textarea)::placeholder {
+  color: var(--muted-foreground);
+  opacity: .78;
+}
+
+:where(input, textarea, select):disabled {
+  opacity: .62;
+  cursor: not-allowed;
+}
+
+select {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] select {
+  color-scheme: dark;
+}
