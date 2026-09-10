@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, CalendarDays, CheckCircle2, Inbox, Info, Search, Sparkles } from 'lucide-react'
+import { AlertTriangle, CalendarDays, CheckCircle2, FileSpreadsheet, FileText, Inbox, Info, Search, Sparkles } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
 import { nexiApi, type NexiReportPeriod } from '../api/nexiApi'
@@ -47,6 +47,25 @@ function reportRangeLabel(period: NexiReportPeriod, localDate: string) {
   return `${formatter.format(start).replace(/\./g, '')} – ${endFormatter.format(end).replace(/\./g, '')}`
 }
 
+function escapeHtml(value: string) {
+  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;')
+}
+
+function downloadFile(content: string, type: string, fileName: string) {
+  const url = URL.createObjectURL(new Blob([content], { type }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
+function csvCell(value: string | number | null | undefined) {
+  return `"${String(value ?? '').replaceAll('"', '""')}"`
+}
+
 export function NexiMailReport() {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
@@ -82,6 +101,43 @@ export function NexiMailReport() {
     navigate(`/search-action?${next.toString()}`)
   }
 
+  function generateDocument(kind: 'full' | 'executive') {
+    if (!report.data) return
+    const data = report.data
+    const title = kind === 'executive' ? 'Resumen ejecutivo' : 'Informe de correo'
+    const actions = data.actions.length > 0
+      ? `<h2>Acciones detectadas</h2><ul>${data.actions.map(action => `<li>${escapeHtml(action)}</li>`).join('')}</ul>`
+      : '<h2>Acciones detectadas</h2><p>Sin acciones adicionales detectadas.</p>'
+    const details = kind === 'full'
+      ? `<h2>Correos analizados</h2><table><thead><tr><th>Remitente</th><th>Asunto</th><th>Importancia</th><th>Acción</th><th>Resumen</th></tr></thead><tbody>${data.items.map(item => `<tr><td>${escapeHtml(item.sender || 'Remitente')}</td><td>${escapeHtml(item.subject)}</td><td>${escapeHtml(item.importance)}</td><td>${escapeHtml(item.requestedAction ?? '')}</td><td>${escapeHtml(item.summary)}</td></tr>`).join('')}</tbody></table>`
+      : ''
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:Arial,sans-serif;color:#172126;line-height:1.45;margin:36px}h1{font-size:24px;margin:0 0 4px}h2{font-size:16px;margin-top:24px}p.meta{color:#66747b;margin-top:0}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #d9e0e3;padding:7px;text-align:left;vertical-align:top}th{background:#f3f6f7}</style></head><body><h1>Nexi Control Center · ${title}</h1><p class="meta">${escapeHtml(rangeLabel)} · ${data.messageCount} correos analizados</p><h2>Resumen ejecutivo</h2><p>${escapeHtml(data.summary)}</p>${actions}${details}</body></html>`
+    downloadFile(html, 'application/msword;charset=utf-8', `nexi-${kind === 'executive' ? 'resumen-ejecutivo' : 'informe'}-${localDate}.doc`)
+  }
+
+  function generateStatistics() {
+    if (!report.data) return
+    const data = report.data
+    const importance = data.items.reduce((result, item) => {
+      result[item.importance] += 1
+      return result
+    }, { alta: 0, media: 0, baja: 0 })
+    const rows = [
+      ['Nexi Control Center', 'Estadísticas del informe'],
+      ['Período', rangeLabel],
+      ['Correos analizados', data.messageCount],
+      ['Acciones detectadas', data.actions.length],
+      ['Importancia alta', importance.alta],
+      ['Importancia media', importance.media],
+      ['Importancia baja', importance.baja],
+      [],
+      ['Remitente', 'Asunto', 'Importancia', 'Acción solicitada', 'Resumen'],
+      ...data.items.map(item => [item.sender, item.subject, item.importance, item.requestedAction ?? '', item.summary]),
+    ]
+    const csv = `\uFEFF${rows.map(row => row.map(csvCell).join(';')).join('\r\n')}`
+    downloadFile(csv, 'text/csv;charset=utf-8', `nexi-estadisticas-${localDate}.csv`)
+  }
+
   const attentionItems = report.data?.items.filter(item => Boolean(item.requestedAction)) ?? []
   const informationalItems = report.data?.items.filter(item => !item.requestedAction) ?? []
 
@@ -101,8 +157,8 @@ export function NexiMailReport() {
   return <div className="nexi-report-view">
     <section className="nexi-report-toolbar">
       <div className="nexi-report-toolbar-copy">
-        <span className="nexi-report-icon"><Sparkles size={18} /></span>
-        <div><strong>Informe</strong><span>Resumen ejecutivo y correos analizados.</span></div>
+        <span className="nexi-report-icon nexi-report-avatar" aria-hidden="true"><NexiVisual size="small" /></span>
+        <div><strong>Nexi · Informe</strong><span>Resumen ejecutivo, documentos y estadísticas del correo.</span></div>
       </div>
       <select value={accountId} onChange={event => updateParam('account', event.target.value || null)} aria-label="Cuenta para el informe">
         <option value="">Todas las cuentas</option>
@@ -122,6 +178,12 @@ export function NexiMailReport() {
       <section className="nexi-report-overview">
         <div className="nexi-report-count"><Inbox size={18} /><strong>{report.data.messageCount}</strong><span>correos analizados</span></div>
         <div className="nexi-report-summary"><span>Resumen ejecutivo</span><p>{report.data.summary}</p></div>
+      </section>
+
+      <section className="nexi-report-export-actions" aria-label="Generar resultados del informe">
+        <button type="button" className="secondary-button" onClick={() => generateDocument('full')}><FileText size={15} /> Generar documento</button>
+        <button type="button" className="secondary-button" onClick={generateStatistics}><FileSpreadsheet size={15} /> Excel estadístico</button>
+        <button type="button" className="primary-button" onClick={() => generateDocument('executive')}><Sparkles size={15} /> Resumen ejecutivo</button>
       </section>
 
       {report.data.actions.length > 0 && <section className="nexi-report-actions">
