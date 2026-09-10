@@ -9,6 +9,14 @@ export type TrashRuleResult = {
   action: 'trash'
 }
 
+export type TrashRule = {
+  filterId: string
+  query: string
+  accountId: string
+  account: string
+  action: 'trash'
+}
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await csrfFetch(`/api${path}`, {
     headers: { 'Content-Type': 'application/json', ...init?.headers },
@@ -16,12 +24,13 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   })
   if (!response.ok) {
     const problem = await response.json().catch(() => null) as { detail?: string; error?: string } | null
-    throw new Error(problem?.detail ?? problem?.error ?? 'No fue posible crear la regla.')
+    throw new Error(problem?.detail ?? problem?.error ?? 'No fue posible administrar las reglas.')
   }
   return response.json() as Promise<T>
 }
 
 export const ruleApi = {
+  listTrash: (accountId: string) => api<TrashRule[]>(`/mail/rules/trash?accountId=${encodeURIComponent(accountId)}`),
   createTrash: (accountId: string, query: string) => api<TrashRuleResult>('/mail/rules/trash', {
     method: 'POST',
     body: JSON.stringify({ accountId, query }),
