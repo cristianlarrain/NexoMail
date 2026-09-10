@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, Mic, Search, SendHorizontal, X } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { NexiVisual } from './nexi/NexiVisual'
 import { requestsTrashAction } from '../utils/nexiSearchIntent'
 
 type SpeechResult = { 0?: { transcript?: string } }
@@ -152,6 +153,10 @@ export function TopSearchBox({ value, onChange, onSubmit }: TopSearchBoxProps) {
   return <div className={`search top-search ${listening ? 'listening expanded' : value.length > 72 ? 'expanded' : ''}`} role="search" title={voiceError || 'Busca o dale instrucciones a Nexi con lenguaje normal'}>
     <Search size={18} className="top-search-icon" />
     <div className="top-search-editor">
+      {!value && !listening && <span className="top-search-placeholder" aria-hidden="true">
+        <span>Busca o pregúntale a</span>
+        <span className="top-search-placeholder-nexi"><NexiVisual size="small" className="top-search-nexi-visual" /><span>Nexi</span></span>
+      </span>}
       <textarea
         ref={textarea}
         rows={1}
@@ -164,7 +169,7 @@ export function TopSearchBox({ value, onChange, onSubmit }: TopSearchBoxProps) {
           if (listening) finishListening()
           else submitSearch()
         }}
-        placeholder={listening ? 'Escuchando… dicta tu instrucción completa' : 'Busca o pregúntale a Nexi'}
+        placeholder={listening ? 'Escuchando… dicta tu instrucción completa' : ''}
         aria-label="Buscar o dar una instrucción a Nexi"
       />
       {(listening || voiceError || showGuidance) && <span className={`top-search-inline-status ${voiceError ? 'error' : ''}`} aria-live="polite">
