@@ -1,5 +1,39 @@
 /* Final containment and spacing fixes for shared application chrome. */
 
+:root {
+  --app-content-rail: 1116px;
+  --app-page-gutter: 42px;
+  --app-page-space: 20px;
+  --app-block-gap: 16px;
+}
+
+/* One horizontal rail for the authenticated product: Perspective, pages and footer
+   now start and end on the same visual guides. */
+.main-content > .global-nexo-perspective,
+.main-content > .mail-view,
+.main-content > .settings-page,
+.main-content > .compose-page,
+.main-content > .app-footer {
+  width: min(var(--app-content-rail), calc(100% - 84px));
+  max-width: none;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  box-sizing: border-box;
+}
+
+.main-content > .mail-view,
+.main-content > .settings-page,
+.main-content > .compose-page {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  padding-top: var(--app-page-space) !important;
+  padding-bottom: 32px !important;
+}
+
+.main-content > .app-footer {
+  margin-top: 8px;
+}
+
 .topbar {
   min-width: 0;
   height: auto !important;
@@ -48,11 +82,25 @@
   min-height: 88px;
 }
 
-/* Keep a visible rhythm between the persistent Perspective strip and page content. */
+/* Perspective follows the same rail and spacing rhythm as every page below it. */
 .global-nexo-perspective {
   position: relative;
   z-index: 1;
-  padding-bottom: 10px;
+  padding: 12px 0 0 !important;
+}
+
+.global-nexo-perspective > .nexo-perspective {
+  width: 100%;
+  margin: 0;
+}
+
+/* Common vertical rhythm for the principal full-page views. */
+.perspectives-page,
+.control-center-page,
+.universal-search-page,
+.rules-settings-page,
+.profile-page {
+  row-gap: var(--app-block-gap);
 }
 
 /* Match the profile detail avatar with the neon identity used in the top bar. */
@@ -132,6 +180,27 @@
 }
 
 @media (max-width: 760px) {
+  :root {
+    --app-page-gutter: 18px;
+    --app-page-space: 14px;
+    --app-block-gap: 12px;
+  }
+
+  .main-content > .global-nexo-perspective,
+  .main-content > .mail-view,
+  .main-content > .settings-page,
+  .main-content > .compose-page,
+  .main-content > .app-footer {
+    width: calc(100% - 36px);
+  }
+
+  .main-content > .mail-view,
+  .main-content > .settings-page,
+  .main-content > .compose-page {
+    padding-top: var(--app-page-space) !important;
+    padding-bottom: 24px !important;
+  }
+
   .topbar {
     min-height: 64px;
     padding-top: 7px !important;
@@ -148,7 +217,7 @@
   }
 
   .global-nexo-perspective {
-    padding-bottom: 8px;
+    padding-top: 10px !important;
   }
 
   .control-center-page.nexi-control-center .control-center.control-center-loading {
