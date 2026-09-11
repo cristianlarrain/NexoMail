@@ -43,7 +43,7 @@ internal static class AiUsageSmoke
             database.Users.Add(user);
             database.AiUsageEvents.Add(new AiUsageEventEntity
             {
-                Id = Guid.NewGuid(), UserId = user.Id, OccurredAt = DateTimeOffset.UtcNow,
+                Id = Guid.NewGuid(), UserId = user.Id, OccurredAt = DateTimeOffset.UtcNow.UtcDateTime,
                 OperationType = "mail_summary", Model = "gpt-5.6-luna", InputTokens = 10,
                 OutputTokens = 5, DurationMs = 25, Succeeded = true
             });
