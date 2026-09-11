@@ -15,7 +15,7 @@ var dbPath = Path.Combine(Path.GetTempPath(), $"nexomail-commercial-smoke-{Guid.
 try
 {
     var options = new DbContextOptionsBuilder<NexoMailDbContext>()
-        .UseSqlite($"Data Source={dbPath}")
+        .UseSqlite($"Data Source={dbPath};Pooling=False")
         .Options;
 
     await using var database = new NexoMailDbContext(options);
