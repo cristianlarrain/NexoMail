@@ -24,7 +24,7 @@
 }
 
 .commercial-billing-return span {
-  color: var(--muted);
+  color: var(--muted-foreground);
   font-size: 11px;
   line-height: 1.45;
 }
