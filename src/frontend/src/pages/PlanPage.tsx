@@ -83,6 +83,9 @@ export function PlanPage() {
     : 0
   const renewalDate = formatDate(data.subscription.currentPeriodEnd)
   const trialEnd = formatDate(data.subscription.trialEndsAt)
+  const isAdminTrial = !isOwner && data.subscription.provider === 'admin_trial'
+  const activeAdminTrial = isAdminTrial && data.subscription.status === 'trialing' && Boolean(trialEnd)
+  const trialName = data.effectivePlanCode === 'premium' ? 'Premium' : 'Nexi'
   const statusNeedsAttention = !isOwner && !data.paidAccessActive
   const paymentReady = billing.data?.configured === true && billing.data?.webhookConfigured === true
 
@@ -94,6 +97,7 @@ export function PlanPage() {
 
     {!isOwner && returnedFromBilling && <div className="commercial-billing-return"><Sparkles size={17} /><div><strong>Estamos verificando su suscripción</strong><span>La activación se refleja automáticamente cuando Mercado Pago confirma el estado del cobro.</span></div></div>}
     {!isOwner && checkout.isError && <div className="notice">{checkout.error instanceof Error ? checkout.error.message : 'No fue posible iniciar la contratación.'}</div>}
+    {activeAdminTrial && <div className="commercial-billing-return"><Sparkles size={17} /><div><strong>Prueba gratuita de {trialName}</strong><span>Acceso temporal habilitado hasta el {trialEnd}. Al finalizar, su cuenta volverá automáticamente a las funciones del plan Freemium.</span></div></div>}
 
     <section className={`commercial-current-plan tone-${currentTone}`}>
       <div className="commercial-current-heading">
@@ -102,7 +106,7 @@ export function PlanPage() {
           : <PlanBrandmark plan={current} compact />}
         {isOwner
           ? <div><span>Acceso interno</span><strong>Owner / Administrador general</strong><small>Sin vencimiento · independiente de planes comerciales</small></div>
-          : <div><span>Plan actual</span><strong>{current.name}</strong><small>{current.price} · {current.cadence}</small></div>}
+          : <div><span>Plan base</span><strong>{current.name}</strong><small>{current.price} · {current.cadence}</small></div>}
       </div>
       <div className="commercial-account-usage">
         <div><span>Cuentas conectadas</span><strong>{data.connectedAccounts}{usageLimit ? ` / ${usageLimit}` : ''}</strong></div>
@@ -113,12 +117,13 @@ export function PlanPage() {
         {isOwner
           ? <><span className="commercial-subscription-status">Acceso interno protegido</span><small>No depende de Mercado Pago, vencimientos ni estado de suscripción.</small></>
           : <>
-              <span className={`commercial-subscription-status ${statusNeedsAttention ? 'attention' : ''}`}>{subscriptionLabel(data.subscription.status)}</span>
+              <span className={`commercial-subscription-status ${statusNeedsAttention ? 'attention' : ''}`}>{isAdminTrial && data.subscription.status === 'expired' ? 'Prueba finalizada' : subscriptionLabel(data.subscription.status)}</span>
               {renewalDate && <small>{data.subscription.cancelAtPeriodEnd ? `Finaliza el ${renewalDate}` : `Próxima renovación: ${renewalDate}`}</small>}
               {trialEnd && <small>Prueba hasta: {trialEnd}</small>}
               {!data.subscription.provider && data.subscription.status === 'legacy' && <small>Acceso previo a la integración de pagos.</small>}
               {data.subscription.provider === 'mercadopago' && <small>Pago recurrente mediante Mercado Pago.</small>}
               {data.subscription.provider === 'admin' && <small>Plan asignado manualmente por administración.</small>}
+              {data.subscription.provider === 'admin_trial' && <small>{data.subscription.status === 'trialing' ? `Prueba gratuita de ${trialName} otorgada por administración.` : 'La prueba gratuita ya finalizó.'}</small>}
             </>}
       </div>
       {!isOwner && !data.paidAccessActive && <div className="commercial-limit-notice warning">El estado de la suscripción no habilita actualmente las funciones pagadas. Mientras se regulariza, NexoMail aplica las capacidades del plan Freemium.</div>}
@@ -140,7 +145,7 @@ export function PlanPage() {
           <header>
             <PlanBrandmark plan={plan} />
             <div><strong>{plan.name}</strong><span>{plan.description}</span></div>
-            {isCurrent && <b className="commercial-current-badge">Plan actual</b>}
+            {isCurrent && <b className="commercial-current-badge">Plan base</b>}
             {!isCurrent && plan.isFeatured && <b className="commercial-featured-badge">Más elegido</b>}
           </header>
           <div className="commercial-price"><strong>{plan.price}</strong><span>{plan.cadence}</span></div>
@@ -151,7 +156,7 @@ export function PlanPage() {
               : pendingSamePlan
                 ? <button type="button" className="secondary-button" disabled>Confirmación de pago pendiente</button>
                 : isCurrent && !regularize
-                  ? <button type="button" className="secondary-button" disabled>Plan activo</button>
+                  ? <button type="button" className="secondary-button" disabled>{activeAdminTrial ? 'Plan base Freemium' : 'Plan activo'}</button>
                   : plan.code === 'freemium'
                     ? <button type="button" className="secondary-button" disabled>Plan gratuito</button>
                     : plan.isCorporate || plan.isWhiteLabel
@@ -162,6 +167,6 @@ export function PlanPage() {
       })}
     </section>
 
-    <div className="commercial-next-step"><Sparkles size={17} /><div><strong>{isOwner ? 'Acceso interno protegido' : paymentReady ? 'Pagos recurrentes disponibles' : 'Integración de pagos preparada'}</strong><span>{isOwner ? 'El Owner conserva todas las capacidades, sin límite comercial de cuentas y sin depender del estado de una suscripción.' : paymentReady ? 'Premium puede contratarse mediante Mercado Pago. Las confirmaciones actualizan automáticamente la suscripción y las funciones habilitadas.' : 'La lógica de suscripción, checkout y webhooks está incorporada. Falta configurar las credenciales privadas de Mercado Pago en el entorno para habilitar cobros reales.'}</span></div></div>
+    <div className="commercial-next-step"><Sparkles size={17} /><div><strong>{isOwner ? 'Acceso interno protegido' : activeAdminTrial ? `Está probando ${trialName}` : paymentReady ? 'Pagos recurrentes disponibles' : 'Integración de pagos preparada'}</strong><span>{isOwner ? 'El Owner conserva todas las capacidades, sin límite comercial de cuentas y sin depender del estado de una suscripción.' : activeAdminTrial ? `Puede usar ${trialName} sin costo hasta el ${trialEnd}. Si desea conservar estas funciones después de la prueba, podrá contratar el plan correspondiente.` : paymentReady ? 'Premium puede contratarse mediante Mercado Pago. Las confirmaciones actualizan automáticamente la suscripción y las funciones habilitadas.' : 'La lógica de suscripción, checkout y webhooks está incorporada. Falta configurar las credenciales privadas de Mercado Pago en el entorno para habilitar cobros reales.'}</span></div></div>
   </section>
 }
