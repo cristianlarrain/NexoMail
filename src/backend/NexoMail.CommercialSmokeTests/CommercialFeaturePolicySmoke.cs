@@ -14,6 +14,8 @@ internal static class CommercialFeaturePolicySmoke
             "Responder debe exigir acciones de correo.");
         Ensure(CommercialFeaturePolicy.RequiredEntitlement("POST", "/api/mail/messages/account/message/ai-reply") == CommercialEntitlements.NexiAi,
             "La respuesta asistida por IA debe exigir Nexi e IA.");
+        Ensure(CommercialFeaturePolicy.RequiredEntitlement("POST", "/api/mail/messages/account/message/ai-summary") == CommercialEntitlements.NexiAi,
+            "El resumen asistido por IA debe exigir Nexi e IA.");
         Ensure(CommercialFeaturePolicy.RequiredEntitlement("POST", "/api/mail/drafts") == CommercialEntitlements.MailActions,
             "Guardar borradores debe exigir acciones de correo.");
         Ensure(CommercialFeaturePolicy.RequiredEntitlement("PUT", "/api/mail/drafts/account/draft") == CommercialEntitlements.MailActions,
