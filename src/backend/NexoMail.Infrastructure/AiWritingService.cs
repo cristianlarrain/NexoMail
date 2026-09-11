@@ -22,7 +22,8 @@ public sealed record AiGeneratedImage(string DataUrl, string ContentType, string
 
 public sealed class AiWritingService(
     IHttpClientFactory httpClientFactory,
-    IOptions<AiWritingOptions> options)
+    IOptions<AiWritingOptions> options,
+    AiResponseClient responseClient)
 {
     private const int MaximumPromptCharacters = 14_000;
     private const int MaximumContextCharacters = 3_500;
@@ -83,10 +84,6 @@ public sealed class AiWritingService(
         if (string.IsNullOrWhiteSpace(cleanText))
             throw new InvalidOperationException("No hay una perspectiva para ampliar.");
 
-        var settings = options.Value;
-        if (string.IsNullOrWhiteSpace(settings.ApiKey))
-            throw new InvalidOperationException("La función de IA todavía no está configurada en el servidor.");
-
         var input = $"""
             Perspectiva guardada por el usuario:
             “{cleanText}”
@@ -106,34 +103,13 @@ public sealed class AiWritingService(
             Devuelve únicamente la reflexión ampliada.
             """;
 
-        var payload = JsonSerializer.Serialize(new
-        {
-            model = string.IsNullOrWhiteSpace(settings.Model) ? "gpt-5.6-luna" : settings.Model,
-            reasoning = new { effort = "medium" },
+        var output = (await responseClient.SendAsync(
+            "writing_assistant",
             instructions,
             input,
-            max_output_tokens = 900
-        });
-
-        var client = httpClientFactory.CreateClient("OpenAI");
-        using var request = new HttpRequestMessage(HttpMethod.Post, "responses")
-        {
-            Content = new StringContent(payload, Encoding.UTF8, "application/json")
-        };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiKey);
-
-        using var response = await client.SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            var detail = await response.Content.ReadAsStringAsync(cancellationToken);
-            throw new HttpRequestException(
-                $"OpenAI rechazó la solicitud ({(int)response.StatusCode}). {Limit(detail, 500)}",
-                null,
-                response.StatusCode);
-        }
-
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
-        var output = ExtractOutputText(document.RootElement).Trim();
+            900,
+            "medium",
+            cancellationToken)).Trim();
         if (string.IsNullOrWhiteSpace(output))
             throw new InvalidOperationException("Nexi no devolvió una ampliación de esta perspectiva.");
 
@@ -208,10 +184,6 @@ public sealed class AiWritingService(
         bool isReply,
         CancellationToken cancellationToken)
     {
-        var settings = options.Value;
-        if (string.IsNullOrWhiteSpace(settings.ApiKey))
-            throw new InvalidOperationException("La función de IA todavía no está configurada en el servidor.");
-
         var normalizedTone = NormalizeTone(tone);
         var outputInstruction = isReply
             ? "Devuelve únicamente el cuerpo de la respuesta, sin asunto, sin Markdown y sin explicar tu proceso."
@@ -229,34 +201,13 @@ public sealed class AiWritingService(
             {(isReply ? "La respuesta debe contestar de manera pertinente lo que realmente plantea el correo y considerar el hilo reciente." : "Convierte las ideas breves del usuario en un correo completo, coherente y listo para editar. Si se proporcionó un destinatario, adapta el registro a esa referencia sin inventar información sobre esa persona.")}
             """;
 
-        var payload = JsonSerializer.Serialize(new
-        {
-            model = string.IsNullOrWhiteSpace(settings.Model) ? "gpt-5.6-luna" : settings.Model,
-            reasoning = new { effort = "low" },
+        var output = (await responseClient.SendAsync(
+            "writing_assistant",
             instructions,
-            input = Limit(input, MaximumPromptCharacters),
-            max_output_tokens = 900
-        });
-
-        var client = httpClientFactory.CreateClient("OpenAI");
-        using var request = new HttpRequestMessage(HttpMethod.Post, "responses")
-        {
-            Content = new StringContent(payload, Encoding.UTF8, "application/json")
-        };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiKey);
-
-        using var response = await client.SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            var detail = await response.Content.ReadAsStringAsync(cancellationToken);
-            throw new HttpRequestException(
-                $"OpenAI rechazó la solicitud ({(int)response.StatusCode}). {Limit(detail, 500)}",
-                null,
-                response.StatusCode);
-        }
-
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
-        var output = ExtractOutputText(document.RootElement).Trim();
+            Limit(input, MaximumPromptCharacters),
+            900,
+            "low",
+            cancellationToken)).Trim();
         if (string.IsNullOrWhiteSpace(output))
             throw new InvalidOperationException("Nexi no devolvió una propuesta de redacción.");
 
@@ -324,28 +275,6 @@ public sealed class AiWritingService(
         "explicito" => "claro, preciso y suficientemente detallado, dejando inequívoco qué se responde o solicita",
         _ => "profesional, claro y cordial"
     };
-
-    private static string ExtractOutputText(JsonElement root)
-    {
-        if (!root.TryGetProperty("output", out var output) || output.ValueKind != JsonValueKind.Array)
-            return string.Empty;
-
-        var builder = new StringBuilder();
-        foreach (var item in output.EnumerateArray())
-        {
-            if (!item.TryGetProperty("type", out var itemType) || itemType.GetString() != "message") continue;
-            if (!item.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.Array) continue;
-            foreach (var part in content.EnumerateArray())
-            {
-                if (!part.TryGetProperty("type", out var type) || type.GetString() != "output_text") continue;
-                if (!part.TryGetProperty("text", out var text) || string.IsNullOrWhiteSpace(text.GetString())) continue;
-                if (builder.Length > 0) builder.AppendLine();
-                builder.Append(text.GetString());
-            }
-        }
-
-        return builder.ToString();
-    }
 
     private static string Limit(string value, int maximum) => value.Length <= maximum ? value : value[..maximum];
 }
