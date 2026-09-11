@@ -1,0 +1,78 @@
+name: Microsoft Graph smoke
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  microsoft-graph:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore NexoMail.sln
+
+      - name: Verify Microsoft Graph smoke
+        run: dotnet run --project src/backend/NexoMail.MicrosoftGraphSmokeTests/NexoMail.MicrosoftGraphSmokeTests.csproj --configuration Release
+
+      - name: Build solution
+        run: dotnet build NexoMail.sln --configuration Release --no-restore
+
+      - name: Reject committed Microsoft secrets or tokens
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          import sys
+
+          roots = [
+              Path('src/backend/NexoMail.Api'),
+              Path('src/backend/NexoMail.Infrastructure/Microsoft'),
+          ]
+          allowed_suffixes = {'.json', '.cs', '.xml', '.config'}
+          findings = []
+
+          client_secret_literal = re.compile(
+              r'(?i)(?:["\']?ClientSecret["\']?\s*[:=]\s*)["\']([^"\']+)["\']'
+          )
+          token_literal = re.compile(
+              r'(?i)(?:access[_-]?token|refresh[_-]?token)\s*[:=]\s*["\']([^"\']+)["\']'
+          )
+
+          for root in roots:
+              if not root.exists():
+                  continue
+              for path in root.rglob('*'):
+                  if not path.is_file() or path.suffix.lower() not in allowed_suffixes:
+                      continue
+                  text = path.read_text(encoding='utf-8', errors='ignore')
+
+                  for match in client_secret_literal.finditer(text):
+                      value = match.group(1).strip()
+                      if value and value.lower() not in {'string.empty'}:
+                          findings.append(f'{path}: non-empty ClientSecret literal')
+
+                  for match in token_literal.finditer(text):
+                      value = match.group(1).strip()
+                      if value:
+                          findings.append(f'{path}: hard-coded token literal')
+
+          if findings:
+              print('Potential committed Microsoft secret/token detected:')
+              for finding in findings:
+                  print(f' - {finding}')
+              sys.exit(1)
+
+          print('Microsoft production/config secret scan: PASS')
