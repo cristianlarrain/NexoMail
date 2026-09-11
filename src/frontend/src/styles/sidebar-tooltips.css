@@ -1,0 +1,84 @@
+/* Context labels for the desktop sidebar. They are intentionally visible only while the sidebar is collapsed. */
+@media (min-width: 761px) {
+  .sidebar.collapsed,
+  .sidebar.collapsed nav {
+    overflow: visible;
+  }
+
+  .sidebar.collapsed [data-sidebar-tooltip]:not(.collapse-button) {
+    position: relative;
+  }
+
+  .sidebar.collapsed [data-sidebar-tooltip]::after {
+    content: attr(data-sidebar-tooltip);
+    position: absolute;
+    left: calc(100% + 10px);
+    top: 50%;
+    z-index: 80;
+    min-width: max-content;
+    max-width: 240px;
+    padding: 7px 9px;
+    border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border));
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--surface) 96%, var(--foreground) 4%);
+    color: var(--foreground);
+    box-shadow: 0 7px 20px color-mix(in srgb, var(--foreground) 16%, transparent);
+    font-size: 12px;
+    font-weight: 650;
+    line-height: 1.2;
+    letter-spacing: 0;
+    text-align: left;
+    text-transform: none;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transform: translate(4px, -50%);
+    transition: opacity .12s ease, transform .12s ease, visibility .12s ease;
+  }
+
+  .sidebar.collapsed [data-sidebar-tooltip]::before {
+    content: '';
+    position: absolute;
+    left: calc(100% + 5px);
+    top: 50%;
+    z-index: 81;
+    width: 8px;
+    height: 8px;
+    border-left: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border));
+    border-bottom: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border));
+    background: color-mix(in srgb, var(--surface) 96%, var(--foreground) 4%);
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transform: translate(4px, -50%) rotate(45deg);
+    transition: opacity .12s ease, transform .12s ease, visibility .12s ease;
+  }
+
+  .sidebar.collapsed [data-sidebar-tooltip]:hover::after,
+  .sidebar.collapsed [data-sidebar-tooltip]:focus-visible::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(0, -50%);
+  }
+
+  .sidebar.collapsed [data-sidebar-tooltip]:hover::before,
+  .sidebar.collapsed [data-sidebar-tooltip]:focus-visible::before {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(0, -50%) rotate(45deg);
+  }
+
+  .sidebar.collapsed .collapse-button[data-sidebar-tooltip]::after {
+    left: calc(100% + 8px);
+  }
+
+  .sidebar.collapsed .collapse-button[data-sidebar-tooltip]::before {
+    left: calc(100% + 3px);
+  }
+
+  :root[data-theme="dark"] .sidebar.collapsed [data-sidebar-tooltip]::after,
+  :root[data-theme="dark"] .sidebar.collapsed [data-sidebar-tooltip]::before {
+    background: color-mix(in srgb, #0b1c23 94%, var(--primary) 6%);
+  }
+}
