@@ -156,7 +156,7 @@ internal static class AiUsageAdminSmoke
             AddParameter(command, "$start", start.ToString("O"));
             AddParameter(command, "$end", end.ToString("O"));
             AddParameter(command, "$updated", start.ToString("O"));
-            AddParameter(command, "$userId", userId.ToString());
+            AddParameter(command, "$userId", userId);
             await command.ExecuteNonQueryAsync(ct);
         }
         finally
