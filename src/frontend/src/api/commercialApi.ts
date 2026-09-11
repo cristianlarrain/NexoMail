@@ -77,6 +77,7 @@ export interface CommercialPlanWriteRequest {
   maxAccounts: number | null
   description: string
   features: string[]
+  entitlements: string[]
   isFeatured: boolean
   isCorporate: boolean
   isWhiteLabel: boolean
