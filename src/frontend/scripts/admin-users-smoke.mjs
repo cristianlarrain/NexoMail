@@ -29,5 +29,6 @@ ensure(usersPage.includes('connectedAccounts'), 'La tabla debe mostrar las cuent
 ensure(usersPage.includes('effectivePlanCode'), 'La tabla debe distinguir el plan efectivo del asignado.')
 ensure(/\.commercial-admin-table th\s*\{[^}]*background:/s.test(adminStyles), 'Los encabezados de las grillas administrativas deben tener un fondo visible.')
 ensure(/\.commercial-admin-table th\s*\{[^}]*color:\s*(?:#fff|white|var\(--[^)]*on[^)]*\))/s.test(adminStyles), 'Los encabezados de las grillas administrativas deben usar texto de alto contraste.')
+ensure(/\.commercial-admin-guidance\s*\{[^}]*color:\s*var\(--foreground\)/s.test(adminStyles), 'El aviso administrativo debe usar texto principal de alto contraste, también en modo oscuro.')
 
 console.log('PASS: administración de usuarios -> API -> ruta -> pantalla -> asignación de plan')
