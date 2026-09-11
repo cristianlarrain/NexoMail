@@ -31,6 +31,10 @@ function uniqueMessages(items: MailSummary[]) {
   return [...unique.values()].sort((left, right) => new Date(right.receivedAt).getTime() - new Date(left.receivedAt).getTime())
 }
 
+function isMicrosoftReadAction(action: NexiMailAction) {
+  return action === 'mark_read' || action === 'mark_unread'
+}
+
 async function loadMatchingMessages(accountId: string | undefined, folder: NexiMailSourceFolder, search: string) {
   const items: MailSummary[] = []
   let cursor: string | undefined
@@ -113,7 +117,7 @@ function textToHtml(value: string) {
   return paragraphs.join('') || '<p></p>'
 }
 
-async function executeAction(action: NexiMailAction, items: MailSummary[], pendingByMessage: Map<string, PendingRef>): Promise<ActionResult> {
+async function executeAction(action: NexiMailAction, items: MailSummary[], pendingByMessage: Map<string, PendingRef>, microsoftAccountIds: Set<string>): Promise<ActionResult> {
   let completed = 0
   let failed = 0
   let skipped = 0
@@ -122,6 +126,7 @@ async function executeAction(action: NexiMailAction, items: MailSummary[], pendi
   for (let offset = 0; offset < items.length; offset += batchSize) {
     const batch = items.slice(offset, offset + batchSize)
     const results = await Promise.allSettled(batch.map(async item => {
+      if (microsoftAccountIds.has(item.accountId) && !isMicrosoftReadAction(action)) return 'skipped' as const
       switch (action) {
         case 'trash':
           await mailApi.trash(item.accountId, item.providerMessageId)
@@ -205,6 +210,7 @@ export function NexiActionPlanPage() {
   const includesTrash = plan.some(step => step.action === 'trash')
 
   const accounts = useQuery({ queryKey: ['accounts'], queryFn: mailApi.accounts, staleTime: 10 * 60_000 })
+  const microsoftAccountIds = useMemo(() => new Set((accounts.data ?? []).filter(account => account.provider === 'MicrosoftGraph').map(account => account.id)), [accounts.data])
   const interpretation = useQuery({
     queryKey: ['ai-search-interpretation', searchBasis],
     queryFn: () => searchApi.interpret(searchBasis),
@@ -271,6 +277,7 @@ export function NexiActionPlanPage() {
   }, [items, pendingByMessage, plan, waitingForContext])
 
   const totalOperations = previewSteps.reduce((sum, step) => sum + step.items.length, 0)
+  const microsoftUnsupportedOperations = previewSteps.reduce((sum, step) => isMicrosoftReadAction(step.action) ? sum : sum + step.items.filter(item => microsoftAccountIds.has(item.accountId)).length, 0)
   const selectedAccount = accounts.data?.find(account => account.id === explicitAccount)
 
   const mutation = useMutation({
@@ -281,7 +288,7 @@ export function NexiActionPlanPage() {
           results.push({ ...step, completed: 0, failed: 0, skipped: 0 })
           continue
         }
-        const stepResult = await executeAction(step.action, step.items, pendingByMessage)
+        const stepResult = await executeAction(step.action, step.items, pendingByMessage, microsoftAccountIds)
         results.push({ action: step.action, subset: step.subset, clause: step.clause, ...stepResult })
       }
       return results
@@ -308,7 +315,7 @@ export function NexiActionPlanPage() {
     navigate(`/control-center?${next.toString()}`)
   }
 
-  const confirmMessage = `Nexi ejecutará ${plan.length} pasos en orden, con ${totalOperations} operaciones sobre correos. ${includesTrash ? 'El plan incluye mover correos a Papelera. ' : ''}${includesReplyDrafts ? 'Las respuestas se guardarán como borradores y no se enviarán automáticamente. ' : ''}Revisa el plan antes de confirmar.`
+  const confirmMessage = `Nexi ejecutará ${plan.length} pasos en orden, con ${totalOperations} operaciones sobre correos. ${includesTrash ? 'El plan incluye mover correos a Papelera. ' : ''}${includesReplyDrafts ? 'Las respuestas se guardarán como borradores y no se enviarán automáticamente. ' : ''}${microsoftUnsupportedOperations > 0 ? `${microsoftUnsupportedOperations} operaciones sobre Microsoft 365 se omitirán porque Phase 1 sólo permite marcar leído/no leído. ` : ''}Revisa el plan antes de confirmar.`
 
   if (plan.length <= 1) return null
 
@@ -327,6 +334,7 @@ export function NexiActionPlanPage() {
     {waitingForContext && <div className="universal-search-loading"><Sparkles size={18} /><span>Contrastando pendientes e informativos con el Centro de Control…</span></div>}
     {preview.isError && <div className="notice">{preview.error instanceof Error ? preview.error.message : 'No fue posible preparar este plan.'}</div>}
     {controlCenter.isError && requiresControlCenter && <div className="notice">No fue posible comprobar el estado operativo de los correos. Nexi no ejecutará el plan.</div>}
+    {microsoftUnsupportedOperations > 0 && <div className="notice">Microsoft 365 está en Phase 1: {microsoftUnsupportedOperations} operación{microsoftUnsupportedOperations === 1 ? '' : 'es'} no compatible{microsoftUnsupportedOperations === 1 ? '' : 's'} se omitirá{microsoftUnsupportedOperations === 1 ? '' : 'n'}. Sólo marcar leído/no leído puede ejecutarse sobre esas cuentas.</div>}
 
     {!preview.isLoading && !waitingForContext && items.length > 0 && <>
       <section className="nexi-plan-steps" aria-label="Plan de acciones">
@@ -340,7 +348,7 @@ export function NexiActionPlanPage() {
 
       <section className="nexi-action-summary nexi-plan-summary">
         <div><Inbox size={17} /><span><strong>{items.length}</strong> correos en el contexto · <strong>{totalOperations}</strong> operaciones planificadas</span></div>
-        <button type="button" className={includesTrash ? 'nexi-trash-action-button' : 'nexi-agent-action-button'} disabled={mutation.isPending || totalOperations === 0 || (requiresControlCenter && controlCenter.isError)} onClick={() => setConfirmOpen(true)}><Sparkles size={15} />Ejecutar plan</button>
+        <button type="button" className={includesTrash ? 'nexi-trash-action-button' : 'nexi-agent-action-button'} disabled={accounts.isLoading || mutation.isPending || totalOperations === 0 || (requiresControlCenter && controlCenter.isError)} onClick={() => setConfirmOpen(true)}><Sparkles size={15} />Ejecutar plan</button>
       </section>
 
       {preview.data?.limited && <div className="nexi-action-limit"><AlertTriangle size={14} />El contexto supera {MAX_ACTION_RESULTS} correos. Por seguridad, el plan se limita a los primeros {MAX_ACTION_RESULTS}; puedes acotar la búsqueda para continuar.</div>}
