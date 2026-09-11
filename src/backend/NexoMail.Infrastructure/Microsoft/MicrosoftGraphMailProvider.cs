@@ -1,4 +1,6 @@
+using System.Net;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using NexoMail.Application;
@@ -61,8 +63,38 @@ public sealed class MicrosoftGraphMailProvider(
         return new PagedResult<MailSummary>(items, nextCursor);
     }
 
-    public Task<MailMessage?> GetMessageAsync(Guid accountId, string messageId, CancellationToken cancellationToken) =>
-        Task.FromException<MailMessage?>(Unsupported());
+    public async Task<MailMessage?> GetMessageAsync(Guid accountId, string messageId, CancellationToken cancellationToken)
+    {
+        var accessToken = await tokenProvider.GetAccessTokenAsync(accountId, cancellationToken);
+        var client = httpClientFactory.CreateClient("MicrosoftGraph");
+        var select = Uri.EscapeDataString("id,from,toRecipients,ccRecipients,subject,body,bodyPreview,receivedDateTime,isRead,hasAttachments");
+        var requestUrl = $"{GraphBase}me/messages/{Uri.EscapeDataString(messageId)}?$select={select}";
+        using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        using var response = await client.SendAsync(request, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+        response.EnsureSuccessStatusCode();
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        var message = await JsonSerializer.DeserializeAsync<GraphMessage>(stream, cancellationToken: cancellationToken);
+        if (message is null || string.IsNullOrWhiteSpace(message.Id))
+            return null;
+
+        return new MailMessage(
+            message.Id,
+            accountId,
+            ToMailAddress(message.From),
+            message.ToRecipients.Select(ToMailAddress).ToArray(),
+            message.CcRecipients.Select(ToMailAddress).ToArray(),
+            message.Subject ?? string.Empty,
+            ToHtmlBody(message.Body),
+            message.BodyPreview ?? string.Empty,
+            message.ReceivedDateTime,
+            message.IsRead,
+            [],
+            "inbox");
+    }
 
     public Task<IReadOnlyCollection<MailThreadMessage>> GetThreadAsync(Guid accountId, string messageId, CancellationToken cancellationToken) =>
         Task.FromException<IReadOnlyCollection<MailThreadMessage>>(Unsupported());
@@ -78,7 +110,21 @@ public sealed class MicrosoftGraphMailProvider(
 
     public Task ForwardAsync(Guid accountId, string messageId, ComposeMessage message, CancellationToken cancellationToken) => Task.FromException(Unsupported());
 
-    public Task MarkReadAsync(Guid accountId, string messageId, bool read, CancellationToken cancellationToken) => Task.FromException(Unsupported());
+    public async Task MarkReadAsync(Guid accountId, string messageId, bool read, CancellationToken cancellationToken)
+    {
+        var accessToken = await tokenProvider.GetAccessTokenAsync(accountId, cancellationToken);
+        var client = httpClientFactory.CreateClient("MicrosoftGraph");
+        using var request = new HttpRequestMessage(HttpMethod.Patch, $"{GraphBase}me/messages/{Uri.EscapeDataString(messageId)}")
+        {
+            Content = new StringContent(
+                JsonSerializer.Serialize(new { isRead = read }),
+                Encoding.UTF8,
+                "application/json")
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        using var response = await client.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
 
     public Task MoveToTrashAsync(Guid accountId, string messageId, CancellationToken cancellationToken) => Task.FromException(Unsupported());
 
@@ -95,6 +141,21 @@ public sealed class MicrosoftGraphMailProvider(
         var select = Uri.EscapeDataString("id,from,subject,bodyPreview,receivedDateTime,isRead,hasAttachments");
         var orderBy = Uri.EscapeDataString("receivedDateTime desc");
         return $"{GraphBase}me/mailFolders/inbox/messages?$top={pageSize}&$orderby={orderBy}&$select={select}";
+    }
+
+    private static MailAddress ToMailAddress(GraphRecipient? recipient) =>
+        new(recipient?.EmailAddress?.Name ?? string.Empty, recipient?.EmailAddress?.Address ?? string.Empty);
+
+    private static string ToHtmlBody(GraphBody? body)
+    {
+        var content = body?.Content ?? string.Empty;
+        if (!string.Equals(body?.ContentType, "text", StringComparison.OrdinalIgnoreCase))
+            return content;
+
+        return WebUtility.HtmlEncode(content)
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Replace("\n", "<br />", StringComparison.Ordinal);
     }
 
     private static NotSupportedException Unsupported() =>
@@ -117,8 +178,17 @@ public sealed class MicrosoftGraphMailProvider(
         [JsonPropertyName("from")]
         public GraphRecipient? From { get; init; }
 
+        [JsonPropertyName("toRecipients")]
+        public GraphRecipient[] ToRecipients { get; init; } = [];
+
+        [JsonPropertyName("ccRecipients")]
+        public GraphRecipient[] CcRecipients { get; init; } = [];
+
         [JsonPropertyName("subject")]
         public string? Subject { get; init; }
+
+        [JsonPropertyName("body")]
+        public GraphBody? Body { get; init; }
 
         [JsonPropertyName("bodyPreview")]
         public string? BodyPreview { get; init; }
@@ -131,6 +201,15 @@ public sealed class MicrosoftGraphMailProvider(
 
         [JsonPropertyName("hasAttachments")]
         public bool HasAttachments { get; init; }
+    }
+
+    private sealed class GraphBody
+    {
+        [JsonPropertyName("contentType")]
+        public string? ContentType { get; init; }
+
+        [JsonPropertyName("content")]
+        public string? Content { get; init; }
     }
 
     private sealed class GraphRecipient
