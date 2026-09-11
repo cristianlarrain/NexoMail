@@ -49,8 +49,8 @@ ensure(messagePage.includes('hasMailActions && <button className="message-action
   'Responder y la barra inferior del correo deben depender de la capacidad Acciones de correo.')
 ensure(messagePage.includes('hasTracking && canManualTrack') && messagePage.includes('hasTracking && canTrackOrFinalize'),
   'Los controles de seguimiento del lector deben depender de Seguimiento esencial.')
-ensure(composePage.includes('commercialApi.subscription') && composePage.includes('commercialEntitlements.nexiAi') && composePage.includes('hasNexi && <AiInlineWritingAssistant'),
-  'El asistente de escritura del editor debe mostrarse sólo cuando Nexi e IA esté habilitado.')
+ensure(composePage.includes('commercialApi.subscription') && composePage.includes('commercialEntitlements.nexiAi') && composePage.includes('hasNexi && !composeBlocked && <AiInlineWritingAssistant'),
+  'El asistente de escritura del editor debe mostrarse sólo cuando Nexi e IA esté habilitado y el proveedor permita composición.')
 ensure(greetingAssistant.includes('commercialApi.subscription') && greetingAssistant.includes('commercialEntitlements.nexiAi') && greetingAssistant.includes('if (!hasNexi) return null'),
   'El generador visual de saludos debe quedar inactivo cuando Nexi e IA no esté habilitado.')
 ensure(perspective.includes('commercialApi.subscription') && perspective.includes('commercialEntitlements.nexiAi') && perspective.includes('hasNexi && <button'),
