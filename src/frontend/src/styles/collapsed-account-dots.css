@@ -1,0 +1,47 @@
+/* Connected accounts remain identifiable when the desktop sidebar is collapsed. */
+@media (min-width: 761px) {
+  .sidebar.collapsed nav > .nav-item:has(.account-dot) {
+    display: flex !important;
+    width: 42px;
+    height: 24px;
+    min-height: 24px;
+    margin: 0 auto 3px;
+    padding: 0 !important;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    border: 0 !important;
+    border-radius: 8px;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .sidebar.collapsed nav > .nav-item:has(.account-dot):hover {
+    background: color-mix(in srgb, var(--primary) 7%, transparent) !important;
+  }
+
+  .sidebar.collapsed nav > .nav-item:has(.account-dot).active {
+    background: color-mix(in srgb, var(--primary) 11%, var(--surface)) !important;
+  }
+
+  .sidebar.collapsed nav > .nav-item:has(.account-dot) .account-dot {
+    display: block !important;
+    width: 10px;
+    height: 10px;
+    min-width: 10px;
+    flex: 0 0 10px;
+    margin: 0 !important;
+    border-radius: 999px;
+    box-shadow: 0 0 0 2px var(--surface);
+  }
+
+  .sidebar.collapsed nav > .nav-item:has(.account-dot).active .account-dot {
+    width: 12px;
+    height: 12px;
+    min-width: 12px;
+    flex-basis: 12px;
+    box-shadow:
+      0 0 0 2px var(--surface),
+      0 0 0 3px color-mix(in srgb, var(--primary) 75%, transparent);
+  }
+}
