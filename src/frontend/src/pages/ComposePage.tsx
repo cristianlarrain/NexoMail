@@ -64,9 +64,14 @@ export function ComposePage() {
   const queryClient = useQueryClient()
   const state = (location.state ?? {}) as ComposeState
   const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: mailApi.accounts })
+  const sendCapableAccounts = useMemo(() => accounts.filter(account => account.provider !== 'MicrosoftGraph'), [accounts])
   const { data: commercialSubscription } = useQuery({ queryKey: ['commercial-subscription'], queryFn: commercialApi.subscription, staleTime: 30_000 })
   const hasNexi = commercialSubscription?.entitlements.includes(commercialEntitlements.nexiAi) === true
   const origin = state.message
+  const originAccount = origin ? accounts.find(account => account.id === origin.accountId) : undefined
+  const isMicrosoftOrigin = originAccount?.provider === 'MicrosoftGraph'
+  const requestedMicrosoftAccount = Boolean(state.fromAccountId && accounts.find(account => account.id === state.fromAccountId)?.provider === 'MicrosoftGraph')
+  const composeBlocked = Boolean(origin && isMicrosoftOrigin)
   const editingDraft = Boolean(origin && state.mode === 'editDraft')
   const [from, setFrom] = useState(origin?.accountId ?? state.fromAccountId ?? '')
   const [to, setTo] = useState(origin
@@ -96,12 +101,15 @@ export function ComposePage() {
   const fileInput = useRef<HTMLInputElement>(null)
   const recognition = useRef<SpeechRecognitionLike | null>(null)
 
-  const fromAccountId = from || accounts[0]?.id
+  const selectedFromAccount = sendCapableAccounts.find(account => account.id === from)
+  const fromAccountId = composeBlocked ? undefined : selectedFromAccount?.id ?? sendCapableAccounts[0]?.id
+  const fromAccount = accounts.find(account => account.id === fromAccountId)
+  const canUseGoogleContacts = fromAccount?.provider === 'Gmail'
   const recipientTerm = to.slice(to.lastIndexOf(',') + 1).trim()
   const contacts = useQuery({
     queryKey: ['contacts', fromAccountId, recipientTerm],
     queryFn: () => mailApi.contacts(fromAccountId!, recipientTerm),
-    enabled: Boolean(fromAccountId && recipientFocused && recipientTerm.length >= 2),
+    enabled: Boolean(!composeBlocked && canUseGoogleContacts && fromAccountId && recipientFocused && recipientTerm.length >= 2),
     retry: false,
   })
   const action = useMemo(() => state.mode === 'reply'
@@ -117,6 +125,7 @@ export function ComposePage() {
             : 'Enviar', [state.mode])
 
   function buildPayload(): ComposeMessage {
+    if (composeBlocked) throw new Error('Microsoft 365 no permite enviar, responder, reenviar ni guardar borradores en Phase 1.')
     if (!fromAccountId) throw new Error('Selecciona una cuenta desde la cual enviar o guardar el correo.')
     return {
       fromAccountId,
@@ -162,6 +171,10 @@ export function ComposePage() {
 
   useEffect(() => () => recognition.current?.stop(), [])
   useEffect(() => {
+    if (composeBlocked || sendCapableAccounts.length === 0) return
+    if (!sendCapableAccounts.some(account => account.id === from)) setFrom(sendCapableAccounts[0].id)
+  }, [composeBlocked, from, sendCapableAccounts])
+  useEffect(() => {
     if (!origin || state.mode !== 'replyAll' || accounts.length === 0) return
     const ownAddress = normalizedAddress(accounts.find(account => account.id === origin.accountId)?.emailAddress ?? '')
     const toAddresses = uniqueAddresses([origin.from.address, ...origin.to.map(item => item.address)])
@@ -184,7 +197,7 @@ export function ComposePage() {
   function submit(event: FormEvent) {
     event.preventDefault()
     recognition.current?.stop()
-    send.mutate()
+    if (!composeBlocked) send.mutate()
   }
 
   function format(command: string, value?: string) {
@@ -281,7 +294,7 @@ export function ComposePage() {
   }
 
   async function addFiles(files: FileList | null) {
-    if (!files?.length) return
+    if (!files?.length || composeBlocked) return
     const selected = [...files]
     const retainedBytes = editingDraft
       ? retainedDraftAttachments.reduce((sum, file) => sum + file.size, 0)
@@ -316,14 +329,18 @@ export function ComposePage() {
         <button type="button" className="icon-button" onClick={closeComposer} aria-label={origin ? 'Volver' : 'Cerrar'} title={origin ? 'Volver' : 'Cerrar'}>{origin ? <ArrowLeft size={19} /> : <X size={19} />}</button>
       </header>
 
+      {composeBlocked && <div className="notice">Esta cuenta Microsoft 365 está en Phase 1. Todavía no es posible enviar, responder, reenviar ni guardar borradores desde NexoMail.</div>}
+      {!origin && requestedMicrosoftAccount && <div className="notice">Microsoft 365 no admite envío en Phase 1. Selecciona una cuenta Gmail para redactar.</div>}
+      {!composeBlocked && sendCapableAccounts.length === 0 && <div className="notice">No hay una cuenta con envío habilitado. Microsoft 365 está disponible sólo para lectura en Phase 1.</div>}
+
       <form onSubmit={submit}>
         <section className="ai-compose-surface">
           <div className="ai-compose-fields" aria-label="Datos del correo">
             <div className="compose-field">
               <label>De</label>
               <div className="select-wrap">
-                <select value={fromAccountId ?? ''} onChange={event => setFrom(event.target.value)} disabled={Boolean(origin)}>
-                  {accounts.map(account => <option key={account.id} value={account.id}>{account.displayName} · {account.emailAddress}</option>)}
+                <select value={fromAccountId ?? ''} onChange={event => setFrom(event.target.value)} disabled={Boolean(origin) || composeBlocked}>
+                  {sendCapableAccounts.map(account => <option key={account.id} value={account.id}>{account.displayName} · {account.emailAddress}</option>)}
                 </select>
                 <ChevronDown size={16} />
               </div>
@@ -331,17 +348,17 @@ export function ComposePage() {
             <div className="compose-field recipient-field">
               <label>Para</label>
               <div className="recipient-control">
-                <input value={to} onChange={event => setTo(event.target.value)} onFocus={() => setRecipientFocused(true)} onBlur={() => window.setTimeout(() => setRecipientFocused(false), 150)} placeholder="Escribe al menos 2 letras para buscar en Contactos" required />
-                {recipientFocused && recipientTerm.length >= 2 && <div className="contact-suggestions">
+                <input value={to} onChange={event => setTo(event.target.value)} onFocus={() => setRecipientFocused(true)} onBlur={() => window.setTimeout(() => setRecipientFocused(false), 150)} placeholder="Escribe al menos 2 letras para buscar en Contactos" required disabled={composeBlocked} />
+                {recipientFocused && recipientTerm.length >= 2 && canUseGoogleContacts && !composeBlocked && <div className="contact-suggestions">
                   {contacts.isFetching ? <p>Buscando en Contactos de Google…</p> : contacts.isError ? <p className="contact-error">{contacts.error instanceof Error ? contacts.error.message : 'No se pudieron consultar los contactos.'}</p> : contacts.data?.length ? contacts.data.map(contact => <button type="button" key={contact.emailAddress} onMouseDown={event => event.preventDefault()} onClick={() => selectContact(contact.emailAddress)}><strong>{contact.name}</strong><span>{contact.emailAddress}</span></button>) : <p>Sin contactos que coincidan.</p>}
                 </div>}
               </div>
             </div>
             {showCc ? <>
-              <div className="compose-field"><label>CC</label><input value={cc} onChange={event => setCc(event.target.value)} placeholder="copia@dominio.cl" /></div>
-              <div className="compose-field"><label>CCO</label><input value={bcc} onChange={event => setBcc(event.target.value)} placeholder="copia.oculta@dominio.cl" /></div>
-            </> : <button type="button" className="text-button ai-add-copy" onClick={() => setShowCc(true)}>Agregar CC / CCO</button>}
-            <div className="compose-field subject-field"><label>Asunto</label><input value={subject} onChange={event => setSubject(event.target.value)} required /></div>
+              <div className="compose-field"><label>CC</label><input value={cc} onChange={event => setCc(event.target.value)} placeholder="copia@dominio.cl" disabled={composeBlocked} /></div>
+              <div className="compose-field"><label>CCO</label><input value={bcc} onChange={event => setBcc(event.target.value)} placeholder="copia.oculta@dominio.cl" disabled={composeBlocked} /></div>
+            </> : <button type="button" className="text-button ai-add-copy" onClick={() => setShowCc(true)} disabled={composeBlocked}>Agregar CC / CCO</button>}
+            <div className="compose-field subject-field"><label>Asunto</label><input value={subject} onChange={event => setSubject(event.target.value)} required disabled={composeBlocked} /></div>
           </div>
 
           {origin && state.mode !== 'forward' && state.mode !== 'editDraft' && <section className="ai-reply-source" aria-label="Mensaje original">
@@ -354,19 +371,19 @@ export function ComposePage() {
               <small>Revísala antes de responder.</small>
             </div>}
             <div className="format-toolbar" aria-label="Formato">
-              <button type="button" title="Negrita" onMouseDown={event => event.preventDefault()} onClick={() => format('bold')}><Bold size={16} /></button>
-              <button type="button" title="Cursiva" onMouseDown={event => event.preventDefault()} onClick={() => format('italic')}><Italic size={16} /></button>
-              <button type="button" title="Subrayado" onMouseDown={event => event.preventDefault()} onClick={() => format('underline')}><Underline size={16} /></button>
-              <button type="button" title="Lista" onMouseDown={event => event.preventDefault()} onClick={() => format('insertUnorderedList')}><List size={16} /></button>
-              <button type="button" title="Lista numerada" onMouseDown={event => event.preventDefault()} onClick={() => format('insertOrderedList')}><ListOrdered size={16} /></button>
-              <button type="button" title="Insertar enlace" onMouseDown={event => event.preventDefault()} onClick={() => { const url = window.prompt('Pega una URL segura (https://...)'); if (url?.startsWith('https://')) format('createLink', url) }}><Link size={16} /></button>
-              <button type="button" className={`dictation-button ${listening ? 'listening' : ''}`} title={listening ? 'Detener dictado' : 'Dictar mensaje'} aria-label={listening ? 'Detener dictado' : 'Dictar mensaje con micrófono'} onMouseDown={event => event.preventDefault()} onClick={toggleDictation}>{listening ? <MicOff size={16} /> : <Mic size={16} />}</button>
+              <button type="button" title="Negrita" disabled={composeBlocked} onMouseDown={event => event.preventDefault()} onClick={() => format('bold')}><Bold size={16} /></button>
+              <button type="button" title="Cursiva" disabled={composeBlocked} onMouseDown={event => event.preventDefault()} onClick={() => format('italic')}><Italic size={16} /></button>
+              <button type="button" title="Subrayado" disabled={composeBlocked} onMouseDown={event => event.preventDefault()} onClick={() => format('underline')}><Underline size={16} /></button>
+              <button type="button" title="Lista" disabled={composeBlocked} onMouseDown={event => event.preventDefault()} onClick={() => format('insertUnorderedList')}><List size={16} /></button>
+              <button type="button" title="Lista numerada" disabled={composeBlocked} onMouseDown={event => event.preventDefault()} onClick={() => format('insertOrderedList')}><ListOrdered size={16} /></button>
+              <button type="button" title="Insertar enlace" disabled={composeBlocked} onMouseDown={event => event.preventDefault()} onClick={() => { const url = window.prompt('Pega una URL segura (https://...)'); if (url?.startsWith('https://')) format('createLink', url) }}><Link size={16} /></button>
+              <button type="button" className={`dictation-button ${listening ? 'listening' : ''}`} disabled={composeBlocked} title={listening ? 'Detener dictado' : 'Dictar mensaje'} aria-label={listening ? 'Detener dictado' : 'Dictar mensaje con micrófono'} onMouseDown={event => event.preventDefault()} onClick={toggleDictation}>{listening ? <MicOff size={16} /> : <Mic size={16} />}</button>
               {listening && <span className="dictation-status">Escuchando…</span>}
             </div>
             {dictationError && <p className="dictation-error">{dictationError}</p>}
-            <div ref={editor} className="editor rich-editor" contentEditable suppressContentEditableWarning role="textbox" aria-multiline="true" data-placeholder="Escribe tu mensaje…" onInput={event => setBody(event.currentTarget.innerHTML)} />
+            <div ref={editor} className="editor rich-editor" contentEditable={!composeBlocked} suppressContentEditableWarning role="textbox" aria-multiline="true" data-placeholder="Escribe tu mensaje…" onInput={event => setBody(event.currentTarget.innerHTML)} />
 
-            {hasNexi && <AiInlineWritingAssistant
+            {hasNexi && !composeBlocked && <AiInlineWritingAssistant
               currentHtml={body}
               recipient={to}
               accountId={origin && state.mode !== 'forward' && state.mode !== 'editDraft' ? origin.accountId : undefined}
@@ -375,8 +392,8 @@ export function ComposePage() {
             />}
 
             <div className="outgoing-attachments">
-              {retainedDraftAttachments.map(file => <span key={`draft-${file.id}`}><Paperclip size={14} />{file.name}<button type="button" onClick={() => setRetainedDraftAttachments(current => current.filter(item => item.id !== file.id))} aria-label={`Quitar ${file.name}`}><X size={14} /></button></span>)}
-              {attachments.map((file, index) => <span key={`${file.name}-${index}`}><Paperclip size={14} />{file.name}<button type="button" onClick={() => setAttachments(current => current.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Quitar ${file.name}`}><X size={14} /></button></span>)}
+              {retainedDraftAttachments.map(file => <span key={`draft-${file.id}`}><Paperclip size={14} />{file.name}<button type="button" disabled={composeBlocked} onClick={() => setRetainedDraftAttachments(current => current.filter(item => item.id !== file.id))} aria-label={`Quitar ${file.name}`}><X size={14} /></button></span>)}
+              {attachments.map((file, index) => <span key={`${file.name}-${index}`}><Paperclip size={14} />{file.name}<button type="button" disabled={composeBlocked} onClick={() => setAttachments(current => current.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Quitar ${file.name}`}><X size={14} /></button></span>)}
             </div>
             {attachmentError && <p className="attachment-error">{attachmentError}</p>}
             {send.isError && <p className="attachment-error">{send.error instanceof Error ? send.error.message : 'No se pudo enviar el correo.'}</p>}
@@ -385,13 +402,13 @@ export function ComposePage() {
 
           <footer className="ai-compose-footer">
             <div className="ai-compose-footer-left">
-              <input ref={fileInput} className="file-picker" type="file" multiple onChange={event => void addFiles(event.target.files)} />
-              <button type="button" className="attachment-action" disabled={composerBusy} onClick={() => fileInput.current?.click()}><Paperclip size={17} /> Adjuntar</button>
+              <input ref={fileInput} className="file-picker" type="file" multiple disabled={composeBlocked} onChange={event => void addFiles(event.target.files)} />
+              <button type="button" className="attachment-action" disabled={composerBusy || composeBlocked} onClick={() => fileInput.current?.click()}><Paperclip size={17} /> Adjuntar</button>
             </div>
             <div className="ai-compose-footer-actions">
               <button type="button" className="secondary-button compose-discard-button" disabled={composerBusy} onClick={() => setConfirmDiscard(true)}><Trash2 size={15} /> Descartar</button>
-              <button type="button" className="secondary-button" disabled={composerBusy || !fromAccountId} onClick={() => { recognition.current?.stop(); saveDraft.mutate() }}><Save size={15} /> {saveDraft.isPending ? 'Guardando…' : 'Guardar borrador'}</button>
-              <button type="submit" className="primary-button" disabled={composerBusy}><Send size={16} /> {send.isPending ? 'Enviando…' : 'Enviar'}</button>
+              <button type="button" className="secondary-button" disabled={composerBusy || composeBlocked || !fromAccountId} onClick={() => { recognition.current?.stop(); saveDraft.mutate() }}><Save size={15} /> {saveDraft.isPending ? 'Guardando…' : 'Guardar borrador'}</button>
+              <button type="submit" className="primary-button" disabled={composerBusy || composeBlocked || !fromAccountId}><Send size={16} /> {send.isPending ? 'Enviando…' : 'Enviar'}</button>
             </div>
           </footer>
         </section>
