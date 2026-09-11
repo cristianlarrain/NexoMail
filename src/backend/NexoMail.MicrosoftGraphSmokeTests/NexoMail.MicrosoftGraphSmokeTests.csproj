@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../NexoMail.Infrastructure/NexoMail.Infrastructure.csproj" />
+    <ProjectReference Include="../NexoMail.Application/NexoMail.Application.csproj" />
+    <ProjectReference Include="../NexoMail.Domain/NexoMail.Domain.csproj" />
+  </ItemGroup>
+</Project>
