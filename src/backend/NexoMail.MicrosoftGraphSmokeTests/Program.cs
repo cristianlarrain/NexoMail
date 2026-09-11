@@ -83,15 +83,16 @@ try
     var httpClientFactory = new FakeHttpClientFactory(httpHandler);
     var dataProtectionProvider = new EphemeralDataProtectionProvider();
     var tokenProtector = new PassThroughTokenProtector();
+    var microsoftOptions = Options.Create(new MicrosoftGraphOptions
+    {
+        ClientId = "nexomail-client-id",
+        ClientSecret = "nexomail-client-secret",
+        RedirectUri = "http://localhost:5052/api/oauth/microsoft/callback",
+        FrontendUrl = "http://localhost:5173/settings/accounts"
+    });
     var oauth = new MicrosoftOAuthService(
         httpClientFactory,
-        Options.Create(new MicrosoftGraphOptions
-        {
-            ClientId = "nexomail-client-id",
-            ClientSecret = "nexomail-client-secret",
-            RedirectUri = "http://localhost:5052/api/oauth/microsoft/callback",
-            FrontendUrl = "http://localhost:5173/settings/accounts"
-        }),
+        microsoftOptions,
         database,
         tokenProtector,
         dataProtectionProvider,
@@ -234,6 +235,40 @@ try
         "El conflicto entre proveedores debe devolver el mensaje seguro acordado.");
     Ensure(await database.MailAccounts.CountAsync(x => x.UserId == userId && x.EmailAddress == "conflict@empresa.test") == 1,
         "El conflicto entre proveedores no debe crear un duplicado.");
+
+    database.ChangeTracker.Clear();
+    var tokenCredential = await database.OAuthCredentials.SingleAsync(x => x.MailAccountId == reconnectedAccounts[0].Id);
+    tokenCredential.EncryptedRefreshToken = tokenProtector.Protect("test-refresh-old");
+    tokenCredential.UpdatedAt = DateTimeOffset.UtcNow;
+    await database.SaveChangesAsync();
+
+    var tokenRequestBaseline = httpHandler.Requests.Count;
+    httpHandler.EnqueueJson(HttpStatusCode.OK,
+        "{\"access_token\":\"test-access-new\",\"refresh_token\":\"test-refresh-rotated\",\"expires_in\":3600}");
+    var tokenProvider = new MicrosoftGraphTokenProvider(httpClientFactory, microsoftOptions, database, tokenProtector);
+    var accessToken1 = await tokenProvider.GetAccessTokenAsync(reconnectedAccounts[0].Id, CancellationToken.None);
+    var accessToken2 = await tokenProvider.GetAccessTokenAsync(reconnectedAccounts[0].Id, CancellationToken.None);
+
+    Ensure(accessToken1 == "test-access-new" && accessToken2 == "test-access-new",
+        "El proveedor debe devolver el access token renovado y reutilizarlo desde caché.");
+    Ensure(httpHandler.Requests.Count == tokenRequestBaseline + 1,
+        "Dos solicitudes inmediatas deben producir un solo refresh HTTP.");
+    var refreshRequest = httpHandler.Requests[^1];
+    Ensure(refreshRequest.Method == HttpMethod.Post && refreshRequest.Uri == MicrosoftOAuthService.TokenEndpoint,
+        "La renovación debe usar el endpoint organizations/token.");
+    Ensure(refreshRequest.Body.Contains("grant_type=refresh_token", StringComparison.Ordinal),
+        "La renovación debe usar grant_type=refresh_token.");
+    Ensure(refreshRequest.Body.Contains("refresh_token=test-refresh-old", StringComparison.Ordinal),
+        "La renovación debe enviar el refresh token descifrado sólo al endpoint de Microsoft.");
+    Ensure(refreshRequest.Body.Contains("scope=openid+profile+email+offline_access+User.Read+Mail.ReadWrite", StringComparison.Ordinal),
+        "La renovación debe mantener exactamente los scopes de Phase 1.");
+
+    database.ChangeTracker.Clear();
+    var rotatedCredential = await database.OAuthCredentials.SingleAsync(x => x.MailAccountId == reconnectedAccounts[0].Id);
+    Ensure(rotatedCredential.EncryptedRefreshToken == "protected:test-refresh-rotated",
+        "Si Microsoft rota el refresh token, debe persistirse protegido antes de devolver el access token.");
+    Ensure(!rotatedCredential.EncryptedRefreshToken.Contains("test-access-new", StringComparison.Ordinal),
+        "El access token renovado no debe persistirse.");
 
     Console.WriteLine("Microsoft Graph smoke: PASS");
 }
