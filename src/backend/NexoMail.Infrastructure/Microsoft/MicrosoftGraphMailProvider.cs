@@ -36,7 +36,7 @@ public sealed class MicrosoftGraphMailProvider(
         using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         using var response = await client.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        EnsureGraphSuccess(response);
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         var graphPage = await JsonSerializer.DeserializeAsync<GraphMessagePage>(stream, cancellationToken: cancellationToken)
@@ -74,7 +74,7 @@ public sealed class MicrosoftGraphMailProvider(
         using var response = await client.SendAsync(request, cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound)
             return null;
-        response.EnsureSuccessStatusCode();
+        EnsureGraphSuccess(response);
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         var message = await JsonSerializer.DeserializeAsync<GraphMessage>(stream, cancellationToken: cancellationToken);
@@ -97,7 +97,7 @@ public sealed class MicrosoftGraphMailProvider(
     }
 
     public Task<IReadOnlyCollection<MailThreadMessage>> GetThreadAsync(Guid accountId, string messageId, CancellationToken cancellationToken) =>
-        Task.FromException<IReadOnlyCollection<MailThreadMessage>>(Unsupported());
+        Task.FromResult<IReadOnlyCollection<MailThreadMessage>>([]);
 
     public Task<MailAttachmentContent?> GetAttachmentAsync(Guid accountId, string messageId, string attachmentId, CancellationToken cancellationToken) =>
         Task.FromException<MailAttachmentContent?>(Unsupported());
@@ -123,7 +123,7 @@ public sealed class MicrosoftGraphMailProvider(
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         using var response = await client.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        EnsureGraphSuccess(response);
     }
 
     public Task MoveToTrashAsync(Guid accountId, string messageId, CancellationToken cancellationToken) => Task.FromException(Unsupported());
@@ -133,11 +133,11 @@ public sealed class MicrosoftGraphMailProvider(
     public Task EmptyFolderAsync(Guid accountId, string folderId, CancellationToken cancellationToken) => Task.FromException(Unsupported());
 
     public Task<IReadOnlyCollection<MailFolder>> GetFoldersAsync(Guid accountId, CancellationToken cancellationToken) =>
-        Task.FromException<IReadOnlyCollection<MailFolder>>(Unsupported());
+        Task.FromResult<IReadOnlyCollection<MailFolder>>([new MailFolder("inbox", "Bandeja de entrada", 0)]);
 
     private static string BuildInboxUrl(int take)
     {
-        var pageSize = Math.Clamp(take, 1, 100);
+        var pageSize = Math.Clamp(take, 1, 50);
         var select = Uri.EscapeDataString("id,from,subject,bodyPreview,receivedDateTime,isRead,hasAttachments");
         var orderBy = Uri.EscapeDataString("receivedDateTime desc");
         return $"{GraphBase}me/mailFolders/inbox/messages?$top={pageSize}&$orderby={orderBy}&$select={select}";
@@ -156,6 +156,37 @@ public sealed class MicrosoftGraphMailProvider(
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace('\r', '\n')
             .Replace("\n", "<br />", StringComparison.Ordinal);
+    }
+
+    private static void EnsureGraphSuccess(HttpResponseMessage response)
+    {
+        if (response.IsSuccessStatusCode)
+            return;
+
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        {
+            throw new InvalidOperationException(
+                "Microsoft 365 rechazó el acceso al buzón. Vuelve a conectar la cuenta o revisa los permisos de la organización.");
+        }
+
+        if (response.StatusCode == HttpStatusCode.TooManyRequests)
+        {
+            throw new InvalidOperationException(
+                "Microsoft 365 está limitando temporalmente las solicitudes. Inténtalo nuevamente en unos minutos.");
+        }
+
+        if ((int)response.StatusCode >= 500)
+        {
+            throw new HttpRequestException(
+                "Microsoft 365 no está disponible temporalmente.",
+                null,
+                response.StatusCode);
+        }
+
+        throw new HttpRequestException(
+            "Microsoft Graph no pudo completar la operación.",
+            null,
+            response.StatusCode);
     }
 
     private static NotSupportedException Unsupported() =>
