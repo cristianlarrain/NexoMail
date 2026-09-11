@@ -128,30 +128,30 @@ export function AppLayout() {
 
   return <div className="app-shell">
     <aside className={`sidebar ${open ? 'open' : ''} ${collapsed ? 'collapsed' : ''}`}>
-      <div className="brand-row"><button className="brand-home" onClick={() => { setOpen(false); navigate('/inbox') }} aria-label="Ir a Bandeja de entrada"><NexoMailLogo compact={collapsed} /></button><button className="icon-button collapse-button" onClick={() => setCollapsed(!collapsed)} aria-label="Contraer barra lateral"><ChevronLeft size={18} /></button></div>
+      <div className="brand-row"><button className="brand-home" data-sidebar-tooltip="Inicio" onClick={() => { setOpen(false); navigate('/inbox') }} aria-label="Ir a Bandeja de entrada"><NexoMailLogo compact={collapsed} /></button><button className="icon-button collapse-button" data-sidebar-tooltip={collapsed ? 'Expandir menú' : 'Contraer menú'} onClick={() => setCollapsed(!collapsed)} aria-label={collapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'}><ChevronLeft size={18} /></button></div>
       <nav aria-label="Navegación principal">
-        <NavLink to="/inbox" end className={inboxNavClass}><span>Bandeja de Entrada</span><Inbox className="primary-nav-icon" size={15} /></NavLink>
-        <button type="button" className={`compose-button primary-nav-action ${location.pathname === '/compose' ? 'active' : ''}`} onClick={() => { setOpen(false); navigate('/compose', { state: contextualAccountId ? { fromAccountId: contextualAccountId } : undefined }) }}><span>Redactar</span><PenLine className="primary-nav-icon" size={15} /></button>
-        <NavLink to="/control-center" className={controlCenterNavClass}><span>Nexi Control Center</span><span className="primary-nav-icon nexi-sidebar-icon" aria-hidden="true"><NexiVisual size="small" /></span></NavLink>
+        <NavLink to="/inbox" end className={inboxNavClass} data-sidebar-tooltip="Bandeja de entrada"><span>Bandeja de Entrada</span><Inbox className="primary-nav-icon" size={15} /></NavLink>
+        <button type="button" className={`compose-button primary-nav-action ${location.pathname === '/compose' ? 'active' : ''}`} data-sidebar-tooltip="Redactar" onClick={() => { setOpen(false); navigate('/compose', { state: contextualAccountId ? { fromAccountId: contextualAccountId } : undefined }) }}><span>Redactar</span><PenLine className="primary-nav-icon" size={15} /></button>
+        <NavLink to="/control-center" className={controlCenterNavClass} data-sidebar-tooltip="Nexi Control Center"><span>Nexi Control Center</span><span className="primary-nav-icon nexi-sidebar-icon" aria-hidden="true"><NexiVisual size="small" /></span></NavLink>
         <p className="nav-heading">Cuentas</p>
-        {accounts.map(account => <NavLink key={account.id} to={`/account/${account.id}`} className={navClass}><i className="account-dot" style={{ background: account.color }} /><span>{account.displayName}</span></NavLink>)}
-        <button type="button" className="nav-section-toggle" onClick={toggleFolders} aria-expanded={!foldersCollapsed} aria-controls="sidebar-folders" title={foldersCollapsed ? 'Mostrar carpetas' : 'Ocultar carpetas'}>
+        {accounts.map(account => <NavLink key={account.id} to={`/account/${account.id}`} className={navClass} data-sidebar-tooltip={account.displayName} aria-label={`Cuenta ${account.displayName}`}><i className="account-dot" style={{ background: account.color }} /><span>{account.displayName}</span></NavLink>)}
+        <button type="button" className="nav-section-toggle" data-sidebar-tooltip={foldersCollapsed ? 'Mostrar carpetas' : 'Ocultar carpetas'} onClick={toggleFolders} aria-expanded={!foldersCollapsed} aria-controls="sidebar-folders" title={foldersCollapsed ? 'Mostrar carpetas' : 'Ocultar carpetas'}>
           <span>Carpetas</span><ChevronDown size={14} className={foldersCollapsed ? 'collapsed' : ''} />
         </button>
         <div id="sidebar-folders" className={`nav-folder-group ${foldersCollapsed ? 'collapsed' : ''}`}>
           {!foldersCollapsed && <>
-            <NavLink to="/archive" className={navClass}><Archive size={17} /><span>Archivados</span></NavLink>
-            <NavLink to="/ignored" className={navClass}><EyeOff size={17} /><span>Ignorados</span></NavLink>
-            <NavLink to="/sent" className={navClass}><Send size={17} /><span>Enviados</span></NavLink>
-            <NavLink to="/drafts" className={navClass}><FileText size={17} /><span>Borradores</span></NavLink>
-            <NavLink to="/spam" className={navClass}><ShieldAlert size={17} /><span>Spam</span></NavLink>
-            <NavLink to="/trash" className={navClass}><Trash2 size={17} /><span>Papelera</span></NavLink>
+            <NavLink to="/archive" className={navClass} data-sidebar-tooltip="Archivados"><Archive size={17} /><span>Archivados</span></NavLink>
+            <NavLink to="/ignored" className={navClass} data-sidebar-tooltip="Ignorados"><EyeOff size={17} /><span>Ignorados</span></NavLink>
+            <NavLink to="/sent" className={navClass} data-sidebar-tooltip="Enviados"><Send size={17} /><span>Enviados</span></NavLink>
+            <NavLink to="/drafts" className={navClass} data-sidebar-tooltip="Borradores"><FileText size={17} /><span>Borradores</span></NavLink>
+            <NavLink to="/spam" className={navClass} data-sidebar-tooltip="Spam"><ShieldAlert size={17} /><span>Spam</span></NavLink>
+            <NavLink to="/trash" className={navClass} data-sidebar-tooltip="Papelera"><Trash2 size={17} /><span>Papelera</span></NavLink>
           </>}
         </div>
-        <NavLink to="/perspectives" className={navClass}><BookMarked size={17} /><span>Perspectivas</span></NavLink>
-        <NavLink to="/settings/plan" className={navClass}><CreditCard size={17} /><span>Plan y uso</span></NavLink>
-        <NavLink to="/settings/accounts" className={navClass}><Settings size={17} /><span>Configurar</span></NavLink>
-        <button className="theme-switch" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}><span>{theme === 'dark' ? 'Tema claro' : 'Tema oscuro'}</span><span className="switch" data-on={theme === 'dark'} /></button>
+        <NavLink to="/perspectives" className={navClass} data-sidebar-tooltip="Perspectivas"><BookMarked size={17} /><span>Perspectivas</span></NavLink>
+        <NavLink to="/settings/plan" className={navClass} data-sidebar-tooltip="Plan y uso"><CreditCard size={17} /><span>Plan y uso</span></NavLink>
+        <NavLink to="/settings/accounts" className={navClass} data-sidebar-tooltip="Configuración"><Settings size={17} /><span>Configurar</span></NavLink>
+        <button className="theme-switch" data-sidebar-tooltip={theme === 'dark' ? 'Tema claro' : 'Tema oscuro'} aria-label={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}><span>{theme === 'dark' ? 'Tema claro' : 'Tema oscuro'}</span><span className="switch" data-on={theme === 'dark'} /></button>
       </nav>
     </aside>
 
