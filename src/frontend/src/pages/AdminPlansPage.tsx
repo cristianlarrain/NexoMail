@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Check, Pencil, Plus, ShieldCheck, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Check, Pencil, Plus, ShieldCheck, Trash2, UsersRound, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { commercialApi, type CommercialAdminPlan, type CommercialPlanWriteRequest } from '../api/commercialApi'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -134,7 +134,7 @@ export function AdminPlansPage() {
   return <section className="settings-page commercial-admin-page">
     <div className="commercial-admin-header">
       <div><p className="eyebrow">Administración</p><h1>Tipos de cuenta</h1><p className="page-description">Cree, modifique, desactive o elimine los planes comerciales de NexoMail.</p></div>
-      <div className="commercial-admin-header-actions"><Link to="/settings/plan" className="secondary-button"><ArrowLeft size={16} /> Plan y uso</Link><button type="button" className="primary-button" onClick={openNew}><Plus size={16} /> Nuevo tipo</button></div>
+      <div className="commercial-admin-header-actions"><Link to="/settings/plan" className="secondary-button"><ArrowLeft size={16} /> Plan y uso</Link><Link to="/admin/users" className="secondary-button"><UsersRound size={16} /> Usuarios</Link><button type="button" className="primary-button" onClick={openNew}><Plus size={16} /> Nuevo tipo</button></div>
     </div>
 
     <div className="commercial-admin-guidance"><ShieldCheck size={18} /><span>Freemium se conserva como plan base. El límite de cuentas y las funciones habilitadas pueden configurarse por plan. Un tipo de cuenta con usuarios asignados no puede eliminarse; primero debe reasignarlos o dejar el plan inactivo.</span></div>
