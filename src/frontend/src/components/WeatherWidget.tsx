@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, CloudDrizzle, CloudFog, CloudLightning, CloudMoon, CloudRain, CloudSun, Droplets, LoaderCircle, Moon, Snowflake, Sun } from 'lucide-react'
 
 const SANTIAGO = { latitude: -33.4489, longitude: -70.6693, location: 'Santiago' }
+const GEOLOCATION_MAX_AGE_MS = 60_000
+const WEATHER_REFRESH_MS = 5 * 60_000
 
 type ForecastDay = {
   date: string
@@ -13,7 +15,7 @@ type ForecastDay = {
 
 type WeatherState =
   | { status: 'loading'; location: string }
-  | { status: 'ready'; temperature: number; apparentTemperature: number; code: number; isDay: boolean; description: string; location: string; forecast: ForecastDay[] }
+  | { status: 'ready'; temperature: number; apparentTemperature: number; code: number; isDay: boolean; description: string; location: string; forecast: ForecastDay[]; updatedAt: string }
   | { status: 'error'; location: string }
 
 type OpenMeteoResponse = {
@@ -70,6 +72,10 @@ function forecastDayLabel(value: string, index: number) {
   return new Date(`${value}T12:00:00`).toLocaleDateString('es-CL', { weekday: 'short', day: '2-digit' }).replace(/\./g, '')
 }
 
+function updatedAtLabel(value: string) {
+  return new Date(value).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
+}
+
 function buildForecast(data: OpenMeteoResponse): ForecastDay[] {
   const daily = data.daily
   const dates = daily?.time ?? []
@@ -92,19 +98,23 @@ async function resolveLocation(latitude: number, longitude: number) {
     const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?${params.toString()}`)
     if (!response.ok) return ''
     const data = await response.json() as ReverseGeocodeResponse
-    return data.city?.trim() || data.locality?.trim() || data.principalSubdivision?.trim() || ''
+    return data.locality?.trim() || data.city?.trim() || data.principalSubdivision?.trim() || ''
   } catch {
     return ''
   }
 }
 
 export function WeatherWidget() {
-  const [weather, setWeather] = useState<WeatherState>({ status: 'loading', location: SANTIAGO.location })
+  const [weather, setWeather] = useState<WeatherState>({ status: 'loading', location: 'Tu ubicación' })
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let active = true
+
+    function loadFallbackWeather() {
+      void loadWeather(SANTIAGO.latitude, SANTIAGO.longitude, SANTIAGO.location, false)
+    }
 
     async function loadWeather(latitude: number, longitude: number, fallbackLocation: string, resolveCity: boolean) {
       try {
@@ -135,27 +145,42 @@ export function WeatherWidget() {
           description: weatherDescription(current.weather_code),
           location: resolvedLocation || fallbackLocation,
           forecast: buildForecast(data),
+          updatedAt: new Date().toISOString(),
         })
       } catch {
-        if (active && !resolveCity) setWeather({ status: 'error', location: fallbackLocation })
+        if (!active) return
+        if (resolveCity) {
+          loadFallbackWeather()
+          return
+        }
+        setWeather({ status: 'error', location: fallbackLocation })
       }
     }
 
     function requestActualLocation() {
-      if (!navigator.geolocation) return
+      if (!navigator.geolocation) {
+        loadFallbackWeather()
+        return
+      }
+
       navigator.geolocation.getCurrentPosition(
         position => {
           if (!active) return
           void loadWeather(position.coords.latitude, position.coords.longitude, 'Tu ubicación', true)
         },
-        () => undefined,
-        { enableHighAccuracy: false, timeout: 8_000, maximumAge: 15 * 60_000 },
+        () => {
+          if (active) loadFallbackWeather()
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10_000,
+          maximumAge: GEOLOCATION_MAX_AGE_MS,
+        },
       )
     }
 
-    void loadWeather(SANTIAGO.latitude, SANTIAGO.longitude, SANTIAGO.location, false)
     requestActualLocation()
-    const refresh = window.setInterval(requestActualLocation, 15 * 60_000)
+    const refresh = window.setInterval(requestActualLocation, WEATHER_REFRESH_MS)
 
     return () => {
       active = false
@@ -189,6 +214,7 @@ export function WeatherWidget() {
 
   const temperature = Math.round(weather.temperature)
   const apparent = Math.round(weather.apparentTemperature)
+  const updatedAt = updatedAtLabel(weather.updatedAt)
 
   return <div className={`weather-control ${open ? 'open' : ''}`} ref={rootRef}>
     <button
@@ -197,7 +223,7 @@ export function WeatherWidget() {
       aria-label={`${weather.description}, ${temperature} grados en ${weather.location}. Ver pronóstico de siete días`}
       aria-expanded={open}
       aria-controls="weather-seven-day-forecast"
-      title={`${weather.description} · Sensación térmica ${apparent} °C · ${weather.location}`}
+      title={`${weather.description} · Sensación térmica ${apparent} °C · ${weather.location} · Actualizado ${updatedAt}`}
       onClick={() => setOpen(current => !current)}
     >
       <WeatherIcon code={weather.code} isDay={weather.isDay} />
@@ -209,7 +235,7 @@ export function WeatherWidget() {
     {open && <section id="weather-seven-day-forecast" className="weather-dropdown" aria-label={`Pronóstico de siete días para ${weather.location}`}>
       <header>
         <div><strong>{weather.location}</strong><span>{weather.description} · Sensación {apparent}°</span></div>
-        <span>7 días</span>
+        <span>Actualizado {updatedAt} · 7 días</span>
       </header>
       <div className="weather-forecast-list">
         {weather.forecast.map((day, index) => <div className="weather-forecast-row" key={day.date}>
