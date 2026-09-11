@@ -12,7 +12,7 @@ function ensure(condition, message) {
   if (!condition) throw new Error(message)
 }
 
-const [gate, constants, router, layout, controlCenter, messageRoute, messagePage, composePage, greetingAssistant, perspective, perspectivesPage, commercialSettings, commercialBilling] = await Promise.all([
+const [gate, constants, router, layout, controlCenter, messageRoute, messagePage, composePage, greetingAssistant, perspective, perspectivesPage, commercialSettings, commercialBilling, planPage] = await Promise.all([
   source('src/components/RequireEntitlement.tsx'),
   source('src/utils/commercialEntitlements.ts'),
   source('src/router.tsx'),
@@ -26,6 +26,7 @@ const [gate, constants, router, layout, controlCenter, messageRoute, messagePage
   source('src/pages/PerspectivesPage.tsx'),
   source('src/styles/commercial-settings.css'),
   source('src/styles/commercial-billing.css'),
+  source('src/pages/PlanPage.tsx'),
 ])
 
 ensure(gate.includes('commercialApi.subscription') && gate.includes('entitlements.includes(entitlement)'),
@@ -60,5 +61,7 @@ ensure(!commercialSettings.includes('color: var(--muted)') && commercialSettings
   'Plan y uso debe usar el token de texto secundario, no el color de fondo muted, para conservar contraste en modo oscuro.')
 ensure(!commercialBilling.includes('color: var(--muted)') && commercialBilling.includes('color: var(--muted-foreground)'),
   'Los avisos de facturación y prueba deben usar texto secundario legible en modo oscuro.')
+ensure(planPage.includes('activeAdminTrial && <div className="commercial-billing-return"') && !planPage.includes("activeAdminTrial ? `Está probando ${trialName}`"),
+  'La prueba gratuita debe informarse una sola vez en el aviso superior, sin repetirla en el bloque inferior de Plan y uso.')
 
 console.log('PASS: frontend respeta capacidades comerciales configurables')
