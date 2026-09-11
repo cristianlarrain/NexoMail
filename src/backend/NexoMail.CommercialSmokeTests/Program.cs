@@ -161,7 +161,47 @@ try
     Ensure(!customized.Entitlements.Contains(CommercialEntitlements.AdvancedAnalytics),
         "Las funciones no configuradas para el plan no deben habilitarse por defecto.");
 
-    Console.WriteLine("PASS: comercial -> FK SQLite -> heredado -> pendiente -> activo -> impago -> cancelado -> entitlements configurables");
+    var manualUser = new UserEntity
+    {
+        Id = Guid.NewGuid(),
+        DisplayName = "Manual Assignment Smoke",
+        Email = $"manual-assignment-{Guid.NewGuid():N}@nexomail.test",
+        PlanCode = CommercialPlanCatalog.Freemium,
+        CreatedAt = DateTimeOffset.UtcNow,
+        IsEmailVerified = true,
+        IsActive = true
+    };
+    database.Users.Add(manualUser);
+    await database.SaveChangesAsync(ct);
+
+    var manualAssignmentMethod = typeof(CommercialSubscriptionMutations).GetMethod("AssignPlanManuallyAsync");
+    Ensure(manualAssignmentMethod is not null,
+        "Debe existir una operación explícita para asignar planes manualmente desde administración.");
+
+    var assignmentTask = manualAssignmentMethod!.Invoke(null, [database, manualUser.Id, CommercialPlanCatalog.Premium, ct]) as Task;
+    Ensure(assignmentTask is not null, "La asignación administrativa debe ser asíncrona.");
+    await assignmentTask!;
+
+    await database.Entry(manualUser).ReloadAsync(ct);
+    var manuallyPremium = await CommercialAccessStore.GetAsync(database, manualUser.Id, ct)
+        ?? throw new InvalidOperationException("No fue posible resolver el acceso asignado manualmente.");
+    Ensure(manualUser.PlanCode == CommercialPlanCatalog.Premium,
+        "La asignación administrativa debe actualizar el plan del usuario.");
+    Ensure(manuallyPremium.PaidAccessActive && manuallyPremium.EffectivePlan.Code == CommercialPlanCatalog.Premium,
+        "La asignación administrativa Premium debe habilitar el plan inmediatamente.");
+    Ensure(string.Equals(manuallyPremium.Subscription.Provider, "admin", StringComparison.OrdinalIgnoreCase),
+        "La asignación manual debe quedar identificada como administrativa.");
+
+    var downgradeTask = manualAssignmentMethod.Invoke(null, [database, manualUser.Id, CommercialPlanCatalog.Freemium, ct]) as Task;
+    Ensure(downgradeTask is not null, "La reasignación a Freemium debe ser asíncrona.");
+    await downgradeTask!;
+    await database.Entry(manualUser).ReloadAsync(ct);
+    var manuallyFreemium = await CommercialAccessStore.GetAsync(database, manualUser.Id, ct)
+        ?? throw new InvalidOperationException("No fue posible resolver Freemium después de la reasignación.");
+    Ensure(manualUser.PlanCode == CommercialPlanCatalog.Freemium && manuallyFreemium.EffectivePlan.Code == CommercialPlanCatalog.Freemium,
+        "La reasignación administrativa a Freemium debe aplicarse inmediatamente.");
+
+    Console.WriteLine("PASS: comercial -> FK SQLite -> heredado -> pendiente -> activo -> impago -> cancelado -> entitlements configurables -> asignación administrativa");
 }
 finally
 {
