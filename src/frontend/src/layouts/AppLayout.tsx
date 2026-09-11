@@ -56,6 +56,7 @@ export function AppLayout() {
 
   const hasMailActions = !commercialSubscription || commercialSubscription.entitlements.includes(commercialEntitlements.mailActions)
   const hasControlCenter = !commercialSubscription || commercialSubscription.entitlements.includes(commercialEntitlements.controlCenterBasic)
+  const isOwner = commercialSubscription?.effectivePlanCode === 'owner'
 
   useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem('nexomail-theme', theme) }, [theme])
   useEffect(() => { setSearch(new URLSearchParams(location.search).get('q') ?? '') }, [location.search])
@@ -156,6 +157,7 @@ export function AppLayout() {
         </div>
         <NavLink to="/perspectives" className={navClass} data-sidebar-tooltip="Perspectivas"><BookMarked size={17} /><span>Perspectivas</span></NavLink>
         <NavLink to="/settings/plan" className={navClass} data-sidebar-tooltip="Plan y uso"><CreditCard size={17} /><span>Plan y uso</span></NavLink>
+        {isOwner && <NavLink to="/admin/ai-usage" className={navClass} data-sidebar-tooltip="Consumo Nexi"><ShieldAlert size={17} /><span>Consumo Nexi</span></NavLink>}
         <NavLink to="/settings/accounts" className={navClass} data-sidebar-tooltip="Configuración"><Settings size={17} /><span>Configurar</span></NavLink>
         <button className="theme-switch" data-sidebar-tooltip={theme === 'dark' ? 'Tema claro' : 'Tema oscuro'} aria-label={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}><span>{theme === 'dark' ? 'Tema claro' : 'Tema oscuro'}</span><span className="switch" data-on={theme === 'dark'} /></button>
       </nav>
