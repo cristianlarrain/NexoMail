@@ -10,6 +10,7 @@ import { ControlCenterStatistics } from '../components/ControlCenterStatistics'
 import { NexiContextWorkspace } from '../components/NexiContextWorkspace'
 import { NexiMailReport } from '../components/NexiMailReport'
 import { NexiVisual } from '../components/nexi/NexiVisual'
+import { commercialEntitlements } from '../utils/commercialEntitlements'
 
 type ControlTab = 'summary' | 'report' | 'statistics' | 'contacts' | 'documents' | 'context'
 
@@ -23,8 +24,9 @@ export function ControlCenterPage() {
   const [params, setParams] = useSearchParams()
   const subscription = useQuery({ queryKey: ['commercial-subscription'], queryFn: commercialApi.subscription, staleTime: 30_000 })
   const tab = normalizedTab(params.get('tab'))
-  const hasNexi = subscription.data?.entitlements.includes('nexi_ai') === true
-  const hasAdvancedAnalytics = subscription.data?.entitlements.includes('advanced_analytics') === true
+  const hasNexi = subscription.data?.entitlements.includes(commercialEntitlements.nexiAi) === true
+  const hasAdvancedAnalytics = subscription.data?.entitlements.includes(commercialEntitlements.advancedAnalytics) === true
+  const hasFullControlCenter = subscription.data?.entitlements.includes(commercialEntitlements.controlCenterFull) === true
 
   useEffect(() => {
     void queryClient.invalidateQueries({ queryKey: ['control-center'], refetchType: 'active' })
@@ -33,6 +35,9 @@ export function ControlCenterPage() {
 
   function selectTab(next: Exclude<ControlTab, 'context'>) {
     if (next === 'report' && !hasNexi) return
+    if (next === 'statistics' && !hasAdvancedAnalytics) return
+    if ((next === 'contacts' || next === 'documents') && !hasFullControlCenter) return
+
     const updated = new URLSearchParams(params)
     if (next === 'summary') updated.delete('tab')
     else updated.set('tab', next)
@@ -46,7 +51,20 @@ export function ControlCenterPage() {
     setParams(updated, { replace: true })
   }
 
-  const premiumLocked = (tab === 'report' || tab === 'context') && !hasNexi
+  const nexiLocked = (tab === 'report' || tab === 'context') && !hasNexi
+  const analyticsLocked = tab === 'statistics' && !hasAdvancedAnalytics
+  const fullControlLocked = (tab === 'contacts' || tab === 'documents') && !hasFullControlCenter
+  const featureLocked = nexiLocked || analyticsLocked || fullControlLocked
+  const lockTitle = nexiLocked
+    ? 'Nexi e IA no está incluido en su plan'
+    : analyticsLocked
+      ? 'Estadísticas avanzadas no está incluido en su plan'
+      : 'Centro de Control completo no está incluido en su plan'
+  const lockDetail = nexiLocked
+    ? 'Los informes y análisis con IA requieren un plan con Nexi habilitado.'
+    : analyticsLocked
+      ? 'La vista de estadísticas requiere la capacidad Estadísticas avanzadas.'
+      : 'Contactos y Documentos requieren la capacidad Centro de Control completo.'
 
   return <section className="mail-view control-center-page nexi-control-center">
     <div className="view-header control-page-header nexi-control-header">
@@ -60,15 +78,15 @@ export function ControlCenterPage() {
 
       <nav className="control-tabs control-tabs-inline" aria-label="Secciones de Nexi Control Center">
         <button type="button" className={tab === 'summary' ? 'active' : ''} onClick={() => selectTab('summary')}><Gauge size={16} /> Prioridades</button>
-        <button type="button" disabled={!hasNexi} title={!hasNexi ? 'Disponible desde Premium' : undefined} className={tab === 'report' ? 'active nexi-tab' : 'nexi-tab'} onClick={() => selectTab('report')}><Sparkles size={16} /> Informes {!hasNexi && <LockKeyhole size={12} />}</button>
-        <button type="button" className={tab === 'statistics' ? 'active' : ''} onClick={() => selectTab('statistics')}><BarChart3 size={16} /> Estadísticas</button>
-        <button type="button" className={tab === 'contacts' ? 'active' : ''} onClick={() => selectTab('contacts')}><Users size={16} /> Contactos</button>
-        <button type="button" className={tab === 'documents' ? 'active' : ''} onClick={() => selectTab('documents')}><Files size={16} /> Documentos</button>
+        <button type="button" disabled={!hasNexi} title={!hasNexi ? 'No incluido en su plan' : undefined} className={tab === 'report' ? 'active nexi-tab' : 'nexi-tab'} onClick={() => selectTab('report')}><Sparkles size={16} /> Informes {!hasNexi && <LockKeyhole size={12} />}</button>
+        <button type="button" disabled={!hasAdvancedAnalytics} title={!hasAdvancedAnalytics ? 'No incluido en su plan' : undefined} className={tab === 'statistics' ? 'active' : ''} onClick={() => selectTab('statistics')}><BarChart3 size={16} /> Estadísticas {!hasAdvancedAnalytics && <LockKeyhole size={12} />}</button>
+        <button type="button" disabled={!hasFullControlCenter} title={!hasFullControlCenter ? 'No incluido en su plan' : undefined} className={tab === 'contacts' ? 'active' : ''} onClick={() => selectTab('contacts')}><Users size={16} /> Contactos {!hasFullControlCenter && <LockKeyhole size={12} />}</button>
+        <button type="button" disabled={!hasFullControlCenter} title={!hasFullControlCenter ? 'No incluido en su plan' : undefined} className={tab === 'documents' ? 'active' : ''} onClick={() => selectTab('documents')}><Files size={16} /> Documentos {!hasFullControlCenter && <LockKeyhole size={12} />}</button>
       </nav>
     </div>
 
-    {premiumLocked
-      ? <div className="commercial-feature-lock"><LockKeyhole size={22} /><div><strong>Función disponible desde Premium</strong><span>Los análisis con IA forman parte de los planes con Nexi habilitado.</span></div><Link to="/settings/plan" className="primary-button">Ver planes</Link></div>
+    {featureLocked
+      ? <div className="commercial-feature-lock"><LockKeyhole size={22} /><div><strong>{lockTitle}</strong><span>{lockDetail}</span></div><Link to="/settings/plan" className="primary-button">Ver planes</Link></div>
       : tab === 'summary'
         ? <ControlCenter />
         : tab === 'report'
