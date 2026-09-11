@@ -121,7 +121,7 @@ internal static class AiUsageSmoke
     }
 
     private static NexoMailDbContext CreateDatabase(string path) => new(
-        new DbContextOptionsBuilder<NexoMailDbContext>().UseSqlite($"Data Source={path}").Options);
+        new DbContextOptionsBuilder<NexoMailDbContext>().UseSqlite($"Data Source={path};Pooling=False").Options);
 
     private static UserEntity NewUser() => new()
     {
