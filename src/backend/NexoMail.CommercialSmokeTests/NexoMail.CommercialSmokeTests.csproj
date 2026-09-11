@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../NexoMail.Api/NexoMail.Api.csproj" />
     <ProjectReference Include="../NexoMail.Domain/NexoMail.Domain.csproj" />
     <ProjectReference Include="../NexoMail.Infrastructure/NexoMail.Infrastructure.csproj" />
   </ItemGroup>
