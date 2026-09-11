@@ -29,3 +29,17 @@ jobs:
 
       - name: Run commercial smoke test
         run: dotnet run --project src/backend/NexoMail.CommercialSmokeTests/NexoMail.CommercialSmokeTests.csproj --no-build --configuration Release
+
+      - name: Build complete solution
+        run: dotnet build NexoMail.sln --configuration Release
+
+      - name: Verify Nexi usage telemetry privacy
+        shell: bash
+        run: |
+          if grep -n -E "(Prompt|EmailBody|HtmlBody|Subject|Sender|GeneratedText|ResponseText)" \
+            src/backend/NexoMail.Infrastructure/AiUsage*.cs \
+            src/backend/NexoMail.Api/AiUsageEndpoints.cs; then
+            echo "Content-bearing field found in Nexi usage telemetry production code."
+            exit 1
+          fi
+          echo "Nexi usage telemetry privacy scan passed."
