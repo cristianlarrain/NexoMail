@@ -144,6 +144,7 @@ public sealed class UserEntity
     public string? AvatarDataUrl { get; set; }
     public string PlanCode { get; set; } = CommercialPlanCatalog.Freemium;
     public bool IsAdministrator { get; set; }
+    public bool IsOwner { get; set; }
     public string? LegalConsentVersion { get; set; }
     public DateTimeOffset? LegalConsentAcceptedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
