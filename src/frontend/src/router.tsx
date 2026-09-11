@@ -4,6 +4,7 @@ import { RequireEntitlement } from './components/RequireEntitlement'
 import { AppLayout } from './layouts/AppLayout'
 import { PublicLayout } from './layouts/PublicLayout'
 import { AccountsPage } from './pages/AccountsPage'
+import { AdminAiUsagePage } from './pages/AdminAiUsagePage'
 import { AdminPlansPage } from './pages/AdminPlansPage'
 import { AdminUsersPage } from './pages/AdminUsersPage'
 import { AppearancePage } from './pages/AppearancePage'
@@ -60,6 +61,7 @@ export const router = createBrowserRouter([
       { path: '/settings/plan', element: <PlanPage /> },
       { path: '/admin/plans', element: <AdminPlansPage /> },
       { path: '/admin/users', element: <AdminUsersPage /> },
+      { path: '/admin/ai-usage', element: <AdminAiUsagePage /> },
     ],
   },
 ])
