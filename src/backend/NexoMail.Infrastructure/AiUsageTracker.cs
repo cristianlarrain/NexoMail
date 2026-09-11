@@ -28,6 +28,7 @@ public sealed class AiUsageTracker(
 {
     public async Task RecordAsync(AiUsageRecord record, CancellationToken ct)
     {
+        await AiUsageSchemaBootstrap.EnsureAsync(database, ct);
         await using var transaction = await database.Database.BeginTransactionAsync(ct);
 
         var settings = await database.AiUsageSettings.SingleOrDefaultAsync(x => x.Id == 1, ct);
