@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using NexoMail.Infrastructure;
@@ -5,6 +6,9 @@ using NexoMail.Infrastructure.Data;
 
 internal static class AiUsageSmoke
 {
+    [ModuleInitializer]
+    internal static void Initialize() => RunAsync(CancellationToken.None).GetAwaiter().GetResult();
+
     public static async Task RunAsync(CancellationToken ct)
     {
         var calculator = new AiUsageCostCalculator(Options.Create(new AiUsagePriceCatalogOptions
