@@ -4,7 +4,7 @@ public sealed class AiUsageEventEntity
 {
     public Guid Id { get; set; }
     public Guid UserId { get; set; }
-    public DateTimeOffset OccurredAt { get; set; }
+    public DateTime OccurredAt { get; set; }
     public string OperationType { get; set; } = string.Empty;
     public string Model { get; set; } = string.Empty;
     public long InputTokens { get; set; }
