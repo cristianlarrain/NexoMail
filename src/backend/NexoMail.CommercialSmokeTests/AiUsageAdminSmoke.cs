@@ -1,7 +1,6 @@
 using System.Data.Common;
 using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using NexoMail.Domain;
 using NexoMail.Infrastructure;
 using NexoMail.Infrastructure.Data;
@@ -68,6 +67,20 @@ internal static class AiUsageAdminSmoke
             SeedEvent(database, regularUser.Id, now.AddDays(-2), "writing_assistant", 400m);
             SeedEvent(database, regularUser.Id, now.AddDays(-9), "search_interpretation", 200m);
             SeedEvent(database, trialUser.Id, now.AddMonths(-13), "mail_summary", 999m);
+            database.AiUsageMonthlySummaries.Add(new AiUsageMonthlySummaryEntity
+            {
+                UserId = trialUser.Id,
+                Year = now.AddMonths(-13).Year,
+                Month = now.AddMonths(-13).Month,
+                OperationCount = 1,
+                SuccessfulOperations = 1,
+                InputTokens = 100,
+                OutputTokens = 50,
+                EstimatedCostUsd = 999m / 941.1m,
+                EstimatedCostClp = 999m,
+                ActiveDays = 1,
+                UpdatedAt = now.AddMonths(-13)
+            });
             await database.SaveChangesAsync(ct);
 
             var service = new AiUsageAdminService(database, new FixedTimeProvider(now));
@@ -88,7 +101,7 @@ internal static class AiUsageAdminSmoke
             Require(trial.AccumulatedCostClp == 1500m, "Trial accumulated cost must start at trial start.");
             Require(trial.ProjectedCostClp == 4500m, "30-day calendar projection is wrong.");
             Require(!trial.IsInitialProjection, "Ten-day trial must not be marked as an initial projection.");
-            Require(trial.SevenDayProjectedCostClp == 3600m, "Seven-day projection is wrong.");
+            Require(trial.SevenDayProjectedCostClp == decimal.Round(1200m / 7m * 30m, 2), "Seven-day projection is wrong.");
             Require(trial.CostStatus == "rojo", "Configured semaphore classification is wrong.");
 
             var detail = await service.GetUserAsync(trialUser.Id, ct);
@@ -104,6 +117,7 @@ internal static class AiUsageAdminSmoke
 
             var retention = new AiUsageRetentionService(database);
             var beforeSummaries = await database.AiUsageMonthlySummaries.CountAsync(ct);
+            Require(beforeSummaries == 1, "Retention smoke must include a preserved historical monthly summary.");
             var deleted = await retention.DeleteExpiredDetailAsync(now, ct);
             Require(deleted == 1, "Retention must delete only detail older than 12 months.");
             Require(await database.AiUsageMonthlySummaries.CountAsync(ct) == beforeSummaries,
