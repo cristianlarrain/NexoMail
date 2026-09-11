@@ -187,6 +187,123 @@
   gap: 8px;
 }
 
+/* Final normalization for the collapsed desktop sidebar.
+   Keep the brand and primary actions on one visual axis and prevent the collapse control
+   from overlapping the logo. */
+@media (min-width: 761px) {
+  .sidebar.collapsed {
+    padding-left: 10px;
+    padding-right: 10px;
+    overflow: visible;
+  }
+
+  .sidebar.collapsed .brand-row {
+    width: 42px;
+    height: 42px;
+    margin: 0 auto 14px !important;
+    display: grid;
+    place-items: center;
+  }
+
+  .sidebar.collapsed .brand-home {
+    width: 42px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+  }
+
+  .sidebar.collapsed .nexomail-logo,
+  .sidebar.collapsed .nexomail-logo-mark {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    display: grid;
+    place-items: center;
+  }
+
+  .sidebar.collapsed .collapse-button {
+    position: absolute;
+    top: 27px;
+    right: -10px;
+    z-index: 6;
+    width: 20px;
+    height: 26px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 0 7px 7px 0;
+    background: var(--surface);
+    color: var(--muted-foreground);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--foreground) 10%, transparent);
+  }
+
+  .sidebar.collapsed .collapse-button:hover {
+    border-color: color-mix(in srgb, var(--primary) 38%, var(--border));
+    background: var(--surface-hover);
+    color: var(--primary);
+  }
+
+  .sidebar.collapsed .collapse-button svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  .sidebar.collapsed .compose-button,
+  .sidebar.collapsed .control-center-nav,
+  .sidebar.collapsed .inbox-primary-nav {
+    width: 42px !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    margin: 0 auto 8px !important;
+    padding: 0 !important;
+    border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border)) !important;
+    border-radius: 10px !important;
+    background: color-mix(in srgb, var(--primary) 3%, var(--surface)) !important;
+    color: var(--muted-foreground) !important;
+    box-shadow: none !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sidebar.collapsed .compose-button:hover:not(.active),
+  .sidebar.collapsed .control-center-nav:hover:not(.active),
+  .sidebar.collapsed .inbox-primary-nav:hover:not(.active) {
+    border-color: color-mix(in srgb, var(--primary) 52%, var(--border)) !important;
+    background: color-mix(in srgb, var(--primary) 8%, var(--surface)) !important;
+    color: var(--primary) !important;
+  }
+
+  .sidebar.collapsed .compose-button.active,
+  .sidebar.collapsed .control-center-nav.active,
+  .sidebar.collapsed .inbox-primary-nav.active {
+    border-color: var(--primary) !important;
+    background: var(--primary) !important;
+    color: var(--primary-foreground) !important;
+  }
+
+  .sidebar.collapsed .primary-nav-icon {
+    width: 20px !important;
+    height: 20px !important;
+    flex: 0 0 20px !important;
+    margin: 0 !important;
+  }
+
+  .sidebar.collapsed .control-center-nav .nexi-sidebar-icon,
+  .sidebar.collapsed .control-center-nav .nexi-sidebar-icon .nexi-visual {
+    width: 24px !important;
+    height: 24px !important;
+    display: grid !important;
+    place-items: center;
+  }
+
+  /* Account colour dots alone are not meaningful without their labels. */
+  .sidebar.collapsed nav > .nav-item:has(.account-dot) {
+    display: none;
+  }
+}
+
 @media (max-width: 760px) {
   :root {
     --app-page-gutter: 14px;
