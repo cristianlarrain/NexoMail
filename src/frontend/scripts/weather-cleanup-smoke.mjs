@@ -13,7 +13,7 @@ const main = read('src/main.tsx')
 const composeStyles = read('src/styles/compose-ai-integration.css')
 
 ensure(weather.includes('enableHighAccuracy: true'), 'El clima debe solicitar ubicación con alta precisión.')
-ensure(weather.includes('maximumAge: 60_000'), 'El clima no debe reutilizar una ubicación antigua por más de un minuto.')
+ensure(weather.includes('const GEOLOCATION_MAX_AGE_MS = 60_000') && weather.includes('maximumAge: GEOLOCATION_MAX_AGE_MS'), 'El clima no debe reutilizar una ubicación antigua por más de un minuto.')
 ensure(weather.includes('loadFallbackWeather'), 'Santiago debe usarse sólo como respaldo cuando falle la ubicación real.')
 ensure(!weather.includes('void loadWeather(SANTIAGO.latitude, SANTIAGO.longitude, SANTIAGO.location, false)\n    requestActualLocation()'), 'No se debe mostrar primero Santiago cuando la geolocalización está disponible.')
 
