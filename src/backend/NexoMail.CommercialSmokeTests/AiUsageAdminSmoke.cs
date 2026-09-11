@@ -208,7 +208,7 @@ internal static class AiUsageAdminSmoke
     };
 
     private static NexoMailDbContext CreateDatabase(string path) => new(
-        new DbContextOptionsBuilder<NexoMailDbContext>().UseSqlite($"Data Source={path}").Options);
+        new DbContextOptionsBuilder<NexoMailDbContext>().UseSqlite($"Data Source={path};Pooling=False").Options);
 
     private static string TempDbPath() => Path.Combine(Path.GetTempPath(), $"nexomail-ai-admin-smoke-{Guid.NewGuid():N}.db");
 
