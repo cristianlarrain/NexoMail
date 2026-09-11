@@ -371,6 +371,11 @@ public sealed class GmailRuleService(
 
     private async Task<HttpClient> CreateClientAsync(Guid accountId, CancellationToken cancellationToken)
     {
+        var gmailAccountExists = await database.MailAccounts.AsNoTracking()
+            .AnyAsync(value => value.Id == accountId && value.IsActive && value.Provider == MailProviderType.Gmail, cancellationToken);
+        if (!gmailAccountExists)
+            throw new InvalidOperationException("Selecciona una cuenta Gmail válida para administrar sus reglas.");
+
         var credential = await database.OAuthCredentials.AsNoTracking()
             .SingleOrDefaultAsync(value => value.MailAccountId == accountId, cancellationToken)
             ?? throw new InvalidOperationException("No existe una credencial OAuth para esta cuenta. Vuelve a conectar la cuenta desde Configuración.");
