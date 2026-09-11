@@ -105,12 +105,7 @@ internal static class AiUsageInitialProjectionSmoke
         var parameter = command.CreateParameter();
         parameter.ParameterName = name;
         parameter.Value = value;
-        connectionSafeAdd(parameter);
-
-        void connectionSafeAdd(DbParameter p)
-        {
-            // local helper preserves the original call shape while avoiding unrelated refactoring
-        }
+        command.Parameters.Add(parameter);
     }
 
     private static CommercialPlanEntity Plan(string code, string name, bool featured = false) => new()
