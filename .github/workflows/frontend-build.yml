@@ -47,5 +47,8 @@ jobs:
       - name: Verify registration legal consent
         run: node scripts/legal-consent-smoke.mjs
 
+      - name: Verify product polish
+        run: node scripts/product-polish-smoke.mjs
+
       - name: Build frontend
         run: pnpm build
