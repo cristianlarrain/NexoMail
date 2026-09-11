@@ -122,6 +122,7 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
             entity.Property(x => x.Cadence).HasMaxLength(80).IsRequired();
             entity.Property(x => x.Description).HasMaxLength(600).IsRequired();
             entity.Property(x => x.FeaturesJson).HasMaxLength(6000).IsRequired();
+            entity.Property(x => x.EntitlementsJson).HasMaxLength(6000).IsRequired();
             entity.HasIndex(x => new { x.IsActive, x.SortOrder });
         });
     }
@@ -159,6 +160,7 @@ public sealed class CommercialPlanEntity
     public int? MaxAccounts { get; set; }
     public string Description { get; set; } = string.Empty;
     public string FeaturesJson { get; set; } = "[]";
+    public string EntitlementsJson { get; set; } = "[]";
     public bool IsFeatured { get; set; }
     public bool IsCorporate { get; set; }
     public bool IsWhiteLabel { get; set; }
