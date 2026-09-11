@@ -9,6 +9,7 @@ const api = readFileSync('src/api/commercialApi.ts', 'utf8')
 const router = readFileSync('src/router.tsx', 'utf8')
 const plans = readFileSync('src/pages/AdminPlansPage.tsx', 'utf8')
 const planPage = readFileSync('src/pages/PlanPage.tsx', 'utf8')
+const adminStyles = readFileSync('src/styles/commercial-admin.css', 'utf8')
 const usersPagePath = 'src/pages/AdminUsersPage.tsx'
 
 ensure(backend.includes('MapGet("/admin/users"'), 'El backend debe exponer GET /commercial/admin/users.')
@@ -26,5 +27,7 @@ ensure(usersPage.includes('Administración de usuarios'), 'La pantalla debe iden
 ensure(usersPage.includes('assignUserPlan'), 'La pantalla debe permitir asignar planes desde la API.')
 ensure(usersPage.includes('connectedAccounts'), 'La tabla debe mostrar las cuentas conectadas del usuario.')
 ensure(usersPage.includes('effectivePlanCode'), 'La tabla debe distinguir el plan efectivo del asignado.')
+ensure(/\.commercial-admin-table th\s*\{[^}]*background:/s.test(adminStyles), 'Los encabezados de las grillas administrativas deben tener un fondo visible.')
+ensure(/\.commercial-admin-table th\s*\{[^}]*color:\s*(?:#fff|white|var\(--[^)]*on[^)]*\))/s.test(adminStyles), 'Los encabezados de las grillas administrativas deben usar texto de alto contraste.')
 
 console.log('PASS: administración de usuarios -> API -> ruta -> pantalla -> asignación de plan')
