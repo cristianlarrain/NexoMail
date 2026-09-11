@@ -40,6 +40,8 @@ public static class CommercialSubscriptionMutations
             ?? throw new InvalidOperationException("El plan seleccionado no existe o está inactivo.");
         var user = await database.Users.SingleOrDefaultAsync(x => x.Id == userId && x.IsActive, ct)
             ?? throw new InvalidOperationException("El usuario seleccionado no existe o está inactivo.");
+        if (user.IsOwner)
+            throw new InvalidOperationException("El Owner / Administrador general no depende de un plan comercial y no puede ser reasignado.");
 
         user.PlanCode = plan.Code;
         await database.SaveChangesAsync(ct);
@@ -74,7 +76,7 @@ public static class CommercialSubscriptionMutations
 
         await UpsertAsync(database, userId, planCode, status, provider, providerSubscriptionId, currentPeriodStart, currentPeriodEnd, ct);
 
-        if (CommercialSubscriptionStatuses.GrantsPaidAccess(status) && !string.Equals(user.PlanCode, planCode, StringComparison.OrdinalIgnoreCase))
+        if (!user.IsOwner && CommercialSubscriptionStatuses.GrantsPaidAccess(status) && !string.Equals(user.PlanCode, planCode, StringComparison.OrdinalIgnoreCase))
         {
             user.PlanCode = planCode;
             await database.SaveChangesAsync(ct);
