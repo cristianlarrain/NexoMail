@@ -32,5 +32,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify sidebar tooltips
+        run: node scripts/sidebar-tooltip-smoke.mjs
+
       - name: Build frontend
         run: pnpm build
