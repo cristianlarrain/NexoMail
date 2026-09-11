@@ -28,6 +28,34 @@ public static class CommercialSubscriptionMutations
             ct);
     }
 
+    public static async Task AssignPlanManuallyAsync(
+        NexoMailDbContext database,
+        Guid userId,
+        string planCode,
+        CancellationToken ct)
+    {
+        var normalizedPlanCode = (planCode ?? string.Empty).Trim().ToLowerInvariant();
+        var plan = await database.CommercialPlans.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Code == normalizedPlanCode && x.IsActive, ct)
+            ?? throw new InvalidOperationException("El plan seleccionado no existe o está inactivo.");
+        var user = await database.Users.SingleOrDefaultAsync(x => x.Id == userId && x.IsActive, ct)
+            ?? throw new InvalidOperationException("El usuario seleccionado no existe o está inactivo.");
+
+        user.PlanCode = plan.Code;
+        await database.SaveChangesAsync(ct);
+
+        await UpsertAsync(
+            database,
+            user.Id,
+            plan.Code,
+            CommercialSubscriptionStatuses.Active,
+            "admin",
+            null,
+            null,
+            null,
+            ct);
+    }
+
     public static async Task ApplyProviderStateAsync(
         NexoMailDbContext database,
         Guid userId,
@@ -59,7 +87,7 @@ public static class CommercialSubscriptionMutations
         string planCode,
         string status,
         string provider,
-        string providerSubscriptionId,
+        string? providerSubscriptionId,
         DateTimeOffset? currentPeriodStart,
         DateTimeOffset? currentPeriodEnd,
         CancellationToken ct)
@@ -83,9 +111,11 @@ public static class CommercialSubscriptionMutations
                     PlanCode = excluded.PlanCode,
                     Status = excluded.Status,
                     Provider = excluded.Provider,
+                    ProviderCustomerId = NULL,
                     ProviderSubscriptionId = excluded.ProviderSubscriptionId,
                     CurrentPeriodStart = excluded.CurrentPeriodStart,
                     CurrentPeriodEnd = excluded.CurrentPeriodEnd,
+                    TrialEndsAt = NULL,
                     CancelAtPeriodEnd = 0,
                     CanceledAt = excluded.CanceledAt,
                     PaymentDueAt = excluded.PaymentDueAt,
