@@ -289,6 +289,10 @@ public static class CommercialEndpoints
         var features = NormalizeFeatures(request.Features);
         if (features.Count == 0) return "Agregue al menos una característica al plan.";
         if (features.Count > 30) return "El plan admite hasta 30 características.";
+        var entitlements = NormalizeEntitlements(request.Entitlements);
+        if (entitlements.Count == 0) return "Seleccione al menos una función habilitada para el plan.";
+        if ((request.Entitlements ?? []).Any(value => !string.IsNullOrWhiteSpace(value) && !CommercialEntitlements.IsKnown(value.Trim())))
+            return "El plan contiene una función no reconocida por NexoMail.";
         return null;
     }
 
@@ -300,6 +304,7 @@ public static class CommercialEndpoints
         entity.MaxAccounts = request.MaxAccounts;
         entity.Description = request.Description.Trim();
         entity.FeaturesJson = JsonSerializer.Serialize(NormalizeFeatures(request.Features));
+        entity.EntitlementsJson = JsonSerializer.Serialize(NormalizeEntitlements(request.Entitlements));
         entity.IsFeatured = request.IsFeatured;
         entity.IsCorporate = request.IsCorporate;
         entity.IsWhiteLabel = request.IsWhiteLabel;
@@ -310,6 +315,13 @@ public static class CommercialEndpoints
 
     private static IReadOnlyList<string> NormalizeFeatures(IReadOnlyList<string>? features) =>
         (features ?? []).Select(x => x.Trim()).Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+
+    private static IReadOnlyList<string> NormalizeEntitlements(IReadOnlyList<string>? entitlements) =>
+        (entitlements ?? [])
+            .Select(x => x.Trim())
+            .Where(x => x.Length > 0 && CommercialEntitlements.IsKnown(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
     private static IReadOnlyList<string> ReadFeatures(string json)
     {
@@ -429,6 +441,7 @@ public sealed record CommercialPlanWriteRequest(
     int? MaxAccounts,
     string Description,
     IReadOnlyList<string>? Features,
+    IReadOnlyList<string>? Entitlements,
     bool IsFeatured,
     bool IsCorporate,
     bool IsWhiteLabel,
