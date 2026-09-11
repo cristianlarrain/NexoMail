@@ -103,16 +103,34 @@ public static class DatabaseBootstrap
                 CREATE TABLE IF NOT EXISTS CommercialPlans (
                     Code TEXT NOT NULL CONSTRAINT PK_CommercialPlans PRIMARY KEY,
                     Name TEXT NOT NULL, Price TEXT NOT NULL, Cadence TEXT NOT NULL, MaxAccounts INTEGER NULL,
-                    Description TEXT NOT NULL, FeaturesJson TEXT NOT NULL, IsFeatured INTEGER NOT NULL,
-                    IsCorporate INTEGER NOT NULL, IsWhiteLabel INTEGER NOT NULL, IsActive INTEGER NOT NULL,
+                    Description TEXT NOT NULL, FeaturesJson TEXT NOT NULL, EntitlementsJson TEXT NOT NULL,
+                    IsFeatured INTEGER NOT NULL, IsCorporate INTEGER NOT NULL, IsWhiteLabel INTEGER NOT NULL, IsActive INTEGER NOT NULL,
                     SortOrder INTEGER NOT NULL, UpdatedAt TEXT NOT NULL
                 );", connection, cancellationToken);
             await ExecuteAsync("CREATE INDEX IF NOT EXISTS IX_CommercialPlans_IsActive_SortOrder ON CommercialPlans (IsActive, SortOrder);", connection, cancellationToken);
+
+            var planColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            await using (var inspectPlans = connection.CreateCommand())
+            {
+                inspectPlans.CommandText = "PRAGMA table_info('CommercialPlans');";
+                await using var reader = await inspectPlans.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                    if (reader["name"]?.ToString() is { Length: > 0 } name) planColumns.Add(name);
+            }
+
+            var addedEntitlementsColumn = false;
+            if (!planColumns.Contains("EntitlementsJson"))
+            {
+                await AddColumnAsync("ALTER TABLE CommercialPlans ADD COLUMN EntitlementsJson TEXT NOT NULL DEFAULT '[]';", connection, cancellationToken);
+                addedEntitlementsColumn = true;
+            }
 
             var sortOrder = 10;
             foreach (var plan in CommercialPlanCatalog.All)
             {
                 await SeedCommercialPlanAsync(connection, plan, sortOrder, cancellationToken);
+                if (addedEntitlementsColumn)
+                    await BackfillCommercialEntitlementsAsync(connection, plan.Code, CommercialEntitlements.DefaultsForPlan(plan.Code), cancellationToken);
                 sortOrder += 10;
             }
 
@@ -143,9 +161,9 @@ public static class DatabaseBootstrap
         await using var command = connection.CreateCommand();
         command.CommandText = @"
             INSERT OR IGNORE INTO CommercialPlans
-            (Code, Name, Price, Cadence, MaxAccounts, Description, FeaturesJson, IsFeatured, IsCorporate, IsWhiteLabel, IsActive, SortOrder, UpdatedAt)
+            (Code, Name, Price, Cadence, MaxAccounts, Description, FeaturesJson, EntitlementsJson, IsFeatured, IsCorporate, IsWhiteLabel, IsActive, SortOrder, UpdatedAt)
             VALUES
-            ($code, $name, $price, $cadence, $maxAccounts, $description, $featuresJson, $isFeatured, $isCorporate, $isWhiteLabel, 1, $sortOrder, $updatedAt);";
+            ($code, $name, $price, $cadence, $maxAccounts, $description, $featuresJson, $entitlementsJson, $isFeatured, $isCorporate, $isWhiteLabel, 1, $sortOrder, $updatedAt);";
         AddParameter(command, "$code", plan.Code);
         AddParameter(command, "$name", plan.Name);
         AddParameter(command, "$price", plan.Price);
@@ -153,11 +171,21 @@ public static class DatabaseBootstrap
         AddParameter(command, "$maxAccounts", plan.MaxAccounts);
         AddParameter(command, "$description", plan.Description);
         AddParameter(command, "$featuresJson", JsonSerializer.Serialize(plan.Features));
+        AddParameter(command, "$entitlementsJson", JsonSerializer.Serialize(CommercialEntitlements.DefaultsForPlan(plan.Code)));
         AddParameter(command, "$isFeatured", plan.IsFeatured ? 1 : 0);
         AddParameter(command, "$isCorporate", plan.IsCorporate ? 1 : 0);
         AddParameter(command, "$isWhiteLabel", plan.IsWhiteLabel ? 1 : 0);
         AddParameter(command, "$sortOrder", sortOrder);
         AddParameter(command, "$updatedAt", DateTimeOffset.UtcNow.ToString("O"));
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static async Task BackfillCommercialEntitlementsAsync(DbConnection connection, string planCode, IReadOnlyList<string> entitlements, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE CommercialPlans SET EntitlementsJson = $entitlementsJson WHERE Code = $code;";
+        AddParameter(command, "$code", planCode);
+        AddParameter(command, "$entitlementsJson", JsonSerializer.Serialize(entitlements));
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
