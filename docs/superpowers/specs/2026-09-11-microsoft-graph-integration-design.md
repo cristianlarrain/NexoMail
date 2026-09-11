@@ -10,7 +10,7 @@ Add a controlled first Microsoft 365 integration to NexoMail using Microsoft Gra
 
 Phase 1 is intentionally narrow. Success means a signed-in NexoMail user can connect a Microsoft 365 work or school account, complete Microsoft authentication including MFA/Authenticator outside NexoMail, return to NexoMail, see the connected account as `Microsoft 365`, list inbox messages, and open a message without NexoMail persistently storing message bodies or attachment contents.
 
-This phase is a feasibility and architecture validation for the later invitation-only marcha blanca. It is not full Microsoft feature parity with Gmail.
+This phase validates the architecture needed for a later invitation-only marcha blanca. It is not full Microsoft feature parity with Gmail.
 
 ## 2. Existing architecture to preserve
 
@@ -20,10 +20,10 @@ NexoMail already has provider-neutral mail abstractions:
 - `IMailProvider` defines the provider contract.
 - `MailGateway` routes each connected account to the provider matching its `MailProviderType`.
 - `UserScopedMailProvider` enforces authenticated-user ownership and provider matching.
-- `MailAccountEntity` and `OAuthCredentialEntity` are generic enough to store Microsoft-connected accounts and protected refresh tokens.
+- `MailAccountEntity` and `OAuthCredentialEntity` can store Microsoft-connected accounts and protected refresh tokens.
 - The frontend already renders `MicrosoftGraph` accounts as `Microsoft 365` in the accounts list.
 
-The Microsoft implementation must follow these existing seams instead of introducing a parallel mailbox architecture.
+The Microsoft implementation must use these existing seams instead of introducing a parallel mailbox architecture.
 
 ## 3. Selected approach
 
@@ -54,9 +54,23 @@ The external Microsoft Entra app registration is configured as follows:
 
 Phase 1 uses delegated user authorization only. NexoMail must not use application permissions and must not attempt organization-wide mailbox access.
 
-The authorization request may include OpenID Connect protocol scopes required for sign-in and refresh-token issuance, including `openid`, `profile`, `email`, and `offline_access`, in addition to the delegated Graph scopes required by the connection.
+OAuth endpoints:
 
-The initial authority is the organizational multitenant v2 endpoint so that work and school accounts from different Entra tenants can authenticate.
+- Authority: `https://login.microsoftonline.com/organizations`
+- Authorize: `https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize`
+- Token: `https://login.microsoftonline.com/organizations/oauth2/v2.0/token`
+- Graph base: `https://graph.microsoft.com/v1.0/`
+
+The Phase 1 authorization request must request exactly the scopes needed for sign-in, refresh, identity, and mailbox reading/modification required by the current UI:
+
+- `openid`
+- `profile`
+- `email`
+- `offline_access`
+- `User.Read`
+- `Mail.ReadWrite`
+
+`Mail.Send` remains registered in Entra for the later send phase but is not requested or used during Phase 1. This keeps Phase 1 consent to the least privilege actually needed.
 
 ## 5. Backend components
 
@@ -68,16 +82,17 @@ Add a Microsoft configuration object under a `Microsoft` configuration section w
 - `ClientSecret`
 - `RedirectUri`
 - `FrontendUrl`
-- authority/base endpoint values only if they are not kept as constants
 
-The client secret must never be committed to the repository. The development example file may document the key name with an empty value.
+The authority and Graph base URLs are constants for Phase 1 unless testing requires them to be injectable.
+
+The client secret must never be committed to the repository. The development example file documents the key name with an empty value.
 
 ### 5.2 `MicrosoftOAuthService`
 
 Responsibilities:
 
 1. Enforce the same effective-plan account connection limit already applied by Google.
-2. Generate an OAuth authorization URL.
+2. Generate the OAuth authorization URL with the exact Phase 1 scopes above.
 3. Generate a cryptographically protected `state` value bound to the current NexoMail user.
 4. Include issue time and nonce in the state payload.
 5. Reject invalid, tampered, expired, or wrong-user state.
@@ -89,7 +104,7 @@ Responsibilities:
 11. Protect the refresh token through the existing `ITokenProtector` before persistence.
 12. Redirect back to the frontend with an explicit success or error result.
 
-Use a provider-specific Data Protection purpose such as `NexoMail.MicrosoftOAuth.State.v1`. The state lifetime is ten minutes, matching the current Google security model.
+Use the Data Protection purpose `NexoMail.MicrosoftOAuth.State.v1`. The state lifetime is ten minutes, matching the current Google security model.
 
 The success redirect is `.../settings/accounts?connected=microsoft`.
 
@@ -130,22 +145,19 @@ Phase 1 implements the minimum read path necessary to validate the integration i
 
 `GetMessagesAsync` supports inbox listing for a specific Microsoft account.
 
-Use Microsoft Graph message APIs with a narrow `$select` projection containing only fields required to build `MailSummary`, such as:
-
-- message id
-- sender/from
-- subject
-- body preview
-- received date/time
-- read status
-- attachment flag
-- conversation id where useful for later phases
+Use Microsoft Graph message APIs with a narrow `$select` projection containing only fields required to build `MailSummary`, including message id, sender/from, subject, body preview, received date/time, read status, attachment flag, and conversation id when returned.
 
 The provider maps Graph messages into the existing NexoMail `MailSummary` model.
 
-Pagination uses the continuation information supplied by Microsoft Graph. NexoMail treats the continuation value as opaque provider state and must not invent page indexes.
+Pagination uses Microsoft Graph continuation information. NexoMail treats continuation state as opaque provider state and does not invent page indexes.
 
-Phase 1 acceptance testing is limited to the inbox. Microsoft-specific search, full folder parity, and advanced filtering are not part of this phase.
+For Phase 1:
+
+- `folderId == "inbox"` with no search term is supported.
+- non-inbox folder queries return an empty result rather than incorrect data;
+- non-empty Microsoft search queries return an empty result rather than unfiltered data.
+
+Microsoft search, full folder parity, and advanced filtering are deferred.
 
 ### 7.2 Opening a message
 
@@ -159,42 +171,42 @@ Attachment metadata may be represented if Graph returns it, but downloading atta
 
 ### 7.3 Read-state compatibility
 
-The existing message page automatically marks an unread message as read after it is opened. Therefore Phase 1 must implement `MarkReadAsync` for Microsoft Graph even though broader mailbox modification features are deferred.
+The existing message page automatically marks an unread message as read after it is opened. Therefore Phase 1 implements `MarkReadAsync` for Microsoft Graph even though broader mailbox modification features are deferred.
 
-### 7.4 Interface methods outside Phase 1
+### 7.4 Required behavior for interface methods outside Phase 1
 
-The remaining `IMailProvider` operations are not considered Microsoft-supported Phase 1 features:
+The following methods are explicitly unsupported for Microsoft in Phase 1 and throw a provider-specific `NotSupportedException`/`InvalidOperationException` that the API translates into a user-safe response:
 
-- send
-- reply / reply all
-- forward
-- drafts
-- trash / move
-- folder management beyond the minimal read path
-- attachment download
-- full thread reconstruction
+- `GetAttachmentAsync`
+- `SendAsync`
+- `ReplyAsync`
+- `ReplyAllAsync`
+- `ForwardAsync`
+- `MoveToTrashAsync`
+- `MoveToFolderAsync`
+- `EmptyFolderAsync`
 
-They must not silently perform partial or incorrect work.
+`GetThreadAsync` returns an empty collection because the current message page requests it automatically; full Graph `conversationId` thread reconstruction is deferred.
 
-Where the existing interface requires an implementation, the provider must either return a safe neutral result for read-only ancillary calls or throw a clear provider-specific `NotSupportedException`/`InvalidOperationException` that the API translates into a user-safe response.
+`GetFoldersAsync` returns only the minimal inbox folder representation needed by the interface in Phase 1.
 
-The frontend must not advertise unsupported Microsoft write operations as if they were functional. For Phase 1, provider-aware gating may disable or hide Microsoft-only unsupported actions while leaving Gmail behavior unchanged.
+No Microsoft draft provider is registered in Phase 1.
 
-For thread loading, which the current message page requests automatically, Phase 1 must return a safe empty collection rather than cause message opening to fail. Full Graph `conversationId` thread reconstruction is deferred.
+The frontend must disable or hide unsupported write actions when the active account is `MicrosoftGraph`; it must not advertise those actions as working features. Gmail behavior remains unchanged.
 
 ## 8. Gmail-specific services and capability isolation
 
 Several current features are Gmail-specific rather than provider-neutral, including Google Contacts, Gmail rules, Gmail control-center services, and Gmail metadata/index activities.
 
-Phase 1 must prevent a connected Microsoft account from being accidentally routed into Gmail-only services.
+Phase 1 must prevent a connected Microsoft account from being routed into Gmail-only services.
 
 Required behavior:
 
 - Gmail-only services continue to operate for Gmail accounts.
-- Microsoft accounts are excluded from Gmail-only aggregation and indexing paths.
+- Gmail-only aggregation/indexing paths explicitly filter to `Provider == Gmail`.
 - Microsoft accounts do not claim support for Google Contacts or Gmail rules.
-- Control Center parity for Microsoft is explicitly deferred.
-- Nexi actions that depend on unsupported Microsoft write operations must not be offered as executable Microsoft actions in Phase 1.
+- Control Center parity for Microsoft is deferred.
+- Nexi actions that depend on unsupported Microsoft write operations are not offered as executable Microsoft actions in Phase 1.
 
 This isolation is part of the Phase 1 safety boundary, not a later enhancement.
 
@@ -211,7 +223,7 @@ After successful callback, `?connected=microsoft` displays a Microsoft-specific 
 
 Connected Microsoft accounts continue to use the existing provider label `Microsoft 365`.
 
-Error messages returned from OAuth must distinguish at least:
+OAuth errors must distinguish at least:
 
 - user cancellation;
 - invalid/expired authorization attempt;
@@ -226,13 +238,13 @@ Because NexoMail is a new multitenant app and is not yet a verified Microsoft pu
 
 This is an expected test outcome, not an application bug.
 
-The first manual external-tenant test will use a real Microsoft 365 organizational account. If Microsoft or that tenant requires administrator approval, NexoMail must surface that outcome clearly and stop. It must not attempt to bypass tenant policy.
+The first manual external-tenant test uses a real Microsoft 365 organizational account. If Microsoft or that tenant requires administrator approval, NexoMail surfaces that outcome clearly and stops. It does not attempt to bypass tenant policy.
 
 Publisher verification and broader cross-tenant production readiness are separate pre-marcha-blanca work and are not required to complete Phase 1 code validation.
 
 ## 11. Data protection and privacy
 
-Phase 1 follows the same persistence principle as the existing Gmail implementation:
+Phase 1 follows the same persistence principle as the existing Gmail implementation.
 
 Persisted:
 
@@ -276,7 +288,7 @@ Implementation follows TDD.
 
 Automated tests/smoke tests must cover at minimum:
 
-1. Microsoft authorization URL contains the expected client id, callback, state, organizational authority, and required scopes.
+1. Microsoft authorization URL contains the expected client id, callback, state, organizational authority, and exact Phase 1 scopes.
 2. OAuth state rejects tampering, expiration, and mismatched NexoMail user.
 3. Successful callback maps `/me` identity to a `MicrosoftGraph` account.
 4. Refresh token is protected before persistence.
@@ -289,14 +301,14 @@ Automated tests/smoke tests must cover at minimum:
 11. Opening an unread Microsoft message can mark it read.
 12. Microsoft accounts are not routed through Gmail-only services.
 13. Unsupported Microsoft write operations do not report false success.
-14. Frontend smoke verifies the Microsoft 365 connect control and success state.
+14. Frontend smoke verifies the Microsoft 365 connect control, success state, and unsupported-action gating.
 15. Existing Gmail and commercial/Nexi tests continue passing.
 
 Tests use fake HTTP handlers/responses. CI must not use real Microsoft credentials, client secrets, mailboxes, or live Graph calls.
 
 ## 14. Manual acceptance test
 
-After automated verification passes, the developer performs a local real-account test:
+After automated verification passes, perform a local real-account test:
 
 1. Configure `Microsoft:ClientId`, `Microsoft:ClientSecret`, `Microsoft:RedirectUri`, and `Microsoft:FrontendUrl` through local secure development configuration.
 2. Start backend on `http://localhost:5052` and frontend on `http://localhost:5173`.
@@ -311,7 +323,7 @@ After automated verification passes, the developer performs a local real-account
 11. Confirm no message body or attachment content was added to persistent storage as part of the Graph read path.
 12. Confirm Gmail accounts continue to function.
 
-A tenant-admin-approval screen is a valid diagnostic outcome for the external-tenant consent portion, but Phase 1 code is not considered functionally validated against Graph until at least one Microsoft 365 organizational account completes OAuth and the read path successfully.
+A tenant-admin-approval screen is a valid diagnostic outcome for the external-tenant consent portion, but Phase 1 code is not functionally validated against Graph until at least one Microsoft 365 organizational account completes OAuth and the read path successfully.
 
 ## 15. Explicitly deferred work
 
@@ -322,6 +334,7 @@ The following are outside Phase 1:
 - draft lifecycle;
 - attachment download/preview parity;
 - complete folder parity;
+- Microsoft mailbox search;
 - Microsoft contact autocomplete;
 - inbox rules via Graph;
 - Control Center parity;
@@ -332,7 +345,7 @@ The following are outside Phase 1:
 - production redirect URI and production secret/certificate deployment;
 - full production marcha blanca configuration.
 
-These items should be planned only after Phase 1 proves that OAuth and core Graph read operations work reliably.
+These items are planned only after Phase 1 proves that OAuth and core Graph read operations work reliably.
 
 ## 16. Completion criteria
 
