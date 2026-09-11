@@ -5,6 +5,7 @@ import { AppLayout } from './layouts/AppLayout'
 import { PublicLayout } from './layouts/PublicLayout'
 import { AccountsPage } from './pages/AccountsPage'
 import { AdminPlansPage } from './pages/AdminPlansPage'
+import { AdminUsersPage } from './pages/AdminUsersPage'
 import { AppearancePage } from './pages/AppearancePage'
 import { AuthPage } from './pages/AuthPage'
 import { ComposePage } from './pages/ComposePage'
@@ -58,6 +59,7 @@ export const router = createBrowserRouter([
       { path: '/settings/appearance', element: <AppearancePage /> },
       { path: '/settings/plan', element: <PlanPage /> },
       { path: '/admin/plans', element: <AdminPlansPage /> },
+      { path: '/admin/users', element: <AdminUsersPage /> },
     ],
   },
 ])
