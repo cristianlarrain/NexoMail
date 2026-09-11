@@ -10,18 +10,30 @@ public static class CommercialFeaturePolicy
         if (normalizedPath.StartsWith("/api/mail/ai", StringComparison.Ordinal))
             return CommercialEntitlements.NexiAi;
 
+        if (normalizedPath.StartsWith("/api/mail/messages/", StringComparison.Ordinal)
+            && normalizedPath.EndsWith("/ai-reply", StringComparison.Ordinal))
+            return CommercialEntitlements.NexiAi;
+
         if (normalizedPath.StartsWith("/api/mail/control-center/activity", StringComparison.Ordinal))
             return CommercialEntitlements.AdvancedAnalytics;
 
+        if (normalizedPath.StartsWith("/api/mail/control-center/contacts", StringComparison.Ordinal)
+            || normalizedPath.StartsWith("/api/mail/control-center/documents", StringComparison.Ordinal)
+            || normalizedPath.StartsWith("/api/mail/control-center/index/", StringComparison.Ordinal))
+            return CommercialEntitlements.ControlCenterFull;
+
         if (normalizedPath.StartsWith("/api/mail/control-center/tracking", StringComparison.Ordinal)
-            || normalizedPath.StartsWith("/api/mail/control-center/state", StringComparison.Ordinal))
+            || normalizedPath.StartsWith("/api/mail/control-center/state", StringComparison.Ordinal)
+            || (verb == "PATCH" && normalizedPath.StartsWith("/api/mail/control-center/", StringComparison.Ordinal)
+                                && normalizedPath.EndsWith("/state", StringComparison.Ordinal)))
             return CommercialEntitlements.TrackingBasic;
 
         if (normalizedPath == "/api/mail/control-center"
             || normalizedPath.StartsWith("/api/mail/control-center/", StringComparison.Ordinal))
             return CommercialEntitlements.ControlCenterBasic;
 
-        if (normalizedPath.StartsWith("/api/mail/rules", StringComparison.Ordinal))
+        if (normalizedPath.StartsWith("/api/mail/rules", StringComparison.Ordinal)
+            || normalizedPath.StartsWith("/api/mail/drafts", StringComparison.Ordinal))
             return CommercialEntitlements.MailActions;
 
         if (verb == "POST" && normalizedPath == "/api/mail/send")
