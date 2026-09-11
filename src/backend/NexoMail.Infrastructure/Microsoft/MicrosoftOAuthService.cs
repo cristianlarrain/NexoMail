@@ -27,11 +27,6 @@ public sealed class MicrosoftOAuthService(
 
     public string BeginAuthorization()
     {
-        _ = httpClientFactory;
-        _ = database;
-        _ = tokenProtector;
-        _ = connectionPolicy;
-
         EnsureConfigured();
         var state = CreateState(userContext.UserId);
         var query = new Dictionary<string, string>
@@ -46,6 +41,28 @@ public sealed class MicrosoftOAuthService(
         return AuthorizeEndpoint + "?" + string.Join("&", query.Select(x => $"{Uri.EscapeDataString(x.Key)}={Uri.EscapeDataString(x.Value)}"));
     }
 
+    public async Task CompleteAuthorizationAsync(string code, string state, CancellationToken cancellationToken)
+    {
+        EnsureConfigured();
+        var stateData = ReadState(state);
+
+        if (stateData.UserId != userContext.UserId)
+            throw new InvalidOperationException("La autorización de Microsoft no corresponde al usuario que inició sesión.");
+
+        if (DateTimeOffset.UtcNow - stateData.IssuedAt > TimeSpan.FromMinutes(10))
+            throw new InvalidOperationException("La solicitud de conexión a Microsoft expiró. Iníciala nuevamente.");
+
+        _ = code;
+        _ = cancellationToken;
+        _ = httpClientFactory;
+        _ = database;
+        _ = tokenProtector;
+        _ = connectionPolicy;
+        await Task.CompletedTask;
+
+        throw new NotSupportedException("El intercambio del callback de Microsoft todavía no está implementado.");
+    }
+
     private string CreateState(Guid userId)
     {
         var payload = new MicrosoftOAuthState(
@@ -53,6 +70,19 @@ public sealed class MicrosoftOAuthService(
             DateTimeOffset.UtcNow,
             Convert.ToHexString(RandomNumberGenerator.GetBytes(16)));
         return _stateProtector.Protect(JsonSerializer.Serialize(payload));
+    }
+
+    private MicrosoftOAuthState ReadState(string state)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<MicrosoftOAuthState>(_stateProtector.Unprotect(state))
+                ?? throw new InvalidOperationException();
+        }
+        catch
+        {
+            throw new InvalidOperationException("La solicitud de conexión a Microsoft no es válida o ya expiró.");
+        }
     }
 
     private void EnsureConfigured()
