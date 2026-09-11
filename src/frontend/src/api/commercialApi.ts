@@ -69,6 +69,22 @@ export interface CommercialAdminPlan extends CommercialPlan {
   canDelete: boolean
 }
 
+export interface CommercialAdminUser {
+  id: string
+  displayName: string
+  email: string
+  isActive: boolean
+  isAdministrator: boolean
+  planCode: string
+  planName: string
+  effectivePlanCode: string
+  effectivePlanName: string
+  connectedAccounts: number
+  subscription: CommercialSubscriptionState | null
+  createdAt: string
+  lastLoginAt: string | null
+}
+
 export interface CommercialPlanWriteRequest {
   code?: string
   name: string
@@ -105,6 +121,8 @@ export const commercialApi = {
   billingStatus: () => api<CommercialBillingStatus>('/billing/status'),
   checkout: (planCode: string) => api<CommercialCheckoutResponse>('/checkout', { method: 'POST', body: JSON.stringify({ planCode }) }),
   adminStatus: () => api<{ isAdministrator: boolean }>('/admin/status'),
+  adminUsers: () => api<CommercialAdminUser[]>('/admin/users'),
+  assignUserPlan: (userId: string, planCode: string) => api<CommercialAdminUser>(`/admin/users/${encodeURIComponent(userId)}/plan`, { method: 'PATCH', body: JSON.stringify({ planCode }) }),
   adminPlans: () => api<CommercialAdminPlan[]>('/admin/plans'),
   createPlan: (request: CommercialPlanWriteRequest) => api<CommercialAdminPlan>('/admin/plans', { method: 'POST', body: JSON.stringify(request) }),
   updatePlan: (code: string, request: CommercialPlanWriteRequest) => api<CommercialAdminPlan>(`/admin/plans/${encodeURIComponent(code)}`, { method: 'PATCH', body: JSON.stringify(request) }),
