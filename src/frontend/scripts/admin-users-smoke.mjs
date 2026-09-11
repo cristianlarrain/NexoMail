@@ -27,8 +27,11 @@ ensure(usersPage.includes('Administración de usuarios'), 'La pantalla debe iden
 ensure(usersPage.includes('assignUserPlan'), 'La pantalla debe permitir asignar planes desde la API.')
 ensure(usersPage.includes('connectedAccounts'), 'La tabla debe mostrar las cuentas conectadas del usuario.')
 ensure(usersPage.includes('effectivePlanCode'), 'La tabla debe distinguir el plan efectivo del asignado.')
+ensure(usersPage.includes("effectivePlanCode === 'owner'"), 'La pantalla debe reconocer el acceso interno Owner por separado del plan comercial.')
+ensure(usersPage.includes('Owner / Administrador general'), 'La pantalla debe identificar visualmente al Owner / Administrador general.')
+ensure(/disabled=\{isOwner\s*\|\|/s.test(usersPage), 'El plan comercial del Owner no debe poder reasignarse desde la grilla.')
 ensure(/\.commercial-admin-table th\s*\{[^}]*background:/s.test(adminStyles), 'Los encabezados de las grillas administrativas deben tener un fondo visible.')
 ensure(/\.commercial-admin-table th\s*\{[^}]*color:\s*(?:#fff|white|var\(--[^)]*on[^)]*\))/s.test(adminStyles), 'Los encabezados de las grillas administrativas deben usar texto de alto contraste.')
 ensure(/\.commercial-admin-guidance\s*\{[^}]*color:\s*var\(--foreground\)/s.test(adminStyles), 'El aviso administrativo debe usar texto principal de alto contraste, también en modo oscuro.')
 
-console.log('PASS: administración de usuarios -> API -> ruta -> pantalla -> asignación de plan')
+console.log('PASS: administración de usuarios -> API -> ruta -> pantalla -> asignación de plan -> Owner protegido')
