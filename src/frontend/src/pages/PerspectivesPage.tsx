@@ -103,7 +103,7 @@ export function PerspectivesPage() {
       : <div className="perspectives-grid">
           {items.map(item => {
             const reflection = item.nexiReflection?.trim() ?? ''
-            const collapsed = Boolean(collapsedReflections[item.id])
+            const collapsed = collapsedReflections[item.id] ?? true
             const focused = item.id === focusId
             return <article id={`perspective-${item.id}`} className={`perspective-card ${focused ? 'is-focused' : ''}`} key={item.id}>
               <header>
