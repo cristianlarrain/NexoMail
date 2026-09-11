@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { Navigate, useLocation, useParams } from 'react-router-dom'
+import { commercialApi } from '../api/commercialApi'
 import { mailApi } from '../api/mailApi'
 import { MessageNexiReaderTools } from '../components/MessageNexiReaderTools'
+import { commercialEntitlements } from '../utils/commercialEntitlements'
 import { MessagePage } from './MessagePage'
 
 type MessageRouteState = { returnTo?: string }
@@ -18,6 +20,12 @@ export function MessageRoute() {
     refetchOnMount: false,
     refetchOnWindowFocus: false,
   })
+  const { data: commercialSubscription } = useQuery({
+    queryKey: ['commercial-subscription'],
+    queryFn: commercialApi.subscription,
+    staleTime: 30_000,
+  })
+  const hasNexi = Boolean(commercialSubscription?.entitlements.includes(commercialEntitlements.nexiAi))
 
   if (isLoading || !message) return <section className="mail-view"><div className="reading-skeleton" /></section>
 
@@ -35,7 +43,7 @@ export function MessageRoute() {
   }
 
   return <>
-    <MessageNexiReaderTools accountId={accountId} messageId={messageId} />
+    {hasNexi && <MessageNexiReaderTools accountId={accountId} messageId={messageId} />}
     <MessagePage />
   </>
 }
