@@ -44,5 +44,8 @@ jobs:
       - name: Verify Nexi usage admin panel
         run: node scripts/ai-usage-admin-smoke.mjs
 
+      - name: Verify registration legal consent
+        run: node scripts/legal-consent-smoke.mjs
+
       - name: Build frontend
         run: pnpm build
