@@ -8,7 +8,7 @@ var databasePath = Path.Combine(Path.GetTempPath(), $"nexomail-msgraph-{Guid.New
 try
 {
     var options = new DbContextOptionsBuilder<NexoMailDbContext>()
-        .UseSqlite($"Data Source={databasePath}")
+        .UseSqlite($"Data Source={databasePath};Pooling=False")
         .Options;
 
     await using var database = new NexoMailDbContext(options);
