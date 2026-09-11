@@ -27,6 +27,11 @@ public sealed class MicrosoftOAuthService(
 
     public string BeginAuthorization()
     {
+        _ = httpClientFactory;
+        _ = database;
+        _ = tokenProtector;
+        _ = connectionPolicy;
+
         EnsureConfigured();
         var state = CreateState(userContext.UserId);
         var query = new Dictionary<string, string>
