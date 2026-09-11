@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { RequireAuth } from './components/RequireAuth'
+import { RequireEntitlement } from './components/RequireEntitlement'
 import { AppLayout } from './layouts/AppLayout'
 import { PublicLayout } from './layouts/PublicLayout'
 import { AccountsPage } from './pages/AccountsPage'
@@ -19,6 +20,7 @@ import { PlanPage } from './pages/PlanPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { RulesPage } from './pages/RulesPage'
 import { SearchPage } from './pages/SearchPage'
+import { commercialEntitlements } from './utils/commercialEntitlements'
 
 export const router = createBrowserRouter([
   {
@@ -34,11 +36,11 @@ export const router = createBrowserRouter([
   {
     element: <RequireAuth><AppLayout /></RequireAuth>,
     children: [
-      { path: '/inbox', element: <InboxPage /> },
-      { path: '/search', element: <SearchPage /> },
-      { path: '/search-action', element: <NexiSearchActionRoute /> },
-      { path: '/rules/new', element: <MailRulePage /> },
-      { path: '/control-center', element: <ControlCenterPage /> },
+      { path: '/inbox', element: <RequireEntitlement entitlement={commercialEntitlements.unifiedMail} label="Bandeja unificada"><InboxPage /></RequireEntitlement> },
+      { path: '/search', element: <RequireEntitlement entitlement={commercialEntitlements.unifiedMail} label="Bandeja unificada"><SearchPage /></RequireEntitlement> },
+      { path: '/search-action', element: <RequireEntitlement entitlement={commercialEntitlements.nexiAi} label="Nexi e IA"><NexiSearchActionRoute /></RequireEntitlement> },
+      { path: '/rules/new', element: <RequireEntitlement entitlement={commercialEntitlements.mailActions} label="Acciones de correo"><MailRulePage /></RequireEntitlement> },
+      { path: '/control-center', element: <RequireEntitlement entitlement={commercialEntitlements.controlCenterBasic} label="Centro de Control"><ControlCenterPage /></RequireEntitlement> },
       { path: '/perspectives', element: <PerspectivesPage /> },
       { path: '/account/:accountId', element: <InboxPage /> },
       { path: '/archive', element: <InboxPage folder="archive" /> },
@@ -48,10 +50,10 @@ export const router = createBrowserRouter([
       { path: '/spam', element: <InboxPage folder="spam" /> },
       { path: '/trash', element: <InboxPage folder="trash" /> },
       { path: '/message/:accountId/:messageId', element: <MessageRoute /> },
-      { path: '/compose', element: <ComposePage /> },
+      { path: '/compose', element: <RequireEntitlement entitlement={commercialEntitlements.mailActions} label="Redactar y enviar"><ComposePage /></RequireEntitlement> },
       { path: '/settings', element: <Navigate to="/settings/accounts" replace /> },
       { path: '/settings/accounts', element: <AccountsPage /> },
-      { path: '/settings/rules', element: <RulesPage /> },
+      { path: '/settings/rules', element: <RequireEntitlement entitlement={commercialEntitlements.mailActions} label="Acciones de correo"><RulesPage /></RequireEntitlement> },
       { path: '/settings/profile', element: <ProfilePage /> },
       { path: '/settings/appearance', element: <AppearancePage /> },
       { path: '/settings/plan', element: <PlanPage /> },
