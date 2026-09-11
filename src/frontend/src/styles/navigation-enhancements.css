@@ -141,8 +141,18 @@
   box-shadow: none;
 }
 
-.sidebar.collapsed .primary-nav-action > span { display: none; }
+/* Hide only text labels. Nexi uses a span wrapper for its visual icon. */
+.sidebar.collapsed .primary-nav-action > span:not(.primary-nav-icon) { display: none; }
 .sidebar.collapsed .primary-nav-icon { width: 15px; height: 15px; flex-basis: 15px; margin-left: 0; }
+.sidebar.collapsed .control-center-nav .nexi-sidebar-icon,
+.sidebar.collapsed .control-center-nav .nexi-sidebar-icon .nexi-visual {
+  display: grid !important;
+  place-items: center;
+}
+.sidebar.collapsed .control-center-nav .nexi-sidebar-icon .nexi-visual {
+  width: 22px;
+  height: 22px;
+}
 
 .sidebar.collapsed .nav-section-toggle {
   width: 38px;
