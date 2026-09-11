@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using NexoMail.Domain;
 using NexoMail.Infrastructure.Data;
 
 namespace NexoMail.Infrastructure;
@@ -64,7 +65,7 @@ public sealed class AiUsageAdminService(NexoMailDbContext database, TimeProvider
         var currentCost = current.Sum(x => x.EstimatedCostClp ?? 0m);
         var previousCost = previous.Sum(x => x.EstimatedCostClp ?? 0m);
         var activeUsers = current.Select(x => x.UserId).Distinct().Count();
-        var variation = previousCost == 0m
+        decimal? variation = previousCost == 0m
             ? null
             : decimal.Round((currentCost - previousCost) / previousCost * 100m, 2);
 
