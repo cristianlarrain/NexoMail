@@ -12,6 +12,8 @@ internal static class CommercialFeaturePolicySmoke
             "Enviar correo debe exigir acciones de correo.");
         Ensure(CommercialFeaturePolicy.RequiredEntitlement("POST", "/api/mail/messages/abc/reply") == CommercialEntitlements.MailActions,
             "Responder debe exigir acciones de correo.");
+        Ensure(CommercialFeaturePolicy.RequiredEntitlement("POST", "/api/mail/messages/account/message/ai-reply") == CommercialEntitlements.NexiAi,
+            "La respuesta asistida por IA debe exigir Nexi e IA.");
         Ensure(CommercialFeaturePolicy.RequiredEntitlement("POST", "/api/mail/drafts") == CommercialEntitlements.MailActions,
             "Guardar borradores debe exigir acciones de correo.");
         Ensure(CommercialFeaturePolicy.RequiredEntitlement("PUT", "/api/mail/drafts/account/draft") == CommercialEntitlements.MailActions,
@@ -30,6 +32,8 @@ internal static class CommercialFeaturePolicySmoke
             "La indexación de Contactos y Documentos debe exigir Centro de Control completo.");
         Ensure(CommercialFeaturePolicy.RequiredEntitlement("POST", "/api/mail/control-center/tracking/abc/123") == CommercialEntitlements.TrackingBasic,
             "El seguimiento manual debe exigir seguimiento esencial.");
+        Ensure(CommercialFeaturePolicy.RequiredEntitlement("PATCH", "/api/mail/control-center/account/conversation/state") == CommercialEntitlements.TrackingBasic,
+            "Finalizar o reabrir una conversación debe exigir seguimiento esencial.");
         Ensure(CommercialFeaturePolicy.RequiredEntitlement("POST", "/api/mail/ai/write") == CommercialEntitlements.NexiAi,
             "Las operaciones de IA deben exigir Nexi e IA.");
     }
