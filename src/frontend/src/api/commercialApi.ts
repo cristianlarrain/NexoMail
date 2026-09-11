@@ -123,6 +123,7 @@ export const commercialApi = {
   adminStatus: () => api<{ isAdministrator: boolean }>('/admin/status'),
   adminUsers: () => api<CommercialAdminUser[]>('/admin/users'),
   assignUserPlan: (userId: string, planCode: string) => api<CommercialAdminUser>(`/admin/users/${encodeURIComponent(userId)}/plan`, { method: 'PATCH', body: JSON.stringify({ planCode }) }),
+  grantUserTrial: (userId: string, trialType: 'premium' | 'nexi', days: number) => api<CommercialAdminUser>(`/admin/users/${encodeURIComponent(userId)}/trial`, { method: 'POST', body: JSON.stringify({ trialType, days }) }),
   adminPlans: () => api<CommercialAdminPlan[]>('/admin/plans'),
   createPlan: (request: CommercialPlanWriteRequest) => api<CommercialAdminPlan>('/admin/plans', { method: 'POST', body: JSON.stringify(request) }),
   updatePlan: (code: string, request: CommercialPlanWriteRequest) => api<CommercialAdminPlan>(`/admin/plans/${encodeURIComponent(code)}`, { method: 'PATCH', body: JSON.stringify(request) }),
