@@ -16,7 +16,7 @@ internal static class AiUsageAuthorizationSmoke
         try
         {
             await using var database = new NexoMailDbContext(
-                new DbContextOptionsBuilder<NexoMailDbContext>().UseSqlite($"Data Source={dbPath}").Options);
+                new DbContextOptionsBuilder<NexoMailDbContext>().UseSqlite($"Data Source={dbPath};Pooling=False").Options);
             await database.Database.EnsureCreatedAsync(ct);
 
             var owner = User("owner@nexomail.test", isOwner: true, isAdministrator: true);
