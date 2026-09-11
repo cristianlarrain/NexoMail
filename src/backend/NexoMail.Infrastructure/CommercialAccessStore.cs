@@ -33,6 +33,7 @@ public sealed record CommercialAccessSnapshot(
 public static class CommercialAccessStore
 {
     public const string OwnerAccessCode = "owner";
+    public const string AdminTrialProvider = "admin_trial";
     private static readonly IReadOnlyList<string> OwnerEntitlements = CommercialEntitlements.Definitions.Select(x => x.Code).ToArray();
 
     public static async Task<CommercialAccessSnapshot?> GetAsync(NexoMailDbContext database, Guid userId, CancellationToken ct = default)
@@ -66,6 +67,34 @@ public static class CommercialAccessStore
                 UpdatedAt = DateTimeOffset.UtcNow
             };
             return new CommercialAccessSnapshot(assigned, ownerPlan, subscription, OwnerEntitlements, true);
+        }
+
+        var isAdminTrial = string.Equals(subscription.Provider, AdminTrialProvider, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(subscription.Status, CommercialSubscriptionStatuses.Trialing, StringComparison.OrdinalIgnoreCase);
+        if (isAdminTrial)
+        {
+            var trialEndsAt = subscription.TrialEndsAt;
+            if (trialEndsAt is null || trialEndsAt <= DateTimeOffset.UtcNow)
+            {
+                subscription = subscription with { Status = CommercialSubscriptionStatuses.Expired };
+            }
+            else if (string.Equals(assigned.Code, CommercialPlanCatalog.Freemium, StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.Equals(subscription.PlanCode, CommercialPlanCatalog.Premium, StringComparison.OrdinalIgnoreCase))
+                {
+                    var premium = plans.FirstOrDefault(x => x.Code == CommercialPlanCatalog.Premium);
+                    if (premium is not null)
+                        return new CommercialAccessSnapshot(assigned, premium, subscription, EntitlementsFor(premium), true);
+                }
+                else if (string.Equals(subscription.PlanCode, CommercialPlanCatalog.Freemium, StringComparison.OrdinalIgnoreCase))
+                {
+                    var trialEntitlements = EntitlementsFor(freemium)
+                        .Concat(new[] { CommercialEntitlements.NexiAi })
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToArray();
+                    return new CommercialAccessSnapshot(assigned, freemium, subscription, trialEntitlements, true);
+                }
+            }
         }
 
         var isFree = string.Equals(assigned.Code, CommercialPlanCatalog.Freemium, StringComparison.OrdinalIgnoreCase);
