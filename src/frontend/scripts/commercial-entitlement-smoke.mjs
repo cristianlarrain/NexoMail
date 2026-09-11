@@ -38,8 +38,8 @@ ensure(messagePage.includes('hasMailActions') && messagePage.includes('commercia
   'El lector debe ocultar responder, reenviar y organizar cuando el plan no incluye acciones de correo.')
 ensure(messagePage.includes('hasTracking') && messagePage.includes('commercialEntitlements.trackingBasic'),
   'El lector debe ocultar seguimiento y finalización cuando el plan no incluye seguimiento esencial.')
-ensure(messagePage.includes('hasMailActions && <div className="message-actions') && messagePage.includes('hasMailActions && <div className="reply-bar'),
-  'Las barras de acciones del correo deben depender de la capacidad Acciones de correo.')
+ensure(messagePage.includes('hasMailActions && <button className="message-action-button primary-action"') && messagePage.includes('hasMailActions && <div className="reply-bar'),
+  'Responder y la barra inferior del correo deben depender de la capacidad Acciones de correo.')
 ensure(messagePage.includes('hasTracking && canManualTrack') && messagePage.includes('hasTracking && canTrackOrFinalize'),
   'Los controles de seguimiento del lector deben depender de Seguimiento esencial.')
 
