@@ -12,7 +12,7 @@ function ensure(condition, message) {
   if (!condition) throw new Error(message)
 }
 
-const [gate, constants, router, layout, controlCenter, messageRoute, messagePage] = await Promise.all([
+const [gate, constants, router, layout, controlCenter, messageRoute, messagePage, composePage, greetingAssistant, perspective, perspectivesPage] = await Promise.all([
   source('src/components/RequireEntitlement.tsx'),
   source('src/utils/commercialEntitlements.ts'),
   source('src/router.tsx'),
@@ -20,6 +20,10 @@ const [gate, constants, router, layout, controlCenter, messageRoute, messagePage
   source('src/pages/ControlCenterPage.tsx'),
   source('src/pages/MessageRoute.tsx'),
   source('src/pages/MessagePage.tsx'),
+  source('src/pages/ComposePage.tsx'),
+  source('src/components/NexiGreetingImageAssistant.tsx'),
+  source('src/components/NexoPerspective.tsx'),
+  source('src/pages/PerspectivesPage.tsx'),
 ])
 
 ensure(gate.includes('commercialApi.subscription') && gate.includes('entitlements.includes(entitlement)'),
@@ -42,5 +46,13 @@ ensure(messagePage.includes('hasMailActions && <button className="message-action
   'Responder y la barra inferior del correo deben depender de la capacidad Acciones de correo.')
 ensure(messagePage.includes('hasTracking && canManualTrack') && messagePage.includes('hasTracking && canTrackOrFinalize'),
   'Los controles de seguimiento del lector deben depender de Seguimiento esencial.')
+ensure(composePage.includes('commercialApi.subscription') && composePage.includes('commercialEntitlements.nexiAi') && composePage.includes('hasNexi && <AiInlineWritingAssistant'),
+  'El asistente de escritura del editor debe mostrarse sólo cuando Nexi e IA esté habilitado.')
+ensure(greetingAssistant.includes('commercialApi.subscription') && greetingAssistant.includes('commercialEntitlements.nexiAi') && greetingAssistant.includes('if (!hasNexi) return null'),
+  'El generador visual de saludos debe quedar inactivo cuando Nexi e IA no esté habilitado.')
+ensure(perspective.includes('commercialApi.subscription') && perspective.includes('commercialEntitlements.nexiAi') && perspective.includes('hasNexi && <button'),
+  'La acción Analizar de Perspectiva debe mostrarse sólo cuando Nexi e IA esté habilitado.')
+ensure(perspectivesPage.includes('commercialApi.subscription') && perspectivesPage.includes('commercialEntitlements.nexiAi') && perspectivesPage.includes('autoAnalyze && hasNexi'),
+  'Perspectivas no debe iniciar análisis automáticos sin la capacidad Nexi e IA.')
 
 console.log('PASS: frontend respeta capacidades comerciales configurables')
