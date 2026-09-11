@@ -43,11 +43,13 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
 
   const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: mailApi.accounts, staleTime: 10 * 60_000 })
   const selectedAccount = accountId ? accounts.find(account => account.id === accountId) : undefined
+  const microsoftAccountIds = useMemo(() => new Set(accounts.filter(account => account.provider === 'MicrosoftGraph').map(account => account.id)), [accounts])
+  const isMicrosoftAccountView = selectedAccount?.provider === 'MicrosoftGraph'
 
   const prioritySnapshot = useQuery({
     queryKey: ['control-center', accountId],
     queryFn: () => mailApi.controlCenter(accountId),
-    enabled: priorityOnly,
+    enabled: priorityOnly && !isMicrosoftAccountView,
     staleTime: 30_000,
     refetchOnMount: 'always',
     refetchOnWindowFocus: false,
@@ -55,7 +57,7 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
   const trackedItemsQuery = useQuery({
     queryKey: ['control-center-tracking', accountId],
     queryFn: () => mailApi.controlCenterTrackedItems(accountId),
-    enabled: priorityOnly,
+    enabled: priorityOnly && !isMicrosoftAccountView,
     staleTime: 15_000,
     refetchOnMount: 'always',
     refetchOnWindowFocus: false,
@@ -66,7 +68,7 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
     queryFn: ({ pageParam }) => mailApi.messages(accountId, folder, search, pageParam || undefined),
     initialPageParam: '',
     getNextPageParam: lastPage => lastPage.nextCursor ?? undefined,
-    enabled: !priorityOnly,
+    enabled: !priorityOnly || isMicrosoftAccountView,
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
     refetchInterval: 10 * 60_000,
@@ -122,7 +124,7 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
   const refreshMailbox = useMutation({
     mutationFn: mailApi.refreshMail,
     onSuccess: async () => {
-      if (priorityOnly) await Promise.all([prioritySnapshot.refetch(), trackedItemsQuery.refetch()])
+      if (priorityOnly && !isMicrosoftAccountView) await Promise.all([prioritySnapshot.refetch(), trackedItemsQuery.refetch()])
       else await messagesQuery.refetch()
     },
   })
@@ -223,7 +225,7 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
   }, [messagesQuery.data])
 
   const priorityReferences = useMemo(() => {
-    if (!priorityOnly) return []
+    if (!priorityOnly || isMicrosoftAccountView) return []
     const merged = new Map<string, ControlCenterPendingItem>()
     for (const item of prioritySnapshot.data?.pendingItems ?? []) {
       if (item.direction === 'received') merged.set(pendingKey(item), item)
@@ -232,12 +234,12 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
       if (item.direction === 'received') merged.set(pendingKey(item), item)
     }
     return [...merged.values()]
-  }, [priorityOnly, prioritySnapshot.data, trackedItemsQuery.data])
+  }, [isMicrosoftAccountView, priorityOnly, prioritySnapshot.data, trackedItemsQuery.data])
 
   const priorityReferenceByKey = useMemo(() => new Map(priorityReferences.map(item => [pendingKey(item), item])), [priorityReferences])
 
   const displayItems = useMemo(() => {
-    if (!priorityOnly) return items
+    if (!priorityOnly || isMicrosoftAccountView) return items
     const loaded = new Map(items.map(item => [itemKey(item), item]))
     const normalizedSearch = search.trim().toLowerCase()
     return priorityReferences
@@ -255,7 +257,7 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
         folderId: 'inbox',
       } satisfies MailSummary))
       .filter(item => !normalizedSearch || normalizedSearch === 'is:unread' || `${item.senderName} ${item.senderAddress} ${item.subject} ${item.preview}`.toLowerCase().includes(normalizedSearch))
-  }, [items, priorityHidden, priorityOnly, priorityReferences, search])
+  }, [isMicrosoftAccountView, items, priorityHidden, priorityOnly, priorityReferences, search])
 
   const sortedItems = useMemo(() => [...displayItems].sort((left, right) => {
     let comparison = 0
@@ -267,6 +269,7 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
 
   const selectedItems = useMemo(() => displayItems.filter(item => selected.has(itemKey(item))), [displayItems, selected])
   const selectedUnreadItems = useMemo(() => selectedItems.filter(item => !item.isRead), [selectedItems])
+  const selectedContainsMicrosoft = selectedItems.some(item => microsoftAccountIds.has(item.accountId))
   const allVisibleSelected = sortedItems.length > 0 && sortedItems.every(item => selected.has(itemKey(item)))
   const isUnreadView = !priorityOnly && search.trim().toLowerCase() === 'is:unread'
   const pageTitle = isUnreadView
@@ -287,13 +290,13 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
                   ? 'Spam'
                   : 'Papelera'
   const baseContextLabel = accountId ? selectedAccount?.displayName ?? 'Cuenta seleccionada' : 'Todas las cuentas'
-  const contextLabel = priorityOnly ? `${baseContextLabel} · Seguimiento prioritario` : baseContextLabel
+  const contextLabel = priorityOnly && !isMicrosoftAccountView ? `${baseContextLabel} · Seguimiento prioritario` : baseContextLabel
   const navigationItems = sortedItems.map(item => ({ accountId: item.accountId, messageId: item.providerMessageId }))
   const returnTo = `${location.pathname}${location.search}`
-  const priorityLoading = priorityOnly && (prioritySnapshot.isLoading || trackedItemsQuery.isLoading)
-  const priorityError = priorityOnly && (prioritySnapshot.isError || trackedItemsQuery.isError)
-  const listLoading = priorityOnly ? priorityLoading : messagesQuery.isLoading
-  const listError = priorityOnly ? priorityError : messagesQuery.isError
+  const priorityLoading = priorityOnly && !isMicrosoftAccountView && (prioritySnapshot.isLoading || trackedItemsQuery.isLoading)
+  const priorityError = priorityOnly && !isMicrosoftAccountView && (prioritySnapshot.isError || trackedItemsQuery.isError)
+  const listLoading = priorityOnly && !isMicrosoftAccountView ? priorityLoading : messagesQuery.isLoading
+  const listError = priorityOnly && !isMicrosoftAccountView ? priorityError : messagesQuery.isError
   const confirmDetails = confirmation?.kind === 'emptyTrash'
     ? { title: 'Vaciar Papelera', message: 'Esta acción eliminará permanentemente todos los correos de la Papelera.', label: 'Vaciar Papelera', tone: 'danger' as const }
     : folder === 'drafts'
@@ -358,7 +361,7 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
   const actionPending = moveMessages.isPending || ignoreSenders.isPending || unignoreSenders.isPending || markReadMessages.isPending
   const confirmationPending = confirmation?.kind === 'emptyTrash' ? emptyTrash.isPending : moveMessages.isPending
   const moveSuccess = moveMessages.isSuccess ? moveMessages.variables : null
-  const emptyTitle = priorityOnly
+  const emptyTitle = priorityOnly && !isMicrosoftAccountView
     ? 'Todo al día en seguimiento'
     : isUnreadView
       ? 'No quedan correos sin leer'
@@ -377,7 +380,7 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
                   : folder === 'spam'
                     ? 'No hay correo en Spam'
                     : 'La Papelera está vacía'
-  const emptyDescription = priorityOnly
+  const emptyDescription = priorityOnly && !isMicrosoftAccountView
     ? 'Nexi no encontró conversaciones pendientes de respuesta ni correos marcados manualmente para seguimiento.'
     : isUnreadView
       ? 'Nexi no encontró mensajes pendientes de lectura en esta vista.'
@@ -388,15 +391,16 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
           : folder === 'ignored'
             ? 'Los remitentes que decida ignorar aparecerán aquí sin eliminar sus correos.'
             : 'Los mensajes de esta carpeta aparecerán aquí cuando estén disponibles.'
-  const emptyAction = priorityOnly
+  const emptyAction = priorityOnly && !isMicrosoftAccountView
     ? <button type="button" className="secondary-button" onClick={togglePriorityFilter}>Volver a Bandeja</button>
     : search
       ? <button type="button" className="secondary-button" onClick={clearSearch}>Limpiar búsqueda</button>
       : undefined
 
   return <section className="mail-view">
-    <div className="view-header"><div><h1>{pageTitle}</h1><p className="view-context">{contextLabel}</p></div><div className="view-actions">{folder === 'inbox' && <button type="button" className={`secondary-button priority-filter-button ${priorityOnly ? 'active' : ''}`} onClick={togglePriorityFilter} aria-pressed={priorityOnly} title="Mostrar sólo los correos que requieren seguimiento"><Clock3 size={16} /><span>Seguimiento prioritario</span>{priorityOnly && <span className="priority-count">{displayItems.length}</span>}</button>}{folder === 'trash' && <button className="secondary-button danger-button" disabled={emptyTrash.isPending} onClick={() => setConfirmation({ kind: 'emptyTrash' })}><Trash2 size={16} /> {emptyTrash.isPending ? 'Vaciando…' : 'Vaciar Papelera'}</button>}<button className="icon-button" disabled={refreshMailbox.isPending} onClick={refreshAll} aria-label="Actualizar mensajes" title="Actualizar"><RefreshCw size={18} className={refreshMailbox.isPending ? 'spin' : ''} /></button></div></div>
+    <div className="view-header"><div><h1>{pageTitle}</h1><p className="view-context">{contextLabel}</p></div><div className="view-actions">{folder === 'inbox' && !isMicrosoftAccountView && <button type="button" className={`secondary-button priority-filter-button ${priorityOnly ? 'active' : ''}`} onClick={togglePriorityFilter} aria-pressed={priorityOnly} title="Mostrar sólo los correos que requieren seguimiento"><Clock3 size={16} /><span>Seguimiento prioritario</span>{priorityOnly && <span className="priority-count">{displayItems.length}</span>}</button>}{folder === 'trash' && !isMicrosoftAccountView && <button className="secondary-button danger-button" disabled={emptyTrash.isPending} onClick={() => setConfirmation({ kind: 'emptyTrash' })}><Trash2 size={16} /> {emptyTrash.isPending ? 'Vaciando…' : 'Vaciar Papelera'}</button>}<button className="icon-button" disabled={refreshMailbox.isPending} onClick={refreshAll} aria-label="Actualizar mensajes" title="Actualizar"><RefreshCw size={18} className={refreshMailbox.isPending ? 'spin' : ''} /></button></div></div>
 
+    {isMicrosoftAccountView && <div className="notice">Microsoft 365 está en Phase 1: puedes leer, abrir y marcar correos como leídos o no leídos. Las acciones de mover, eliminar, ignorar y seguimiento aún no están disponibles.</div>}
     {(location.state as { sent?: boolean; trashed?: boolean } | null)?.sent && <div className="success-notice">Correo enviado correctamente.</div>}
     {(location.state as { trashed?: boolean } | null)?.trashed && <div className="success-notice">Correo movido a Papelera.</div>}
     {folder === 'drafts' && moveSuccess?.target === 'trash' && <div className="success-notice">{moveSuccess.items.length === 1 ? 'Borrador descartado correctamente.' : `${moveSuccess.items.length} borradores descartados correctamente.`}</div>}
@@ -414,19 +418,19 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
     {markReadMessages.isError && <div className="notice">{markReadMessages.error instanceof Error ? markReadMessages.error.message : 'No se pudieron marcar los correos como leídos.'}</div>}
     {refreshMailbox.isError && <div className="notice">No fue posible actualizar la bandeja. Los datos disponibles siguen visibles y puede reintentar.</div>}
 
-    {selected.size > 0 && <div className="bulk-actions"><strong>{selected.size} seleccionado{selected.size === 1 ? '' : 's'}</strong>{folder === 'drafts' ? <button className="secondary-button danger-button" onClick={() => setConfirmation({ kind: 'trashSelected' })} disabled={actionPending}><Trash2 size={15} /> Descartar borrador{selectedItems.length === 1 ? '' : 'es'}</button> : <>{selectedUnreadItems.length > 0 && <button className="secondary-button" onClick={() => markReadMessages.mutate(selectedUnreadItems)} disabled={actionPending}><MailOpen size={15} /> Marcar como leído{selectedUnreadItems.length === 1 ? '' : 's'}</button>}{folder !== 'archive' && folder !== 'trash' && <button className="secondary-button" onClick={() => moveMessages.mutate({ items: selectedItems, target: 'archive' })} disabled={actionPending}><Archive size={15} /> Archivar</button>}{!priorityOnly && (folder === 'ignored' ? <button className="secondary-button" onClick={() => unignoreSenders.mutate(selectedItems)} disabled={actionPending}><Undo2 size={15} /> Dejar de ignorar</button> : folder !== 'trash' && <button className="secondary-button" onClick={() => ignoreSenders.mutate(selectedItems)} disabled={actionPending}><EyeOff size={15} /> Ignorar remitente</button>)}{folder === 'archive' || folder === 'spam' || folder === 'trash' ? <button className="secondary-button" onClick={() => moveMessages.mutate({ items: selectedItems, target: 'inbox' })} disabled={actionPending}><Undo2 size={15} /> Restaurar a Bandeja</button> : null}{folder !== 'trash' && <button className="secondary-button" onClick={() => setConfirmation({ kind: 'trashSelected' })} disabled={actionPending}><Trash2 size={15} /> Mover a Papelera</button>}</>}<button className="icon-button" onClick={() => setSelected(new Set())} aria-label="Cancelar selección"><X size={17} /></button></div>}
+    {selected.size > 0 && <div className="bulk-actions"><strong>{selected.size} seleccionado{selected.size === 1 ? '' : 's'}</strong>{folder === 'drafts' ? !selectedContainsMicrosoft && <button className="secondary-button danger-button" onClick={() => setConfirmation({ kind: 'trashSelected' })} disabled={actionPending}><Trash2 size={15} /> Descartar borrador{selectedItems.length === 1 ? '' : 'es'}</button> : <>{selectedUnreadItems.length > 0 && <button className="secondary-button" onClick={() => markReadMessages.mutate(selectedUnreadItems)} disabled={actionPending}><MailOpen size={15} /> Marcar como leído{selectedUnreadItems.length === 1 ? '' : 's'}</button>}{!selectedContainsMicrosoft && <>{folder !== 'archive' && folder !== 'trash' && <button className="secondary-button" onClick={() => moveMessages.mutate({ items: selectedItems, target: 'archive' })} disabled={actionPending}><Archive size={15} /> Archivar</button>}{!priorityOnly && (folder === 'ignored' ? <button className="secondary-button" onClick={() => unignoreSenders.mutate(selectedItems)} disabled={actionPending}><Undo2 size={15} /> Dejar de ignorar</button> : folder !== 'trash' && <button className="secondary-button" onClick={() => ignoreSenders.mutate(selectedItems)} disabled={actionPending}><EyeOff size={15} /> Ignorar remitente</button>)}{folder === 'archive' || folder === 'spam' || folder === 'trash' ? <button className="secondary-button" onClick={() => moveMessages.mutate({ items: selectedItems, target: 'inbox' })} disabled={actionPending}><Undo2 size={15} /> Restaurar a Bandeja</button> : null}{folder !== 'trash' && <button className="secondary-button" onClick={() => setConfirmation({ kind: 'trashSelected' })} disabled={actionPending}><Trash2 size={15} /> Mover a Papelera</button>}</>}</>}<button className="icon-button" onClick={() => setSelected(new Set())} aria-label="Cancelar selección"><X size={17} /></button></div>}
 
     {isUnreadView && selected.size === 0 && displayItems.length > 0 && <div className="unread-management-hint"><MailOpen size={16} /><span>Seleccione varios correos o use el checkbox superior para marcarlos como leídos en una sola acción.</span></div>}
 
-    {listLoading && <section className="inbox-mail-loading" aria-label="Cargando correos"><div className="inbox-loading-heading"><strong>{priorityOnly ? 'Recuperando seguimiento' : 'Cargando correos'}</strong><span>{priorityOnly ? 'Consultando pendientes y seguimientos manuales.' : 'Actualizando la bandeja.'}</span></div><MailSkeleton /></section>}
-    {listError && <div className="notice">{priorityOnly ? 'No fue posible recuperar el seguimiento prioritario.' : 'No se pudo actualizar una de sus cuentas.'} <button onClick={() => priorityOnly ? void Promise.all([prioritySnapshot.refetch(), trackedItemsQuery.refetch()]) : void messagesQuery.refetch()}>Reintentar</button></div>}
+    {listLoading && <section className="inbox-mail-loading" aria-label="Cargando correos"><div className="inbox-loading-heading"><strong>{priorityOnly && !isMicrosoftAccountView ? 'Recuperando seguimiento' : 'Cargando correos'}</strong><span>{priorityOnly && !isMicrosoftAccountView ? 'Consultando pendientes y seguimientos manuales.' : 'Actualizando la bandeja.'}</span></div><MailSkeleton /></section>}
+    {listError && <div className="notice">{priorityOnly && !isMicrosoftAccountView ? 'No fue posible recuperar el seguimiento prioritario.' : 'No se pudo actualizar una de sus cuentas.'} <button onClick={() => priorityOnly && !isMicrosoftAccountView ? void Promise.all([prioritySnapshot.refetch(), trackedItemsQuery.refetch()]) : void messagesQuery.refetch()}>Reintentar</button></div>}
     {!listLoading && !listError && displayItems.length === 0 && <NexiEmptyState title={emptyTitle} description={emptyDescription} action={emptyAction} />}
 
     {displayItems.length > 0 && <div className="message-list" aria-label="Lista de mensajes">
       <div className="message-list-header">
         <label className="row-check" title="Seleccionar todos los mensajes visibles"><input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} /></label>
         <span aria-hidden="true" />
-        <SortButton label={priorityOnly ? 'Contacto' : 'Remitente'} column="sender" active={sortKey} direction={sortDirection} onSort={changeSort} />
+        <SortButton label={priorityOnly && !isMicrosoftAccountView ? 'Contacto' : 'Remitente'} column="sender" active={sortKey} direction={sortDirection} onSort={changeSort} />
         <SortButton label="Asunto" column="subject" active={sortKey} direction={sortDirection} onSort={changeSort} />
         <span aria-hidden="true" />
         <SortButton label="Fecha" column="date" active={sortKey} direction={sortDirection} onSort={changeSort} />
@@ -434,16 +438,19 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
       </div>
       {sortedItems.map(item => {
         const account = accounts.find(a => a.id === item.accountId)
+        const isMicrosoftGraph = account?.provider === 'MicrosoftGraph'
         const key = itemKey(item)
         const priorityReference = priorityReferenceByKey.get(key)
         const openMessage = () => navigate(`/message/${item.accountId}/${item.providerMessageId}`, { state: { navigationItems, returnTo, ...(priorityReference ? { controlCenterItem: priorityReference, manualTracking: priorityReference.conversationId.startsWith('manual:') } : {}) } })
-        const primaryAction = folder === 'drafts'
-          ? { label: 'Descartar borrador', icon: <Trash2 size={15} />, action: () => setConfirmation({ kind: 'trashOne', item }) }
-          : folder === 'trash' || folder === 'archive' || folder === 'spam'
-            ? { label: 'Restaurar a Bandeja', icon: <Undo2 size={15} />, action: () => moveMessages.mutate({ items: [item], target: 'inbox' as const }) }
-            : folder === 'ignored'
-              ? { label: 'Dejar de ignorar', icon: <Undo2 size={15} />, action: () => unignoreSenders.mutate([item]) }
-              : { label: 'Archivar', icon: <Archive size={15} />, action: () => moveMessages.mutate({ items: [item], target: 'archive' as const }) }
+        const primaryAction = isMicrosoftGraph
+          ? null
+          : folder === 'drafts'
+            ? { label: 'Descartar borrador', icon: <Trash2 size={15} />, action: () => setConfirmation({ kind: 'trashOne', item }) }
+            : folder === 'trash' || folder === 'archive' || folder === 'spam'
+              ? { label: 'Restaurar a Bandeja', icon: <Undo2 size={15} />, action: () => moveMessages.mutate({ items: [item], target: 'inbox' as const }) }
+              : folder === 'ignored'
+                ? { label: 'Dejar de ignorar', icon: <Undo2 size={15} />, action: () => unignoreSenders.mutate([item]) }
+                : { label: 'Archivar', icon: <Archive size={15} />, action: () => moveMessages.mutate({ items: [item], target: 'archive' as const }) }
         return <div key={key} className={`message-row ${item.isRead ? '' : 'unread'} ${selected.has(key) ? 'selected' : ''}`} role="button" tabIndex={0} onClick={openMessage} onKeyDown={event => { if (event.key === 'Enter' && event.target === event.currentTarget) openMessage() }}>
           <label className="row-check" onClick={event => event.stopPropagation()}><input type="checkbox" checked={selected.has(key)} onChange={() => toggleSelected(item)} aria-label={`Seleccionar ${item.subject}`} /></label>
           <i className="account-dot" style={{ background: account?.color }} />
@@ -452,8 +459,8 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
           <span className="attachment-slot">{item.hasAttachments && <Paperclip size={15} className="attachment-icon" />}</span>
           <time>{dateLabel(item.receivedAt)}</time>
           <div className="row-mail-actions" onClick={event => event.stopPropagation()}>
-            <button className="row-mail-action" type="button" title={primaryAction.label} aria-label={`${primaryAction.label}: ${item.subject}`} disabled={actionPending} onClick={primaryAction.action}>{primaryAction.icon}</button>
-            {folder !== 'trash' && folder !== 'drafts' && <div className="row-more-wrap">
+            {primaryAction && <button className="row-mail-action" type="button" title={primaryAction.label} aria-label={`${primaryAction.label}: ${item.subject}`} disabled={actionPending} onClick={primaryAction.action}>{primaryAction.icon}</button>}
+            {!isMicrosoftGraph && folder !== 'trash' && folder !== 'drafts' && <div className="row-more-wrap">
               <button className="row-mail-action" type="button" title="Más acciones" aria-label={`Más acciones para ${item.subject}`} aria-expanded={openActionMenu === key} onClick={() => setOpenActionMenu(current => current === key ? null : key)}><MoreHorizontal size={16} /></button>
               {openActionMenu === key && <div className="row-action-menu" role="menu">
                 {folder !== 'archive' && <button type="button" onClick={() => moveMessages.mutate({ items: [item], target: 'archive' })}><Archive size={14} /> Archivar</button>}
@@ -467,7 +474,7 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
       })}
     </div>}
 
-    {displayItems.length > 0 && <div className="message-pagination"><span>{displayItems.length} correo{displayItems.length === 1 ? '' : 's'} {priorityOnly ? 'en seguimiento' : `cargado${displayItems.length === 1 ? '' : 's'}`}</span>{!priorityOnly && messagesQuery.hasNextPage && <button className="secondary-button" disabled={messagesQuery.isFetchingNextPage} onClick={() => messagesQuery.fetchNextPage()}>{messagesQuery.isFetchingNextPage ? 'Cargando…' : 'Cargar más correos'}</button>}</div>}
+    {displayItems.length > 0 && <div className="message-pagination"><span>{displayItems.length} correo{displayItems.length === 1 ? '' : 's'} {priorityOnly && !isMicrosoftAccountView ? 'en seguimiento' : `cargado${displayItems.length === 1 ? '' : 's'}`}</span>{(!priorityOnly || isMicrosoftAccountView) && messagesQuery.hasNextPage && <button className="secondary-button" disabled={messagesQuery.isFetchingNextPage} onClick={() => messagesQuery.fetchNextPage()}>{messagesQuery.isFetchingNextPage ? 'Cargando…' : 'Cargar más correos'}</button>}</div>}
 
     <ConfirmDialog open={Boolean(confirmation)} title={confirmDetails.title} message={confirmDetails.message} confirmLabel={confirmDetails.label} tone={confirmDetails.tone} pending={confirmationPending} onCancel={() => setConfirmation(null)} onConfirm={confirmCurrentAction} />
   </section>
