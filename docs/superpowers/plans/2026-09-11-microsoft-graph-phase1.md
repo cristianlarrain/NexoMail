@@ -2,34 +2,34 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add Microsoft 365 delegated OAuth and a read-only Microsoft Graph mailbox path that can connect an organizational account, list inbox messages, open a message, and mark it read without persisting message bodies or attachment contents.
+**Goal:** Add Microsoft 365 delegated OAuth and a deliberately limited Microsoft Graph mailbox path that connects an organizational account, lists the inbox, opens a message, and marks it read/unread without persisting message bodies or attachment contents.
 
-**Architecture:** Follow the existing Gmail pattern with explicit `HttpClient` calls, the existing `IMailProvider`/`MailGateway` provider routing, protected refresh-token persistence, and `UserScopedMailProvider`. Microsoft-specific OAuth, token refresh, cursor handling, and Graph mapping live in a focused `NexoMail.Infrastructure.Microsoft` namespace. Unsupported Phase 1 Microsoft write operations remain visibly unavailable rather than silently degrading.
+**Architecture:** Follow NexoMail's existing Gmail pattern: explicit `HttpClient` REST calls, existing `IMailProvider`/`MailGateway` routing, `UserScopedMailProvider`, ASP.NET Core Data Protection, and the existing OAuth credential table. Microsoft-specific OAuth, token refresh, safe cursor handling, and Graph mapping live under `NexoMail.Infrastructure.Microsoft`. Unsupported Microsoft write features stay unavailable in Phase 1 rather than failing after the UI advertises them.
 
 **Tech Stack:** .NET 10, ASP.NET Core Minimal APIs, EF Core SQLite, ASP.NET Core Data Protection, React/Vite/TypeScript, TanStack Query, pnpm, Microsoft Graph REST v1.0.
 
 **Spec:** `docs/superpowers/specs/2026-09-11-microsoft-graph-integration-design.md`
 
-## Global Constraints
+## Global constraints
 
-- Microsoft authority: `https://login.microsoftonline.com/organizations`.
-- Authorization endpoint: `https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize`.
+- Authority: `https://login.microsoftonline.com/organizations`.
+- Authorize endpoint: `https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize`.
 - Token endpoint: `https://login.microsoftonline.com/organizations/oauth2/v2.0/token`.
-- Graph base URL: `https://graph.microsoft.com/v1.0/`.
+- Graph base: `https://graph.microsoft.com/v1.0/`.
 - Local callback: `http://localhost:5052/api/oauth/microsoft/callback`.
-- Phase 1 OAuth scopes are exactly: `openid profile email offline_access User.Read Mail.ReadWrite`.
+- Phase 1 scopes exactly: `openid profile email offline_access User.Read Mail.ReadWrite`.
 - `Mail.Send` may remain registered in Entra but is not requested or used in Phase 1.
-- No application permissions, organization-wide mailbox access, personal Outlook/Hotmail support, or Exchange on-premises support.
-- Do not persist Microsoft access tokens, message bodies, or attachment bytes.
-- Persist the Microsoft refresh token only through the existing `ITokenProtector`.
-- Do not commit a real Microsoft client secret, refresh token, access token, or mailbox data.
-- Microsoft account operations supported in Phase 1: inbox list, single-message read, mark read/unread.
-- Unsupported Microsoft operations must not report false success.
+- No application permissions, tenant-wide mailbox access, personal Outlook/Hotmail, or Exchange on-premises.
+- Never persist Microsoft access tokens, full message bodies, or attachment bytes.
+- Persist only the protected refresh token through the existing `ITokenProtector` (`NexoMail.Infrastructure.Google` namespace is retained for Phase 1 to avoid unrelated refactoring).
+- Never commit a real client secret, refresh token, access token, or real mailbox fixture.
+- Supported Microsoft operations: inbox list, single-message read, mark read/unread.
+- Unsupported Microsoft operations must never report false success.
 - Gmail behavior must remain unchanged.
 
 ---
 
-### Task 1: Establish Microsoft test harness and shared account-limit policy
+### Task 1: Create the Microsoft smoke-test harness and share account-limit enforcement
 
 **Files:**
 - Create: `src/backend/NexoMail.MicrosoftGraphSmokeTests/NexoMail.MicrosoftGraphSmokeTests.csproj`
@@ -38,21 +38,15 @@
 - Modify: `src/backend/NexoMail.Infrastructure/Google/GoogleOAuthService.cs`
 - Modify: `NexoMail.sln`
 
-**Interfaces:**
-- Produces: `MailAccountConnectionPolicy.EnsureCanConnectAnotherAccountAsync(CancellationToken)`.
-- `GoogleOAuthService.EnsureCanConnectAnotherAccountAsync` remains public and delegates to the shared policy so existing API routing does not change.
-- The smoke-test project references `NexoMail.Infrastructure`, `NexoMail.Application`, and `NexoMail.Domain`.
+- [ ] **Step 1: Write the first failing test**
 
-- [ ] **Step 1: Create the Microsoft smoke-test console project and a failing account-limit check**
-
-Create `NexoMail.MicrosoftGraphSmokeTests.csproj` with the same console-project shape as the existing smoke tests:
+Create the console smoke-test project with project references to Infrastructure, Application, and Domain plus the ASP.NET Core framework reference:
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-  </PropertyGroup>
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="../NexoMail.Infrastructure/NexoMail.Infrastructure.csproj" />
     <ProjectReference Include="../NexoMail.Application/NexoMail.Application.csproj" />
     <ProjectReference Include="../NexoMail.Domain/NexoMail.Domain.csproj" />
@@ -60,80 +54,68 @@ Create `NexoMail.MicrosoftGraphSmokeTests.csproj` with the same console-project 
 </Project>
 ```
 
-Add an initial `Program.cs` that builds an in-memory SQLite `NexoMailDbContext`, inserts a user and a commercial plan with `MaxAccounts = 1`, inserts one active account, and calls:
+In `Program.cs`, create an in-memory SQLite database, seed a user, an effective plan with `MaxAccounts = 1`, and one active account. Add a `TestUserContext` implementing the complete current interface:
+
+```csharp
+sealed class TestUserContext(Guid userId) : IUserContext
+{
+    public bool IsAuthenticated => true;
+    public Guid UserId => userId;
+    public string Email => "test@nexomail.local";
+    public string DisplayName => "NexoMail Test";
+}
+```
+
+Assert a second connection is blocked:
 
 ```csharp
 var policy = new MailAccountConnectionPolicy(database, new TestUserContext(userId));
 var blocked = false;
-try
-{
-    await policy.EnsureCanConnectAnotherAccountAsync(CancellationToken.None);
-}
-catch (InvalidOperationException)
-{
-    blocked = true;
-}
+try { await policy.EnsureCanConnectAnotherAccountAsync(CancellationToken.None); }
+catch (InvalidOperationException) { blocked = true; }
 Ensure(blocked, "El límite comercial debe bloquear una segunda cuenta.");
 ```
 
-The test helper `TestUserContext` in this smoke project implements `IUserContext` and returns the supplied `UserId`.
-
-- [ ] **Step 2: Run the smoke test and verify RED**
-
-Run:
+- [ ] **Step 2: Run RED**
 
 ```powershell
 dotnet run --project src/backend/NexoMail.MicrosoftGraphSmokeTests/NexoMail.MicrosoftGraphSmokeTests.csproj
 ```
 
-Expected: build fails because `MailAccountConnectionPolicy` does not exist.
+Expected: compile failure because `MailAccountConnectionPolicy` does not exist.
 
-- [ ] **Step 3: Implement the shared account-limit policy**
+- [ ] **Step 3: Implement the shared policy**
 
-Create `MailAccountConnectionPolicy.cs`:
+Move only the existing effective-plan/max-account logic from `GoogleOAuthService.EnsureCanConnectAnotherAccountAsync` into:
 
 ```csharp
-using Microsoft.EntityFrameworkCore;
-using NexoMail.Application;
-using NexoMail.Infrastructure.Data;
-
-namespace NexoMail.Infrastructure;
-
 public sealed class MailAccountConnectionPolicy(NexoMailDbContext database, IUserContext userContext)
 {
     public async Task EnsureCanConnectAnotherAccountAsync(CancellationToken cancellationToken)
     {
-        var userId = userContext.UserId;
-        var access = await CommercialAccessStore.GetAsync(database, userId, cancellationToken)
+        var access = await CommercialAccessStore.GetAsync(database, userContext.UserId, cancellationToken)
             ?? throw new InvalidOperationException("No fue posible determinar el plan de la cuenta.");
         var plan = access.EffectivePlan;
         if (!plan.MaxAccounts.HasValue) return;
 
-        var connectedAccounts = await database.MailAccounts.AsNoTracking()
-            .CountAsync(x => x.UserId == userId && x.IsActive, cancellationToken);
-        if (connectedAccounts >= plan.MaxAccounts.Value)
+        var connected = await database.MailAccounts.AsNoTracking()
+            .CountAsync(x => x.UserId == userContext.UserId && x.IsActive, cancellationToken);
+        if (connected >= plan.MaxAccounts.Value)
             throw new InvalidOperationException($"Su plan efectivo {plan.Name} permite hasta {plan.MaxAccounts.Value} cuentas de correo. Cambie de plan o regularice su suscripción para conectar una cuenta adicional.");
     }
 }
 ```
 
-Change the Google service constructor to receive `MailAccountConnectionPolicy accountConnectionPolicy` and make its existing method delegate:
+Inject the policy into `GoogleOAuthService`; keep its public method as a delegating compatibility method.
 
-```csharp
-public Task EnsureCanConnectAnotherAccountAsync(CancellationToken cancellationToken) =>
-    accountConnectionPolicy.EnsureCanConnectAnotherAccountAsync(cancellationToken);
-```
-
-- [ ] **Step 4: Add the smoke-test project to the solution and run GREEN**
-
-Run:
+- [ ] **Step 4: Add project to solution and run GREEN**
 
 ```powershell
 dotnet sln NexoMail.sln add src/backend/NexoMail.MicrosoftGraphSmokeTests/NexoMail.MicrosoftGraphSmokeTests.csproj
 dotnet run --project src/backend/NexoMail.MicrosoftGraphSmokeTests/NexoMail.MicrosoftGraphSmokeTests.csproj
 ```
 
-Expected: `PASS` for the account-limit check.
+Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
@@ -144,57 +126,46 @@ git commit -m "refactor: share mail account connection policy"
 
 ---
 
-### Task 2: Implement Microsoft OAuth start, state validation, callback persistence, and reconnection
+### Task 2: Implement Microsoft OAuth URL, protected state, callback persistence, and reconnection
 
 **Files:**
 - Create: `src/backend/NexoMail.Infrastructure/Microsoft/MicrosoftGraphOptions.cs`
 - Create: `src/backend/NexoMail.Infrastructure/Microsoft/MicrosoftOAuthService.cs`
 - Modify: `src/backend/NexoMail.MicrosoftGraphSmokeTests/Program.cs`
 
-**Interfaces:**
-- `MicrosoftGraphOptions.SectionName = "Microsoft"`.
-- `MicrosoftOAuthService.EnsureCanConnectAnotherAccountAsync(CancellationToken)`.
-- `MicrosoftOAuthService.BeginAuthorization()` returns the Microsoft authorization URL.
-- `MicrosoftOAuthService.CompleteAuthorizationAsync(string code, string state, CancellationToken)` persists/reactivates the account and protected refresh token.
-- `SuccessRedirect()` returns `...?connected=microsoft`; `FailureRedirect(string)` URL-encodes the error.
+- [ ] **Step 1: Add failing authorization/state tests**
 
-- [ ] **Step 1: Add failing OAuth URL/state assertions to the smoke test**
+Test an options instance containing test-only values and assert `BeginAuthorization()` produces:
 
-Instantiate `MicrosoftOAuthService` with:
-
-```csharp
-new MicrosoftGraphOptions
-{
-    ClientId = "client-test",
-    ClientSecret = "secret-test",
-    RedirectUri = "http://localhost:5052/api/oauth/microsoft/callback",
-    FrontendUrl = "http://localhost:5173/settings/accounts"
-}
+```text
+host = login.microsoftonline.com
+path = /organizations/oauth2/v2.0/authorize
+client_id = configured client id
+redirect_uri = http://localhost:5052/api/oauth/microsoft/callback
+scope = openid profile email offline_access User.Read Mail.ReadWrite
 ```
 
-Use an ephemeral Data Protection provider and assert the authorization URL contains:
+Assert `Mail.Send` is absent and `state` is present.
 
-```csharp
-Ensure(uri.Host == "login.microsoftonline.com", "OAuth debe usar login.microsoftonline.com.");
-Ensure(uri.AbsolutePath == "/organizations/oauth2/v2.0/authorize", "OAuth debe usar la autoridad organizations.");
-Ensure(query["client_id"] == "client-test", "OAuth debe enviar ClientId.");
-Ensure(query["redirect_uri"] == "http://localhost:5052/api/oauth/microsoft/callback", "OAuth debe enviar el callback registrado.");
-Ensure(query["scope"] == "openid profile email offline_access User.Read Mail.ReadWrite", "OAuth debe pedir solo los scopes de Fase 1.");
-Ensure(!query["scope"].Contains("Mail.Send", StringComparison.Ordinal), "Fase 1 no debe solicitar Mail.Send.");
-Ensure(!string.IsNullOrWhiteSpace(query["state"]), "OAuth debe incluir state protegido.");
-```
+Add three state-failure cases that must fail before any HTTP exchange:
 
-Add tests for tampered state and state created for a different `IUserContext`; both must throw `InvalidOperationException` before any token request.
+1. altered/tampered state;
+2. state generated for a different NexoMail user;
+3. expired state older than ten minutes.
 
-- [ ] **Step 2: Run and verify RED**
+For the expiration test, create the same Data Protection purpose `NexoMail.MicrosoftOAuth.State.v1`, protect a JSON payload containing the current user ID, `IssuedAt = DateTimeOffset.UtcNow.AddMinutes(-11)`, and a nonce, then pass it to `CompleteAuthorizationAsync` and assert `InvalidOperationException`.
+
+- [ ] **Step 2: Run RED**
 
 ```powershell
 dotnet run --project src/backend/NexoMail.MicrosoftGraphSmokeTests/NexoMail.MicrosoftGraphSmokeTests.csproj
 ```
 
-Expected: compile failure because Microsoft classes are absent.
+Expected: Microsoft OAuth classes missing.
 
-- [ ] **Step 3: Implement `MicrosoftGraphOptions`**
+- [ ] **Step 3: Add options and authorization/state implementation**
+
+`MicrosoftGraphOptions`:
 
 ```csharp
 namespace NexoMail.Infrastructure.Microsoft;
@@ -209,94 +180,66 @@ public sealed class MicrosoftGraphOptions
 }
 ```
 
-- [ ] **Step 4: Implement authorization URL and protected state**
-
-Use these constants inside `MicrosoftOAuthService`:
+Use constants:
 
 ```csharp
 private const string AuthorizeEndpoint = "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize";
 private const string TokenEndpoint = "https://login.microsoftonline.com/organizations/oauth2/v2.0/token";
 private const string GraphMeEndpoint = "https://graph.microsoft.com/v1.0/me?$select=id,displayName,mail,userPrincipalName";
-private const string Phase1Scopes = "openid profile email offline_access User.Read Mail.ReadWrite";
+internal const string Phase1Scopes = "openid profile email offline_access User.Read Mail.ReadWrite";
 ```
 
-Create the state protector with:
+Use the Data Protection purpose `NexoMail.MicrosoftOAuth.State.v1`, include `UserId`, `IssuedAt`, and random nonce, bind state to the logged-in NexoMail user, and expire at ten minutes.
 
-```csharp
-private readonly IDataProtector _stateProtector =
-    dataProtectionProvider.CreateProtector("NexoMail.MicrosoftOAuth.State.v1");
-```
+Import/reuse `NexoMail.Infrastructure.Google.ITokenProtector`; do not relocate it in this phase.
 
-The state record is:
+- [ ] **Step 4: Add failing callback persistence tests**
 
-```csharp
-private sealed record MicrosoftOAuthState(Guid UserId, DateTimeOffset IssuedAt, string Nonce);
-```
-
-Reject tampered state, wrong user, and age greater than ten minutes.
-
-- [ ] **Step 5: Add failing callback/persistence assertions**
-
-Extend the smoke test with a fake `IHttpClientFactory` whose unnamed client returns a token response for the token endpoint and whose `MicrosoftGraph` client returns `/me`:
+With a fake `IHttpClientFactory`, return these test-only payloads:
 
 ```json
-{"access_token":"access-1","refresh_token":"refresh-1","expires_in":3600}
+{"access_token":"test-access-token","refresh_token":"test-refresh-token","expires_in":3600}
 ```
 
 ```json
-{"id":"graph-user-1","displayName":"Microsoft Test","mail":"persona@empresa.test","userPrincipalName":"persona@empresa.test"}
+{"id":"graph-test-user","displayName":"Microsoft Test","mail":"persona@empresa.test","userPrincipalName":"persona@empresa.test"}
 ```
 
-After `CompleteAuthorizationAsync`, assert:
+Assert:
+
+- one `MailAccountEntity` is created with `Provider = MicrosoftGraph`;
+- email is `persona@empresa.test`;
+- display name is `Microsoft 365`;
+- refresh token is not stored in clear text and decrypts through the test protector;
+- no access token is persisted.
+
+Then set the account inactive, repeat connection for the same address, and assert the existing account is reactivated rather than duplicated.
+
+Also test `/me` with `mail = null` and a valid `userPrincipalName` fallback.
+
+Because the DB unique index is `(UserId, EmailAddress)` regardless of provider, seed the same address under a different provider and assert the Microsoft callback fails cleanly with a user-safe `InvalidOperationException` rather than reaching a SQLite unique-index exception.
+
+- [ ] **Step 5: Implement token exchange and account persistence**
+
+Post authorization-code exchange with `code`, client ID/secret, exact redirect URI, `grant_type=authorization_code`, and exact Phase 1 scopes. Use the returned access token only transiently to call `/me`.
+
+When resolving the account:
 
 ```csharp
-var account = await database.MailAccounts.SingleAsync(x => x.Provider == MailProviderType.MicrosoftGraph);
-Ensure(account.EmailAddress == "persona@empresa.test", "Debe persistir el correo de /me.");
-Ensure(account.DisplayName == "Microsoft 365", "Debe usar nombre visible Microsoft 365.");
-var credential = await database.OAuthCredentials.SingleAsync(x => x.MailAccountId == account.Id);
-Ensure(credential.EncryptedRefreshToken != "refresh-1", "El refresh token no puede guardarse en claro.");
-Ensure(tokenProtector.Unprotect(credential.EncryptedRefreshToken) == "refresh-1", "El refresh token protegido debe ser recuperable.");
+var existing = await database.MailAccounts.SingleOrDefaultAsync(
+    x => x.UserId == userContext.UserId && x.EmailAddress == email,
+    cancellationToken);
 ```
 
-Repeat the callback with the same mailbox after setting `account.IsActive = false`; assert exactly one account exists and it becomes active again.
+If `existing` has another provider, throw:
 
-Also exercise a `/me` response with `"mail": null` and verify fallback to `userPrincipalName`.
-
-- [ ] **Step 6: Implement callback exchange and persistence**
-
-Post this form to the token endpoint:
-
-```csharp
-new FormUrlEncodedContent(new Dictionary<string, string>
-{
-    ["code"] = code,
-    ["client_id"] = _options.ClientId,
-    ["client_secret"] = _options.ClientSecret,
-    ["redirect_uri"] = _options.RedirectUri,
-    ["grant_type"] = "authorization_code",
-    ["scope"] = Phase1Scopes
-})
+```text
+Esta dirección ya está conectada en NexoMail mediante otro proveedor.
 ```
 
-Call `/me` using the returned access token. Resolve email with `mail` first and `userPrincipalName` second. Create/reactivate:
+If it is MicrosoftGraph, reactivate it. Otherwise create a MicrosoftGraph account. Protect the refresh token before persistence.
 
-```csharp
-new MailAccountEntity
-{
-    Id = Guid.NewGuid(),
-    UserId = userContext.UserId,
-    Provider = MailProviderType.MicrosoftGraph,
-    EmailAddress = email,
-    DisplayName = "Microsoft 365",
-    Color = "#0078d4",
-    CreatedAt = DateTimeOffset.UtcNow,
-    IsActive = true
-};
-```
-
-Protect the refresh token through `ITokenProtector` and store it in the existing `OAuthCredentialEntity`. Do not persist the access token.
-
-- [ ] **Step 7: Run GREEN and commit**
+- [ ] **Step 6: Run GREEN and commit**
 
 ```powershell
 dotnet run --project src/backend/NexoMail.MicrosoftGraphSmokeTests/NexoMail.MicrosoftGraphSmokeTests.csproj
@@ -306,36 +249,26 @@ git commit -m "feat: add Microsoft OAuth connection flow"
 
 ---
 
-### Task 3: Implement Microsoft access-token refresh with rotation
+### Task 3: Implement access-token refresh, memory cache, and refresh-token rotation
 
 **Files:**
 - Create: `src/backend/NexoMail.Infrastructure/Microsoft/MicrosoftGraphTokenProvider.cs`
 - Modify: `src/backend/NexoMail.MicrosoftGraphSmokeTests/Program.cs`
 
-**Interfaces:**
-- Produces: `Task<string> GetAccessTokenAsync(Guid accountId, CancellationToken cancellationToken)`.
-- Depends on `NexoMailDbContext`, `ITokenProtector`, `IOptions<MicrosoftGraphOptions>`, and `IHttpClientFactory`.
-- Durable state remains the protected refresh token; short-lived access tokens are process-memory cache only.
+- [ ] **Step 1: Add failing refresh tests**
 
-- [ ] **Step 1: Add failing token-refresh tests**
-
-Seed a Microsoft account and credential where the protected value unwraps to `refresh-old`. Configure the fake token endpoint to return:
+Seed a Microsoft credential whose protected refresh token decrypts to `test-refresh-old`. Fake the token endpoint response:
 
 ```json
-{"access_token":"access-new","refresh_token":"refresh-rotated","expires_in":3600}
+{"access_token":"test-access-new","refresh_token":"test-refresh-rotated","expires_in":3600}
 ```
 
 Assert:
 
-```csharp
-var accessToken = await tokenProvider.GetAccessTokenAsync(account.Id, CancellationToken.None);
-Ensure(accessToken == "access-new", "Debe devolver el access token de Microsoft.");
-var updated = await database.OAuthCredentials.SingleAsync(x => x.MailAccountId == account.Id);
-Ensure(tokenProtector.Unprotect(updated.EncryptedRefreshToken) == "refresh-rotated", "Debe persistir refresh-token rotation.");
-Ensure(updated.EncryptedRefreshToken != "refresh-rotated", "El refresh token rotado debe permanecer protegido.");
-```
-
-Call the method a second time and assert the fake token endpoint request count remains `1`, proving the access token is cached until near expiration.
+- `GetAccessTokenAsync` returns `test-access-new`;
+- rotated refresh token is stored protected;
+- second call uses the access-token memory cache and does not call the token endpoint again;
+- access token does not appear in any persisted entity.
 
 - [ ] **Step 2: Run RED**
 
@@ -343,31 +276,11 @@ Call the method a second time and assert the fake token endpoint request count r
 dotnet run --project src/backend/NexoMail.MicrosoftGraphSmokeTests/NexoMail.MicrosoftGraphSmokeTests.csproj
 ```
 
-Expected: compile failure because `MicrosoftGraphTokenProvider` does not exist.
+- [ ] **Step 3: Implement token provider**
 
-- [ ] **Step 3: Implement the token provider**
+Use per-account `ConcurrentDictionary<Guid, CachedAccessToken>` and `SemaphoreSlim` gates. Load only the current credential snapshot from SQLite, unprotect refresh token, request a fresh access token with the exact Phase 1 scopes, and cache until approximately two minutes before provider expiry.
 
-Use:
-
-```csharp
-private static readonly ConcurrentDictionary<Guid, CachedAccessToken> AccessTokens = new();
-private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> TokenGates = new();
-```
-
-Refresh with:
-
-```csharp
-new FormUrlEncodedContent(new Dictionary<string, string>
-{
-    ["client_id"] = options.Value.ClientId,
-    ["client_secret"] = options.Value.ClientSecret,
-    ["refresh_token"] = refreshToken,
-    ["grant_type"] = "refresh_token",
-    ["scope"] = "openid profile email offline_access User.Read Mail.ReadWrite"
-})
-```
-
-Cache expiry as `now.AddSeconds(Math.Max(60, expiresIn - 120))`. If the token response contains a non-empty replacement refresh token different from the existing one, protect it, set `UpdatedAt = DateTimeOffset.UtcNow`, and `SaveChangesAsync` before returning the access token.
+If Microsoft returns a replacement refresh token, protect and save it before returning. Update `UpdatedAt`; cache invalidation must compare credential timestamp so reconnecting an account invalidates an older access token.
 
 - [ ] **Step 4: Run GREEN and commit**
 
@@ -379,23 +292,16 @@ git commit -m "feat: add Microsoft token refresh and rotation"
 
 ---
 
-### Task 4: Implement Graph inbox listing, safe pagination, message detail, and read state
+### Task 4: Implement safe Graph inbox pagination, message detail, read state, and Graph error normalization
 
 **Files:**
 - Create: `src/backend/NexoMail.Infrastructure/Microsoft/MicrosoftGraphCursor.cs`
 - Create: `src/backend/NexoMail.Infrastructure/Microsoft/MicrosoftGraphMailProvider.cs`
 - Modify: `src/backend/NexoMail.MicrosoftGraphSmokeTests/Program.cs`
 
-**Interfaces:**
-- `MicrosoftGraphMailProvider : IMailProvider` with `ProviderType => MailProviderType.MicrosoftGraph`.
-- Supports `GetMessagesAsync`, `GetMessageAsync`, `MarkReadAsync`.
-- `GetThreadAsync` returns `[]`.
-- `GetFoldersAsync` returns only `new MailFolder("inbox", "Bandeja de entrada", 0)`.
-- Other `IMailProvider` write/content methods throw a Microsoft Phase 1 `NotSupportedException`.
+- [ ] **Step 1: Add failing inbox mapping and cursor tests**
 
-- [ ] **Step 1: Add failing list/message/read tests with fake Graph JSON**
-
-List response fixture:
+Fake this Graph list response:
 
 ```json
 {
@@ -412,11 +318,15 @@ List response fixture:
 }
 ```
 
-Assert `MailSummary` maps id, account id, sender, subject, preview, timestamp, unread state, attachment flag, and `folderId == "inbox"`. Assert `NextCursor` is non-empty.
+Assert `MailSummary` maps id, account, sender, subject, preview, timestamp, unread state, attachment flag, and `folderId = inbox`. Assert a continuation cursor exists.
 
-Decode the cursor through the provider on a second request and ensure the fake HTTP handler receives only a `https://graph.microsoft.com/v1.0/...` URL. Add a malformed cursor test that fails safely rather than requesting another host.
+Round-trip that cursor into a second request and assert the HTTP request can only target `https://graph.microsoft.com/v1.0/me/...`.
 
-Single-message fixture:
+Add malicious/tampered cursors decoding to `https://example.com/...`, `http://graph.microsoft.com/...`, or a Graph path outside `/v1.0/me/`; each must fail without making an HTTP call.
+
+- [ ] **Step 2: Add failing message-detail and read-state tests**
+
+Use:
 
 ```json
 {
@@ -433,45 +343,46 @@ Single-message fixture:
 }
 ```
 
-Assert mapping into `MailMessage`, including `HtmlBody`, recipients, CC, and empty attachment-content collection for Phase 1.
+Assert `MailMessage` maps sender, To, Cc, subject, transient HTML body, preview, timestamp, read state, and `folderId = inbox`. Attachment bytes are not requested or persisted in Phase 1.
 
-For `MarkReadAsync`, assert a PATCH is sent to `/me/messages/m1` with JSON `{"isRead":true}`.
+Assert `MarkReadAsync` PATCHes `/me/messages/m1` with `{ "isRead": true }` (and supports false for unread).
 
-- [ ] **Step 2: Run RED**
+- [ ] **Step 3: Add failing Graph error tests**
+
+For list/detail/read requests assert safe behavior for:
+
+- 401 and 403 -> `InvalidOperationException` with a generic Microsoft permission/reconnect message;
+- 429 -> `InvalidOperationException` with a generic temporary throttling message;
+- 5xx -> `HttpRequestException` with a generic temporary Microsoft service message;
+- provider response bodies containing test-sensitive strings must never be copied into exception messages.
+
+- [ ] **Step 4: Run RED**
 
 ```powershell
 dotnet run --project src/backend/NexoMail.MicrosoftGraphSmokeTests/NexoMail.MicrosoftGraphSmokeTests.csproj
 ```
 
-Expected: compile failure because provider/cursor classes are absent.
+- [ ] **Step 5: Implement validated opaque cursor**
 
-- [ ] **Step 3: Implement validated opaque cursor handling**
-
-`MicrosoftGraphCursor.Encode(string nextLink)` Base64URL-encodes the full Graph nextLink. `Decode(string cursor)` must:
+Base64URL-encode/decode Graph `@odata.nextLink`. Decoding must require:
 
 ```csharp
-if (!Uri.TryCreate(decoded, UriKind.Absolute, out var uri)
-    || uri.Scheme != Uri.UriSchemeHttps
-    || !string.Equals(uri.Host, "graph.microsoft.com", StringComparison.OrdinalIgnoreCase)
-    || !uri.AbsolutePath.StartsWith("/v1.0/me/", StringComparison.Ordinal))
-    throw new InvalidOperationException("El cursor de Microsoft Graph no es válido.");
+uri.Scheme == Uri.UriSchemeHttps
+&& string.Equals(uri.Host, "graph.microsoft.com", StringComparison.OrdinalIgnoreCase)
+&& uri.AbsolutePath.StartsWith("/v1.0/me/", StringComparison.Ordinal)
 ```
 
-This prevents a modified frontend cursor from turning the backend into an arbitrary HTTP requester.
+Anything else throws `InvalidOperationException("El cursor de Microsoft Graph no es válido.")`.
 
-- [ ] **Step 4: Implement `GetMessagesAsync`**
+- [ ] **Step 6: Implement `MicrosoftGraphMailProvider` Phase 1 methods**
 
-For a new page request call:
+New inbox request:
 
 ```text
 me/mailFolders/inbox/messages?$top={1..50}&$orderby=receivedDateTime desc&$select=id,from,subject,bodyPreview,receivedDateTime,isRead,hasAttachments
 ```
 
-If `query.FolderId != "inbox"` or `query.Search` is non-empty, return `new PagedResult<MailSummary>([])` in Phase 1. If a cursor is supplied, use only the URI returned from `MicrosoftGraphCursor.Decode`.
-
-Map null/missing sender defensively to empty name/address and missing subject to `(sin asunto)`.
-
-- [ ] **Step 5: Implement `GetMessageAsync`, `MarkReadAsync`, and unsupported operations**
+If folder is not `inbox` or `query.Search` is non-empty, return an empty page in Phase 1 rather than incorrect/unfiltered data.
 
 Single message request:
 
@@ -479,18 +390,24 @@ Single message request:
 me/messages/{messageId}?$select=id,from,toRecipients,ccRecipients,subject,body,bodyPreview,receivedDateTime,isRead,hasAttachments
 ```
 
-Use `HttpMethod.Patch` with `JsonContent.Create(new { isRead = read })` for read state.
+Read-state PATCH uses `JsonContent.Create(new { isRead = read })`.
 
-Unsupported methods return tasks that throw a consistent message, for example:
+`GetThreadAsync` returns `[]`; `GetFoldersAsync` returns only inbox. `GetAttachmentAsync`, send/reply/reply-all/forward, move/trash, and empty-folder throw one consistent Phase 1 `NotSupportedException`.
 
-```csharp
-private static NotSupportedException Unsupported() =>
-    new("Esta operación aún no está disponible para Microsoft 365 en la Fase 1 de NexoMail.");
+- [ ] **Step 7: Normalize Graph status errors without provider-body leakage**
+
+Create a private helper used by Graph calls. Required mapping:
+
+```text
+401/403 -> "Microsoft 365 rechazó el acceso al buzón. Vuelve a conectar la cuenta o revisa los permisos de la organización."
+429     -> "Microsoft 365 está limitando temporalmente las solicitudes. Inténtalo nuevamente en unos minutos."
+5xx     -> HttpRequestException("Microsoft 365 no está disponible temporalmente.")
+other   -> HttpRequestException("Microsoft Graph no pudo completar la operación.")
 ```
 
-`GetThreadAsync` returns `Task.FromResult<IReadOnlyCollection<MailThreadMessage>>([])` so automatic thread loading does not break message opening.
+Do not append `response.Content`, tokens, request headers, or raw Graph errors to these messages.
 
-- [ ] **Step 6: Run GREEN and commit**
+- [ ] **Step 8: Run GREEN and commit**
 
 ```powershell
 dotnet run --project src/backend/NexoMail.MicrosoftGraphSmokeTests/NexoMail.MicrosoftGraphSmokeTests.csproj
@@ -500,89 +417,51 @@ git commit -m "feat: add Microsoft Graph read provider"
 
 ---
 
-### Task 5: Wire Microsoft into ASP.NET Core and account settings UI
+### Task 5: Wire Microsoft OAuth/provider services into the API and distinguish consent failures
 
 **Files:**
 - Modify: `src/backend/NexoMail.Api/Program.cs`
 - Modify: `src/backend/NexoMail.Api/appsettings.Development.example.json`
-- Modify: `src/frontend/src/pages/AccountsPage.tsx`
-- Create: `src/frontend/scripts/microsoft-graph-smoke.mjs`
-- Modify: `.github/workflows/frontend-build.yml`
+- Modify: `src/backend/NexoMail.MicrosoftGraphSmokeTests/Program.cs`
 
-**Interfaces:**
-- Adds `/api/oauth/microsoft/start` and `/api/oauth/microsoft/callback`.
-- Registers `MicrosoftGraphMailProvider` through `UserScopedMailProvider` only when `DemoMode` is false.
-- Frontend exposes `Agregar Microsoft 365` and success state `connected=microsoft`.
+- [ ] **Step 1: Add failing callback-error classification tests**
 
-- [ ] **Step 1: Write the failing frontend smoke script first**
+Expose a small pure helper on `MicrosoftOAuthService`, e.g. `AuthorizationFailureMessage(string? error, string? errorDescription)`, and test:
 
-`microsoft-graph-smoke.mjs` reads `AccountsPage.tsx`, `InboxPage.tsx`, and `MessagePage.tsx` and asserts at minimum:
+- plain `access_denied` with no admin marker -> user cancellation/denial message;
+- description containing `AADSTS65001`, `AADSTS90094`, `admin approval`, or `administrator` (case-insensitive) -> explicit organization/admin-approval message;
+- arbitrary provider text containing sensitive/test text is never echoed verbatim.
 
-```js
-requireCondition(accountsPage.includes('Agregar Microsoft 365'), 'Debe existir el control para conectar Microsoft 365.')
-requireCondition(accountsPage.includes("/api/oauth/microsoft/start"), 'Microsoft 365 debe iniciar OAuth en el backend.')
-requireCondition(accountsPage.includes("connected') === 'microsoft'"), 'Debe existir confirmación de conexión Microsoft.')
-requireCondition(inboxPage.includes("MicrosoftGraph"), 'La bandeja debe reconocer capacidades Microsoft Phase 1.')
-requireCondition(messagePage.includes("MicrosoftGraph"), 'La vista de mensaje debe reconocer capacidades Microsoft Phase 1.')
-```
+- [ ] **Step 2: Register services**
 
-- [ ] **Step 2: Run RED**
-
-```powershell
-cd src/frontend
-node scripts/microsoft-graph-smoke.mjs
-```
-
-Expected: fails because the Microsoft connect button/gating are not present.
-
-- [ ] **Step 3: Register Microsoft backend services**
-
-Add:
-
-```csharp
-using NexoMail.Infrastructure.Microsoft;
-```
-
-and service registration:
+In `Program.cs` add `using NexoMail.Infrastructure.Microsoft;`, configure the `Microsoft` section, and register:
 
 ```csharp
 builder.Services.AddHttpClient("MicrosoftGraph", client =>
     client.BaseAddress = new Uri("https://graph.microsoft.com/v1.0/"));
-builder.Services.Configure<MicrosoftGraphOptions>(builder.Configuration.GetSection(MicrosoftGraphOptions.SectionName));
 builder.Services.AddScoped<MailAccountConnectionPolicy>();
 builder.Services.AddScoped<MicrosoftOAuthService>();
 builder.Services.AddScoped<MicrosoftGraphTokenProvider>();
 ```
 
-In non-demo mode register both Gmail and Microsoft providers, each wrapped in `UserScopedMailProvider`:
+When `DemoMode` is false, register `MicrosoftGraphMailProvider` and wrap it with `UserScopedMailProvider`, alongside the existing Gmail provider.
 
-```csharp
-builder.Services.AddScoped<MicrosoftGraphMailProvider>();
-builder.Services.AddScoped<IMailProvider>(services => new UserScopedMailProvider(
-    services.GetRequiredService<MicrosoftGraphMailProvider>(),
-    services.GetRequiredService<NexoMailDbContext>(),
-    services.GetRequiredService<IUserContext>()));
+- [ ] **Step 3: Add OAuth endpoints**
+
+Add:
+
+```text
+GET /api/oauth/microsoft/start
+GET /api/oauth/microsoft/callback
 ```
 
-- [ ] **Step 4: Add Microsoft OAuth API endpoints**
+`start` runs the shared account-limit policy and redirects to Microsoft.
 
-Add `/microsoft/start` parallel to Google. Callback behavior:
+Callback binds optional `code`, `state`, `error`, and `error_description`. For provider errors call the safe classification helper; never surface raw `error_description`. For incomplete callbacks use a Microsoft-specific generic error. Catch `InvalidOperationException` and `HttpRequestException` and redirect to `FailureRedirect` with safe messages.
 
-```csharp
-if (!string.IsNullOrWhiteSpace(error))
-{
-    var message = string.Equals(error, "access_denied", StringComparison.OrdinalIgnoreCase)
-        ? "Microsoft canceló o denegó la autorización. Si tu organización exige aprobación administrativa, solicita autorización al administrador de Microsoft 365."
-        : "Microsoft no pudo autorizar la conexión.";
-    return Results.Redirect(service.FailureRedirect(message));
-}
-```
+- [ ] **Step 4: Fix committed development template**
 
-Incomplete callback returns a Microsoft-specific message. Catch `InvalidOperationException` and `HttpRequestException`; do not return raw Microsoft response bodies.
-
-- [ ] **Step 5: Correct the development configuration template**
-
-Replace the current Microsoft template with:
+Replace the old unused TenantId shape with:
 
 ```json
 "Microsoft": {
@@ -593,204 +472,244 @@ Replace the current Microsoft template with:
 }
 ```
 
-Remove the unused `TenantId` entry because the implementation uses the `organizations` authority.
+No real values in committed config.
 
-- [ ] **Step 6: Add the Microsoft account button and success notice**
-
-In `AccountsPage.tsx`, render separate buttons that both obey `accountLimitReached`:
-
-```tsx
-<button className="primary-button" disabled={accountLimitReached} onClick={() => window.location.assign('/api/oauth/google/start')}>
-  <MailPlus size={16} /> Agregar Gmail
-</button>
-<button className="secondary-button" disabled={accountLimitReached} onClick={() => window.location.assign('/api/oauth/microsoft/start')}>
-  <MailPlus size={16} /> Agregar Microsoft 365
-</button>
-```
-
-Add:
-
-```tsx
-{params.get('connected') === 'microsoft' && <div className="success-notice">La cuenta Microsoft 365 fue conectada correctamente.</div>}
-```
-
-Fix provider wording in edit/remove UI so Microsoft accounts do not say Gmail in confirmation text.
-
-- [ ] **Step 7: Run backend build; frontend smoke remains RED only for action gating**
+- [ ] **Step 5: Build and run Microsoft smoke tests**
 
 ```powershell
+dotnet run --project src/backend/NexoMail.MicrosoftGraphSmokeTests/NexoMail.MicrosoftGraphSmokeTests.csproj
 dotnet build NexoMail.sln --configuration Release
-cd src/frontend
-node scripts/microsoft-graph-smoke.mjs
 ```
 
-Expected: .NET build passes; frontend smoke still fails until Task 6 capability gating is added.
+Expected: PASS and build exit 0.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 6: Commit**
 
 ```powershell
-git add src/backend/NexoMail.Api/Program.cs src/backend/NexoMail.Api/appsettings.Development.example.json src/frontend/src/pages/AccountsPage.tsx src/frontend/scripts/microsoft-graph-smoke.mjs
-git commit -m "feat: wire Microsoft 365 account connection"
+git add src/backend/NexoMail.Api/Program.cs src/backend/NexoMail.Api/appsettings.Development.example.json src/backend/NexoMail.MicrosoftGraphSmokeTests/Program.cs
+git commit -m "feat: expose Microsoft OAuth endpoints"
 ```
 
 ---
 
-### Task 6: Gate unsupported Microsoft actions and verify Gmail-only isolation
+### Task 6: Add Microsoft account UI and gate all unsupported write surfaces
 
 **Files:**
+- Modify: `src/frontend/src/pages/AccountsPage.tsx`
 - Modify: `src/frontend/src/pages/InboxPage.tsx`
 - Modify: `src/frontend/src/pages/MessagePage.tsx`
-- Modify: `src/frontend/scripts/microsoft-graph-smoke.mjs`
-- Inspect and change only if missing provider filters: `src/backend/NexoMail.Infrastructure/Google/GmailControlCenterService.cs`
-- Inspect and change only if missing provider filters: `src/backend/NexoMail.Infrastructure/Google/GmailControlCenterActivityService.cs`
-- Inspect and change only if missing provider filters: `src/backend/NexoMail.Infrastructure/Google/GmailMetadataIndexService.cs`
-- Modify: `src/backend/NexoMail.MicrosoftGraphSmokeTests/Program.cs`
+- Modify: `src/frontend/src/pages/ComposePage.tsx`
+- Modify: `src/frontend/src/pages/NexiActionPlanPage.tsx`
+- Modify: `src/frontend/src/pages/NexiSearchActionPage.tsx`
+- Create: `src/frontend/scripts/microsoft-graph-smoke.mjs`
 - Modify: `.github/workflows/frontend-build.yml`
 
-**Interfaces:**
-- `MarkReadAsync` remains enabled for Microsoft.
-- Microsoft Phase 1 disables/hides move/archive/spam/trash/reply/reply-all/forward/draft/contact/rule actions that would invoke unsupported provider methods.
-- Gmail-only services must query `MailProviderType.Gmail` explicitly.
+- [ ] **Step 1: Write the frontend smoke script first and run RED**
 
-- [ ] **Step 1: Add a failing backend isolation check**
-
-Seed one Gmail and one Microsoft account for the same NexoMail user. Verify the Gmail control-center and metadata service account-selection queries do not include the Microsoft account. Where a service already filters `Provider == MailProviderType.Gmail`, record the check in the smoke harness rather than changing production code.
-
-The test invariant is:
-
-```csharp
-Ensure(gmailOnlyAccountIds.All(id => id != microsoftAccount.Id), "Servicios Gmail no deben procesar cuentas MicrosoftGraph.");
-```
-
-Also call an unsupported Microsoft provider operation such as `MoveToTrashAsync` and assert it throws rather than succeeding.
-
-- [ ] **Step 2: Implement account-provider capability lookup in `InboxPage.tsx`**
-
-The page already loads `accounts`. Add:
-
-```tsx
-const accountProviderById = useMemo(() => new Map(accounts.map(account => [account.id, account.provider])), [accounts])
-const selectedIncludesMicrosoft = selectedItems.some(item => accountProviderById.get(item.accountId) === 'MicrosoftGraph')
-const activeMicrosoftAccount = selectedAccount?.provider === 'MicrosoftGraph'
-```
-
-For a Microsoft-only account view, keep refresh, open, selection, and mark-read available. Hide/disable archive, spam, trash, ignore-sender, empty-trash, and draft operations. For unified selection, disable an unsupported bulk action whenever `selectedIncludesMicrosoft` is true rather than executing it for a mixed provider set.
-
-Do not alter Gmail behavior.
-
-- [ ] **Step 3: Implement provider-aware capability lookup in `MessagePage.tsx`**
-
-Load accounts using the existing query key/API:
-
-```tsx
-const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: mailApi.accounts, staleTime: 10 * 60_000 })
-const currentAccount = accounts.find(account => account.id === accountId)
-const isMicrosoftPhase1 = currentAccount?.provider === 'MicrosoftGraph'
-```
-
-For `isMicrosoftPhase1`, retain message display and automatic `mailApi.read(...)`; do not render/enable reply, reply-all, forward, archive, spam, trash, ignore-sender, attachment download, or tracking actions that depend on Gmail-only Control Center state. The thread query may remain because Microsoft returns `[]` safely.
-
-- [ ] **Step 4: Keep Gmail-specific backend filters explicit**
-
-Confirm these account queries contain:
-
-```csharp
-.Where(x => x.UserId == userId && x.IsActive && x.Provider == MailProviderType.Gmail)
-```
-
-If any listed Gmail service lacks this predicate, add it and extend the smoke harness to cover that service. Do not refactor those services to Microsoft in Phase 1.
-
-- [ ] **Step 5: Complete frontend smoke and CI hook**
-
-Make `microsoft-graph-smoke.mjs` assert:
+The script reads the six page files and asserts:
 
 ```js
-requireCondition(inboxPage.includes("provider === 'MicrosoftGraph'"), 'Inbox debe limitar acciones no soportadas para Microsoft.')
-requireCondition(messagePage.includes("provider === 'MicrosoftGraph'"), 'MessagePage debe limitar acciones no soportadas para Microsoft.')
+accountsPage.includes('Agregar Microsoft 365')
+accountsPage.includes('/api/oauth/microsoft/start')
+accountsPage.includes("connected') === 'microsoft'")
+inboxPage.includes("'MicrosoftGraph'")
+messagePage.includes("'MicrosoftGraph'")
+composePage.includes("'MicrosoftGraph'")
+nexiActionPlanPage.includes("'MicrosoftGraph'")
+nexiSearchActionPage.includes("'MicrosoftGraph'")
 ```
 
-Add to `.github/workflows/frontend-build.yml` before the build:
+Run:
+
+```powershell
+cd src/frontend
+node scripts/microsoft-graph-smoke.mjs
+```
+
+Expected: RED.
+
+- [ ] **Step 2: Add Microsoft 365 connect/success UI**
+
+In `AccountsPage.tsx` add a second connect action to `/api/oauth/microsoft/start`, disabled by the same commercial account limit as Gmail. Add `connected=microsoft` success notice.
+
+Fix edit/remove wording so Microsoft accounts display `Microsoft 365` and generic removal text says the messages remain with the provider, not specifically Gmail.
+
+- [ ] **Step 3: Gate `InboxPage` unsupported operations by provider**
+
+The page already loads `accounts`. Build `accountProviderById`. For a Microsoft account or a mixed selection containing Microsoft:
+
+Keep enabled:
+- refresh;
+- open message;
+- select messages;
+- mark read/unread.
+
+Disable/hide:
+- archive/move/spam/trash;
+- empty trash;
+- ignore sender;
+- draft-specific actions.
+
+Do not execute a bulk operation partially on a mixed Gmail+Microsoft selection.
+
+- [ ] **Step 4: Gate `MessagePage` unsupported operations**
+
+Load/reuse the account list and compute `isMicrosoftPhase1` from `accountId`.
+
+For Microsoft keep:
+- message body display;
+- automatic mark-as-read;
+- navigation to previous/next messages.
+
+Hide/disable:
+- reply/reply all/forward;
+- archive/spam/trash/move;
+- ignore sender;
+- attachment download/preview links because Graph attachment retrieval is not implemented;
+- Control Center tracking/finalization actions that rely on Gmail-only services.
+
+Thread query may remain because the provider safely returns `[]`.
+
+- [ ] **Step 5: Prevent Microsoft accounts from becoming send/draft/contact sources in `ComposePage`**
+
+Create a send-capable account collection that excludes `MicrosoftGraph` in Phase 1. New compose defaults and account selector use only send-capable accounts. If navigation state attempts reply/forward/edit-draft from a Microsoft account, show a clear Phase 1 unsupported notice and prevent send/save/contact lookup.
+
+This is required because otherwise a connected Microsoft account would appear selectable and fail only after the user composes a message.
+
+- [ ] **Step 6: Gate Nexi write actions**
+
+In both `NexiActionPlanPage.tsx` and `NexiSearchActionPage.tsx`, resolve each item's account provider before executing a mail action.
+
+For Microsoft Phase 1:
+- allow only `mark_read` and `mark_unread` if those actions are surfaced;
+- do not execute archive/trash/move/send/reply/forward/draft or other unsupported provider writes;
+- mark unsupported planned actions as unavailable/skipped with a user-safe explanation rather than reporting completion.
+
+Gmail execution paths stay unchanged.
+
+- [ ] **Step 7: Make frontend smoke GREEN and add CI hook**
+
+Strengthen the smoke script to assert capability checks exist in Inbox, Message, Compose, and both Nexi pages. Add to `.github/workflows/frontend-build.yml` before build:
 
 ```yaml
       - name: Verify Microsoft Graph Phase 1 UI
         run: node scripts/microsoft-graph-smoke.mjs
 ```
 
-- [ ] **Step 6: Run GREEN and commit**
+Run:
 
 ```powershell
-dotnet run --project src/backend/NexoMail.MicrosoftGraphSmokeTests/NexoMail.MicrosoftGraphSmokeTests.csproj
 cd src/frontend
 node scripts/microsoft-graph-smoke.mjs
 pnpm build
-cd ../..
-git add src/frontend/src/pages/InboxPage.tsx src/frontend/src/pages/MessagePage.tsx src/frontend/scripts/microsoft-graph-smoke.mjs .github/workflows/frontend-build.yml src/backend/NexoMail.MicrosoftGraphSmokeTests/Program.cs src/backend/NexoMail.Infrastructure/Google
-git commit -m "feat: gate Microsoft Phase 1 capabilities"
+```
+
+Expected: PASS and Vite build exit 0.
+
+- [ ] **Step 8: Commit**
+
+```powershell
+git add src/frontend/src/pages/AccountsPage.tsx src/frontend/src/pages/InboxPage.tsx src/frontend/src/pages/MessagePage.tsx src/frontend/src/pages/ComposePage.tsx src/frontend/src/pages/NexiActionPlanPage.tsx src/frontend/src/pages/NexiSearchActionPage.tsx src/frontend/scripts/microsoft-graph-smoke.mjs .github/workflows/frontend-build.yml
+git commit -m "feat: gate Microsoft Phase 1 UI capabilities"
 ```
 
 ---
 
-### Task 7: Add Microsoft CI, run complete regression suite, and prepare real-account test
+### Task 7: Prove Gmail-only service isolation
+
+**Files:**
+- Inspect/test: `src/backend/NexoMail.Infrastructure/Google/GoogleContactsService.cs`
+- Inspect/test: `src/backend/NexoMail.Infrastructure/Google/GmailRuleService.cs`
+- Inspect/test: `src/backend/NexoMail.Infrastructure/Google/GmailControlCenterService.cs`
+- Inspect/test: `src/backend/NexoMail.Infrastructure/Google/GmailControlCenterActivityService.cs`
+- Inspect/test: `src/backend/NexoMail.Infrastructure/Google/GmailMetadataIndexService.cs`
+- Modify only where a missing provider guard is found
+- Modify: `src/backend/NexoMail.MicrosoftGraphSmokeTests/Program.cs`
+
+- [ ] **Step 1: Seed one Gmail and one Microsoft account in isolation tests**
+
+For every Gmail-specific service entry point exercised by the current UI, verify account lookup either:
+
+- explicitly requires `Provider == MailProviderType.Gmail`, or
+- rejects a Microsoft account before calling a Google endpoint.
+
+The smoke harness must prove at least contacts, rules, control-center snapshot/activity, and metadata indexing cannot process the Microsoft account.
+
+- [ ] **Step 2: Run RED only for missing guards**
+
+```powershell
+dotnet run --project src/backend/NexoMail.MicrosoftGraphSmokeTests/NexoMail.MicrosoftGraphSmokeTests.csproj
+```
+
+If all current services already contain correct provider filters, record PASS without production edits. Do not manufacture a refactor merely to create a diff.
+
+- [ ] **Step 3: Add only missing guards**
+
+Required account predicate for Gmail-only aggregation paths:
+
+```csharp
+.Where(x => x.UserId == userId && x.IsActive && x.Provider == MailProviderType.Gmail)
+```
+
+Direct account-specific services must reject `account.Provider != MailProviderType.Gmail` before Google HTTP calls.
+
+- [ ] **Step 4: Assert unsupported Microsoft provider methods throw**
+
+Call one representative unsupported method such as `MoveToTrashAsync`; assert it throws the Microsoft Phase 1 unsupported exception and never returns success.
+
+- [ ] **Step 5: Run GREEN and commit only if files changed**
+
+```powershell
+dotnet run --project src/backend/NexoMail.MicrosoftGraphSmokeTests/NexoMail.MicrosoftGraphSmokeTests.csproj
+git status --short
+```
+
+If production guards changed:
+
+```powershell
+git add src/backend/NexoMail.Infrastructure/Google src/backend/NexoMail.MicrosoftGraphSmokeTests/Program.cs
+git commit -m "test: enforce Microsoft provider isolation"
+```
+
+If only smoke assertions changed, commit only the smoke file.
+
+---
+
+### Task 8: Add Microsoft CI, configure local secrets safely, and run the real-account acceptance test
 
 **Files:**
 - Create: `.github/workflows/microsoft-graph-smoke.yml`
-- Modify only if documentation is missing: `README.md`
+- Modify only if needed: `README.md`
 
-**Interfaces:**
-- CI uses fake HTTP only and requires no Microsoft secrets.
-- Local real-account configuration uses ignored `src/backend/NexoMail.Api/appsettings.Development.json` or .NET user-secrets; never the committed example file.
+- [ ] **Step 1: Add a dedicated no-secret CI workflow**
 
-- [ ] **Step 1: Add dedicated Microsoft Graph workflow**
-
-Create:
+Workflow steps:
 
 ```yaml
 name: Microsoft Graph smoke test
-
 on:
   push:
-    branches:
-      - main
-      - 'feature/**'
+    branches: [main, 'feature/**']
   pull_request:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
   microsoft-graph:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup .NET 10
-        uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-
-      - name: Restore Microsoft Graph smoke test
-        run: dotnet restore src/backend/NexoMail.MicrosoftGraphSmokeTests/NexoMail.MicrosoftGraphSmokeTests.csproj
-
-      - name: Build Microsoft Graph smoke test
-        run: dotnet build src/backend/NexoMail.MicrosoftGraphSmokeTests/NexoMail.MicrosoftGraphSmokeTests.csproj --no-restore --configuration Release
-
-      - name: Run Microsoft Graph smoke test
-        run: dotnet run --project src/backend/NexoMail.MicrosoftGraphSmokeTests/NexoMail.MicrosoftGraphSmokeTests.csproj --no-build --configuration Release
-
-      - name: Build complete solution
-        run: dotnet build NexoMail.sln --configuration Release
-
-      - name: Verify no Microsoft secrets were committed
-        shell: bash
-        run: |
-          if grep -R -n -E 'refresh-[A-Za-z0-9]|access-[A-Za-z0-9]|ClientSecret"[[:space:]]*:[[:space:]]*"[^"[:space:]]+' src/backend/NexoMail.Api src/backend/NexoMail.Infrastructure/Microsoft --exclude='appsettings.Development.example.json'; then
-            echo "Potential Microsoft credential found in committed production/config files."
-            exit 1
-          fi
-          echo "Microsoft credential scan passed."
+      - run: dotnet restore src/backend/NexoMail.MicrosoftGraphSmokeTests/NexoMail.MicrosoftGraphSmokeTests.csproj
+      - run: dotnet build src/backend/NexoMail.MicrosoftGraphSmokeTests/NexoMail.MicrosoftGraphSmokeTests.csproj --no-restore --configuration Release
+      - run: dotnet run --project src/backend/NexoMail.MicrosoftGraphSmokeTests/NexoMail.MicrosoftGraphSmokeTests.csproj --no-build --configuration Release
+      - run: dotnet build NexoMail.sln --configuration Release
 ```
 
-- [ ] **Step 2: Run the complete local regression suite**
+Add a repository scan limited to committed production/config Microsoft files that rejects non-empty `ClientSecret` values or obvious raw token fields. Do not scan smoke fixtures whose synthetic test tokens are intentionally present.
+
+- [ ] **Step 2: Run the full regression suite**
 
 From repo root:
 
@@ -810,61 +729,56 @@ node scripts/microsoft-graph-smoke.mjs
 pnpm build
 ```
 
-Expected: all smoke tests print PASS and both .NET/frontend builds exit 0.
+Expected: all smoke tests PASS; both builds exit 0.
 
-- [ ] **Step 3: Configure local secrets without committing them**
+- [ ] **Step 3: Configure the real Client ID/secret with .NET user-secrets**
 
-Use the ignored local development file `src/backend/NexoMail.Api/appsettings.Development.json` with:
-
-```json
-{
-  "Microsoft": {
-    "ClientId": "9ee2ba3a-4565-4848-b3d8-a9d414d36963",
-    "ClientSecret": "LOCAL_SECRET_VALUE",
-    "RedirectUri": "http://localhost:5052/api/oauth/microsoft/callback",
-    "FrontendUrl": "http://localhost:5173/settings/accounts"
-  },
-  "MailProviders": {
-    "DemoMode": false
-  }
-}
-```
-
-`LOCAL_SECRET_VALUE` is entered by the developer locally and never pasted into Git, CI, chat logs, screenshots, or committed files.
-
-Before testing, run:
+`NexoMail.Api.csproj` already has a `UserSecretsId`, so prefer user-secrets over writing the secret into a JSON file:
 
 ```powershell
+cd src/backend/NexoMail.Api
+dotnet user-secrets set "Microsoft:ClientId" "9ee2ba3a-4565-4848-b3d8-a9d414d36963"
+dotnet user-secrets set "Microsoft:ClientSecret" "PASTE_THE_LOCAL_SECRET_HERE"
+dotnet user-secrets set "Microsoft:RedirectUri" "http://localhost:5052/api/oauth/microsoft/callback"
+dotnet user-secrets set "Microsoft:FrontendUrl" "http://localhost:5173/settings/accounts"
+dotnet user-secrets set "MailProviders:DemoMode" "false"
+```
+
+The developer types the actual secret only into the local terminal. It must not be pasted into source, GitHub, CI, chat, screenshots, or documentation.
+
+Verify:
+
+```powershell
+cd ../../..
 git status --short
 ```
 
-Expected: `appsettings.Development.json` does not appear because `.gitignore` excludes it.
+Expected: no secret/config file appears.
 
-- [ ] **Step 4: Run the manual Microsoft 365 acceptance flow**
+- [ ] **Step 4: Run the manual Microsoft 365 flow**
 
-Start backend and frontend. In NexoMail:
+1. Start backend at `http://localhost:5052` and frontend at `http://localhost:5173`.
+2. Sign into NexoMail.
+3. Open `Cuentas de correo`.
+4. Click `Agregar Microsoft 365`.
+5. Authenticate only in Microsoft's UI; approve Microsoft Authenticator if requested.
+6. If Microsoft reports administrator approval is required, capture only the non-sensitive user-facing result and stop; never bypass it.
+7. If OAuth succeeds, verify the connected account appears as `Microsoft 365`.
+8. Open that account's inbox and verify sender, subject, preview, date, unread state, and pagination.
+9. Open one unread message and verify body/recipients; confirm it becomes read in Microsoft 365.
+10. Confirm unsupported write/attachment/compose/Nexi actions are unavailable for Microsoft.
+11. Confirm an existing Gmail account still lists and opens messages normally.
 
-1. Sign in to NexoMail.
-2. Open `Cuentas de correo`.
-3. Click `Agregar Microsoft 365`.
-4. Authenticate only on Microsoft's page; approve Microsoft Authenticator if requested.
-5. If Microsoft reports administrator approval is required, capture only the non-sensitive error message and stop; do not bypass it.
-6. If consent succeeds, verify the account appears as `Microsoft 365`.
-7. Open that account's inbox; verify sender, subject, preview, date, unread state, and pagination.
-8. Open one unread message; verify body/recipients and then confirm it becomes read in Microsoft 365.
-9. Confirm unsupported write actions are absent/disabled for that Microsoft account.
-10. Confirm an existing Gmail account still lists and opens messages normally.
+- [ ] **Step 5: Verify persistence/privacy after a successful Graph read test**
 
-- [ ] **Step 5: Verify persistence/privacy after the real test**
+Inspect only schema/state necessary to prove:
 
-Inspect SQLite tables `MailAccounts` and `OAuthCredentials`. Confirm:
+- `MailAccounts.Provider == MicrosoftGraph`;
+- `OAuthCredentials.EncryptedRefreshToken` is protected/ciphertext-like;
+- no access-token column/entity was added;
+- no full Graph message body or attachment bytes were added to SQLite by this integration.
 
-- the Microsoft account has `Provider = MicrosoftGraph`;
-- the OAuth credential value is protected/ciphertext-like and does not equal a raw refresh token;
-- no new table/column stores Microsoft access tokens;
-- no full Microsoft message body or attachment bytes were added to persistence by the Graph read path.
-
-Do not print/decode the actual stored refresh token during this verification.
+Do not decrypt or print the real stored refresh token during this verification.
 
 - [ ] **Step 6: Commit CI/documentation changes**
 
@@ -873,7 +787,9 @@ git add .github/workflows/microsoft-graph-smoke.yml README.md
 git commit -m "ci: verify Microsoft Graph phase 1"
 ```
 
-- [ ] **Step 7: Final branch verification before declaring Phase 1 complete**
+Omit `README.md` from the commit if it did not need changes.
+
+- [ ] **Step 7: Final verification before declaring Phase 1 complete**
 
 ```powershell
 git status --short
@@ -883,4 +799,13 @@ cd src/frontend
 pnpm build
 ```
 
-Expected: clean working tree, successful backend build, successful frontend build. Functional completion additionally requires at least one organizational Microsoft 365 account to finish OAuth and successfully exercise the Graph read path; an admin-consent block on a specific external tenant is diagnostic evidence, not proof that Graph read integration itself works.
+Required completion evidence:
+
+- clean working tree;
+- Microsoft smoke tests green;
+- existing smoke/regression tests green;
+- backend and frontend builds green;
+- no real secret committed;
+- at least one organizational Microsoft 365 account completes OAuth and exercises inbox list + message read + mark-read successfully.
+
+A tenant-admin-approval screen on a specific external tenant is a valid diagnostic result, but by itself does not prove the Graph read path is functionally complete.
