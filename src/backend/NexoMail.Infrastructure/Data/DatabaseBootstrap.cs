@@ -40,6 +40,7 @@ public static class DatabaseBootstrap
             // Existing beta users are grandfathered into Premium. New registrations use the Freemium entity default.
             if (!columns.Contains("PlanCode")) await AddColumnAsync("ALTER TABLE Users ADD COLUMN PlanCode TEXT NOT NULL DEFAULT 'premium';", connection, cancellationToken);
             if (!columns.Contains("IsAdministrator")) await AddColumnAsync("ALTER TABLE Users ADD COLUMN IsAdministrator INTEGER NOT NULL DEFAULT 0;", connection, cancellationToken);
+            if (!columns.Contains("IsOwner")) await AddColumnAsync("ALTER TABLE Users ADD COLUMN IsOwner INTEGER NOT NULL DEFAULT 0;", connection, cancellationToken);
             if (!columns.Contains("LegalConsentVersion")) await AddColumnAsync("ALTER TABLE Users ADD COLUMN LegalConsentVersion TEXT NULL;", connection, cancellationToken);
             if (!columns.Contains("LegalConsentAcceptedAt")) await AddColumnAsync("ALTER TABLE Users ADD COLUMN LegalConsentAcceptedAt TEXT NULL;", connection, cancellationToken);
 
@@ -140,13 +141,25 @@ public static class DatabaseBootstrap
                 StringComparison.OrdinalIgnoreCase);
             if (isDevelopment)
             {
-                // Local development only: keep the oldest active local owner as the administrator.
+                // Local development only: keep the oldest active local user as an administrator.
                 await ExecuteAsync(@"
                     UPDATE Users
                     SET IsAdministrator = 1
                     WHERE Id = (SELECT Id FROM Users WHERE IsActive = 1 ORDER BY CreatedAt LIMIT 1)
                       AND NOT EXISTS (SELECT 1 FROM Users WHERE IsAdministrator = 1);", connection, cancellationToken);
             }
+
+            // Owner is an internal authority, not a commercial plan. Migrate exactly one existing administrator.
+            await ExecuteAsync(@"
+                UPDATE Users
+                SET IsOwner = 1, IsAdministrator = 1
+                WHERE Id = (
+                    SELECT Id FROM Users
+                    WHERE IsActive = 1 AND IsAdministrator = 1
+                    ORDER BY CreatedAt
+                    LIMIT 1
+                )
+                  AND NOT EXISTS (SELECT 1 FROM Users WHERE IsOwner = 1);", connection, cancellationToken);
         }
         finally
         {
