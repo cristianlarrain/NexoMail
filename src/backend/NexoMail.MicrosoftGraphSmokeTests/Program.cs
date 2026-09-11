@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
@@ -70,8 +71,10 @@ try
 
     Ensure(blocked, "El límite comercial debe bloquear una segunda cuenta.");
 
+    var httpClientFactory = new FakeHttpClientFactory();
+    var dataProtectionProvider = new EphemeralDataProtectionProvider();
     var oauth = new MicrosoftOAuthService(
-        new FakeHttpClientFactory(),
+        httpClientFactory,
         Options.Create(new MicrosoftGraphOptions
         {
             ClientId = "nexomail-client-id",
@@ -81,7 +84,7 @@ try
         }),
         database,
         new PassThroughTokenProtector(),
-        new EphemeralDataProtectionProvider(),
+        dataProtectionProvider,
         userContext,
         policy);
 
@@ -102,6 +105,35 @@ try
         "Phase 1 no debe solicitar Mail.Send.");
     Ensure(!string.IsNullOrWhiteSpace(query["state"]), "La URL de autorización debe incluir state protegido.");
 
+    var validState = query["state"].ToString();
+    await EnsureThrowsAsync<InvalidOperationException>(
+        () => oauth.CompleteAuthorizationAsync("unused-code", validState + "tampered", CancellationToken.None),
+        "Un state alterado debe rechazarse antes de llamar a Microsoft.");
+    Ensure(httpClientFactory.CreateClientCalls == 0, "Un state alterado no debe realizar llamadas HTTP.");
+
+    var stateProtector = dataProtectionProvider.CreateProtector("NexoMail.MicrosoftOAuth.State.v1");
+    var wrongUserState = stateProtector.Protect(JsonSerializer.Serialize(new
+    {
+        UserId = Guid.NewGuid(),
+        IssuedAt = DateTimeOffset.UtcNow,
+        Nonce = "wrong-user-state"
+    }));
+    await EnsureThrowsAsync<InvalidOperationException>(
+        () => oauth.CompleteAuthorizationAsync("unused-code", wrongUserState, CancellationToken.None),
+        "Un state perteneciente a otro usuario debe rechazarse antes de llamar a Microsoft.");
+    Ensure(httpClientFactory.CreateClientCalls == 0, "Un state de otro usuario no debe realizar llamadas HTTP.");
+
+    var expiredState = stateProtector.Protect(JsonSerializer.Serialize(new
+    {
+        UserId = userId,
+        IssuedAt = DateTimeOffset.UtcNow.AddMinutes(-11),
+        Nonce = "expired-state"
+    }));
+    await EnsureThrowsAsync<InvalidOperationException>(
+        () => oauth.CompleteAuthorizationAsync("unused-code", expiredState, CancellationToken.None),
+        "Un state de más de diez minutos debe rechazarse antes de llamar a Microsoft.");
+    Ensure(httpClientFactory.CreateClientCalls == 0, "Un state expirado no debe realizar llamadas HTTP.");
+
     Console.WriteLine("Microsoft Graph smoke: PASS");
 }
 finally
@@ -114,6 +146,20 @@ static void Ensure(bool condition, string message)
     if (!condition) throw new InvalidOperationException(message);
 }
 
+static async Task EnsureThrowsAsync<TException>(Func<Task> action, string message) where TException : Exception
+{
+    try
+    {
+        await action();
+    }
+    catch (TException)
+    {
+        return;
+    }
+
+    throw new InvalidOperationException(message);
+}
+
 sealed class TestUserContext(Guid userId) : IUserContext
 {
     public bool IsAuthenticated => true;
@@ -124,7 +170,13 @@ sealed class TestUserContext(Guid userId) : IUserContext
 
 sealed class FakeHttpClientFactory : IHttpClientFactory
 {
-    public HttpClient CreateClient(string name) => new();
+    public int CreateClientCalls { get; private set; }
+
+    public HttpClient CreateClient(string name)
+    {
+        CreateClientCalls++;
+        return new HttpClient();
+    }
 }
 
 sealed class PassThroughTokenProtector : ITokenProtector
