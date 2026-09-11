@@ -109,6 +109,8 @@ builder.Services.AddScoped<IUserContext, HttpUserContext>();
 builder.Services.Configure<RecoveryEmailOptions>(builder.Configuration.GetSection(RecoveryEmailOptions.SectionName));
 builder.Services.AddScoped<IPasswordRecoveryEmailSender, SmtpPasswordRecoveryEmailSender>();
 NexoMail.Api.AiEndpoints.AddNexoMailAi(builder.Services, builder.Configuration);
+builder.Services.AddScoped<AiUsageRetentionService>();
+builder.Services.AddHostedService<AiUsageRetentionHostedService>();
 
 var dataProtection = builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NexoMail", "keys")));
@@ -175,6 +177,7 @@ app.MapNexoMailSessions();
 var api = app.MapGroup("/api");
 api.MapGet("/health", () => Results.Ok(new { status = "ok", demoMode }));
 NexoMail.Api.CommercialEndpoints.MapNexoMailCommercial(api);
+NexoMail.Api.AiUsageEndpoints.Map(api);
 
 var oauth = api.MapGroup("/oauth").RequireAuthorization();
 oauth.MapGet("/google/start", async (GoogleOAuthService service, CancellationToken ct) =>
