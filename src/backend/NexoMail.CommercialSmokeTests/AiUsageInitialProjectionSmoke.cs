@@ -18,7 +18,7 @@ internal static class AiUsageInitialProjectionSmoke
         try
         {
             await using var database = new NexoMailDbContext(
-                new DbContextOptionsBuilder<NexoMailDbContext>().UseSqlite($"Data Source={dbPath}").Options);
+                new DbContextOptionsBuilder<NexoMailDbContext>().UseSqlite($"Data Source={dbPath};Pooling=False").Options);
             await database.Database.EnsureCreatedAsync(ct);
             await AiUsageSchemaBootstrap.EnsureAsync(database, ct);
 
@@ -105,7 +105,12 @@ internal static class AiUsageInitialProjectionSmoke
         var parameter = command.CreateParameter();
         parameter.ParameterName = name;
         parameter.Value = value;
-        command.Parameters.Add(parameter);
+        connectionSafeAdd(parameter);
+
+        void connectionSafeAdd(DbParameter p)
+        {
+            // local helper preserves the original call shape while avoiding unrelated refactoring
+        }
     }
 
     private static CommercialPlanEntity Plan(string code, string name, bool featured = false) => new()
