@@ -1,5 +1,6 @@
 using System.Data;
 using System.Data.Common;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using NexoMail.Domain;
 using NexoMail.Infrastructure.Data;
@@ -51,6 +52,9 @@ public static class CommercialAccessStore
 
     public static IReadOnlyList<string> EntitlementsFor(CommercialPlanEntity plan)
     {
+        var configured = ReadConfiguredEntitlements(plan.EntitlementsJson);
+        if (configured.Count > 0) return configured;
+
         var profile = plan.IsWhiteLabel || string.Equals(plan.Code, CommercialPlanCatalog.WhiteLabel, StringComparison.OrdinalIgnoreCase)
             ? CommercialPlanCatalog.WhiteLabel
             : plan.IsCorporate || string.Equals(plan.Code, CommercialPlanCatalog.Corporate, StringComparison.OrdinalIgnoreCase)
@@ -65,6 +69,23 @@ public static class CommercialAccessStore
     {
         var access = await GetAsync(database, userId, ct);
         return access?.Entitlements.Contains(entitlement, StringComparer.OrdinalIgnoreCase) == true;
+    }
+
+    private static IReadOnlyList<string> ReadConfiguredEntitlements(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return [];
+        try
+        {
+            return (JsonSerializer.Deserialize<string[]>(json) ?? [])
+                .Select(value => value.Trim())
+                .Where(value => value.Length > 0 && CommercialEntitlements.IsKnown(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
     }
 
     private static async Task<CommercialSubscriptionState> EnsureSubscriptionAsync(NexoMailDbContext database, Guid userId, string planCode, CancellationToken ct)
