@@ -14,9 +14,7 @@ public static class CommercialEndpoints
         api.AddEndpointFilter(async (context, next) =>
         {
             var http = context.HttpContext;
-            string? entitlement = null;
-            if (http.Request.Path.StartsWithSegments("/api/mail/ai")) entitlement = CommercialEntitlements.NexiAi;
-            else if (http.Request.Path.StartsWithSegments("/api/mail/control-center/activity")) entitlement = CommercialEntitlements.AdvancedAnalytics;
+            var entitlement = CommercialFeaturePolicy.RequiredEntitlement(http.Request.Method, http.Request.Path.Value);
 
             if (entitlement is not null && http.User.Identity?.IsAuthenticated == true)
             {
