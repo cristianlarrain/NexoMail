@@ -67,7 +67,7 @@ export function AdminUsersPage() {
       <div className="commercial-admin-header-actions"><Link to="/settings/plan" className="secondary-button"><ArrowLeft size={16} /> Plan y uso</Link><Link to="/admin/plans" className="secondary-button">Tipos de cuenta</Link></div>
     </div>
 
-    <div className="commercial-admin-guidance"><ShieldCheck size={18} /><span>Un cambio manual actualiza el acceso de NexoMail de inmediato. Si el usuario tiene una suscripción externa activa, esta acción no cancela ni modifica cobros en Mercado Pago.</span></div>
+    <div className="commercial-admin-guidance"><ShieldCheck size={18} /><span>Un cambio manual actualiza el acceso de NexoMail de inmediato. El Owner / Administrador general tiene acceso interno total y no depende de un plan comercial. Si otro usuario tiene una suscripción externa activa, cambiar su plan aquí no cancela ni modifica cobros en Mercado Pago.</span></div>
 
     <div className="commercial-users-toolbar">
       <label className="commercial-users-search"><Search size={16} /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar por nombre, correo o plan" aria-label="Buscar usuarios" /></label>
@@ -83,22 +83,23 @@ export function AdminUsersPage() {
         <thead><tr><th>Usuario</th><th>Plan asignado</th><th>Plan efectivo</th><th>Cuentas</th><th>Suscripción</th><th>Último acceso</th><th>Estado</th></tr></thead>
         <tbody>
           {filteredUsers.map(user => {
+            const isOwner = user.effectivePlanCode === 'owner'
             const selectedPlan = draftPlans[user.id] ?? user.planCode
             const changed = selectedPlan !== user.planCode
             const pendingThisUser = assignment.isPending && assignment.variables?.userId === user.id
             return <tr key={user.id} className={user.isActive ? '' : 'inactive'}>
-              <td><strong>{user.displayName || 'Sin nombre'}</strong><small>{user.email}{user.isAdministrator ? ' · Administrador' : ''}</small></td>
+              <td><strong>{user.displayName || 'Sin nombre'}</strong><small>{user.email}{isOwner ? ' · Owner / Administrador general' : user.isAdministrator ? ' · Administrador' : ''}</small></td>
               <td>
                 <div className="commercial-user-plan-control">
-                  <select value={selectedPlan} disabled={!user.isActive || pendingThisUser} onChange={event => setDraftPlans(current => ({ ...current, [user.id]: event.target.value }))} aria-label={`Plan de ${user.displayName || user.email}`}>
+                  <select value={selectedPlan} disabled={isOwner || !user.isActive || pendingThisUser} onChange={event => setDraftPlans(current => ({ ...current, [user.id]: event.target.value }))} aria-label={`Plan de ${user.displayName || user.email}`} title={isOwner ? 'El Owner no depende de un plan comercial.' : undefined}>
                     {activePlans.map(plan => <option key={plan.code} value={plan.code}>{plan.name}</option>)}
                   </select>
-                  <button type="button" className="primary-button" disabled={!changed || !user.isActive || assignment.isPending} onClick={() => assignment.mutate({ userId: user.id, planCode: selectedPlan })}>{pendingThisUser ? 'Aplicando…' : 'Aplicar'}</button>
+                  <button type="button" className="primary-button" disabled={isOwner || !changed || !user.isActive || assignment.isPending} onClick={() => assignment.mutate({ userId: user.id, planCode: selectedPlan })}>{isOwner ? 'Protegido' : pendingThisUser ? 'Aplicando…' : 'Aplicar'}</button>
                 </div>
               </td>
-              <td><strong>{user.effectivePlanName}</strong>{user.effectivePlanCode !== user.planCode && <small>Limitado temporalmente por estado de suscripción</small>}</td>
+              <td><strong>{user.effectivePlanName}</strong>{!isOwner && user.effectivePlanCode !== user.planCode && <small>Limitado temporalmente por estado de suscripción</small>}</td>
               <td><strong>{user.connectedAccounts}</strong><small>conectada{user.connectedAccounts === 1 ? '' : 's'}</small></td>
-              <td><strong>{subscriptionLabel(user.subscription?.status)}</strong><small>{providerLabel(user.subscription?.provider)}</small></td>
+              <td><strong>{isOwner ? 'No aplica' : subscriptionLabel(user.subscription?.status)}</strong><small>{isOwner ? 'Acceso interno' : providerLabel(user.subscription?.provider)}</small></td>
               <td>{formatDate(user.lastLoginAt)}</td>
               <td><span className={`commercial-admin-status ${user.isActive ? 'active' : 'inactive'}`}>{user.isActive ? 'Activo' : 'Inactivo'}</span></td>
             </tr>
