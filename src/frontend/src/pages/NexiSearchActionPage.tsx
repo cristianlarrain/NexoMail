@@ -36,6 +36,10 @@ function uniqueMessages(items: MailSummary[]) {
   return [...unique.values()].sort((left, right) => new Date(right.receivedAt).getTime() - new Date(left.receivedAt).getTime())
 }
 
+function isMicrosoftReadAction(action: NexiMailAction) {
+  return action === 'mark_read' || action === 'mark_unread'
+}
+
 async function loadMatchingMessages(accountId: string | undefined, folder: NexiMailSourceFolder, search: string) {
   const items: MailSummary[] = []
   let cursor: string | undefined
@@ -153,6 +157,7 @@ async function executeAction(
   action: NexiMailAction,
   items: MailSummary[],
   pendingByMessage: Map<string, PendingRef>,
+  microsoftAccountIds: Set<string>,
 ): Promise<ActionResult> {
   let completed = 0
   let failed = 0
@@ -162,6 +167,7 @@ async function executeAction(
   for (let offset = 0; offset < items.length; offset += batchSize) {
     const batch = items.slice(offset, offset + batchSize)
     const results = await Promise.allSettled(batch.map(async item => {
+      if (microsoftAccountIds.has(item.accountId) && !isMicrosoftReadAction(action)) return 'skipped' as const
       switch (action) {
         case 'trash':
           await mailApi.trash(item.accountId, item.providerMessageId)
@@ -252,6 +258,9 @@ export function NexiSearchActionPage() {
   const searchBasis = baseQuery || query
 
   const accounts = useQuery({ queryKey: ['accounts'], queryFn: mailApi.accounts, staleTime: 10 * 60_000 })
+  const microsoftAccountIds = useMemo(() => new Set((accounts.data ?? []).filter(account => account.provider === 'MicrosoftGraph').map(account => account.id)), [accounts.data])
+  const selectedAccount = accounts.data?.find(account => account.id === explicitAccount)
+  const explicitMicrosoftUnsupported = Boolean(selectedAccount?.provider === 'MicrosoftGraph' && action && !isMicrosoftReadAction(action))
   const interpretation = useQuery({
     queryKey: ['ai-search-interpretation', searchBasis],
     queryFn: () => searchApi.interpret(searchBasis),
@@ -286,7 +295,7 @@ export function NexiSearchActionPage() {
   const controlCenter = useQuery({
     queryKey: ['control-center', explicitAccount || undefined],
     queryFn: () => mailApi.controlCenter(explicitAccount || undefined),
-    enabled: requiresControlCenter && query.length > 0,
+    enabled: requiresControlCenter && query.length > 0 && !explicitMicrosoftUnsupported,
     staleTime: 30_000,
     retry: false,
   })
@@ -297,17 +306,19 @@ export function NexiSearchActionPage() {
     return map
   }, [controlCenter.data?.pendingItems])
 
-  const selectedAccount = accounts.data?.find(account => account.id === explicitAccount)
   const items = preview.data?.items ?? []
-  const waitingForContext = requiresControlCenter && controlCenter.isLoading
+  const waitingForContext = requiresControlCenter && !explicitMicrosoftUnsupported && controlCenter.isLoading
   const subsetItems = waitingForContext ? [] : filterSubset(items, effectiveSubset, pendingByMessage)
   const actionableItems = action === 'prepare_reply' ? subsetItems.slice(0, MAX_REPLY_DRAFTS) : subsetItems
   const selectedItems = actionableItems.filter(item => !excludedKeys.has(selectionKey(item)))
   const excludedBySubset = Math.max(0, items.length - subsetItems.length)
   const replyLimited = action === 'prepare_reply' && subsetItems.length > MAX_REPLY_DRAFTS
+  const microsoftUnsupportedItems = action && !isMicrosoftReadAction(action)
+    ? actionableItems.filter(item => microsoftAccountIds.has(item.accountId)).length
+    : 0
 
   const mutation = useMutation({
-    mutationFn: () => action ? executeAction(action, selectedItems, pendingByMessage) : Promise.resolve({ completed: 0, failed: 0, skipped: 0 }),
+    mutationFn: () => action ? executeAction(action, selectedItems, pendingByMessage, microsoftAccountIds) : Promise.resolve({ completed: 0, failed: 0, skipped: 0 }),
     onSuccess: async result => {
       setConfirmOpen(false)
       setOperationResult(result)
@@ -367,10 +378,10 @@ export function NexiSearchActionPage() {
 
   const noSubsetMatches = !waitingForContext && items.length > 0 && subsetItems.length === 0
   const confirmMessage = action === 'trash'
-    ? `Se enviarán ${selectedItems.length} correo${selectedItems.length === 1 ? '' : 's'} a Papelera. Podrás recuperarlos mientras no vacíes la Papelera.`
+    ? `Se enviarán ${selectedItems.length} correo${selectedItems.length === 1 ? '' : 's'} a Papelera. Podrás recuperarlos mientras no vacíes la Papelera.${microsoftUnsupportedItems > 0 ? ` ${microsoftUnsupportedItems} correo${microsoftUnsupportedItems === 1 ? '' : 's'} Microsoft 365 se omitirá${microsoftUnsupportedItems === 1 ? '' : 'n'}.` : ''}`
     : action === 'prepare_reply'
-      ? `Nexi preparará ${selectedItems.length} borrador${selectedItems.length === 1 ? '' : 'es'} de respuesta para revisar. No se enviará ningún correo automáticamente.`
-      : `Nexi aplicará “${copy.confirmTitle}” a ${selectedItems.length} correo${selectedItems.length === 1 ? '' : 's'}. Revisa la selección antes de confirmar.`
+      ? `Nexi preparará ${selectedItems.length} borrador${selectedItems.length === 1 ? '' : 'es'} de respuesta para revisar. No se enviará ningún correo automáticamente.${microsoftUnsupportedItems > 0 ? ` ${microsoftUnsupportedItems} correo${microsoftUnsupportedItems === 1 ? '' : 's'} Microsoft 365 se omitirá${microsoftUnsupportedItems === 1 ? '' : 'n'}.` : ''}`
+      : `Nexi aplicará “${copy.confirmTitle}” a ${selectedItems.length} correo${selectedItems.length === 1 ? '' : 's'}. ${microsoftUnsupportedItems > 0 ? `${microsoftUnsupportedItems} operación${microsoftUnsupportedItems === 1 ? '' : 'es'} Microsoft 365 se omitirá${microsoftUnsupportedItems === 1 ? '' : 'n'} porque Phase 1 sólo permite marcar leído/no leído. ` : ''}Revisa la selección antes de confirmar.`
 
   return <section className="mail-view nexi-action-page">
     <div className="view-header nexi-action-heading">
@@ -387,16 +398,18 @@ export function NexiSearchActionPage() {
       </div>
     </section>
 
+    {explicitMicrosoftUnsupported && <div className="notice">Microsoft 365 está en Phase 1. Esta acción no está disponible para esa cuenta; sólo marcar leído/no leído puede ejecutarse.</div>}
+    {microsoftUnsupportedItems > 0 && !explicitMicrosoftUnsupported && <div className="notice">{microsoftUnsupportedItems} correo{microsoftUnsupportedItems === 1 ? '' : 's'} Microsoft 365 se omitirá{microsoftUnsupportedItems === 1 ? '' : 'n'} de esta acción. Phase 1 sólo permite marcar leído/no leído.</div>}
     {interpretation.isLoading && <div className="universal-search-loading"><Sparkles size={18} /><span>Interpretando el criterio de búsqueda…</span></div>}
     {!interpretation.isLoading && searchText.length === 0 && !hasConcreteSubset && <div className="notice">Para ejecutar una acción sobre varios correos necesito un criterio concreto, por ejemplo un remitente, asunto, palabra clave o subconjunto como “los no leídos”.</div>}
     {preview.isLoading && <div className="universal-search-loading"><Search size={18} /><span>Buscando los correos que coinciden…</span></div>}
     {waitingForContext && <div className="universal-search-loading"><Sparkles size={18} /><span>Contrastando el conjunto con el Centro de Control…</span></div>}
     {preview.isError && <div className="notice">{preview.error instanceof Error ? preview.error.message : 'No fue posible obtener los correos para esta acción.'}</div>}
-    {controlCenter.isError && requiresControlCenter && <div className="notice">No fue posible comprobar el estado operativo de los correos. Nexi no ejecutará esta acción.</div>}
+    {controlCenter.isError && requiresControlCenter && !explicitMicrosoftUnsupported && <div className="notice">No fue posible comprobar el estado operativo de los correos. Nexi no ejecutará esta acción.</div>}
 
     {operationResult && <div className={`nexi-action-result ${operationResult.failed > 0 ? 'warning' : 'success'}`}>
       <ActionIcon action={action} size={16} />
-      <span><strong>{actionPastLabel(action, operationResult.completed)}</strong>{operationResult.failed > 0 ? ` ${operationResult.failed} no pudieron procesarse.` : ' La acción se completó correctamente.'}{operationResult.skipped > 0 ? ` ${operationResult.skipped} no correspondían a esta acción.` : ''}</span>
+      <span><strong>{actionPastLabel(action, operationResult.completed)}</strong>{operationResult.failed > 0 ? ` ${operationResult.failed} no pudieron procesarse.` : ' La acción se completó correctamente.'}{operationResult.skipped > 0 ? ` ${operationResult.skipped} no correspondían o no están disponibles para Microsoft 365 Phase 1.` : ''}</span>
       <div className="nexi-action-result-actions">
         {action === 'prepare_reply' && <button type="button" className="secondary-button" onClick={() => navigate('/drafts')}>Ver borradores</button>}
         {baseQuery && <button type="button" className="secondary-button" onClick={continueWithNexi}>Continuar con Nexi</button>}
@@ -406,7 +419,7 @@ export function NexiSearchActionPage() {
     {!preview.isLoading && items.length > 0 && <>
       <section className="nexi-action-summary">
         <div><Inbox size={17} /><span><strong>{items.length}</strong> encontrado{items.length === 1 ? '' : 's'} · <strong>{selectedItems.length}</strong> seleccionado{selectedItems.length === 1 ? '' : 's'} para procesar</span></div>
-        <button type="button" className={action === 'trash' ? 'nexi-trash-action-button' : 'nexi-agent-action-button'} disabled={mutation.isPending || waitingForContext || selectedItems.length === 0 || (requiresControlCenter && controlCenter.isError)} onClick={() => setConfirmOpen(true)}><ActionIcon action={action} size={15} />{actionButtonLabel(action, selectedItems.length)}</button>
+        <button type="button" className={action === 'trash' ? 'nexi-trash-action-button' : 'nexi-agent-action-button'} disabled={accounts.isLoading || mutation.isPending || waitingForContext || selectedItems.length === 0 || (requiresControlCenter && controlCenter.isError && !explicitMicrosoftUnsupported)} onClick={() => setConfirmOpen(true)}><ActionIcon action={action} size={15} />{actionButtonLabel(action, selectedItems.length)}</button>
       </section>
       {preview.data?.limited && <div className="nexi-action-limit"><AlertTriangle size={14} />La búsqueda supera {MAX_ACTION_RESULTS} resultados. Por seguridad, esta operación incluye sólo los primeros {MAX_ACTION_RESULTS}; puedes acotar el criterio para continuar.</div>}
       {excludedBySubset > 0 && <div className="nexi-action-subset-note"><Sparkles size={14} />Nexi excluyó {excludedBySubset} correo{excludedBySubset === 1 ? '' : 's'} porque no pertenece{excludedBySubset === 1 ? '' : 'n'} al subconjunto “{subsetLabel(effectiveSubset)}”.</div>}
@@ -422,13 +435,14 @@ export function NexiSearchActionPage() {
           {actionableItems.map(item => {
             const account = accounts.data?.find(value => value.id === item.accountId)
             const checked = !excludedKeys.has(selectionKey(item))
+            const unavailableForMicrosoft = account?.provider === 'MicrosoftGraph' && !isMicrosoftReadAction(action)
             return <div className={`nexi-action-select-row ${checked ? 'selected' : ''}`} key={selectionKey(item)}>
               <label className="nexi-action-checkbox" title={checked ? 'Excluir de la acción' : 'Incluir en la acción'}>
                 <input type="checkbox" checked={checked} onChange={() => toggleSelection(item)} aria-label={`${checked ? 'Excluir' : 'Incluir'} ${item.subject || 'correo'}`} />
               </label>
               <button type="button" className={`universal-mail-result ${item.isRead ? '' : 'unread'}`} onClick={() => openMessage(item)}>
                 <i className="account-dot" style={{ background: account?.color }} />
-                <span className="universal-result-primary"><strong>{item.senderName || item.senderAddress || 'Correo'}</strong><span>{item.subject}</span><small>{item.preview}</small></span>
+                <span className="universal-result-primary"><strong>{item.senderName || item.senderAddress || 'Correo'}</strong><span>{item.subject}</span><small>{item.preview}</small>{unavailableForMicrosoft && <small>Microsoft 365 Phase 1 · esta acción se omitirá</small>}</span>
                 <span />
                 <span className="universal-result-meta"><small>{account?.displayName}</small><time>{dateLabel(item.receivedAt)}</time></span>
               </button>
