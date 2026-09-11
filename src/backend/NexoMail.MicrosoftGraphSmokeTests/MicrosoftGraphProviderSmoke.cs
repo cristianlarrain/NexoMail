@@ -76,7 +76,7 @@ internal static class MicrosoftGraphProviderSmoke
                 "{\"@odata.nextLink\":\"https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$skiptoken=NEXT123\",\"value\":[{\"id\":\"msg-1\",\"from\":{\"emailAddress\":{\"name\":\"Ana Pérez\",\"address\":\"ana@empresa.test\"}},\"subject\":\"Informe\",\"bodyPreview\":\"Vista previa\",\"receivedDateTime\":\"2026-09-11T12:30:00Z\",\"isRead\":false,\"hasAttachments\":true}]}" );
 
             var page = await provider.GetMessagesAsync(
-                new NexoMail.Domain.MailQuery(accountId, "inbox", 25),
+                new MailQuery(accountId, "inbox", 25),
                 CancellationToken.None);
 
             Ensure(page.Items.Count == 1, "Graph debe mapear un mensaje de inbox.");
@@ -97,7 +97,7 @@ internal static class MicrosoftGraphProviderSmoke
             handler.EnqueueJson(HttpStatusCode.OK, "{\"value\":[]}");
             var requestBaseline = handler.Requests.Count;
             _ = await provider.GetMessagesAsync(
-                new NexoMail.Domain.MailQuery(accountId, "inbox", 25, page.NextCursor),
+                new MailQuery(accountId, "inbox", 25, page.NextCursor),
                 CancellationToken.None);
             Ensure(handler.Requests.Count == requestBaseline + 1, "Usar un cursor válido debe hacer exactamente una llamada Graph adicional.");
             Ensure(handler.Requests[^1].Uri == "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$skiptoken=NEXT123",
@@ -113,10 +113,43 @@ internal static class MicrosoftGraphProviderSmoke
                 var hostileCursor = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(hostileUrl));
                 var beforeHostile = handler.Requests.Count;
                 await EnsureThrowsAsync<InvalidOperationException>(
-                    () => provider.GetMessagesAsync(new NexoMail.Domain.MailQuery(accountId, "inbox", 25, hostileCursor), CancellationToken.None),
+                    () => provider.GetMessagesAsync(new MailQuery(accountId, "inbox", 25, hostileCursor), CancellationToken.None),
                     "Un cursor Graph hostil debe rechazarse.");
                 Ensure(handler.Requests.Count == beforeHostile, "Un cursor hostil debe fallar antes de cualquier HTTP.");
             }
+
+            handler.EnqueueJson(HttpStatusCode.OK,
+                "{\"id\":\"msg-detail\",\"from\":{\"emailAddress\":{\"name\":\"Ana Pérez\",\"address\":\"ana@empresa.test\"}},\"toRecipients\":[{\"emailAddress\":{\"name\":\"Cristián\",\"address\":\"cristian@empresa.test\"}}],\"ccRecipients\":[{\"emailAddress\":{\"name\":\"Equipo\",\"address\":\"equipo@empresa.test\"}}],\"subject\":\"Detalle\",\"body\":{\"contentType\":\"text\",\"content\":\"Hola <equipo>\\nSegunda línea\"},\"bodyPreview\":\"Hola equipo\",\"receivedDateTime\":\"2026-09-11T13:00:00Z\",\"isRead\":false,\"hasAttachments\":false}");
+
+            var detail = await provider.GetMessageAsync(accountId, "msg-detail", CancellationToken.None);
+            Ensure(detail is not null, "Graph debe devolver el detalle del mensaje.");
+            Ensure(detail.ProviderMessageId == "msg-detail" && detail.AccountId == accountId, "El detalle debe conservar identificadores.");
+            Ensure(detail.From.Name == "Ana Pérez" && detail.From.Address == "ana@empresa.test", "El detalle debe mapear From.");
+            Ensure(detail.To.Single().Address == "cristian@empresa.test", "El detalle debe mapear To.");
+            Ensure(detail.Cc.Single().Address == "equipo@empresa.test", "El detalle debe mapear Cc.");
+            Ensure(detail.Subject == "Detalle" && detail.Preview == "Hola equipo", "El detalle debe mapear asunto y preview.");
+            Ensure(!detail.IsRead && detail.Attachments.Count == 0 && detail.FolderId == "inbox", "El detalle debe mapear estado sin persistir adjuntos.");
+            Ensure(detail.HtmlBody.Contains("Hola &lt;equipo&gt;", StringComparison.Ordinal), "Un cuerpo text debe escaparse antes de exponerse como HtmlBody.");
+            Ensure(detail.HtmlBody.Contains("<br", StringComparison.OrdinalIgnoreCase), "Los saltos de línea de un cuerpo text deben preservarse como HTML.");
+
+            var detailRequest = handler.Requests[^1];
+            Ensure(detailRequest.Method == HttpMethod.Get && detailRequest.Uri.Contains("/v1.0/me/messages/msg-detail", StringComparison.Ordinal),
+                "El detalle debe consultarse en me/messages/{id}.");
+            Ensure(detailRequest.Uri.Contains("$select=", StringComparison.Ordinal), "El detalle debe limitar campos con $select.");
+            Ensure(detailRequest.Authorization == "Bearer provider-access", "El detalle debe usar el access token en memoria.");
+
+            handler.EnqueueJson(HttpStatusCode.NoContent, "{}");
+            await provider.MarkReadAsync(accountId, "msg-detail", true, CancellationToken.None);
+            var markReadRequest = handler.Requests[^1];
+            Ensure(markReadRequest.Method.Method == "PATCH", "Marcar leído debe usar PATCH de Graph.");
+            Ensure(markReadRequest.Uri == "https://graph.microsoft.com/v1.0/me/messages/msg-detail", "Marcar leído debe actualizar el mensaje correcto.");
+            Ensure(markReadRequest.Body.Contains("\"isRead\":true", StringComparison.OrdinalIgnoreCase), "Marcar leído debe enviar isRead=true.");
+
+            handler.EnqueueJson(HttpStatusCode.NoContent, "{}");
+            await provider.MarkReadAsync(accountId, "msg-detail", false, CancellationToken.None);
+            var markUnreadRequest = handler.Requests[^1];
+            Ensure(markUnreadRequest.Method.Method == "PATCH", "Marcar no leído debe usar PATCH de Graph.");
+            Ensure(markUnreadRequest.Body.Contains("\"isRead\":false", StringComparison.OrdinalIgnoreCase), "Marcar no leído debe enviar isRead=false.");
         }
         finally
         {
