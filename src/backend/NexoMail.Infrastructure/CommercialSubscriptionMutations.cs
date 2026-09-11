@@ -25,6 +25,7 @@ public static class CommercialSubscriptionMutations
             providerSubscriptionId,
             null,
             null,
+            null,
             ct);
     }
 
@@ -55,6 +56,54 @@ public static class CommercialSubscriptionMutations
             null,
             null,
             null,
+            null,
+            ct);
+    }
+
+    public static async Task GrantTrialAsync(
+        NexoMailDbContext database,
+        Guid userId,
+        string trialType,
+        int days,
+        CancellationToken ct)
+    {
+        if (days is < 1 or > 90)
+            throw new InvalidOperationException("La prueba debe durar entre 1 y 90 días.");
+
+        var normalizedTrialType = (trialType ?? string.Empty).Trim().ToLowerInvariant();
+        if (normalizedTrialType is not ("premium" or "nexi"))
+            throw new InvalidOperationException("El tipo de prueba debe ser Premium o Nexi.");
+
+        var user = await database.Users.AsNoTracking().SingleOrDefaultAsync(x => x.Id == userId && x.IsActive, ct)
+            ?? throw new InvalidOperationException("El usuario seleccionado no existe o está inactivo.");
+        if (user.IsOwner)
+            throw new InvalidOperationException("El Owner / Administrador general no requiere pruebas temporales.");
+        if (!string.Equals(user.PlanCode, CommercialPlanCatalog.Freemium, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Las pruebas temporales sólo se otorgan a usuarios cuyo plan base es Freemium.");
+
+        var trialPlanCode = normalizedTrialType == "premium"
+            ? CommercialPlanCatalog.Premium
+            : CommercialPlanCatalog.Freemium;
+
+        if (normalizedTrialType == "premium")
+        {
+            var premiumExists = await database.CommercialPlans.AsNoTracking()
+                .AnyAsync(x => x.Code == CommercialPlanCatalog.Premium && x.IsActive, ct);
+            if (!premiumExists)
+                throw new InvalidOperationException("El plan Premium no está disponible para iniciar una prueba.");
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        await UpsertAsync(
+            database,
+            user.Id,
+            trialPlanCode,
+            CommercialSubscriptionStatuses.Trialing,
+            "admin_trial",
+            null,
+            now,
+            null,
+            now.AddDays(days),
             ct);
     }
 
@@ -74,7 +123,7 @@ public static class CommercialSubscriptionMutations
         var user = await database.Users.SingleOrDefaultAsync(x => x.Id == userId && x.IsActive, ct)
             ?? throw new InvalidOperationException("La suscripción hace referencia a un usuario inexistente.");
 
-        await UpsertAsync(database, userId, planCode, status, provider, providerSubscriptionId, currentPeriodStart, currentPeriodEnd, ct);
+        await UpsertAsync(database, userId, planCode, status, provider, providerSubscriptionId, currentPeriodStart, currentPeriodEnd, null, ct);
 
         if (!user.IsOwner && CommercialSubscriptionStatuses.GrantsPaidAccess(status) && !string.Equals(user.PlanCode, planCode, StringComparison.OrdinalIgnoreCase))
         {
@@ -92,6 +141,7 @@ public static class CommercialSubscriptionMutations
         string? providerSubscriptionId,
         DateTimeOffset? currentPeriodStart,
         DateTimeOffset? currentPeriodEnd,
+        DateTimeOffset? trialEndsAt,
         CancellationToken ct)
     {
         var connection = database.Database.GetDbConnection();
@@ -108,7 +158,7 @@ public static class CommercialSubscriptionMutations
                  CurrentPeriodStart, CurrentPeriodEnd, TrialEndsAt, CancelAtPeriodEnd, CanceledAt, PaymentDueAt, CreatedAt, UpdatedAt)
                 VALUES
                 ($userId, $planCode, $status, $provider, NULL, $providerSubscriptionId,
-                 $periodStart, $periodEnd, NULL, 0, $canceledAt, $paymentDueAt, $createdAt, $updatedAt)
+                 $periodStart, $periodEnd, $trialEndsAt, 0, $canceledAt, $paymentDueAt, $createdAt, $updatedAt)
                 ON CONFLICT(UserId) DO UPDATE SET
                     PlanCode = excluded.PlanCode,
                     Status = excluded.Status,
@@ -117,7 +167,7 @@ public static class CommercialSubscriptionMutations
                     ProviderSubscriptionId = excluded.ProviderSubscriptionId,
                     CurrentPeriodStart = excluded.CurrentPeriodStart,
                     CurrentPeriodEnd = excluded.CurrentPeriodEnd,
-                    TrialEndsAt = NULL,
+                    TrialEndsAt = excluded.TrialEndsAt,
                     CancelAtPeriodEnd = 0,
                     CanceledAt = excluded.CanceledAt,
                     PaymentDueAt = excluded.PaymentDueAt,
@@ -129,6 +179,7 @@ public static class CommercialSubscriptionMutations
             AddParameter(command, "$providerSubscriptionId", providerSubscriptionId);
             AddParameter(command, "$periodStart", currentPeriodStart?.ToString("O"));
             AddParameter(command, "$periodEnd", currentPeriodEnd?.ToString("O"));
+            AddParameter(command, "$trialEndsAt", trialEndsAt?.ToString("O"));
             AddParameter(command, "$canceledAt", status == CommercialSubscriptionStatuses.Canceled ? now.ToString("O") : null);
             AddParameter(command, "$paymentDueAt", status == CommercialSubscriptionStatuses.PastDue ? now.ToString("O") : null);
             AddParameter(command, "$createdAt", now.ToString("O"));
