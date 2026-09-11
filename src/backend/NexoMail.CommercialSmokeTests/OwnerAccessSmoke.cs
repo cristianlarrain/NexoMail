@@ -17,7 +17,7 @@ internal static class OwnerAccessSmoke
         try
         {
             var options = new DbContextOptionsBuilder<NexoMailDbContext>()
-                .UseSqlite($"Data Source={dbPath}")
+                .UseSqlite($"Data Source={dbPath};Pooling=False")
                 .Options;
 
             await using var database = new NexoMailDbContext(options);
