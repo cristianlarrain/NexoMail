@@ -38,5 +38,8 @@ jobs:
       - name: Verify commercial feature gates
         run: node scripts/commercial-entitlement-smoke.mjs
 
+      - name: Verify admin user plan management
+        run: node scripts/admin-users-smoke.mjs
+
       - name: Build frontend
         run: pnpm build
