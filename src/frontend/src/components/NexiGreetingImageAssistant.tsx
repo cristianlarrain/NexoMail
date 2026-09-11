@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useQuery } from '@tanstack/react-query'
 import { Check, ImagePlus, RefreshCw, Sparkles, X } from 'lucide-react'
+import { commercialApi } from '../api/commercialApi'
 import { nexiApi, type NexiGeneratedImage } from '../api/nexiApi'
+import { commercialEntitlements } from '../utils/commercialEntitlements'
 import { NexiVisual } from './nexi/NexiVisual'
 
 type GreetingStyle = 'formal' | 'calido' | 'corporativo' | 'festivo'
@@ -35,6 +38,8 @@ export function NexiGreetingImageAssistant() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [inserted, setInserted] = useState(false)
+  const { data: commercialSubscription } = useQuery({ queryKey: ['commercial-subscription'], queryFn: commercialApi.subscription, staleTime: 30_000 })
+  const hasNexi = commercialSubscription?.entitlements.includes(commercialEntitlements.nexiAi) === true
 
   useEffect(() => {
     function locateEditor() {
@@ -72,6 +77,7 @@ export function NexiGreetingImageAssistant() {
     if (!suggested && !image) setExpanded(false)
   }, [suggested, image])
 
+  if (!hasNexi) return null
   if (!host || (!suggested && !expanded && !image)) return null
 
   async function generate() {
