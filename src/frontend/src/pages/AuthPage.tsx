@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Eye, EyeOff, Mail } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Eye, EyeOff, Mail } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { authApi, type RateLimitInfo } from '../api/authApi'
+import { LegalConsentModal } from '../components/LegalConsentModal'
 
 type AuthMode = 'login' | 'register' | 'emailVerify' | 'forgot' | 'verify' | 'reset'
 
@@ -83,6 +84,7 @@ export function AuthPage() {
   const [resetToken, setResetToken] = useState('')
   const [statusMessage, setStatusMessage] = useState('')
   const [acceptedLegalTerms, setAcceptedLegalTerms] = useState(false)
+  const [isLegalModalOpen, setIsLegalModalOpen] = useState(false)
 
   const submit = useMutation({
     mutationFn: async () => {
@@ -174,6 +176,7 @@ export function AuthPage() {
     setConfirmPassword('')
     setVerificationCode('')
     setStatusMessage('')
+    setIsLegalModalOpen(false)
     if (next !== 'register') setAcceptedLegalTerms(false)
     if (next !== 'reset') setResetToken('')
   }
@@ -244,10 +247,14 @@ export function AuthPage() {
         <label>Contraseña<PasswordInput value={password} onChange={setPassword} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={mode === 'register' ? 10 : undefined} /></label>
         {mode === 'register' && <>
           <p className="auth-hint">Mínimo 10 caracteres, con mayúsculas, minúsculas y números.</p>
-          <label className="auth-consent">
-            <input type="checkbox" checked={acceptedLegalTerms} onChange={event => setAcceptedLegalTerms(event.target.checked)} required />
-            <span>Acepto los <Link to="/legal/terms" target="_blank">Términos de Servicio</Link> y la <Link to="/legal/privacy" target="_blank">Política de Privacidad</Link>, y declaro haber revisado la <Link to="/legal/security" target="_blank">Política de Seguridad</Link>.</span>
-          </label>
+          <div className="auth-legal-consent">
+            <button type="button" className="secondary-button auth-legal-review" onClick={() => setIsLegalModalOpen(true)}>
+              {acceptedLegalTerms ? 'Revisar condiciones aceptadas' : 'Revisar y aceptar condiciones'}
+            </button>
+            {acceptedLegalTerms
+              ? <div className="auth-legal-accepted" role="status"><CheckCircle2 size={17} aria-hidden="true" /><span>Condiciones legales aceptadas</span></div>
+              : <p>Debes leer y aceptar los Términos de Servicio, la Política de Privacidad y la Política de Seguridad antes de crear tu cuenta.</p>}
+          </div>
         </>}
         {statusMessage && mode === 'login' && <div className="success-notice auth-error">{statusMessage}</div>}
         {submit.isError && <div className="notice auth-error">{submit.error instanceof Error ? submit.error.message : 'No fue posible completar la operación.'}</div>}
@@ -262,5 +269,11 @@ export function AuthPage() {
       </div>
       <Link to="/" className="auth-back-home"><ArrowLeft size={14} /> Volver a NexoMail</Link>
     </section>
+
+    <LegalConsentModal
+      open={mode === 'register' && isLegalModalOpen}
+      onClose={() => setIsLegalModalOpen(false)}
+      onAccept={() => setAcceptedLegalTerms(true)}
+    />
   </main>
 }
