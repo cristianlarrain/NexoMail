@@ -195,6 +195,55 @@ public static class CommercialEndpoints
             return Results.Ok(new { isAdministrator });
         });
 
+        commercial.MapGet("/admin/users", async (NexoMailDbContext database, IUserContext userContext, CancellationToken ct) =>
+        {
+            if (!await IsAdministratorAsync(database, userContext.UserId, ct)) return Results.Forbid();
+
+            var users = await database.Users.AsNoTracking()
+                .OrderBy(x => x.DisplayName)
+                .ThenBy(x => x.Email)
+                .ToArrayAsync(ct);
+            var accountCounts = await database.MailAccounts.AsNoTracking()
+                .Where(x => x.IsActive)
+                .GroupBy(x => x.UserId)
+                .Select(group => new { UserId = group.Key, Count = group.Count() })
+                .ToDictionaryAsync(x => x.UserId, x => x.Count, ct);
+            var plans = await database.CommercialPlans.AsNoTracking().ToArrayAsync(ct);
+            var plansByCode = plans.ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase);
+
+            var result = new List<CommercialAdminUserDto>(users.Length);
+            foreach (var user in users)
+            {
+                var assignedPlan = plansByCode.GetValueOrDefault(user.PlanCode)
+                    ?? plansByCode.GetValueOrDefault(CommercialPlanCatalog.Freemium);
+                CommercialAccessSnapshot? access = null;
+                if (user.IsActive) access = await CommercialAccessStore.GetAsync(database, user.Id, ct);
+                result.Add(ToAdminUserDto(user, assignedPlan, access, accountCounts.GetValueOrDefault(user.Id)));
+            }
+
+            return Results.Ok(result);
+        });
+
+        commercial.MapPatch("/admin/users/{userId:guid}/plan", async (
+            Guid userId,
+            CommercialUserPlanAssignmentRequest request,
+            NexoMailDbContext database,
+            IUserContext userContext,
+            CancellationToken ct) =>
+        {
+            if (!await IsAdministratorAsync(database, userContext.UserId, ct)) return Results.Forbid();
+            var planCode = NormalizeCode(request.PlanCode);
+            var plan = await database.CommercialPlans.AsNoTracking().SingleOrDefaultAsync(x => x.Code == planCode && x.IsActive, ct);
+            if (plan is null) return Results.BadRequest(new { error = "El plan seleccionado no existe o está inactivo." });
+            var user = await database.Users.SingleOrDefaultAsync(x => x.Id == userId && x.IsActive, ct);
+            if (user is null) return Results.NotFound(new { error = "El usuario no existe o está inactivo." });
+
+            await CommercialSubscriptionMutations.AssignPlanManuallyAsync(database, user.Id, plan.Code, ct);
+            var access = await CommercialAccessStore.GetAsync(database, user.Id, ct);
+            var connectedAccounts = await database.MailAccounts.AsNoTracking().CountAsync(x => x.UserId == user.Id && x.IsActive, ct);
+            return Results.Ok(ToAdminUserDto(user, plan, access, connectedAccounts));
+        });
+
         commercial.MapGet("/admin/plans", async (NexoMailDbContext database, IUserContext userContext, CancellationToken ct) =>
         {
             if (!await IsAdministratorAsync(database, userContext.UserId, ct)) return Results.Forbid();
@@ -358,6 +407,32 @@ public static class CommercialEndpoints
         assignedUsers,
         plan.Code != CommercialPlanCatalog.Freemium && assignedUsers == 0);
 
+    private static CommercialAdminUserDto ToAdminUserDto(
+        UserEntity user,
+        CommercialPlanEntity? assignedPlan,
+        CommercialAccessSnapshot? access,
+        int connectedAccounts)
+    {
+        var assignedCode = assignedPlan?.Code ?? user.PlanCode;
+        var assignedName = assignedPlan?.Name ?? user.PlanCode;
+        var effectiveCode = access?.EffectivePlan.Code ?? assignedCode;
+        var effectiveName = access?.EffectivePlan.Name ?? assignedName;
+        return new CommercialAdminUserDto(
+            user.Id,
+            user.DisplayName,
+            user.Email,
+            user.IsActive,
+            user.IsAdministrator,
+            assignedCode,
+            assignedName,
+            effectiveCode,
+            effectiveName,
+            connectedAccounts,
+            access is null ? null : ToSubscriptionDto(access.Subscription),
+            user.CreatedAt,
+            user.LastLoginAt);
+    }
+
     private static CommercialSubscriptionStateDto ToSubscriptionDto(CommercialSubscriptionState state) => new(
         state.Status,
         state.Provider,
@@ -430,6 +505,23 @@ public sealed record CommercialAdminPlanDto(
     int SortOrder,
     int AssignedUsers,
     bool CanDelete);
+
+public sealed record CommercialAdminUserDto(
+    Guid Id,
+    string DisplayName,
+    string Email,
+    bool IsActive,
+    bool IsAdministrator,
+    string PlanCode,
+    string PlanName,
+    string EffectivePlanCode,
+    string EffectivePlanName,
+    int ConnectedAccounts,
+    CommercialSubscriptionStateDto? Subscription,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? LastLoginAt);
+
+public sealed record CommercialUserPlanAssignmentRequest(string PlanCode);
 
 public sealed record CommercialPlanWriteRequest(
     string? Code,
