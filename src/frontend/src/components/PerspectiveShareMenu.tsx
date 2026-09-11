@@ -6,7 +6,8 @@ type ShareablePerspective = Pick<SavedPerspective, 'text' | 'source' | 'area'>
 type OptionalShareNavigator = Navigator & { share?: (data?: ShareData) => Promise<void> }
 
 function publicUrl() {
-  return ['localhost', '127.0.0.1'].includes(window.location.hostname) ? '' : window.location.origin
+  if (['localhost', '127.0.0.1'].includes(window.location.hostname)) return ''
+  return `${window.location.origin}/?utm_source=perspective_share&utm_medium=referral&utm_campaign=nexomail_perspectives`
 }
 
 function openShareWindow(url: string) {
@@ -17,7 +18,8 @@ export function PerspectiveShareMenu({ perspective, compact = false }: { perspec
   const [open, setOpen] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
-  const text = perspectiveShareText(perspective)
+  const baseText = perspectiveShareText(perspective)
+  const text = `${baseText}\n\nConoce NexoMail: una forma más inteligente de organizar, entender y trabajar con tu correo.`
   const url = publicUrl()
   const encodedText = encodeURIComponent(text)
   const encodedUrl = encodeURIComponent(url)
