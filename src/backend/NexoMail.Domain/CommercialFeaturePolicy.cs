@@ -11,7 +11,8 @@ public static class CommercialFeaturePolicy
             return CommercialEntitlements.NexiAi;
 
         if (normalizedPath.StartsWith("/api/mail/messages/", StringComparison.Ordinal)
-            && normalizedPath.EndsWith("/ai-reply", StringComparison.Ordinal))
+            && (normalizedPath.EndsWith("/ai-reply", StringComparison.Ordinal)
+                || normalizedPath.EndsWith("/ai-summary", StringComparison.Ordinal)))
             return CommercialEntitlements.NexiAi;
 
         if (normalizedPath.StartsWith("/api/mail/control-center/activity", StringComparison.Ordinal))
