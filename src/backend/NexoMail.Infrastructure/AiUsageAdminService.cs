@@ -220,7 +220,7 @@ public sealed class AiUsageAdminService(NexoMailDbContext database, TimeProvider
             accumulated = trialEvents.Sum(x => x.EstimatedCostClp ?? 0m);
             var totalDays = Math.Max(1d, (trialEnd!.Value - trialStart!.Value).TotalDays);
             var actualElapsed = Math.Max(0d, (now - trialStart.Value).TotalDays);
-            var elapsedDays = Math.Max(1d / 24d, actualElapsed);
+            var elapsedDays = Math.Max(1d, actualElapsed);
             initial = actualElapsed < 1d;
             averageDaily = decimal.Round(accumulated / (decimal)elapsedDays, 2);
             projected = decimal.Round(averageDaily * (decimal)totalDays, 2);
