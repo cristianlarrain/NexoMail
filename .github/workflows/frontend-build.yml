@@ -35,5 +35,8 @@ jobs:
       - name: Verify sidebar tooltips
         run: node scripts/sidebar-tooltip-smoke.mjs
 
+      - name: Verify commercial feature gates
+        run: node scripts/commercial-entitlement-smoke.mjs
+
       - name: Build frontend
         run: pnpm build
