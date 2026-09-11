@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { BookMarked, ChevronDown, ChevronUp, Sparkles, Trash2 } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
+import { commercialApi } from '../api/commercialApi'
 import { nexiApi } from '../api/nexiApi'
 import { NexiVisual } from '../components/nexi/NexiVisual'
 import { PerspectiveShareMenu } from '../components/PerspectiveShareMenu'
+import { commercialEntitlements } from '../utils/commercialEntitlements'
 import {
   getSavedPerspectives,
   removeSavedPerspective,
@@ -19,8 +22,11 @@ export function PerspectivesPage() {
   const [collapsedReflections, setCollapsedReflections] = useState<Record<string, boolean>>({})
   const [expansionErrors, setExpansionErrors] = useState<Record<string, string>>({})
   const handledAutoAnalysis = useRef<string | null>(null)
+  const { data: commercialSubscription } = useQuery({ queryKey: ['commercial-subscription'], queryFn: commercialApi.subscription, staleTime: 30_000 })
+  const hasNexi = commercialSubscription?.entitlements.includes(commercialEntitlements.nexiAi) === true
   const focusId = searchParams.get('focus') ?? ''
   const autoAnalyze = searchParams.get('analyze') === '1'
+  const shouldAutoAnalyze = autoAnalyze && hasNexi
 
   useEffect(() => subscribeToPerspectiveChanges(() => setItems(getSavedPerspectives())), [])
 
@@ -31,12 +37,13 @@ export function PerspectivesPage() {
     })
 
     const focused = items.find(item => item.id === focusId)
-    if (!focused || !autoAnalyze || focused.nexiReflection || handledAutoAnalysis.current === focusId) return
+    if (!focused || !shouldAutoAnalyze || focused.nexiReflection || handledAutoAnalysis.current === focusId) return
     handledAutoAnalysis.current = focusId
     void expandWithNexi(focused)
-  }, [autoAnalyze, focusId, items])
+  }, [focusId, items, shouldAutoAnalyze])
 
   async function expandWithNexi(item: SavedPerspective) {
+    if (!hasNexi) return
     if (item.nexiReflection) {
       setCollapsedReflections(current => ({ ...current, [item.id]: false }))
       return
@@ -82,7 +89,7 @@ export function PerspectivesPage() {
       <div>
         <p className="eyebrow">Colección personal</p>
         <h1>Perspectivas guardadas</h1>
-        <p>Ideas y pensamientos que decidiste conservar mientras usabas NexoMail. Nexi puede desarrollar una reflexión final y conservarla como propuesta activa para volver a revisarla.</p>
+        <p>Ideas y pensamientos que decidiste conservar mientras usabas NexoMail.{hasNexi ? ' Nexi puede desarrollar una reflexión final y conservarla como propuesta activa para volver a revisarla.' : ''}</p>
       </div>
       <span className="perspectives-count"><BookMarked size={16} /> {items.length} guardadas</span>
     </div>
@@ -91,7 +98,7 @@ export function PerspectivesPage() {
       ? <div className="perspectives-empty">
           <BookMarked size={28} />
           <h2>Todavía no guardas perspectivas</h2>
-          <p>Cuando una perspectiva te interese, pulsa Guardar. Aparecerá aquí para volver a leerla, compartirla o profundizarla con Nexi.</p>
+          <p>Cuando una perspectiva te interese, pulsa Guardar. Aparecerá aquí para volver a leerla y compartirla{hasNexi ? ' o profundizarla con Nexi' : ''}.</p>
         </div>
       : <div className="perspectives-grid">
           {items.map(item => {
@@ -106,7 +113,7 @@ export function PerspectivesPage() {
               <blockquote>“{item.text}”</blockquote>
               <cite>— {item.source}</cite>
               <footer>
-                {!reflection && <button type="button" className="perspective-nexi-expand" disabled={Boolean(loadingId)} onClick={() => void expandWithNexi(item)}>
+                {hasNexi && !reflection && <button type="button" className="perspective-nexi-expand" disabled={Boolean(loadingId)} onClick={() => void expandWithNexi(item)}>
                   {loadingId === item.id ? <NexiVisual size="small" /> : <Sparkles size={14} />}
                   {loadingId === item.id ? 'Nexi está pensando…' : 'Analizar con Nexi'}
                 </button>}
