@@ -88,7 +88,7 @@ export function PlanPage() {
   return <section className="settings-page commercial-plan-page">
     <div className="commercial-plan-title-row">
       <div><p className="eyebrow">Configuración</p><h1>Plan y uso</h1><p className="page-description">Revise su plan actual, el uso de cuentas y las funciones habilitadas para NexoMail.</p></div>
-      {adminStatus.data?.isAdministrator && <Link to="/admin/plans" className="secondary-button"><Settings2 size={16} /> Administrar tipos de cuenta</Link>}
+      {adminStatus.data?.isAdministrator && <div className="commercial-admin-header-actions"><Link to="/admin/users" className="secondary-button"><Users size={16} /> Administrar usuarios</Link><Link to="/admin/plans" className="secondary-button"><Settings2 size={16} /> Administrar tipos de cuenta</Link></div>}
     </div>
 
     {returnedFromBilling && <div className="commercial-billing-return"><Sparkles size={17} /><div><strong>Estamos verificando su suscripción</strong><span>La activación se refleja automáticamente cuando Mercado Pago confirma el estado del cobro.</span></div></div>}
@@ -110,6 +110,7 @@ export function PlanPage() {
         {trialEnd && <small>Prueba hasta: {trialEnd}</small>}
         {!data.subscription.provider && data.subscription.status === 'legacy' && <small>Acceso previo a la integración de pagos.</small>}
         {data.subscription.provider === 'mercadopago' && <small>Pago recurrente mediante Mercado Pago.</small>}
+        {data.subscription.provider === 'admin' && <small>Plan asignado manualmente por administración.</small>}
       </div>
       {!data.paidAccessActive && <div className="commercial-limit-notice warning">El estado de la suscripción no habilita actualmente las funciones pagadas. Mientras se regulariza, NexoMail aplica las capacidades del plan Freemium.</div>}
       {!data.canAddAccount && <div className="commercial-limit-notice">Ha alcanzado el límite de cuentas efectivo de su plan. Puede seguir usando las cuentas ya conectadas, pero necesitará un plan superior o regularizar la suscripción para agregar otra.</div>}
