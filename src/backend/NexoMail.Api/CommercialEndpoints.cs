@@ -244,6 +244,33 @@ public static class CommercialEndpoints
             return Results.Ok(ToAdminUserDto(user, plan, access, connectedAccounts));
         });
 
+        commercial.MapPost("/admin/users/{userId:guid}/trial", async (
+            Guid userId,
+            CommercialUserTrialRequest request,
+            NexoMailDbContext database,
+            IUserContext userContext,
+            CancellationToken ct) =>
+        {
+            if (!await IsAdministratorAsync(database, userContext.UserId, ct)) return Results.Forbid();
+            var user = await database.Users.AsNoTracking().SingleOrDefaultAsync(x => x.Id == userId && x.IsActive, ct);
+            if (user is null) return Results.NotFound(new { error = "El usuario no existe o está inactivo." });
+
+            try
+            {
+                await CommercialSubscriptionMutations.GrantTrialAsync(database, user.Id, request.TrialType, request.Days, ct);
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Results.BadRequest(new { error = exception.Message });
+            }
+
+            var assignedPlan = await database.CommercialPlans.AsNoTracking()
+                .SingleOrDefaultAsync(x => x.Code == user.PlanCode, ct);
+            var access = await CommercialAccessStore.GetAsync(database, user.Id, ct);
+            var connectedAccounts = await database.MailAccounts.AsNoTracking().CountAsync(x => x.UserId == user.Id && x.IsActive, ct);
+            return Results.Ok(ToAdminUserDto(user, assignedPlan, access, connectedAccounts));
+        });
+
         commercial.MapGet("/admin/plans", async (NexoMailDbContext database, IUserContext userContext, CancellationToken ct) =>
         {
             if (!await IsAdministratorAsync(database, userContext.UserId, ct)) return Results.Forbid();
@@ -522,6 +549,7 @@ public sealed record CommercialAdminUserDto(
     DateTimeOffset? LastLoginAt);
 
 public sealed record CommercialUserPlanAssignmentRequest(string PlanCode);
+public sealed record CommercialUserTrialRequest(string TrialType, int Days);
 
 public sealed record CommercialPlanWriteRequest(
     string? Code,
