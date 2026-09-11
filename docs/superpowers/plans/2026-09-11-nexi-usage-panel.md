@@ -4,7 +4,7 @@
 
 **Goal:** Build an Owner-only Nexi consumption subsystem that records real OpenAI usage, estimates USD/CLP cost, preserves 12 months of detail plus permanent monthly summaries, and exposes weekly/monthly/trial projections in an administrative dashboard.
 
-**Architecture:** Centralize all Responses API calls behind a focused `AiResponseClient`, which records provider usage through `AiUsageTracker` without storing prompts, email content, or generated text. Persist detailed events and monthly aggregates in SQLite through EF Core, expose Owner-only query endpoints via `AiUsageAdminService`, and render the data in a dedicated React administration page.
+**Architecture:** Centralize all Responses API calls behind `AiResponseClient`, which records provider usage through `AiUsageTracker` without storing prompts, email content, or generated text. Persist detailed events and monthly aggregates in SQLite through EF Core, calculate administrative projections in `AiUsageAdminService`, expose Owner-only endpoints, and render them in a dedicated React page.
 
 **Tech Stack:** .NET 10, ASP.NET Core minimal APIs, EF Core 10 + SQLite, OpenAI Responses API, React 19, TypeScript 5.9, React Router 7, TanStack Query 5, lucide-react, existing smoke-test scripts and GitHub Actions workflows.
 
@@ -12,62 +12,58 @@
 
 ## Global Constraints
 
-- Panel access is exclusive to `IsOwner = true`; ordinary administrators do not gain access.
+- Access is exclusive to `IsOwner = true`; ordinary administrators do not gain access.
 - Never persist prompts, email bodies, subjects, sender data, attachment content, Nexi responses, or user-generated text in usage telemetry.
-- Detailed usage retention is 12 months; monthly aggregates remain permanent until the legal/commercial retention policy changes.
-- Initial projected-cost thresholds are green `<= 1500 CLP`, yellow `1501–3000 CLP`, red `> 3000 CLP`; thresholds must be Owner-configurable.
-- Token counts come from provider usage metadata when available; do not estimate token counts from characters.
-- Unknown models record token usage but have a non-calculable cost rather than an invented cost.
-- Every real provider call, including a retry that can be billed, records a separate usage event.
-- Usage-tracking failures must never break the underlying Nexi feature.
-- Historical event cost snapshots must not change when model prices or CLP/USD reference rates change later.
-- No automatic Nexi suspension or billing by tokens is part of this implementation.
+- Detailed retention is 12 months; monthly aggregates remain permanent until the legal/commercial policy changes.
+- Initial projected-cost thresholds are green `<= 1500 CLP`, yellow `1501–3000 CLP`, red `> 3000 CLP`; thresholds are Owner-configurable.
+- Token counts come from provider usage metadata when available; never estimate them from characters.
+- Unknown models record tokens but keep cost non-calculable.
+- Every actual provider call, including a billable retry, records a separate event.
+- Telemetry persistence failures must never break the underlying Nexi feature.
+- Historical cost snapshots never change when prices or CLP/USD reference rates change later.
+- No automatic Nexi suspension, token billing, Mercado Pago work, or user-facing usage counters are part of this block.
 
 ---
 
-## File Structure
+## File Map
 
-### Backend — new files
+### Backend — create
+- `src/backend/NexoMail.Infrastructure/AiUsageModels.cs` — usage entities and internal records.
+- `src/backend/NexoMail.Infrastructure/AiUsageCostCalculator.cs` — model price lookup and deterministic cost calculation.
+- `src/backend/NexoMail.Infrastructure/AiUsageTracker.cs` — event + monthly aggregate persistence.
+- `src/backend/NexoMail.Infrastructure/AiResponseClient.cs` — centralized Responses API calls and usage parsing.
+- `src/backend/NexoMail.Infrastructure/AiUsageAdminService.cs` — summaries, projections, settings and per-user analytics.
+- `src/backend/NexoMail.Infrastructure/AiUsageRetentionService.cs` — 12-month detail cleanup plus hosted wrapper.
+- `src/backend/NexoMail.Api/AiUsageEndpoints.cs` — Owner-only admin endpoints.
+- `src/backend/NexoMail.CommercialSmokeTests/AiUsageSmoke.cs` — usage/cost/projection/retention smoke tests.
 
-- `src/backend/NexoMail.Infrastructure/AiUsageModels.cs` — event, monthly summary, settings entities and DTO-like internal records.
-- `src/backend/NexoMail.Infrastructure/AiUsageCostCalculator.cs` — model pricing lookup and deterministic USD/CLP cost calculation.
-- `src/backend/NexoMail.Infrastructure/AiUsageTracker.cs` — writes events and monthly aggregates atomically.
-- `src/backend/NexoMail.Infrastructure/AiResponseClient.cs` — one Responses API client that extracts output and usage and calls the tracker.
-- `src/backend/NexoMail.Infrastructure/AiUsageAdminService.cs` — weekly/monthly/user/trial projections, semaphores, settings reads/writes.
-- `src/backend/NexoMail.Infrastructure/AiUsageRetentionService.cs` — daily cleanup of detail older than 12 months.
-- `src/backend/NexoMail.Api/AiUsageEndpoints.cs` — Owner-only administrative endpoints.
-- `src/backend/NexoMail.CommercialSmokeTests/AiUsageSmoke.cs` — backend usage/cost/projection/retention smoke tests.
+### Backend — modify
+- `src/backend/NexoMail.Infrastructure/Data/NexoMailDbContext.cs`
+- `src/backend/NexoMail.Infrastructure/AiWritingService.cs`
+- `src/backend/NexoMail.Infrastructure/AiSearchService.cs`
+- `src/backend/NexoMail.Infrastructure/AiContextService.cs`
+- `src/backend/NexoMail.Infrastructure/AiMailInsightsService.cs`
+- `src/backend/NexoMail.Api/AiEndpoints.cs`
+- `src/backend/NexoMail.Api/Program.cs`
+- `src/backend/NexoMail.Api/appsettings.json`
+- `src/backend/NexoMail.CommercialSmokeTests/Program.cs`
+- `src/backend/NexoMail.CommercialSmokeTests/NexoMail.CommercialSmokeTests.csproj` only if API-level authorization smoke requires an API project reference.
 
-### Backend — modified files
+### Frontend — create
+- `src/frontend/src/api/aiUsageApi.ts`
+- `src/frontend/src/pages/AdminAiUsagePage.tsx`
+- `src/frontend/src/styles/ai-usage-admin.css`
+- `src/frontend/scripts/ai-usage-admin-smoke.mjs`
 
-- `src/backend/NexoMail.Infrastructure/Data/NexoMailDbContext.cs` — new DbSets, mappings, indexes.
-- `src/backend/NexoMail.Infrastructure/AiWritingService.cs` — delegate provider calls to `AiResponseClient` and label operations.
-- `src/backend/NexoMail.Infrastructure/AiSearchService.cs` — delegate provider calls and label `search_interpretation`.
-- `src/backend/NexoMail.Infrastructure/AiContextService.cs` — delegate provider calls and label `mail_context_analysis`.
-- `src/backend/NexoMail.Infrastructure/AiMailInsightsService.cs` — delegate provider calls and label summaries/reports/retries.
-- `src/backend/NexoMail.Api/AiEndpoints.cs` — register the centralized client/tracker/query/retention services.
-- `src/backend/NexoMail.Api/Program.cs` — map `AiUsageEndpoints` and register hosted retention cleanup if not registered by `AddNexoMailAi`.
-- `src/backend/NexoMail.CommercialSmokeTests/Program.cs` — invoke `AiUsageSmoke`.
-- `src/backend/NexoMail.Api/appsettings.json` — add server-side price/reference-rate defaults without secrets.
-
-### Frontend — new files
-
-- `src/frontend/src/api/aiUsageApi.ts` — typed Owner-only usage API client.
-- `src/frontend/src/pages/AdminAiUsagePage.tsx` — cards, user table, detail drawer/section, thresholds form.
-- `src/frontend/src/styles/ai-usage-admin.css` — panel styles using theme text tokens.
-- `src/frontend/scripts/ai-usage-admin-smoke.mjs` — source-level route/access/privacy/UI regression assertions.
-
-### Frontend — modified files
-
-- `src/frontend/src/router.tsx` — add `/admin/ai-usage` route.
-- `src/frontend/src/layouts/AppLayout.tsx` — show `Consumo Nexi` navigation only when effective access identifies Owner.
-- `src/frontend/src/main.tsx` — import the new stylesheet if styles are imported centrally there.
-- `.github/workflows/frontend-build.yml` — run the new frontend smoke script.
-- `.github/workflows/commercial-smoke.yml` — ensure the backend smoke suite includes the new checks automatically through its existing executable.
+### Frontend — modify
+- `src/frontend/src/router.tsx`
+- `src/frontend/src/layouts/AppLayout.tsx`
+- `src/frontend/src/main.tsx`
+- `.github/workflows/frontend-build.yml`
 
 ---
 
-### Task 1: Persist Usage Entities and Deterministic Cost Calculation
+### Task 1: Add Usage Storage and Deterministic Cost Calculation
 
 **Files:**
 - Create: `src/backend/NexoMail.Infrastructure/AiUsageModels.cs`
@@ -79,46 +75,42 @@
 
 **Interfaces:**
 - Produces: `AiUsageEventEntity`, `AiUsageMonthlySummaryEntity`, `AiUsageSettingsEntity`.
-- Produces: `AiUsagePriceCatalogOptions` with `SectionName = "AI:UsagePricing"`, `ReferenceClpPerUsd`, and per-model input/output prices per million tokens.
-- Produces: `AiUsageCostCalculator.Calculate(string model, long inputTokens, long outputTokens)` returning `AiUsageCostEstimate?`.
+- Produces: `AiUsagePriceCatalogOptions` with `SectionName = "AI:UsagePricing"` and model prices per million tokens.
+- Produces: `AiUsageCostCalculator.Calculate(string model, long inputTokens, long outputTokens, decimal clpPerUsd)` returning `AiUsageCostEstimate?`.
 
-- [ ] **Step 1: Write failing smoke tests for schema and cost calculation**
+- [ ] **Step 1: Write the failing cost/schema smoke**
 
-Add `AiUsageSmoke.CostCalculationAsync()` with assertions equivalent to:
+Add a test equivalent to:
 
 ```csharp
-var options = Options.Create(new AiUsagePriceCatalogOptions
+var calculator = new AiUsageCostCalculator(Options.Create(new AiUsagePriceCatalogOptions
 {
-    ReferenceClpPerUsd = 941.1m,
     Models = new Dictionary<string, AiUsageModelPrice>(StringComparer.OrdinalIgnoreCase)
     {
         ["gpt-5.6-luna"] = new(0.20m, 1.20m)
     }
-});
-var calculator = new AiUsageCostCalculator(options);
-var cost = calculator.Calculate("gpt-5.6-luna", 1_000_000, 1_000_000);
+}));
 
+var cost = calculator.Calculate("gpt-5.6-luna", 1_000_000, 1_000_000, 941.1m);
 Require(cost is not null, "Known model must have calculable cost.");
 Require(cost!.EstimatedCostUsd == 1.40m, "Known model USD cost is wrong.");
 Require(cost.EstimatedCostClp == decimal.Round(1.40m * 941.1m, 4), "CLP conversion is wrong.");
-Require(calculator.Calculate("unknown-model", 1000, 1000) is null, "Unknown model must not invent cost.");
+Require(calculator.Calculate("unknown-model", 1000, 1000, 941.1m) is null, "Unknown model must not invent cost.");
 ```
 
-Also create an in-memory SQLite context, call `Database.EnsureCreatedAsync()`, and assert that the three new DbSets can insert/read an event, a monthly row, and global settings.
+Also create an in-memory SQLite context, run `EnsureCreatedAsync()`, and assert that an event, monthly summary and singleton settings row can be inserted/read.
 
-- [ ] **Step 2: Run the smoke suite and verify RED**
-
-Run:
+- [ ] **Step 2: Run RED**
 
 ```powershell
 dotnet run --project src/backend/NexoMail.CommercialSmokeTests/NexoMail.CommercialSmokeTests.csproj
 ```
 
-Expected: build/test failure because the usage types and calculator do not yet exist.
+Expected: compile/test failure because usage types do not exist.
 
-- [ ] **Step 3: Add entities and EF Core mappings**
+- [ ] **Step 3: Implement entities and EF mappings**
 
-Define focused entities similar to:
+Use these core shapes:
 
 ```csharp
 public sealed class AiUsageEventEntity
@@ -167,11 +159,9 @@ public sealed class AiUsageSettingsEntity
 }
 ```
 
-Map composite key `{ UserId, Year, Month }`, indexes from the spec, max lengths for technical strings, and a User foreign key for events. Do not add any prompt/message-content fields.
+Map monthly composite key `{ UserId, Year, Month }`; event indexes `{ UserId, OccurredAt }`, `OccurredAt`, `{ OperationType, OccurredAt }`; and a User FK for event rows. No content-bearing fields are allowed.
 
-- [ ] **Step 4: Implement the cost calculator and configuration defaults**
-
-Use exact per-million arithmetic:
+- [ ] **Step 4: Implement model pricing**
 
 ```csharp
 var inputUsd = inputTokens / 1_000_000m * price.InputUsdPerMillion;
@@ -181,17 +171,17 @@ return new AiUsageCostEstimate(
     price.InputUsdPerMillion,
     price.OutputUsdPerMillion,
     usd,
-    options.ReferenceClpPerUsd,
-    decimal.Round(usd * options.ReferenceClpPerUsd, 4));
+    clpPerUsd,
+    decimal.Round(usd * clpPerUsd, 4));
 ```
 
-Add non-secret defaults to `appsettings.json`:
+Add only model prices to server configuration; the initial exchange-rate fallback is used only to seed `AiUsageSettings`:
 
 ```json
 "AI": {
   "Model": "gpt-5.6-luna",
   "UsagePricing": {
-    "ReferenceClpPerUsd": 941.1,
+    "DefaultReferenceClpPerUsd": 941.1,
     "Models": {
       "gpt-5.6-luna": {
         "InputUsdPerMillion": 0.20,
@@ -202,13 +192,11 @@ Add non-secret defaults to `appsettings.json`:
 }
 ```
 
-- [ ] **Step 5: Run smoke tests and verify GREEN**
+- [ ] **Step 5: Run GREEN**
 
 ```powershell
 dotnet run --project src/backend/NexoMail.CommercialSmokeTests/NexoMail.CommercialSmokeTests.csproj
 ```
-
-Expected: PASS for schema/cost checks and all prior commercial smokes.
 
 - [ ] **Step 6: Commit**
 
@@ -219,58 +207,66 @@ git commit -m "feat: add Nexi usage cost model"
 
 ---
 
-### Task 2: Record Usage Events and Maintain Monthly Aggregates Atomically
+### Task 2: Record Events and Maintain Monthly Aggregates Atomically
 
 **Files:**
 - Create: `src/backend/NexoMail.Infrastructure/AiUsageTracker.cs`
 - Modify: `src/backend/NexoMail.CommercialSmokeTests/AiUsageSmoke.cs`
 
 **Interfaces:**
-- Consumes: `AiUsageCostCalculator` from Task 1.
+- Consumes: `AiUsageCostCalculator`.
 - Produces: `IAiUsageTracker.RecordAsync(AiUsageRecord record, CancellationToken ct)`.
 - Produces: `AiUsageRecord(Guid UserId, string OperationType, string Model, long InputTokens, long OutputTokens, long? ReasoningTokens, long DurationMs, bool Succeeded, string? ErrorCategory, DateTimeOffset OccurredAt)`.
 
-- [ ] **Step 1: Add failing tracker tests**
+- [ ] **Step 1: Write failing tracker tests**
 
-Test that two records on the same user/month create two event rows but one monthly row with summed operations/tokens/costs and one active day. Add a third event on another day and assert `ActiveDays == 2`.
+Seed a user, then:
 
 ```csharp
 await tracker.RecordAsync(new AiUsageRecord(
-    user.Id, "mail_summary", "gpt-5.6-luna", 1000, 200, null, 120, true, null,
-    new DateTimeOffset(2026, 9, 11, 10, 0, 0, TimeSpan.Zero)), CancellationToken.None);
+    user.Id,
+    "mail_summary",
+    "gpt-5.6-luna",
+    1000,
+    200,
+    null,
+    120,
+    true,
+    null,
+    new DateTimeOffset(2026, 9, 11, 10, 0, 0, TimeSpan.Zero)),
+    CancellationToken.None);
 ```
 
-Also test a record for an unknown model: tokens persist, nullable cost fields stay null, and monthly numeric cost is unchanged.
+Assert two same-month calls create two events but one accumulated monthly row. Add a third call on another calendar day and assert `ActiveDays == 2`. For an unknown model, assert tokens persist and cost fields remain null while monthly cost is unchanged.
 
-- [ ] **Step 2: Run smoke tests and verify RED**
+- [ ] **Step 2: Run RED**
 
 ```powershell
 dotnet run --project src/backend/NexoMail.CommercialSmokeTests/NexoMail.CommercialSmokeTests.csproj
 ```
-
-Expected: FAIL because tracker interfaces/types do not exist.
 
 - [ ] **Step 3: Implement transactional tracking**
 
-`AiUsageTracker.RecordAsync` must:
+`RecordAsync` must:
 
-1. calculate cost once;
-2. begin a DB transaction;
-3. insert the detailed event;
-4. load or create the monthly summary;
-5. increment operation/success/failure/tokens/cost;
-6. derive `ActiveDays` from distinct detail days for that user/month after inserting the event;
-7. save and commit.
+```text
+1. Load or create AiUsageSettings row Id=1.
+2. Pass settings.ReferenceClpPerUsd into AiUsageCostCalculator.
+3. Begin transaction.
+4. Insert the detailed event with price/rate snapshots.
+5. Load or create the monthly aggregate.
+6. Increment operation/success/failure/token/cost totals.
+7. Recompute active-day count for that user/month.
+8. Save and commit.
+```
 
-Keep telemetry failure handling outside this class; this class should throw on persistence failure so `AiResponseClient` can log and swallow it.
+Keep persistence exceptions visible to callers; `AiResponseClient` will be responsible for logging/swallowing telemetry failures.
 
-- [ ] **Step 4: Run smoke tests and verify GREEN**
+- [ ] **Step 4: Run GREEN**
 
 ```powershell
 dotnet run --project src/backend/NexoMail.CommercialSmokeTests/NexoMail.CommercialSmokeTests.csproj
 ```
-
-Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
@@ -281,7 +277,7 @@ git commit -m "feat: track Nexi usage events"
 
 ---
 
-### Task 3: Centralize OpenAI Responses Calls and Capture Real Provider Usage
+### Task 3: Centralize Responses API Calls and Capture Real Usage
 
 **Files:**
 - Create: `src/backend/NexoMail.Infrastructure/AiResponseClient.cs`
@@ -298,9 +294,9 @@ git commit -m "feat: track Nexi usage events"
 - Produces: `AiResponseRequest(string OperationType, string Model, string Instructions, string Input, string ReasoningEffort, int MaxOutputTokens)`.
 - Produces: `AiResponseResult(string Text, long InputTokens, long OutputTokens, long? ReasoningTokens)`.
 
-- [ ] **Step 1: Add failing parsing/tracking tests around a fake HTTP handler**
+- [ ] **Step 1: Write failing fake-HTTP parsing/tracking tests**
 
-Return a Responses API-like payload:
+Return:
 
 ```json
 {
@@ -313,19 +309,17 @@ Return a Responses API-like payload:
 }
 ```
 
-Assert `AiResponseClient` returns `resultado` and records exactly one event with the supplied operation type and token counts. Add a non-2xx test that records a generic failure category without storing response bodies.
+Assert one successful event is recorded with exact token counts. Add a non-2xx case that records a generic failure category but never stores provider response text.
 
-- [ ] **Step 2: Run smoke tests and verify RED**
+- [ ] **Step 2: Run RED**
 
 ```powershell
 dotnet run --project src/backend/NexoMail.CommercialSmokeTests/NexoMail.CommercialSmokeTests.csproj
 ```
 
-Expected: FAIL because `AiResponseClient` is missing.
-
 - [ ] **Step 3: Implement `AiResponseClient`**
 
-The client should build the existing Responses request shape and extract output/usage centrally. Wrap telemetry only:
+Build the current Responses payload, time the request, parse output and usage, and report telemetry. Telemetry failure is isolated:
 
 ```csharp
 try
@@ -338,24 +332,26 @@ catch (Exception exception)
 }
 ```
 
-Do not swallow provider errors. Preserve the existing `HttpRequestException` behavior expected by API endpoints.
+Provider errors continue to surface as the same exception families expected by existing endpoints.
 
-- [ ] **Step 4: Replace duplicated provider-call code in all four AI services**
+- [ ] **Step 4: Route all four existing AI services through the client**
 
-Map operations explicitly:
+Use stable operation types:
 
 ```text
 AiSearchService.InterpretAsync -> search_interpretation
 AiContextService.AnalyzeAsync -> mail_context_analysis
-AiMailInsightsService.SummarizeMessageAsync(includeThread=false) -> mail_summary
-AiMailInsightsService.SummarizeMessageAsync(includeThread=true) -> thread_summary
+AiMailInsightsService.SummarizeMessageAsync(false) -> mail_summary
+AiMailInsightsService.SummarizeMessageAsync(true) -> thread_summary
 AiMailInsightsService.GenerateReportAsync -> mail_report
-AiWritingService write/rewrite/reply helpers -> writing_assistant
+AiWritingService writing/rewrite/reply helpers -> writing_assistant
 ```
 
-The compact retry inside report generation must make a second `SendAsync` call, producing a second billable event.
+A compact retry inside report generation must call `SendAsync` again and therefore create a second event.
 
-- [ ] **Step 5: Register new services in `AddNexoMailAi`**
+- [ ] **Step 5: Register services**
+
+In `AddNexoMailAi`:
 
 ```csharp
 services.Configure<AiUsagePriceCatalogOptions>(configuration.GetSection("AI:UsagePricing"));
@@ -364,16 +360,12 @@ services.AddScoped<IAiUsageTracker, AiUsageTracker>();
 services.AddScoped<AiResponseClient>();
 ```
 
-Keep the existing named `OpenAI` client configuration.
-
-- [ ] **Step 6: Run backend smoke tests and build**
+- [ ] **Step 6: Verify backend**
 
 ```powershell
 dotnet run --project src/backend/NexoMail.CommercialSmokeTests/NexoMail.CommercialSmokeTests.csproj
 dotnet build NexoMail.sln
 ```
-
-Expected: both commands succeed.
 
 - [ ] **Step 7: Commit**
 
@@ -384,7 +376,7 @@ git commit -m "refactor: centralize Nexi provider usage tracking"
 
 ---
 
-### Task 4: Implement Owner Analytics, Trial Projections, Settings, and Retention
+### Task 4: Build Analytics, Trial Projection, Settings, and Retention
 
 **Files:**
 - Create: `src/backend/NexoMail.Infrastructure/AiUsageAdminService.cs`
@@ -393,43 +385,35 @@ git commit -m "refactor: centralize Nexi provider usage tracking"
 - Modify: `src/backend/NexoMail.Api/AiEndpoints.cs`
 
 **Interfaces:**
-- Produces: `AiUsageAdminService.GetSummaryAsync(AiUsagePeriod period, CancellationToken ct)`.
-- Produces: `AiUsageAdminService.GetUsersAsync(string? sort, CancellationToken ct)`.
-- Produces: `AiUsageAdminService.GetUserAsync(Guid userId, CancellationToken ct)`.
-- Produces: `AiUsageAdminService.GetSettingsAsync(CancellationToken ct)`.
-- Produces: `AiUsageAdminService.UpdateSettingsAsync(decimal greenMaxClp, decimal yellowMaxClp, decimal referenceClpPerUsd, CancellationToken ct)`.
-- Produces: `AiUsageRetentionService` as a `BackgroundService` with one cleanup pass method that can be smoke-tested directly.
+- Produces: `GetSummaryAsync(AiUsagePeriod period, CancellationToken ct)`.
+- Produces: `GetUsersAsync(string? sort, CancellationToken ct)`.
+- Produces: `GetUserAsync(Guid userId, CancellationToken ct)`.
+- Produces: `GetSettingsAsync(CancellationToken ct)`.
+- Produces: `UpdateSettingsAsync(decimal greenMaxClp, decimal yellowMaxClp, decimal referenceClpPerUsd, CancellationToken ct)`.
+- Produces: `AiUsageRetentionService.DeleteExpiredDetailAsync(DateTimeOffset now, CancellationToken ct)` and a small hosted wrapper running daily.
 
-- [ ] **Step 1: Add failing analytics/projection tests**
+- [ ] **Step 1: Write failing analytics/projection/settings tests**
 
-Seed events spanning current week, previous week, and month. Assert:
+Seed current week, previous week and current month events; assert current cost, previous cost, variation, operations, active users and average cost.
 
-```csharp
-Require(summary.CurrentCostClp == expectedCurrent, "Current period cost is wrong.");
-Require(summary.PreviousCostClp == expectedPrevious, "Previous period cost is wrong.");
-Require(summary.VariationPercent == expectedVariation, "Week comparison is wrong.");
-```
+Seed an `admin_trial` row with `CurrentPeriodStart` and `TrialEndsAt`; assert accumulated trial cost, calendar-day projection, `<1 full day` initial state, seven-day trend after sufficient history, and green/yellow/red classification.
 
-Seed an `admin_trial` subscription with `CurrentPeriodStart` and `TrialEndsAt`; assert accumulated trial cost, calendar-day projection, `IsInitialProjection` before one full day, seven-day trend after seven days, and threshold status.
-
-Test settings validation:
+Add invalid settings test:
 
 ```csharp
 await RequireThrowsAsync<InvalidOperationException>(() =>
     service.UpdateSettingsAsync(3000m, 1500m, 941.1m, CancellationToken.None));
 ```
 
-- [ ] **Step 2: Run smoke tests and verify RED**
+- [ ] **Step 2: Run RED**
 
 ```powershell
 dotnet run --project src/backend/NexoMail.CommercialSmokeTests/NexoMail.CommercialSmokeTests.csproj
 ```
 
-Expected: FAIL because admin analytics service does not exist.
+- [ ] **Step 3: Implement aggregate and projection rules**
 
-- [ ] **Step 3: Implement aggregate queries and projection rules**
-
-For active trials, derive:
+For active trials:
 
 ```csharp
 var totalDays = Math.Max(1d, (trialEndsAt - trialStart).TotalDays);
@@ -437,13 +421,13 @@ var elapsedDays = Math.Max(1d / 24d, (now - trialStart).TotalDays);
 var projected = accumulatedClp / (decimal)elapsedDays * (decimal)totalDays;
 ```
 
-Mark `< 1 full day` as initial. Once seven calendar days of usage window exist, compute a separate last-seven-days daily average and trend indicator. For non-trial users, label projection as 30-day monthly estimate.
+Mark the first full-day window as `IsInitialProjection`. After seven days, compute a separate last-seven-days projection/trend. Non-trial users receive a clearly labelled 30-day monthly estimate.
 
-The cost-light must be computed from projected CLP and persisted settings, not hard-coded in the query service.
+Semaphore status comes from persisted thresholds, never hard-coded in query code.
 
 - [ ] **Step 4: Implement settings persistence**
 
-Ensure singleton row `Id = 1` exists on first read. Validation:
+Validation:
 
 ```csharp
 if (greenMaxClp < 0 || yellowMaxClp <= greenMaxClp)
@@ -452,23 +436,23 @@ if (referenceClpPerUsd <= 0)
     throw new InvalidOperationException("El tipo de cambio de referencia debe ser mayor que cero.");
 ```
 
-When the Owner changes the reference exchange rate, update both `AiUsageSettings` and the options source used for *future* event cost snapshots through a dedicated runtime settings read in the calculator/tracker; do not rewrite historical events.
+Changing `ReferenceClpPerUsd` affects only future events because Task 2 reads the singleton row for every new usage record. Historical event snapshots remain untouched.
 
 - [ ] **Step 5: Implement 12-month retention**
-
-Expose an internal/testable cleanup method:
 
 ```csharp
 public async Task<int> DeleteExpiredDetailAsync(DateTimeOffset now, CancellationToken ct)
 {
     var cutoff = now.AddMonths(-12);
-    return await database.AiUsageEvents.Where(x => x.OccurredAt < cutoff).ExecuteDeleteAsync(ct);
+    return await database.AiUsageEvents
+        .Where(x => x.OccurredAt < cutoff)
+        .ExecuteDeleteAsync(ct);
 }
 ```
 
-The hosted loop runs once after startup delay and then every 24 hours. It never deletes monthly summaries.
+The hosted wrapper creates a scope, runs cleanup, then waits 24 hours. It never deletes `AiUsageMonthlySummaries`.
 
-- [ ] **Step 6: Register admin/retention services and run tests**
+- [ ] **Step 6: Register services and run GREEN**
 
 ```csharp
 services.AddScoped<AiUsageAdminService>();
@@ -476,15 +460,9 @@ services.AddScoped<AiUsageRetentionService>();
 services.AddHostedService<AiUsageRetentionHostedService>();
 ```
 
-If a scoped DbContext prevents the same class from being both scoped/testable and hosted, keep `AiUsageRetentionService` scoped and create a small `AiUsageRetentionHostedService(IServiceScopeFactory, ILogger<...>)` wrapper.
-
-Run:
-
 ```powershell
 dotnet run --project src/backend/NexoMail.CommercialSmokeTests/NexoMail.CommercialSmokeTests.csproj
 ```
-
-Expected: PASS.
 
 - [ ] **Step 7: Commit**
 
@@ -501,73 +479,74 @@ git commit -m "feat: add Nexi usage analytics and retention"
 - Create: `src/backend/NexoMail.Api/AiUsageEndpoints.cs`
 - Modify: `src/backend/NexoMail.Api/Program.cs`
 - Modify: `src/backend/NexoMail.CommercialSmokeTests/AiUsageSmoke.cs`
+- Modify: `src/backend/NexoMail.CommercialSmokeTests/NexoMail.CommercialSmokeTests.csproj` only if required to execute API authorization smoke directly.
 
 **Interfaces:**
-- Consumes: `AiUsageAdminService` from Task 4.
-- Produces endpoints:
+- Produces:
   - `GET /api/ai-usage/admin/summary?period=week|month`
   - `GET /api/ai-usage/admin/users?sort=projected|accumulated`
   - `GET /api/ai-usage/admin/users/{userId:guid}`
   - `GET /api/ai-usage/admin/settings`
   - `PATCH /api/ai-usage/admin/settings`
 
-- [ ] **Step 1: Add failing source/security assertions**
+- [ ] **Step 1: Write failing Owner authorization tests**
 
-Extend smoke checks to read `AiUsageEndpoints.cs` and assert the Owner check is server-side and every route is under an authenticated group. The helper must query the current active user and require `IsOwner` explicitly, not merely `IsAdministrator`.
+The test must exercise the authorization helper or endpoint delegate with three seeded users and prove:
 
-Use a helper shaped like:
+```text
+Owner (IsOwner=true) -> allowed
+Administrator only (IsAdministrator=true, IsOwner=false) -> forbidden
+Normal user -> forbidden
+```
+
+The implementation must query the active current user and require `IsOwner` explicitly:
 
 ```csharp
 private static async Task<bool> IsOwnerAsync(NexoMailDbContext db, IUserContext userContext, CancellationToken ct) =>
-    await db.Users.AsNoTracking().AnyAsync(x => x.Id == userContext.UserId && x.IsActive && x.IsOwner, ct);
+    await db.Users.AsNoTracking()
+        .AnyAsync(x => x.Id == userContext.UserId && x.IsActive && x.IsOwner, ct);
 ```
 
-- [ ] **Step 2: Run smoke tests and verify RED**
+If direct endpoint smoke requires it, add a project reference to `NexoMail.Api` rather than weakening this test into a text-only assertion.
+
+- [ ] **Step 2: Run RED**
 
 ```powershell
 dotnet run --project src/backend/NexoMail.CommercialSmokeTests/NexoMail.CommercialSmokeTests.csproj
 ```
 
-Expected: FAIL because endpoint file/routes do not exist.
-
-- [ ] **Step 3: Implement endpoints with one Owner gate per handler/group**
-
-Map a group from the authenticated `/api` root:
+- [ ] **Step 3: Implement endpoints**
 
 ```csharp
 var usage = api.MapGroup("/ai-usage/admin").RequireAuthorization();
 ```
 
-Each handler returns `Results.Forbid()` when `IsOwnerAsync` is false. Return 400 for invalid periods/settings and 404 for unknown users. DTOs contain only metrics and user identity fields required by the admin table; they contain no message/prompt/output content.
+Each handler returns `Results.Forbid()` when the Owner check fails. Invalid period/settings -> 400; unknown user -> 404. DTOs contain only administrative identity/plan/trial fields and numeric metrics, never mail or prompt content.
 
-- [ ] **Step 4: Map endpoints in `Program.cs`**
-
-Immediately after commercial endpoint mapping:
+- [ ] **Step 4: Map in `Program.cs`**
 
 ```csharp
 NexoMail.Api.CommercialEndpoints.MapNexoMailCommercial(api);
 NexoMail.Api.AiUsageEndpoints.Map(api);
 ```
 
-- [ ] **Step 5: Run backend verification**
+- [ ] **Step 5: Verify**
 
 ```powershell
 dotnet run --project src/backend/NexoMail.CommercialSmokeTests/NexoMail.CommercialSmokeTests.csproj
 dotnet build NexoMail.sln
 ```
 
-Expected: PASS.
-
 - [ ] **Step 6: Commit**
 
 ```powershell
-git add src/backend/NexoMail.Api src/backend/NexoMail.CommercialSmokeTests/AiUsageSmoke.cs
+git add src/backend/NexoMail.Api src/backend/NexoMail.CommercialSmokeTests
 git commit -m "feat: expose Owner Nexi usage API"
 ```
 
 ---
 
-### Task 6: Add Typed Frontend API and Owner-Only Route/Navigation
+### Task 6: Add Typed Frontend API, Route, and Owner Navigation
 
 **Files:**
 - Create: `src/frontend/src/api/aiUsageApi.ts`
@@ -577,58 +556,51 @@ git commit -m "feat: expose Owner Nexi usage API"
 - Create: `src/frontend/scripts/ai-usage-admin-smoke.mjs`
 
 **Interfaces:**
-- Produces: `aiUsageApi.summary(period)`, `aiUsageApi.users(sort)`, `aiUsageApi.user(userId)`, `aiUsageApi.settings()`, `aiUsageApi.updateSettings(payload)`.
-- Route: `/admin/ai-usage`.
+- Produces: `aiUsageApi.summary(period)`, `users(sort)`, `user(userId)`, `settings()`, `updateSettings(payload)`.
+- Produces route: `/admin/ai-usage`.
 
-- [ ] **Step 1: Write failing frontend smoke assertions**
-
-The script must assert:
+- [ ] **Step 1: Write failing frontend smoke**
 
 ```js
 assert(router.includes("/admin/ai-usage"), 'Owner usage route is required')
 assert(layout.includes('Consumo Nexi'), 'Owner navigation entry is required')
 assert(page.includes('Costo estimado'), 'Usage page must show cost metrics')
 assert(page.includes('Proyección'), 'Usage page must show projections')
-assert(!page.includes('prompt'), 'Usage page must not expose prompts')
 ```
 
-Also require that the navigation condition checks the effective commercial access code for Owner and does not render the entry merely because `adminStatus()` is true.
+Also assert navigation is based on effective Owner code, not generic administrator status.
 
-- [ ] **Step 2: Run smoke script and verify RED**
+- [ ] **Step 2: Run RED**
 
 ```powershell
 node src/frontend/scripts/ai-usage-admin-smoke.mjs
 ```
 
-Expected: FAIL because page/API/route do not exist.
+- [ ] **Step 3: Implement typed API client**
 
-- [ ] **Step 3: Implement typed `aiUsageApi.ts`**
+Follow the existing `csrfFetch`/JSON error pattern. Define exact TypeScript types for summary, user row, user detail, settings and patch payload.
 
-Use existing `csrfFetch`/JSON patterns. Define types for summary, user row, user detail, settings and update payload. Fail with the backend `error` message when available.
+- [ ] **Step 4: Add route and Owner-only navigation visibility**
 
-- [ ] **Step 4: Add route and Owner-aware navigation**
-
-Use existing `commercialApi.subscription()` data in `AppLayout`:
+Use existing commercial subscription data:
 
 ```tsx
 const isOwner = commercialSubscription?.effectivePlanCode === 'owner'
 ```
 
-Add a `Consumo Nexi` navigation item only when `isOwner` is true. Do not expose it to ordinary admins. Add the route in `router.tsx`; the backend remains the security boundary even if someone manually enters the URL.
+Render `Consumo Nexi` only for `isOwner`. The backend from Task 5 remains the actual security boundary if a non-Owner manually enters the URL.
 
-- [ ] **Step 5: Build the minimal page shell**
+- [ ] **Step 5: Implement minimal page shell**
 
-Create `AdminAiUsagePage` with TanStack Query calls and these states: loading, backend error/403, empty data, populated data. Initially render the summary cards and raw user table; settings/detail interactions are Task 7.
+Use TanStack Query for summary/users; provide loading, error/403, empty and populated states. Render summary cards and basic user rows. Full interactions come in Task 7.
 
-- [ ] **Step 6: Run smoke and TypeScript build**
+- [ ] **Step 6: Verify**
 
 ```powershell
 node src/frontend/scripts/ai-usage-admin-smoke.mjs
 cd src/frontend
 pnpm build
 ```
-
-Expected: PASS.
 
 - [ ] **Step 7: Commit**
 
@@ -639,7 +611,7 @@ git commit -m "feat: add Owner Nexi usage route"
 
 ---
 
-### Task 7: Complete Dashboard UI, User Detail, Threshold Editing, and Theme Safety
+### Task 7: Complete Dashboard UI, User Detail, Settings, and Theme Safety
 
 **Files:**
 - Modify: `src/frontend/src/pages/AdminAiUsagePage.tsx`
@@ -648,12 +620,12 @@ git commit -m "feat: add Owner Nexi usage route"
 - Modify: `src/frontend/scripts/ai-usage-admin-smoke.mjs`
 
 **Interfaces:**
-- Consumes: all `aiUsageApi` methods from Task 6.
-- Produces: completed Owner dashboard.
+- Consumes: all Task 6 API methods.
+- Produces: complete Owner dashboard.
 
-- [ ] **Step 1: Extend failing smoke assertions for complete UI**
+- [ ] **Step 1: Extend failing UI smoke**
 
-Require visible labels/controls for:
+Require these labels/controls:
 
 ```text
 Esta semana
@@ -663,7 +635,7 @@ Este mes
 Usuarios activos
 Costo promedio
 Costo acumulado
-Proyección 30 días / Proyección de prueba
+Proyección
 Operaciones
 Tokens
 Ver detalle
@@ -671,34 +643,33 @@ Umbral verde
 Umbral amarillo
 ```
 
-Assert stylesheet contains `var(--muted-foreground)` for secondary text and does not contain `color: var(--muted)`.
+Also assert CSS uses `var(--muted-foreground)` for secondary text and does not contain `color: var(--muted)`.
 
-- [ ] **Step 2: Run smoke and verify RED**
+- [ ] **Step 2: Run RED**
 
 ```powershell
 node src/frontend/scripts/ai-usage-admin-smoke.mjs
 ```
 
-Expected: FAIL until the complete dashboard is implemented.
-
 - [ ] **Step 3: Implement summary cards and user table**
 
-Use `Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 })` for CLP and compact integer formatting for tokens. Add semantic status text alongside color so the traffic light is not color-only.
+Format CLP with:
 
-Table sort options:
-
-```tsx
-<option value="projected">Mayor costo proyectado</option>
-<option value="accumulated">Mayor costo acumulado</option>
+```ts
+new Intl.NumberFormat('es-CL', {
+  style: 'currency',
+  currency: 'CLP',
+  maximumFractionDigits: 0,
+})
 ```
 
-- [ ] **Step 4: Implement selected-user detail**
+Add sort values `projected` and `accumulated`. Show semantic status text (`Verde`, `Amarillo`, `Rojo`) in addition to color.
 
-On `Ver detalle`, query `aiUsageApi.user(id)` and show 30-day daily usage, operation distribution, trial dates, accumulated cost, average daily cost, main projection, optional seven-day trend, and status. Do not show message metadata.
+- [ ] **Step 4: Implement user detail**
 
-- [ ] **Step 5: Implement threshold settings form**
+On `Ver detalle`, query `aiUsageApi.user(id)` and show 30-day daily usage, operation distribution, trial dates, accumulated cost, average daily cost, main projection, optional seven-day trend and status. No mail metadata.
 
-Load settings and submit:
+- [ ] **Step 5: Implement settings form**
 
 ```ts
 await aiUsageApi.updateSettings({
@@ -708,21 +679,19 @@ await aiUsageApi.updateSettings({
 })
 ```
 
-On success invalidate summary/users/user/settings queries so semaphores and future cost reference display refresh without exposing any sensitive data.
+On success invalidate summary/users/user/settings queries.
 
-- [ ] **Step 6: Add theme-safe styling**
+- [ ] **Step 6: Add responsive, theme-safe CSS**
 
-Use existing theme variables (`--foreground`, `--muted-foreground`, borders/background tokens). Do not set text to `var(--muted)`, because that token is a background color in dark mode. Keep cards/table responsive and use one-column layout at narrow widths.
+Use existing theme tokens. Never use `color: var(--muted)` for text; use `--foreground` or `--muted-foreground`.
 
-- [ ] **Step 7: Run frontend smoke, lint/build**
+- [ ] **Step 7: Verify**
 
 ```powershell
 node src/frontend/scripts/ai-usage-admin-smoke.mjs
 cd src/frontend
 pnpm build
 ```
-
-Expected: PASS. If `pnpm lint` is currently green project-wide, run it too; do not turn unrelated existing lint debt into this feature's scope.
 
 - [ ] **Step 8: Commit**
 
@@ -733,40 +702,35 @@ git commit -m "feat: complete Nexi usage dashboard"
 
 ---
 
-### Task 8: Wire CI Regression Coverage and Perform Exact-Final Verification
+### Task 8: CI Wiring and Exact-Final Verification
 
 **Files:**
 - Modify: `.github/workflows/frontend-build.yml`
 - Verify: `.github/workflows/commercial-smoke.yml`
-- Verify: all files changed in Tasks 1–7
+- Verify: all Task 1–7 files.
 
-**Interfaces:**
-- Produces: CI coverage for usage panel smoke and existing builds.
+- [ ] **Step 1: Add frontend usage smoke to CI**
 
-- [ ] **Step 1: Add the frontend usage smoke to the existing frontend workflow**
-
-Add a named step alongside current commercial/UI checks:
+Add:
 
 ```yaml
 - name: Verify Nexi usage admin panel
   run: node scripts/ai-usage-admin-smoke.mjs
 ```
 
-Use the workflow's existing `working-directory: src/frontend` convention if configured at job level.
+Use the workflow's existing frontend working directory convention.
 
-- [ ] **Step 2: Confirm backend workflow already executes the commercial smoke executable**
+- [ ] **Step 2: Confirm backend workflow already runs the smoke executable**
 
-If `commercial-smoke.yml` runs:
+If `commercial-smoke.yml` already runs:
 
 ```powershell
 dotnet run --project src/backend/NexoMail.CommercialSmokeTests/NexoMail.CommercialSmokeTests.csproj
 ```
 
-no new workflow command is needed because `Program.cs` now invokes `AiUsageSmoke`. Only modify the workflow if that assumption is false.
+no extra command is needed because `Program.cs` invokes `AiUsageSmoke`.
 
-- [ ] **Step 3: Run exact-final local verification**
-
-From repository root:
+- [ ] **Step 3: Run exact-final verification**
 
 ```powershell
 dotnet run --project src/backend/NexoMail.CommercialSmokeTests/NexoMail.CommercialSmokeTests.csproj
@@ -776,19 +740,17 @@ cd src/frontend
 pnpm build
 ```
 
-Expected: every command passes on the exact final tree.
+Every command must pass on the exact final tree.
 
-- [ ] **Step 4: Run privacy scan over the new telemetry model**
-
-Use repository search to confirm no telemetry entity/property contains content-bearing fields:
+- [ ] **Step 4: Run privacy scan**
 
 ```powershell
 git grep -n -E "(Prompt|EmailBody|HtmlBody|Subject|Sender|GeneratedText|ResponseText)" -- src/backend/NexoMail.Infrastructure/AiUsage* src/backend/NexoMail.Api/AiUsageEndpoints.cs
 ```
 
-Expected: no matches except explanatory comments/tests that explicitly assert absence; production usage entities/DTOs must have none of these fields.
+Expected: no content-bearing production telemetry fields. Explanatory test/comment matches must be inspected rather than ignored blindly.
 
-- [ ] **Step 5: Review git diff and status**
+- [ ] **Step 5: Review repository state**
 
 ```powershell
 git status --short
@@ -796,7 +758,7 @@ git diff --check
 git log -8 --oneline
 ```
 
-Expected: no unintended files, no whitespace errors, and no modification to unrelated local files such as an untracked `nexo.png`.
+Do not touch unrelated local files such as an untracked `nexo.png`.
 
 - [ ] **Step 6: Commit CI wiring**
 
@@ -805,29 +767,16 @@ git add .github/workflows/frontend-build.yml
 git commit -m "test: cover Nexi usage dashboard in CI"
 ```
 
-- [ ] **Step 7: Verify CI on the final commit before completion claim**
+- [ ] **Step 7: Verify GitHub Actions on exact final commit**
 
-Wait for/fetch the GitHub Actions runs attached to the exact final commit and require the backend commercial smoke and frontend build workflows to be green. Do not claim implementation complete while either workflow is pending or failing.
+Require both backend commercial smoke and frontend build workflows to be green before claiming the implementation complete.
 
 ---
 
-## Plan Self-Review
+## Self-Review Results
 
-### Spec coverage
-
-- Centralized provider usage capture: Tasks 2–3.
-- Real input/output token counts and retry accounting: Task 3.
-- Per-model historical price snapshots and CLP conversion: Tasks 1–2.
-- Weekly/monthly summary and prior-week comparison: Task 4.
-- Trial accumulated cost, 30-day/end-of-trial projection, seven-day trend and initial-projection state: Task 4.
-- Configurable 1500/3000 CLP semaphore thresholds: Tasks 4 and 7.
-- Owner-only backend and UI: Tasks 5–7.
-- 12-month detail plus permanent monthly aggregates: Tasks 2 and 4.
-- No prompt/email/generated-content telemetry: Tasks 1, 3, 5 and final privacy scan.
-- Telemetry failure does not break Nexi: Task 3.
-- Light/dark mode safety: Task 7.
-- CI and exact-final verification: Task 8.
-
-### Explicit non-goals preserved
-
-No automatic suspension, user-facing token counters, token billing, Mercado Pago changes, model-price editor, email alerts, NexoMail Empresas work, or database-engine migration are introduced by this plan.
+- Spec coverage: central capture, actual token usage, retry accounting, historical cost snapshots, weekly/monthly comparisons, trial projections, seven-day trend, configurable CLP semaphore, Owner-only access, 12-month retention, permanent monthly history, privacy minimization, theme safety and CI are each assigned to a concrete task.
+- Type consistency: `AiUsageCostCalculator` receives the runtime CLP/USD rate explicitly; `AiUsageTracker` loads that rate from the singleton settings row for each new event, so Owner changes affect only future event snapshots.
+- Authorization test strength: the plan requires executable Owner/admin/user authorization coverage rather than only source-text assertions.
+- Placeholder scan: no `TBD`, `TODO`, “implement later”, or undefined follow-up step remains.
+- Scope: Mercado Pago, Microsoft/IMAP, legal implementation, production migration and NexoMail Empresas remain outside this implementation plan exactly as specified.
