@@ -16,6 +16,9 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
     public DbSet<MailAttachmentIndexEntity> MailAttachmentIndex => Set<MailAttachmentIndexEntity>();
     public DbSet<MailIndexStateEntity> MailIndexStates => Set<MailIndexStateEntity>();
     public DbSet<CommercialPlanEntity> CommercialPlans => Set<CommercialPlanEntity>();
+    public DbSet<AiUsageEventEntity> AiUsageEvents => Set<AiUsageEventEntity>();
+    public DbSet<AiUsageMonthlySummaryEntity> AiUsageMonthlySummaries => Set<AiUsageMonthlySummaryEntity>();
+    public DbSet<AiUsageSettingsEntity> AiUsageSettings => Set<AiUsageSettingsEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -124,6 +127,30 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
             entity.Property(x => x.FeaturesJson).HasMaxLength(6000).IsRequired();
             entity.Property(x => x.EntitlementsJson).HasMaxLength(6000).IsRequired();
             entity.HasIndex(x => new { x.IsActive, x.SortOrder });
+        });
+        modelBuilder.Entity<AiUsageEventEntity>(entity =>
+        {
+            entity.ToTable("AiUsageEvents");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.OperationType).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.Model).HasMaxLength(96).IsRequired();
+            entity.Property(x => x.ErrorCategory).HasMaxLength(64);
+            entity.HasIndex(x => new { x.UserId, x.OccurredAt });
+            entity.HasIndex(x => x.OccurredAt);
+            entity.HasIndex(x => new { x.OperationType, x.OccurredAt });
+            entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<AiUsageMonthlySummaryEntity>(entity =>
+        {
+            entity.ToTable("AiUsageMonthlySummaries");
+            entity.HasKey(x => new { x.UserId, x.Year, x.Month });
+            entity.HasIndex(x => new { x.Year, x.Month });
+            entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<AiUsageSettingsEntity>(entity =>
+        {
+            entity.ToTable("AiUsageSettings");
+            entity.HasKey(x => x.Id);
         });
     }
 }
