@@ -32,6 +32,9 @@ public sealed record CommercialAccessSnapshot(
 
 public static class CommercialAccessStore
 {
+    public const string OwnerAccessCode = "owner";
+    private static readonly IReadOnlyList<string> OwnerEntitlements = CommercialEntitlements.Definitions.Select(x => x.Code).ToArray();
+
     public static async Task<CommercialAccessSnapshot?> GetAsync(NexoMailDbContext database, Guid userId, CancellationToken ct = default)
     {
         var user = await database.Users.AsNoTracking().SingleOrDefaultAsync(x => x.Id == userId && x.IsActive, ct);
@@ -42,6 +45,28 @@ public static class CommercialAccessStore
             ?? throw new InvalidOperationException("No existe un plan Freemium activo.");
         var assigned = plans.FirstOrDefault(x => x.Code == user.PlanCode) ?? freemium;
         var subscription = await EnsureSubscriptionAsync(database, userId, assigned.Code, ct);
+
+        if (user.IsOwner)
+        {
+            var ownerPlan = new CommercialPlanEntity
+            {
+                Code = OwnerAccessCode,
+                Name = "Owner / Administrador general",
+                Price = "Interno",
+                Cadence = "Sin vencimiento",
+                MaxAccounts = null,
+                Description = "Acceso interno total a NexoMail, independiente de planes y facturación.",
+                FeaturesJson = "[]",
+                EntitlementsJson = JsonSerializer.Serialize(OwnerEntitlements),
+                IsFeatured = true,
+                IsCorporate = true,
+                IsWhiteLabel = true,
+                IsActive = true,
+                SortOrder = -1,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            return new CommercialAccessSnapshot(assigned, ownerPlan, subscription, OwnerEntitlements, true);
+        }
 
         var isFree = string.Equals(assigned.Code, CommercialPlanCatalog.Freemium, StringComparison.OrdinalIgnoreCase);
         var subscriptionMatchesPlan = string.Equals(subscription.PlanCode, assigned.Code, StringComparison.OrdinalIgnoreCase);
