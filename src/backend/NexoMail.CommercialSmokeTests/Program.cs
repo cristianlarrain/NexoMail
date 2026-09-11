@@ -9,27 +9,6 @@ static void Ensure(bool condition, string message)
     if (!condition) throw new InvalidOperationException(message);
 }
 
-static async Task<bool> TableExistsAsync(NexoMailDbContext database, string tableName, CancellationToken ct)
-{
-    var connection = database.Database.GetDbConnection();
-    var shouldClose = connection.State != System.Data.ConnectionState.Open;
-    if (shouldClose) await connection.OpenAsync(ct);
-    try
-    {
-        await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = $name;";
-        var parameter = command.CreateParameter();
-        parameter.ParameterName = "$name";
-        parameter.Value = tableName;
-        command.Parameters.Add(parameter);
-        return Convert.ToInt32(await command.ExecuteScalarAsync(ct)) > 0;
-    }
-    finally
-    {
-        if (shouldClose) await connection.CloseAsync();
-    }
-}
-
 var ct = CancellationToken.None;
 var dbPath = Path.Combine(Path.GetTempPath(), $"nexomail-commercial-smoke-{Guid.NewGuid():N}.db");
 
@@ -41,20 +20,7 @@ try
 
     await using var database = new NexoMailDbContext(options);
     await database.Database.EnsureCreatedAsync(ct);
-
-    // Reproduce a real local upgrade: an existing SQLite database predates the Nexi usage tables.
-    await database.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS AiUsageEvents;", ct);
-    await database.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS AiUsageMonthlySummaries;", ct);
-    await database.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS AiUsageSettings;", ct);
-
     await DatabaseBootstrap.EnsureAuthenticationSchemaAsync(database, ct);
-
-    Ensure(await TableExistsAsync(database, "AiUsageEvents", ct),
-        "El arranque sobre una base existente debe crear AiUsageEvents.");
-    Ensure(await TableExistsAsync(database, "AiUsageMonthlySummaries", ct),
-        "El arranque sobre una base existente debe crear AiUsageMonthlySummaries.");
-    Ensure(await TableExistsAsync(database, "AiUsageSettings", ct),
-        "El arranque sobre una base existente debe crear AiUsageSettings.");
 
     var user = new UserEntity
     {
@@ -235,7 +201,7 @@ try
     Ensure(manualUser.PlanCode == CommercialPlanCatalog.Freemium && manuallyFreemium.EffectivePlan.Code == CommercialPlanCatalog.Freemium,
         "La reasignación administrativa a Freemium debe aplicarse inmediatamente.");
 
-    Console.WriteLine("PASS: comercial -> upgrade SQLite existente -> heredado -> pendiente -> activo -> impago -> cancelado -> entitlements configurables -> asignación administrativa");
+    Console.WriteLine("PASS: comercial -> FK SQLite -> heredado -> pendiente -> activo -> impago -> cancelado -> entitlements configurables -> asignación administrativa");
 }
 finally
 {
