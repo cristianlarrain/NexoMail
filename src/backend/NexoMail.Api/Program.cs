@@ -9,6 +9,7 @@ using NexoMail.Domain;
 using NexoMail.Infrastructure;
 using NexoMail.Infrastructure.Data;
 using NexoMail.Infrastructure.Google;
+using NexoMail.Infrastructure.Microsoft;
 using Serilog;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
@@ -32,6 +33,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient("Gmail", client => client.BaseAddress = new Uri("https://gmail.googleapis.com/gmail/v1/"));
 builder.Services.AddHttpClient("GooglePeople", client => client.BaseAddress = new Uri("https://people.googleapis.com/v1/"));
+builder.Services.AddHttpClient("MicrosoftGraph", client => client.BaseAddress = new Uri("https://graph.microsoft.com/v1.0/"));
 builder.Services.AddOpenApi();
 builder.Services.AddMemoryCache(options => options.SizeLimit = 512);
 builder.Services.AddSingleton<NexoMail.Api.MailReadCache>();
@@ -117,9 +119,12 @@ var dataProtection = builder.Services.AddDataProtection()
 if (OperatingSystem.IsWindows()) dataProtection.ProtectKeysWithDpapi();
 
 builder.Services.Configure<GmailOptions>(builder.Configuration.GetSection(GmailOptions.SectionName));
+builder.Services.Configure<MicrosoftGraphOptions>(builder.Configuration.GetSection(MicrosoftGraphOptions.SectionName));
 builder.Services.AddScoped<ITokenProtector, DataProtectionTokenProtector>();
 builder.Services.AddScoped<MailAccountConnectionPolicy>();
 builder.Services.AddScoped<GoogleOAuthService>();
+builder.Services.AddScoped<MicrosoftOAuthService>();
+builder.Services.AddScoped<MicrosoftGraphTokenProvider>();
 builder.Services.AddScoped<GoogleContactsService>();
 builder.Services.AddScoped<GmailRuleService>();
 builder.Services.AddScoped<IMailRuleProvider>(services => services.GetRequiredService<GmailRuleService>());
@@ -127,6 +132,8 @@ builder.Services.AddScoped<GmailControlCenterService>();
 builder.Services.AddScoped<GmailControlCenterActivityService>();
 
 var demoMode = builder.Configuration.GetValue("MailProviders:DemoMode", true);
+var microsoftFrontendUrl = builder.Configuration.GetValue<string>("Microsoft:FrontendUrl")
+    ?? "http://localhost:5173/settings/accounts";
 if (demoMode)
 {
     builder.Services.AddSingleton<IMailProvider, DemoMailProvider>();
@@ -137,6 +144,11 @@ else
     builder.Services.AddScoped<GmailMailProvider>();
     builder.Services.AddScoped<IMailProvider>(services => new UserScopedMailProvider(
         services.GetRequiredService<GmailMailProvider>(),
+        services.GetRequiredService<NexoMailDbContext>(),
+        services.GetRequiredService<IUserContext>()));
+    builder.Services.AddScoped<MicrosoftGraphMailProvider>();
+    builder.Services.AddScoped<IMailProvider>(services => new UserScopedMailProvider(
+        services.GetRequiredService<MicrosoftGraphMailProvider>(),
         services.GetRequiredService<NexoMailDbContext>(),
         services.GetRequiredService<IUserContext>()));
     builder.Services.AddScoped<IMailGateway, MailGateway>();
@@ -162,6 +174,20 @@ app.Use(async (context, next) =>
         context.Response.Clear();
         context.Response.StatusCode = StatusCodes.Status404NotFound;
         await context.Response.WriteAsJsonAsync(new { error = "Recurso no disponible." });
+    }
+    catch (NotSupportedException exception)
+    {
+        if (context.Response.HasStarted) throw;
+        context.Response.Clear();
+        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        await context.Response.WriteAsJsonAsync(new { error = exception.Message });
+    }
+    catch (HttpRequestException)
+    {
+        if (context.Response.HasStarted) throw;
+        context.Response.Clear();
+        context.Response.StatusCode = StatusCodes.Status502BadGateway;
+        await context.Response.WriteAsJsonAsync(new { error = "El proveedor de correo no pudo completar la operación. Inténtalo nuevamente." });
     }
 });
 
@@ -200,6 +226,43 @@ oauth.MapGet("/google/callback", async (string? code, string? state, string? err
     try { await service.CompleteAuthorizationAsync(code, state, ct); return Results.Redirect(service.SuccessRedirect()); }
     catch (InvalidOperationException exception) { return Results.Redirect(service.FailureRedirect(exception.Message)); }
     catch (HttpRequestException) { return Results.Redirect(service.FailureRedirect("Google no pudo completar la conexión. Revisa los permisos y vuelve a intentarlo.")); }
+});
+
+string MicrosoftSuccessRedirect() => microsoftFrontendUrl + "?connected=microsoft";
+string MicrosoftFailureRedirect(string reason) => microsoftFrontendUrl + "?error=" + Uri.EscapeDataString(reason);
+
+oauth.MapGet("/microsoft/start", async (MicrosoftOAuthService service, MailAccountConnectionPolicy policy, CancellationToken ct) =>
+{
+    try
+    {
+        await policy.EnsureCanConnectAnotherAccountAsync(ct);
+        return Results.Redirect(service.BeginAuthorization());
+    }
+    catch (InvalidOperationException exception)
+    {
+        return Results.Redirect(MicrosoftFailureRedirect(exception.Message));
+    }
+});
+oauth.MapGet("/microsoft/callback", async (string? code, string? state, string? error, string? error_description, MicrosoftOAuthService service, CancellationToken ct) =>
+{
+    if (!string.IsNullOrWhiteSpace(error))
+        return Results.Redirect(MicrosoftFailureRedirect(MicrosoftOAuthService.AuthorizationFailureMessage(error, error_description)));
+    if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(state))
+        return Results.Redirect(MicrosoftFailureRedirect("La respuesta de Microsoft está incompleta."));
+
+    try
+    {
+        await service.CompleteAuthorizationAsync(code, state, ct);
+        return Results.Redirect(MicrosoftSuccessRedirect());
+    }
+    catch (InvalidOperationException exception)
+    {
+        return Results.Redirect(MicrosoftFailureRedirect(exception.Message));
+    }
+    catch (HttpRequestException)
+    {
+        return Results.Redirect(MicrosoftFailureRedirect("Microsoft no pudo completar la conexión. Revisa los permisos y vuelve a intentarlo."));
+    }
 });
 
 var mail = api.MapGroup("/mail").RequireAuthorization();
