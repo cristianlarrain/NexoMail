@@ -2,6 +2,7 @@ namespace NexoMail.Infrastructure.Microsoft;
 
 public sealed class MicrosoftGraphOptions
 {
+    public const string SectionName = "Microsoft";
     public string ClientId { get; set; } = string.Empty;
     public string ClientSecret { get; set; } = string.Empty;
     public string RedirectUri { get; set; } = string.Empty;
