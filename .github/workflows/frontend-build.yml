@@ -41,5 +41,8 @@ jobs:
       - name: Verify admin user plan management
         run: node scripts/admin-users-smoke.mjs
 
+      - name: Verify Nexi usage admin panel
+        run: node scripts/ai-usage-admin-smoke.mjs
+
       - name: Build frontend
         run: pnpm build
