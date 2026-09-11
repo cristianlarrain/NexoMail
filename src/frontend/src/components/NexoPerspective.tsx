@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Bookmark, BookOpenText, Check, RefreshCw, Sparkles } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { commercialApi } from '../api/commercialApi'
+import { commercialEntitlements } from '../utils/commercialEntitlements'
 import { PerspectiveShareMenu } from './PerspectiveShareMenu'
 import {
   isPerspectiveSaved,
@@ -78,6 +81,8 @@ export function NexoPerspective({ contextKey = 'general' }: { contextKey?: strin
   const [index, setIndex] = useState(() => perspectiveIndex(contextKey))
   const [saved, setSaved] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
+  const { data: commercialSubscription } = useQuery({ queryKey: ['commercial-subscription'], queryFn: commercialApi.subscription, staleTime: 30_000 })
+  const hasNexi = commercialSubscription?.entitlements.includes(commercialEntitlements.nexiAi) === true
   const perspective = perspectives[index]
 
   useEffect(() => {
@@ -122,9 +127,9 @@ export function NexoPerspective({ contextKey = 'general' }: { contextKey?: strin
       {feedback && <small className="nexo-perspective-feedback" role="status">{feedback}</small>}
     </div>
     <div className="nexo-perspective-actions">
-      <button type="button" className="nexo-perspective-action nexo-perspective-analyze" onClick={analyzePerspective} title="Analizar esta perspectiva con Nexi" aria-label="Analizar esta perspectiva con Nexi">
+      {hasNexi && <button type="button" className="nexo-perspective-action nexo-perspective-analyze" onClick={analyzePerspective} title="Analizar esta perspectiva con Nexi" aria-label="Analizar esta perspectiva con Nexi">
         <Sparkles size={13} /><span>Analizar</span>
-      </button>
+      </button>}
       <button type="button" className={`nexo-perspective-action ${saved ? 'is-saved' : ''}`} onClick={toggleSaved} title={saved ? 'Quitar de Perspectivas' : 'Guardar en Perspectivas'} aria-label={saved ? 'Quitar de Perspectivas' : 'Guardar en Perspectivas'}>
         {saved ? <Check size={13} /> : <Bookmark size={13} />}<span>{saved ? 'Guardado' : 'Guardar'}</span>
       </button>
