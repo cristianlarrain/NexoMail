@@ -12,13 +12,14 @@ function ensure(condition, message) {
   if (!condition) throw new Error(message)
 }
 
-const [gate, constants, router, layout, controlCenter, messageRoute] = await Promise.all([
+const [gate, constants, router, layout, controlCenter, messageRoute, messagePage] = await Promise.all([
   source('src/components/RequireEntitlement.tsx'),
   source('src/utils/commercialEntitlements.ts'),
   source('src/router.tsx'),
   source('src/layouts/AppLayout.tsx'),
   source('src/pages/ControlCenterPage.tsx'),
   source('src/pages/MessageRoute.tsx'),
+  source('src/pages/MessagePage.tsx'),
 ])
 
 ensure(gate.includes('commercialApi.subscription') && gate.includes('entitlements.includes(entitlement)'),
@@ -33,5 +34,13 @@ ensure(controlCenter.includes('hasFullControlCenter') && controlCenter.includes(
   'El Centro de Control debe respetar estadísticas avanzadas y el nivel completo.')
 ensure(messageRoute.includes('hasNexi') && messageRoute.includes('MessageNexiReaderTools'),
   'Las herramientas Nexi del lector deben mostrarse sólo cuando Nexi esté habilitado.')
+ensure(messagePage.includes('hasMailActions') && messagePage.includes('commercialEntitlements.mailActions'),
+  'El lector debe ocultar responder, reenviar y organizar cuando el plan no incluye acciones de correo.')
+ensure(messagePage.includes('hasTracking') && messagePage.includes('commercialEntitlements.trackingBasic'),
+  'El lector debe ocultar seguimiento y finalización cuando el plan no incluye seguimiento esencial.')
+ensure(messagePage.includes('hasMailActions && <div className="message-actions') && messagePage.includes('hasMailActions && <div className="reply-bar'),
+  'Las barras de acciones del correo deben depender de la capacidad Acciones de correo.')
+ensure(messagePage.includes('hasTracking && canManualTrack') && messagePage.includes('hasTracking && canTrackOrFinalize'),
+  'Los controles de seguimiento del lector deben depender de Seguimiento esencial.')
 
 console.log('PASS: frontend respeta capacidades comerciales configurables')
