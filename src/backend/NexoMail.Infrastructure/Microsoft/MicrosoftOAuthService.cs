@@ -29,6 +29,23 @@ public sealed class MicrosoftOAuthService(
     private readonly MicrosoftGraphOptions _options = options.Value;
     private readonly IDataProtector _stateProtector = dataProtectionProvider.CreateProtector("NexoMail.MicrosoftOAuth.State.v1");
 
+    public static string AuthorizationFailureMessage(string? error, string? errorDescription)
+    {
+        if (!string.IsNullOrWhiteSpace(errorDescription) &&
+            (errorDescription.Contains("AADSTS65001", StringComparison.OrdinalIgnoreCase) ||
+             errorDescription.Contains("AADSTS90094", StringComparison.OrdinalIgnoreCase) ||
+             errorDescription.Contains("admin approval", StringComparison.OrdinalIgnoreCase) ||
+             errorDescription.Contains("administrator", StringComparison.OrdinalIgnoreCase)))
+        {
+            return "La organización requiere aprobación de un administrador para conectar esta cuenta de Microsoft 365.";
+        }
+
+        if (string.Equals(error, "access_denied", StringComparison.OrdinalIgnoreCase))
+            return "Microsoft canceló o rechazó la autorización.";
+
+        return "Microsoft no pudo completar la autorización. Inténtalo nuevamente.";
+    }
+
     public string BeginAuthorization()
     {
         EnsureConfigured();
