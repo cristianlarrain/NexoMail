@@ -49,12 +49,13 @@ public sealed class AiUsageTracker(
             record.InputTokens,
             record.OutputTokens,
             settings.ReferenceClpPerUsd);
+        var occurredUtc = record.OccurredAt.UtcDateTime;
 
         database.AiUsageEvents.Add(new AiUsageEventEntity
         {
             Id = Guid.NewGuid(),
             UserId = record.UserId,
-            OccurredAt = record.OccurredAt,
+            OccurredAt = occurredUtc,
             OperationType = record.OperationType,
             Model = record.Model,
             InputTokens = record.InputTokens,
@@ -70,8 +71,8 @@ public sealed class AiUsageTracker(
             EstimatedCostClp = cost?.EstimatedCostClp
         });
 
-        var year = record.OccurredAt.UtcDateTime.Year;
-        var month = record.OccurredAt.UtcDateTime.Month;
+        var year = occurredUtc.Year;
+        var month = occurredUtc.Month;
         var summary = await database.AiUsageMonthlySummaries.SingleOrDefaultAsync(
             x => x.UserId == record.UserId && x.Year == year && x.Month == month,
             ct);
@@ -88,15 +89,7 @@ public sealed class AiUsageTracker(
             database.AiUsageMonthlySummaries.Add(summary);
         }
 
-        var occurredUtc = record.OccurredAt.ToUniversalTime();
-        var dayStart = new DateTimeOffset(
-            occurredUtc.Year,
-            occurredUtc.Month,
-            occurredUtc.Day,
-            0,
-            0,
-            0,
-            TimeSpan.Zero);
+        var dayStart = new DateTime(occurredUtc.Year, occurredUtc.Month, occurredUtc.Day, 0, 0, 0, DateTimeKind.Utc);
         var dayEnd = dayStart.AddDays(1);
         var hadActivityThatDay = await database.AiUsageEvents
             .AsNoTracking()
