@@ -16,24 +16,14 @@ public sealed class GoogleOAuthService(
     NexoMailDbContext database,
     ITokenProtector tokenProtector,
     IDataProtectionProvider dataProtectionProvider,
-    IUserContext userContext)
+    IUserContext userContext,
+    MailAccountConnectionPolicy accountConnectionPolicy)
 {
     private readonly GmailOptions _options = options.Value;
     private readonly IDataProtector _stateProtector = dataProtectionProvider.CreateProtector("NexoMail.GoogleOAuth.State.v1");
 
-    public async Task EnsureCanConnectAnotherAccountAsync(CancellationToken cancellationToken)
-    {
-        var userId = userContext.UserId;
-        var access = await NexoMail.Infrastructure.CommercialAccessStore.GetAsync(database, userId, cancellationToken)
-            ?? throw new InvalidOperationException("No fue posible determinar el plan de la cuenta.");
-        var plan = access.EffectivePlan;
-        if (!plan.MaxAccounts.HasValue) return;
-
-        var connectedAccounts = await database.MailAccounts.AsNoTracking()
-            .CountAsync(x => x.UserId == userId && x.IsActive, cancellationToken);
-        if (connectedAccounts >= plan.MaxAccounts.Value)
-            throw new InvalidOperationException($"Su plan efectivo {plan.Name} permite hasta {plan.MaxAccounts.Value} cuentas de correo. Cambie de plan o regularice su suscripción para conectar una cuenta adicional.");
-    }
+    public Task EnsureCanConnectAnotherAccountAsync(CancellationToken cancellationToken) =>
+        accountConnectionPolicy.EnsureCanConnectAnotherAccountAsync(cancellationToken);
 
     public string BeginAuthorization()
     {
