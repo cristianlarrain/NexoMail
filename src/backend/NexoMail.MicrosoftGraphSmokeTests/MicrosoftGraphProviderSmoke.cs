@@ -122,15 +122,15 @@ internal static class MicrosoftGraphProviderSmoke
                 "{\"id\":\"msg-detail\",\"from\":{\"emailAddress\":{\"name\":\"Ana Pérez\",\"address\":\"ana@empresa.test\"}},\"toRecipients\":[{\"emailAddress\":{\"name\":\"Cristián\",\"address\":\"cristian@empresa.test\"}}],\"ccRecipients\":[{\"emailAddress\":{\"name\":\"Equipo\",\"address\":\"equipo@empresa.test\"}}],\"subject\":\"Detalle\",\"body\":{\"contentType\":\"text\",\"content\":\"Hola <equipo>\\nSegunda línea\"},\"bodyPreview\":\"Hola equipo\",\"receivedDateTime\":\"2026-09-11T13:00:00Z\",\"isRead\":false,\"hasAttachments\":false}");
 
             var detail = await provider.GetMessageAsync(accountId, "msg-detail", CancellationToken.None);
-            Ensure(detail is not null, "Graph debe devolver el detalle del mensaje.");
-            Ensure(detail.ProviderMessageId == "msg-detail" && detail.AccountId == accountId, "El detalle debe conservar identificadores.");
-            Ensure(detail.From.Name == "Ana Pérez" && detail.From.Address == "ana@empresa.test", "El detalle debe mapear From.");
-            Ensure(detail.To.Single().Address == "cristian@empresa.test", "El detalle debe mapear To.");
-            Ensure(detail.Cc.Single().Address == "equipo@empresa.test", "El detalle debe mapear Cc.");
-            Ensure(detail.Subject == "Detalle" && detail.Preview == "Hola equipo", "El detalle debe mapear asunto y preview.");
-            Ensure(!detail.IsRead && detail.Attachments.Count == 0 && detail.FolderId == "inbox", "El detalle debe mapear estado sin persistir adjuntos.");
-            Ensure(detail.HtmlBody.Contains("Hola &lt;equipo&gt;", StringComparison.Ordinal), "Un cuerpo text debe escaparse antes de exponerse como HtmlBody.");
-            Ensure(detail.HtmlBody.Contains("<br", StringComparison.OrdinalIgnoreCase), "Los saltos de línea de un cuerpo text deben preservarse como HTML.");
+            var requiredDetail = detail ?? throw new InvalidOperationException("Graph debe devolver el detalle del mensaje.");
+            Ensure(requiredDetail.ProviderMessageId == "msg-detail" && requiredDetail.AccountId == accountId, "El detalle debe conservar identificadores.");
+            Ensure(requiredDetail.From.Name == "Ana Pérez" && requiredDetail.From.Address == "ana@empresa.test", "El detalle debe mapear From.");
+            Ensure(requiredDetail.To.Single().Address == "cristian@empresa.test", "El detalle debe mapear To.");
+            Ensure(requiredDetail.Cc.Single().Address == "equipo@empresa.test", "El detalle debe mapear Cc.");
+            Ensure(requiredDetail.Subject == "Detalle" && requiredDetail.Preview == "Hola equipo", "El detalle debe mapear asunto y preview.");
+            Ensure(!requiredDetail.IsRead && requiredDetail.Attachments.Count == 0 && requiredDetail.FolderId == "inbox", "El detalle debe mapear estado sin persistir adjuntos.");
+            Ensure(requiredDetail.HtmlBody.Contains("Hola &lt;equipo&gt;", StringComparison.Ordinal), "Un cuerpo text debe escaparse antes de exponerse como HtmlBody.");
+            Ensure(requiredDetail.HtmlBody.Contains("<br", StringComparison.OrdinalIgnoreCase), "Los saltos de línea de un cuerpo text deben preservarse como HTML.");
 
             var detailRequest = handler.Requests[^1];
             Ensure(detailRequest.Method == HttpMethod.Get && detailRequest.Uri.Contains("/v1.0/me/messages/msg-detail", StringComparison.Ordinal),
