@@ -59,18 +59,23 @@ const cssMarkers = [
   'justify-content: flex-start',
   'text-transform: none',
   'letter-spacing: normal',
-  'box-shadow: inset 2px 0 0 var(--primary)',
 ]
 for (const marker of cssMarkers) {
   if (!modernCss.includes(marker)) throw new Error(`Falta estilo de navegación moderna: ${marker}`)
 }
 
+const activeBlock = modernCss.match(/\.sidebar \.sidebar-primary-link\.active\s*\{([\s\S]*?)\}/)?.[1] ?? ''
+if (!activeBlock) throw new Error('Falta el estado activo de la navegación principal.')
+if (!activeBlock.includes('background: transparent')) throw new Error('El acceso activo debe mantener fondo transparente.')
+if (!activeBlock.includes('box-shadow: none')) throw new Error('El acceso activo no debe usar barra lateral ni sombras.')
+if (!activeBlock.includes('border: 0')) throw new Error('El acceso activo no debe usar bordes decorativos.')
+
 for (const forbidden of [
   'drop-shadow(',
-  '0 0 20px color-mix(in srgb, var(--primary)',
-  '0 0 16px color-mix(in srgb, var(--primary)',
+  'box-shadow: inset 2px 0 0 var(--primary)',
+  'background: color-mix(in srgb, var(--primary) 7%, var(--surface))',
 ]) {
-  if (modernCss.includes(forbidden)) throw new Error(`Los accesos principales no deben mantener glow permanente: ${forbidden}`)
+  if (modernCss.includes(forbidden)) throw new Error(`Los accesos principales deben ser completamente planos: ${forbidden}`)
 }
 
 if (uiPolish.includes('scrollbar-gutter: stable')) {
@@ -81,4 +86,4 @@ if (!main.includes("import './styles/sidebar-modern.css'")) {
   throw new Error('Falta importar sidebar-modern.css')
 }
 
-console.log('PASS modern flat sidebar navigation')
+console.log('PASS fully flat primary sidebar navigation')
