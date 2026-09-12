@@ -78,7 +78,7 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
             entity.Property(x => x.LastMessageId).HasMaxLength(256).IsRequired();
             entity.Property(x => x.Status).HasMaxLength(24).IsRequired();
             entity.HasIndex(x => new { x.UserId, x.AccountId, x.ConversationId }).IsUnique();
-            entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.NoAction);
             entity.HasOne<MailAccountEntity>().WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<IgnoredSenderEntity>(entity =>
@@ -86,7 +86,7 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
             entity.HasKey(x => x.Id);
             entity.Property(x => x.SenderAddress).HasMaxLength(320).IsRequired();
             entity.HasIndex(x => new { x.UserId, x.AccountId, x.SenderAddress }).IsUnique();
-            entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.NoAction);
             entity.HasOne<MailAccountEntity>().WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<MailMessageIndexEntity>(entity =>
@@ -104,7 +104,7 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
             entity.HasIndex(x => new { x.UserId, x.AccountId, x.ProviderMessageId }).IsUnique();
             entity.HasIndex(x => new { x.UserId, x.OccurredAt });
             entity.HasIndex(x => new { x.UserId, x.ThreadId, x.OccurredAt });
-            entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.NoAction);
             entity.HasOne<MailAccountEntity>().WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<MailAttachmentIndexEntity>(entity =>
@@ -117,7 +117,7 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
             entity.Property(x => x.ContentType).HasMaxLength(256).IsRequired();
             entity.HasIndex(x => new { x.UserId, x.AccountId, x.ProviderMessageId, x.AttachmentId }).IsUnique();
             entity.HasIndex(x => new { x.UserId, x.IndexedAt });
-            entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.NoAction);
             entity.HasOne<MailAccountEntity>().WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<MailIndexStateEntity>(entity =>
@@ -125,7 +125,7 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
             entity.ToTable("MailIndexStates");
             entity.HasKey(x => x.AccountId);
             entity.HasIndex(x => new { x.UserId, x.LastIndexedAt });
-            entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.NoAction);
             entity.HasOne<MailAccountEntity>().WithOne().HasForeignKey<MailIndexStateEntity>(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<CommercialPlanEntity>(entity =>
@@ -148,6 +148,11 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
             entity.Property(x => x.OperationType).HasMaxLength(64).IsRequired();
             entity.Property(x => x.Model).HasMaxLength(96).IsRequired();
             entity.Property(x => x.ErrorCategory).HasMaxLength(64);
+            entity.Property(x => x.InputUsdPerMillion).HasPrecision(18, 8);
+            entity.Property(x => x.OutputUsdPerMillion).HasPrecision(18, 8);
+            entity.Property(x => x.EstimatedCostUsd).HasPrecision(18, 8);
+            entity.Property(x => x.ClpPerUsd).HasPrecision(18, 4);
+            entity.Property(x => x.EstimatedCostClp).HasPrecision(18, 4);
             entity.HasIndex(x => new { x.UserId, x.OccurredAt });
             entity.HasIndex(x => x.OccurredAt);
             entity.HasIndex(x => new { x.OperationType, x.OccurredAt });
@@ -157,6 +162,8 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
         {
             entity.ToTable("AiUsageMonthlySummaries");
             entity.HasKey(x => new { x.UserId, x.Year, x.Month });
+            entity.Property(x => x.EstimatedCostUsd).HasPrecision(18, 8);
+            entity.Property(x => x.EstimatedCostClp).HasPrecision(18, 4);
             entity.HasIndex(x => new { x.Year, x.Month });
             entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         });
@@ -164,6 +171,9 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
         {
             entity.ToTable("AiUsageSettings");
             entity.HasKey(x => x.Id);
+            entity.Property(x => x.GreenMaxClp).HasPrecision(18, 2);
+            entity.Property(x => x.YellowMaxClp).HasPrecision(18, 2);
+            entity.Property(x => x.ReferenceClpPerUsd).HasPrecision(18, 4);
         });
     }
 }
