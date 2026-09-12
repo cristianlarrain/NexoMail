@@ -35,14 +35,20 @@ if ([string]::IsNullOrWhiteSpace($googleClientId)) {
 }
 $secureGoogleClientSecret = Read-Host '6. Google OAuth Client Secret' -AsSecureString
 
+Write-Host ''
+Write-Host 'OPENAI DE PRODUCCION' -ForegroundColor Cyan
+$secureOpenAiApiKey = Read-Host '7. OpenAI API Key' -AsSecureString
+
 $passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
 $smtpPasswordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureSmtpPassword)
 $googleSecretPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureGoogleClientSecret)
+$openAiKeyPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureOpenAiApiKey)
 
 try {
     $plainPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
     $plainSmtpPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($smtpPasswordPointer)
     $plainGoogleClientSecret = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($googleSecretPointer)
+    $plainOpenAiApiKey = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($openAiKeyPointer)
     if ([string]::IsNullOrWhiteSpace($plainPassword)) {
         throw 'La contrasena MSSQL no puede estar vacia.'
     }
@@ -51,6 +57,9 @@ try {
     }
     if ([string]::IsNullOrWhiteSpace($plainGoogleClientSecret)) {
         throw 'El Google OAuth Client Secret no puede estar vacio.'
+    }
+    if ([string]::IsNullOrWhiteSpace($plainOpenAiApiKey)) {
+        throw 'La OpenAI API Key no puede estar vacia.'
     }
 
     [xml]$configuration = Get-Content $webConfigPath -Raw
@@ -101,6 +110,7 @@ try {
     Set-EnvironmentVariable 'Google__ClientId' $googleClientId.Trim()
     Set-EnvironmentVariable 'Google__ClientSecret' $plainGoogleClientSecret
     Set-EnvironmentVariable 'Google__RedirectUri' 'https://nexomail.eidosdigital.cl/api/oauth/google/callback'
+    Set-EnvironmentVariable 'AI__ApiKey' $plainOpenAiApiKey
 
     $systemWebServer = $configuration.configuration.location.'system.webServer'
     $rewrite = $systemWebServer.rewrite
@@ -129,9 +139,13 @@ finally {
     if ($googleSecretPointer -ne [IntPtr]::Zero) {
         [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($googleSecretPointer)
     }
+    if ($openAiKeyPointer -ne [IntPtr]::Zero) {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($openAiKeyPointer)
+    }
     $plainPassword = $null
     $plainSmtpPassword = $null
     $plainGoogleClientSecret = $null
+    $plainOpenAiApiKey = $null
 }
 
 Write-Host ''
