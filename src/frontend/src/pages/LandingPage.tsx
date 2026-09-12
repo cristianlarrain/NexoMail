@@ -48,7 +48,7 @@ const plans = [
 ]
 
 export function LandingPage() {
-  const [theme, setTheme] = useState(() => localStorage.getItem('nexomail-theme') ?? 'light')
+  const [theme, setTheme] = useState(() => localStorage.getItem('nexomail-theme') ?? 'dark')
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
