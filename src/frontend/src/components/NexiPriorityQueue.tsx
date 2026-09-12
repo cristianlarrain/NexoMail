@@ -187,7 +187,6 @@ export function NexiPriorityQueue({
       <div>
         <span className="nexi-priority-kicker"><Sparkles size={14} /> Priorización inteligente</span>
         <strong>Qué atender primero</strong>
-        <p>Nexi ordena las conversaciones y permite resumir, responder o dar seguimiento desde la misma grilla.</p>
       </div>
       {items.length > 0 && <button type="button" className="secondary-button nexi-priority-refine" disabled={refine.isPending || candidates.length === 0} onClick={() => refine.mutate()}>
         {refine.isPending ? <NexiVisual size="small" className="nexi-inline-processing" /> : candidates.length === 0 ? <CheckCircle2 size={14} /> : <Sparkles size={14} />}
