@@ -43,7 +43,7 @@ export function AppLayout() {
   const [collapsed, setCollapsed] = useState(false)
   const [accountsOpen, setAccountsOpen] = useState(false)
   const [foldersCollapsed, setFoldersCollapsed] = useState(() => localStorage.getItem(FOLDERS_COLLAPSED_KEY) !== '0')
-  const [theme, setTheme] = useState(() => localStorage.getItem('nexomail-theme') ?? 'light')
+  const [theme, setTheme] = useState(() => localStorage.getItem('nexomail-theme') ?? 'dark')
   const [profileOpen, setProfileOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [now, setNow] = useState(() => new Date())
