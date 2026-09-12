@@ -41,6 +41,9 @@ jobs:
       - name: Verify perspective visibility
         run: node scripts/perspective-visibility-smoke.mjs
 
+      - name: Verify search result contrast
+        run: node scripts/search-contrast-smoke.mjs
+
       - name: Verify concise Control Center hierarchy
         run: node scripts/control-center-summary-smoke.mjs
 
