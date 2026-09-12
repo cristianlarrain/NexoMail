@@ -41,7 +41,8 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
   const [openActionMenu, setOpenActionMenu] = useState<string | null>(null)
   const [priorityHidden, setPriorityHidden] = useState<Set<string>>(new Set())
 
-  const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: mailApi.accounts, staleTime: 10 * 60_000 })
+  const accountsQuery = useQuery({ queryKey: ['accounts'], queryFn: mailApi.accounts, staleTime: 10 * 60_000 })
+  const accounts = accountsQuery.data ?? []
   const selectedAccount = accountId ? accounts.find(account => account.id === accountId) : undefined
 
   const prioritySnapshot = useQuery({
@@ -358,7 +359,10 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
   const actionPending = moveMessages.isPending || ignoreSenders.isPending || unignoreSenders.isPending || markReadMessages.isPending
   const confirmationPending = confirmation?.kind === 'emptyTrash' ? emptyTrash.isPending : moveMessages.isPending
   const moveSuccess = moveMessages.isSuccess ? moveMessages.variables : null
-  const emptyTitle = priorityOnly
+  const needsAccountOnboarding = accountsQuery.isSuccess && accounts.length === 0 && folder === 'inbox' && !search && !priorityOnly
+  const emptyTitle = needsAccountOnboarding
+    ? 'Comience conectando sus cuentas de correo'
+    : priorityOnly
     ? 'Todo al día en seguimiento'
     : isUnreadView
       ? 'No quedan correos sin leer'
@@ -377,7 +381,9 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
                   : folder === 'spam'
                     ? 'No hay correo en Spam'
                     : 'La Papelera está vacía'
-  const emptyDescription = priorityOnly
+  const emptyDescription = needsAccountOnboarding
+    ? 'Conecte Gmail, Microsoft 365 u otra cuenta compatible para comenzar a usar su bandeja unificada.'
+    : priorityOnly
     ? 'Nexi no encontró conversaciones pendientes de respuesta ni correos marcados manualmente para seguimiento.'
     : isUnreadView
       ? 'Nexi no encontró mensajes pendientes de lectura en esta vista.'
@@ -388,7 +394,9 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
           : folder === 'ignored'
             ? 'Los remitentes que decida ignorar aparecerán aquí sin eliminar sus correos.'
             : 'Los mensajes de esta carpeta aparecerán aquí cuando estén disponibles.'
-  const emptyAction = priorityOnly
+  const emptyAction = needsAccountOnboarding
+    ? <button type="button" className="primary-button" onClick={() => navigate('/settings/accounts')}>Conectar cuenta</button>
+    : priorityOnly
     ? <button type="button" className="secondary-button" onClick={togglePriorityFilter}>Volver a Bandeja</button>
     : search
       ? <button type="button" className="secondary-button" onClick={clearSearch}>Limpiar búsqueda</button>
