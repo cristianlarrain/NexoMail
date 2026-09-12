@@ -11,7 +11,7 @@ const layoutMarkers = [
   "const [accountsOpen, setAccountsOpen] = useState(false)",
   "localStorage.getItem(FOLDERS_COLLAPSED_KEY) !== '0'",
   'className="sidebar-nav-main"',
-  'className="account-switcher"',
+  'account-switcher',
   'className="account-switcher-popover"',
   'account-switcher-option',
   'className="sidebar-nav-utilities"',
