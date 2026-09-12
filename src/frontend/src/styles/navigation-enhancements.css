@@ -1,49 +1,47 @@
 .control-center-refresh .icon-button { display: none; }
 
-/* Active navigation is communicated by its background, consistently across secondary sidebar links. */
+/* Secondary navigation may keep the normal active treatment. */
 .sidebar .nav-item.active:not(.sidebar-primary-link) {
   background: color-mix(in srgb, var(--primary) 10%, var(--surface));
   color: var(--primary);
   font-weight: 700;
 }
 
-/* Legacy primary-action geometry remains as a fallback; sidebar-modern.css owns the final flat appearance. */
+/* Primary navigation is intentionally flat and visually equal to folder links. */
 .sidebar .compose-button,
 .sidebar .control-center-nav,
 .sidebar .inbox-primary-nav {
   width: 100%;
-  height: 30px;
-  min-height: 30px;
-  margin: 0 0 5px;
-  padding: 0 8px;
+  height: 36px;
+  min-height: 36px;
+  margin: 1px 0;
+  padding: 0 10px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  border: 1px solid transparent;
+  justify-content: flex-start;
+  gap: 10px;
+  border: 0;
   border-radius: 7px;
   background: transparent;
   color: var(--muted-foreground);
   box-shadow: none;
   font: inherit;
-  font-size: 11px;
-  font-weight: 760;
-  letter-spacing: .07em;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: normal;
   line-height: 1;
-  text-transform: uppercase;
+  text-transform: none;
   text-align: left;
 }
 
-/* Keep the label anchored left even when the action is active. */
 .sidebar:not(.collapsed) .primary-nav-action,
 .sidebar:not(.collapsed) .primary-nav-action.active {
-  justify-content: space-between;
+  justify-content: flex-start;
   text-align: left;
 }
 
 .sidebar .primary-nav-action > span {
   min-width: 0;
-  flex: 1 1 auto;
   text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -51,27 +49,27 @@
 }
 
 .sidebar .primary-nav-icon {
-  width: 14px;
-  height: 14px;
-  flex: 0 0 14px;
-  margin-left: auto;
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  margin: 0;
   color: currentColor;
 }
 
 .sidebar .compose-button:hover:not(.active),
 .sidebar .control-center-nav:hover:not(.active),
 .sidebar .inbox-primary-nav:hover:not(.active) {
-  background: color-mix(in srgb, var(--primary) 5%, transparent);
+  background: var(--surface-hover);
   color: var(--foreground);
 }
 
 .sidebar .compose-button.active,
 .sidebar .control-center-nav.active,
 .sidebar .inbox-primary-nav.active {
-  border-color: color-mix(in srgb, var(--primary) 34%, var(--border));
-  background: color-mix(in srgb, var(--primary) 9%, var(--surface));
-  color: var(--primary);
-  font-weight: 780;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font-weight: 650;
   box-shadow: none;
   text-align: left;
 }
@@ -127,15 +125,14 @@
   width: 38px;
   height: 38px;
   min-height: 38px;
-  margin: 0 6px 5px;
+  margin: 1px 6px;
   padding: 0;
   justify-content: center;
   box-shadow: none;
 }
 
-/* Hide only text labels. Nexi uses a span wrapper for its visual icon. */
 .sidebar.collapsed .primary-nav-action > span:not(.primary-nav-icon) { display: none; }
-.sidebar.collapsed .primary-nav-icon { width: 15px; height: 15px; flex-basis: 15px; margin-left: 0; }
+.sidebar.collapsed .primary-nav-icon { width: 17px; height: 17px; flex-basis: 17px; margin: 0; }
 .sidebar.collapsed .control-center-nav .nexi-sidebar-icon,
 .sidebar.collapsed .control-center-nav .nexi-sidebar-icon .nexi-visual {
   display: grid !important;
