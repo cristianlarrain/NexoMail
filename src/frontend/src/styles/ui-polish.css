@@ -60,7 +60,10 @@
     width: 248px;
     height: 100vh;
     min-height: 0;
-    overflow: hidden;
+    overflow-y:auto;
+    overflow-x:hidden;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
     z-index: 4;
   }
 
