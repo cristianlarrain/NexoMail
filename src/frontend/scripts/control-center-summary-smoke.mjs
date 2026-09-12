@@ -2,38 +2,46 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const root = process.cwd()
+const page = readFileSync(resolve(root, 'src/pages/ControlCenterPage.tsx'), 'utf8')
 const controlCenter = readFileSync(resolve(root, 'src/components/ControlCenter.tsx'), 'utf8')
 const priorityQueue = readFileSync(resolve(root, 'src/components/NexiPriorityQueue.tsx'), 'utf8')
 const cleanupCss = readFileSync(resolve(root, 'src/styles/control-center-cleanup.css'), 'utf8')
 
-const findingsIndex = controlCenter.indexOf('Hallazgos y sugerencias')
-const summaryIndex = controlCenter.indexOf('Resumen operativo')
-const metricsIndex = controlCenter.indexOf('control-metrics nexi-control-metrics')
-const priorityIndex = controlCenter.indexOf('<NexiPriorityQueue')
-
-if ([findingsIndex, summaryIndex, metricsIndex, priorityIndex].some(index => index < 0)) {
-  throw new Error('Falta alguno de los bloques requeridos del nuevo orden del Control Center.')
-}
-
-if (!(findingsIndex < summaryIndex && summaryIndex < metricsIndex && metricsIndex < priorityIndex)) {
-  throw new Error('El orden debe ser Hallazgos y sugerencias > Resumen operativo > indicadores > Priorización inteligente.')
+if (page.includes('Nexi, la inteligencia que vive dentro de NexoMail.') || page.includes('Entiende, resume, prioriza y convierte tus correos en acciones.')) {
+  throw new Error('El encabezado del Control Center debe ser compacto y no incluir el subtítulo promocional.')
 }
 
 for (const redundantCopy of [
-  'Indicadores clave',
-  'Vista rápida de pendientes, lectura y antigüedad.',
+  'Hallazgos y sugerencias',
+  '<span>Resumen operativo</span>',
+  'Abrir gestión',
+  'Abrir seguimiento',
+  'Ver correos',
+  'Revisar pendientes',
 ]) {
   if (controlCenter.includes(redundantCopy)) {
     throw new Error(`Debe eliminarse el texto redundante: ${redundantCopy}`)
   }
 }
 
-if (cleanupCss.includes('content: "Nexi";')) {
-  throw new Error('El título Nexi no debe generarse por CSS dentro de Hallazgos y sugerencias.')
+if (!controlCenter.includes('control-summary-strip')) {
+  throw new Error('El resumen operativo debe mostrarse como una franja compacta.')
 }
 
-if (cleanupCss.includes('content: "Hallazgos y sugerencias de esta vista.";')) {
-  throw new Error('Hallazgos y sugerencias debe existir como título real, no como texto generado por CSS.')
+if (!controlCenter.includes('control-metrics nexi-control-metrics compact')) {
+  throw new Error('Los cuatro indicadores deben usar la variante compacta.')
+}
+
+const summaryIndex = controlCenter.indexOf('control-summary-strip')
+const metricsIndex = controlCenter.indexOf('control-metrics nexi-control-metrics compact')
+const priorityIndex = controlCenter.indexOf('<NexiPriorityQueue')
+
+if (!(summaryIndex >= 0 && summaryIndex < metricsIndex && metricsIndex < priorityIndex)) {
+  throw new Error('El orden debe ser resumen compacto > indicadores > Priorización inteligente.')
+}
+
+if (controlCenter.includes('nexi-insights-panel nexi-control-summary')) {
+  throw new Error('El resumen y los indicadores no deben estar dentro de otra caja de sección.')
 }
 
 if (!priorityQueue.includes('Priorización inteligente') || !priorityQueue.includes('Qué atender primero')) {
@@ -41,7 +49,11 @@ if (!priorityQueue.includes('Priorización inteligente') || !priorityQueue.inclu
 }
 
 if (priorityQueue.includes('Nexi ordena las conversaciones y permite resumir, responder o dar seguimiento desde la misma grilla.')) {
-  throw new Error('La priorización no debe incluir el texto explicativo redundante.')
+  throw new Error('La priorización no debe incluir texto explicativo redundante.')
 }
 
-console.log('PASS concise Control Center hierarchy')
+for (const marker of ['.control-summary-strip', '.nexi-control-metrics.compact', '.control-center-page .control-tabs-inline']) {
+  if (!cleanupCss.includes(marker)) throw new Error(`Falta el estilo minimalista requerido: ${marker}`)
+}
+
+console.log('PASS minimalist Control Center hierarchy')
