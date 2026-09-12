@@ -283,13 +283,19 @@ oauth.MapGet("/google/start", async (GoogleOAuthService service, CancellationTok
         return Results.Redirect(service.FailureRedirect(exception.Message));
     }
 });
-oauth.MapGet("/google/callback", async (string? code, string? state, string? error, GoogleOAuthService service, CancellationToken ct) =>
+oauth.MapGet("/google/callback", async (string? code, string? state, string? error, GoogleOAuthService service, ILoggerFactory loggerFactory, CancellationToken ct) =>
 {
     if (!string.IsNullOrWhiteSpace(error)) return Results.Redirect(service.FailureRedirect("Google canceló la autorización."));
     if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(state)) return Results.Redirect(service.FailureRedirect("La respuesta de Google está incompleta."));
     try { await service.CompleteAuthorizationAsync(code, state, ct); return Results.Redirect(service.SuccessRedirect()); }
     catch (InvalidOperationException exception) { return Results.Redirect(service.FailureRedirect(exception.Message)); }
-    catch (HttpRequestException) { return Results.Redirect(service.FailureRedirect("Google no pudo completar la conexión. Revisa los permisos y vuelve a intentarlo.")); }
+    catch (HttpRequestException exception)
+    {
+        loggerFactory.CreateLogger("NexoMail.GoogleOAuth")
+            .LogError(exception, "Google OAuth falló con estado HTTP {StatusCode}.", exception.StatusCode);
+        var status = exception.StatusCode.HasValue ? $" ({(int)exception.StatusCode.Value})" : string.Empty;
+        return Results.Redirect(service.FailureRedirect($"Google no pudo completar la conexión{status}. Revisa la configuración OAuth y vuelve a intentarlo."));
+    }
 });
 
 var mail = api.MapGroup("/mail").RequireAuthorization();
