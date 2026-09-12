@@ -36,7 +36,17 @@ builder.Services.AddOpenApi();
 builder.Services.AddMemoryCache(options => options.SizeLimit = 512);
 builder.Services.AddSingleton<NexoMail.Api.MailReadCache>();
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
-builder.Services.AddDbContext<NexoMailDbContext>(options => options.UseSqlite(builder.Configuration.GetValue<string>("Database:ConnectionString") ?? "Data Source=nexomail.db"));
+var databaseProvider = builder.Configuration.GetValue<string>("Database:Provider") ?? "Sqlite";
+var databaseConnection = builder.Configuration.GetConnectionString("NexoMail")
+    ?? builder.Configuration.GetValue<string>("Database:ConnectionString")
+    ?? "Data Source=nexomail.db";
+builder.Services.AddDbContext<NexoMailDbContext>(options =>
+{
+    if (databaseProvider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
+        options.UseSqlServer(databaseConnection, sql => sql.EnableRetryOnFailure());
+    else
+        options.UseSqlite(databaseConnection);
+});
 
 builder.Services.AddScoped<NexoMailCookieEvents>();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -112,8 +122,16 @@ NexoMail.Api.AiEndpoints.AddNexoMailAi(builder.Services, builder.Configuration);
 builder.Services.AddScoped<AiUsageRetentionService>();
 builder.Services.AddHostedService<AiUsageRetentionHostedService>();
 
+var dataProtectionKeysPath = builder.Configuration.GetValue<string>("DataProtection:KeysPath");
+if (string.IsNullOrWhiteSpace(dataProtectionKeysPath))
+{
+    dataProtectionKeysPath = builder.Environment.IsDevelopment()
+        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NexoMail", "keys")
+        : Path.Combine(builder.Environment.ContentRootPath, "App_Data", "keys");
+}
+Directory.CreateDirectory(dataProtectionKeysPath);
 var dataProtection = builder.Services.AddDataProtection()
-    .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NexoMail", "keys")));
+    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
 if (OperatingSystem.IsWindows()) dataProtection.ProtectKeysWithDpapi();
 
 builder.Services.Configure<GmailOptions>(builder.Configuration.GetSection(GmailOptions.SectionName));
@@ -147,8 +165,11 @@ using (var scope = app.Services.CreateScope())
 {
     var database = scope.ServiceProvider.GetRequiredService<NexoMailDbContext>();
     await database.Database.EnsureCreatedAsync();
-    await DatabaseBootstrap.EnsureAuthenticationSchemaAsync(database);
-    await MailProviderBetaModule.EnsureSchemaAsync(database);
+    if (database.Database.IsSqlite())
+    {
+        await DatabaseBootstrap.EnsureAuthenticationSchemaAsync(database);
+        await MailProviderBetaModule.EnsureSchemaAsync(database);
+    }
 }
 
 app.Use(async (context, next) =>
@@ -166,12 +187,14 @@ app.Use(async (context, next) =>
     }
 });
 
-app.UseCors();
+app.UseDefaultFiles();
+app.UseStaticFiles();
+if (app.Environment.IsDevelopment()) app.UseCors();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseNexoMailCsrf();
 app.UseAuthorization();
-app.MapOpenApi();
+if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.MapNexoMailCsrf();
 app.MapNexoMailAuth();
 app.MapNexoMailSessions();
@@ -417,6 +440,8 @@ mail.MapPost("/messages/{accountId:guid}/{messageId}/forward", async (IMailGatew
     cache.InvalidateAreas(userContext.UserId.ToString(), "messages", "control-center", "control-center-activity");
     return Results.Accepted();
 });
+
+app.MapFallbackToFile("index.html");
 
 app.Run();
 
