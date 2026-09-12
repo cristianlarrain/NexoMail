@@ -159,6 +159,41 @@
   font-size: 10.5px;
 }
 
+.sidebar .control-center-nav {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--primary) 38%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary) 5%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary) 14%, transparent),
+    0 0 12px color-mix(in srgb, var(--primary) 18%, transparent),
+    inset 0 0 8px color-mix(in srgb, var(--primary) 7%, transparent);
+  transition: border-color .18s ease, background .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.sidebar .control-center-nav:hover {
+  border-color: color-mix(in srgb, var(--primary) 56%, transparent);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent),
+    0 0 16px color-mix(in srgb, var(--primary) 26%, transparent),
+    inset 0 0 10px color-mix(in srgb, var(--primary) 10%, transparent);
+  transform: translateY(-1px);
+}
+
+.sidebar .control-center-nav.active {
+  border-color: color-mix(in srgb, var(--primary) 68%, transparent);
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary) 26%, transparent),
+    0 0 20px color-mix(in srgb, var(--primary) 32%, transparent),
+    inset 0 0 12px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.sidebar .control-center-nav .nexi-sidebar-icon {
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--primary) 42%, transparent));
+}
+
 @media (min-width: 761px) {
   .sidebar.collapsed .sidebar-nav-main {
     overflow: visible;
