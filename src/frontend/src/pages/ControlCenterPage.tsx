@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { BarChart3, Files, Gauge, LockKeyhole, Sparkles, Users } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -22,6 +22,7 @@ function normalizedTab(value: string | null): ControlTab {
 export function ControlCenterPage() {
   const queryClient = useQueryClient()
   const [params, setParams] = useSearchParams()
+  const [updatedAt, setUpdatedAt] = useState('')
   const subscription = useQuery({ queryKey: ['commercial-subscription'], queryFn: commercialApi.subscription, staleTime: 30_000 })
   const tab = normalizedTab(params.get('tab'))
   const hasNexi = subscription.data?.entitlements.includes(commercialEntitlements.nexiAi) === true
@@ -73,6 +74,8 @@ export function ControlCenterPage() {
         <h1>Nexi Control Center</h1>
       </div>
 
+      {tab === 'summary' && updatedAt && <span className="control-page-updated">Actualizado {updatedAt}</span>}
+
       <nav className="control-tabs control-tabs-inline" aria-label="Secciones de Nexi Control Center">
         <button type="button" className={tab === 'summary' ? 'active' : ''} onClick={() => selectTab('summary')}><Gauge size={16} /> Prioridades</button>
         <button type="button" disabled={!hasNexi} title={!hasNexi ? 'No incluido en su plan' : undefined} className={tab === 'report' ? 'active nexi-tab' : 'nexi-tab'} onClick={() => selectTab('report')}><Sparkles size={16} /> Informes {!hasNexi && <LockKeyhole size={12} />}</button>
@@ -85,7 +88,7 @@ export function ControlCenterPage() {
     {featureLocked
       ? <div className="commercial-feature-lock"><LockKeyhole size={22} /><div><strong>{lockTitle}</strong><span>{lockDetail}</span></div><Link to="/settings/plan" className="primary-button">Ver planes</Link></div>
       : tab === 'summary'
-        ? <ControlCenter />
+        ? <ControlCenter onUpdatedAtChange={setUpdatedAt} />
         : tab === 'report'
           ? <NexiMailReport />
           : tab === 'statistics'
