@@ -10,6 +10,7 @@ using NexoMail.Application;
 using NexoMail.Domain;
 using NexoMail.Infrastructure.Data;
 using NexoMail.Infrastructure.Google;
+using DomainMailFolder = NexoMail.Domain.MailFolder;
 
 namespace NexoMail.Infrastructure.Imap;
 
@@ -149,11 +150,11 @@ public sealed class ImapMailProvider(
         await folder.ExpungeAsync(ct);
     }
 
-    public async Task<IReadOnlyCollection<MailFolder>> GetFoldersAsync(Guid accountId, CancellationToken ct)
+    public async Task<IReadOnlyCollection<DomainMailFolder>> GetFoldersAsync(Guid accountId, CancellationToken ct)
     {
         var snapshot = await SnapshotAsync(accountId, ct);
         using var client = await ConnectImapAsync(snapshot, ct);
-        var folders = new List<MailFolder>
+        var folders = new List<DomainMailFolder>
         {
             new("inbox", "Bandeja de entrada", 0),
             new("archive", "Archivados", 0),
@@ -176,7 +177,7 @@ public sealed class ImapMailProvider(
         }
         systemNames.Add(client.Inbox.FullName);
         foreach (var folder in all.Where(folder => !folder.Attributes.HasFlag(FolderAttributes.NonExistent) && !systemNames.Contains(folder.FullName)))
-            folders.Add(new MailFolder(EncodeCustomFolder(folder.FullName), folder.Name, 0));
+            folders.Add(new DomainMailFolder(EncodeCustomFolder(folder.FullName), folder.Name, 0));
         return folders;
     }
 
@@ -276,7 +277,7 @@ public sealed class ImapMailProvider(
         var html = source.HtmlBody;
         if (string.IsNullOrWhiteSpace(html)) html = "<pre>" + WebUtility.HtmlEncode(source.TextBody ?? string.Empty) + "</pre>";
         var attachments = source.Attachments.Select((attachment, index) => new MailAttachment(
-            index.ToString(), AttachmentName(attachment, index), attachment.ContentType.MimeType, AttachmentSize(attachment))).ToArray();
+            index.ToString(), AttachmentName(attachment, index), attachment.ContentType.MimeType, 0)).ToArray();
         var received = source.Date == DateTimeOffset.MinValue ? DateTimeOffset.UtcNow : source.Date;
         return new MailMessage(
             providerMessageId, accountId,
@@ -297,7 +298,9 @@ public sealed class ImapMailProvider(
         var builder = new BodyBuilder { HtmlBody = message.HtmlBody ?? string.Empty };
         foreach (var attachment in message.Attachments ?? [])
         {
-            var type = ContentType.TryParse(attachment.ContentType, out var parsed) ? parsed : new ContentType("application", "octet-stream");
+            ContentType type;
+            try { type = ContentType.Parse(attachment.ContentType); }
+            catch { type = new ContentType("application", "octet-stream"); }
             builder.Attachments.Add(attachment.Name, Convert.FromBase64String(attachment.Base64Content), type);
         }
         mime.Body = builder.ToMessageBody();
@@ -306,7 +309,7 @@ public sealed class ImapMailProvider(
 
     private static async Task<bool> ExistsAsync(IMailFolder folder, UniqueId uid, CancellationToken ct)
     {
-        var result = await folder.SearchAsync([uid], SearchQuery.All, ct);
+        var result = await folder.SearchAsync(SearchQuery.Uids([uid]), ct);
         return result.Count > 0;
     }
 
@@ -324,7 +327,6 @@ public sealed class ImapMailProvider(
         MessagePart part => part.ContentDisposition?.FileName ?? part.ContentType.Name ?? $"mensaje-{index + 1}.eml",
         _ => $"adjunto-{index + 1}"
     };
-    private static long AttachmentSize(MimeEntity entity) => entity is MimePart part && part.Content.Stream.CanSeek ? part.Content.Stream.Length : 0;
     private static string EncodeMessageKey(string folder, UniqueId uid) => Base64UrlEncode($"{folder}\n{uid.Id}");
     private static MessageKey DecodeMessageKey(string value)
     {
