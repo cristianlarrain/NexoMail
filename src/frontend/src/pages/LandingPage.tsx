@@ -89,7 +89,7 @@ export function LandingPage() {
           <Link to="/login?mode=register" className="landing-primary large">Comenzar gratis <ArrowRight size={17} /></Link>
           <a href="#planes" className="landing-secondary">Ver planes</a>
         </div>
-        <div className="landing-trust-row"><span><Check size={14} /> Gmail disponible</span><span><LockKeyhole size={14} /> Privacidad por diseño</span><span><Gauge size={14} /> Centro de Control</span></div>
+        <div className="landing-trust-row"><span><Check size={14} /> Gmail y Microsoft 365 disponibles</span><span><Layers3 size={14} /> IMAP / SMTP Beta</span><span><Clock3 size={14} /> Marcha blanca · 30 días</span><span><LockKeyhole size={14} /> Privacidad por diseño</span></div>
       </div>
 
       <div className="landing-product-preview" aria-label="Vista conceptual de NexoMail">
@@ -133,12 +133,13 @@ export function LandingPage() {
     </section>
 
     <section className="landing-section" id="servicios">
-      <div className="landing-section-heading"><span>Integraciones</span><h2>Una plataforma para sus distintas cuentas</h2><p>La arquitectura está preparada para ampliar proveedores sin cambiar la experiencia central de NexoMail.</p></div>
+      <div className="landing-section-heading"><span>Integraciones</span><h2>Conecte las cuentas que ya utiliza</h2><p>Durante la marcha blanca NexoMail permite trabajar con Google, Microsoft 365 y cuentas compatibles mediante IMAP / SMTP Beta.</p></div>
       <div className="landing-provider-grid">
-        <article className="available"><div className="provider-symbol"><Mail size={22} /></div><div><strong>Google / Gmail</strong><span>Disponible actualmente</span></div><b>Disponible</b></article>
-        <article><div className="provider-symbol microsoft"><span /><span /><span /><span /></div><div><strong>Microsoft / Outlook</strong><span>Microsoft 365 y Outlook</span></div><b>Próximamente</b></article>
-        <article><div className="provider-symbol"><Layers3 size={22} /></div><div><strong>IMAP / SMTP</strong><span>Otros proveedores compatibles</span></div><b>Próximamente</b></article>
+        <article className="available"><div className="provider-symbol"><Mail size={22} /></div><div><strong>Google / Gmail</strong><span>Gmail y Google Workspace</span></div><b>Disponible</b></article>
+        <article className="available"><div className="provider-symbol microsoft"><span /><span /><span /><span /></div><div><strong>Microsoft 365</strong><span>Profesional, educativa o institucional</span></div><b>Disponible</b></article>
+        <article className="available"><div className="provider-symbol"><Layers3 size={22} /></div><div><strong>IMAP / SMTP</strong><span>Dominio propio y otros proveedores compatibles</span></div><b>Beta</b></article>
       </div>
+      <p className="landing-pricing-note">Las cuentas Microsoft 365 institucionales pueden requerir autorización previa del administrador de su organización para permitir aplicaciones externas como NexoMail.</p>
     </section>
 
     <section className="landing-section landing-how">
