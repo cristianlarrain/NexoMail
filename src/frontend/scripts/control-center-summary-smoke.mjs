@@ -24,10 +24,6 @@ for (const redundantCopy of [
   }
 }
 
-if (controlCenter.includes('control-summary-strip')) {
-  throw new Error('La franja de resumen operativo es redundante con las tarjetas y debe eliminarse.')
-}
-
 if (!controlCenter.includes('control-metrics nexi-control-metrics compact')) {
   throw new Error('Los cuatro indicadores deben usar la variante compacta.')
 }
@@ -41,6 +37,10 @@ if (!(metricsIndex >= 0 && metricsIndex < priorityIndex)) {
 
 if (controlCenter.includes('nexi-insights-panel nexi-control-summary')) {
   throw new Error('Los indicadores no deben estar dentro de otra caja de sección.')
+}
+
+if (!cleanupCss.includes('.control-summary-strip {') || !cleanupCss.includes('display: none;')) {
+  throw new Error('La franja de resumen operativo debe quedar completamente oculta por ser redundante con las tarjetas.')
 }
 
 if (!priorityQueue.includes('Priorización inteligente') || !priorityQueue.includes('Qué atender primero')) {
