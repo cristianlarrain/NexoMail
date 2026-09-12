@@ -14,9 +14,7 @@ using DomainMailFolder = NexoMail.Domain.MailFolder;
 
 namespace NexoMail.Infrastructure.Imap;
 
-public sealed class ImapMailProvider(
-    NexoMailDbContext database,
-    ITokenProtector tokenProtector) : IMailProvider
+public sealed class ImapMailProvider(NexoMailDbContext database, ITokenProtector tokenProtector) : IMailProvider
 {
     public MailProviderType ProviderType => MailProviderType.Imap;
 
@@ -30,16 +28,13 @@ public sealed class ImapMailProvider(
         var search = string.IsNullOrWhiteSpace(query.Search) ? SearchQuery.All : SearchQuery.MessageContains(query.Search.Trim());
         var uids = await folder.SearchAsync(search, ct);
         var offset = int.TryParse(query.Cursor, out var parsed) ? Math.Max(0, parsed) : 0;
-        var take = Math.Clamp(query.Take, 1, 50);
-        var page = uids.OrderByDescending(uid => uid.Id).Skip(offset).Take(take).ToList();
+        var page = uids.OrderByDescending(uid => uid.Id).Skip(offset).Take(Math.Clamp(query.Take, 1, 50)).ToList();
         if (page.Count == 0) return new PagedResult<MailSummary>([]);
-
-        var summaries = await folder.FetchAsync(
-            page,
+        var summaries = await folder.FetchAsync(page,
             MessageSummaryItems.UniqueId | MessageSummaryItems.Envelope | MessageSummaryItems.Flags |
-            MessageSummaryItems.InternalDate | MessageSummaryItems.BodyStructure | MessageSummaryItems.PreviewText,
-            ct);
-        var items = summaries.Select(summary => Summary(summary, query.AccountId.Value, folder.FullName, query.FolderId)).OrderByDescending(x => x.ReceivedAt).ToArray();
+            MessageSummaryItems.InternalDate | MessageSummaryItems.BodyStructure | MessageSummaryItems.PreviewText, ct);
+        var items = summaries.Select(summary => Summary(summary, query.AccountId.Value, folder.FullName, query.FolderId))
+            .OrderByDescending(item => item.ReceivedAt).ToArray();
         var next = offset + page.Count < uids.Count ? (offset + page.Count).ToString() : null;
         return new PagedResult<MailSummary>(items, next);
     }
@@ -52,7 +47,8 @@ public sealed class ImapMailProvider(
         var folder = await client.GetFolderAsync(key.Folder, ct);
         await folder.OpenAsync(FolderAccess.ReadOnly, ct);
         var uid = new UniqueId(key.Uid);
-        if (!await ExistsAsync(folder, uid, ct)) return null;
+        var found = await folder.SearchAsync(SearchQuery.Uids([uid]), ct);
+        if (found.Count == 0) return null;
         var message = await folder.GetMessageAsync(uid, ct);
         return ToMailMessage(message, accountId, messageId, FolderAlias(client, folder));
     }
@@ -60,8 +56,7 @@ public sealed class ImapMailProvider(
     public async Task<IReadOnlyCollection<MailThreadMessage>> GetThreadAsync(Guid accountId, string messageId, CancellationToken ct)
     {
         var message = await GetMessageAsync(accountId, messageId, ct);
-        if (message is null) return [];
-        return [new MailThreadMessage(message.ProviderMessageId, message.From, message.HtmlBody, message.ReceivedAt, true)];
+        return message is null ? [] : [new MailThreadMessage(message.ProviderMessageId, message.From, message.HtmlBody, message.ReceivedAt, true)];
     }
 
     public async Task<MailAttachmentContent?> GetAttachmentAsync(Guid accountId, string messageId, string attachmentId, CancellationToken ct)
@@ -76,39 +71,32 @@ public sealed class ImapMailProvider(
         var attachment = message.Attachments.ElementAtOrDefault(index);
         if (attachment is null) return null;
         using var stream = new MemoryStream();
-        string fileName;
-        string contentType;
         if (attachment is MimePart part)
         {
+            if (part.Content is null) return null;
             await part.Content.DecodeToAsync(stream, ct);
-            fileName = part.FileName ?? part.ContentType.Name ?? $"adjunto-{index + 1}";
-            contentType = part.ContentType.MimeType;
+            return new MailAttachmentContent(stream.ToArray(), part.ContentType.MimeType,
+                part.FileName ?? part.ContentType.Name ?? $"adjunto-{index + 1}");
         }
-        else if (attachment is MessagePart messagePart)
+        if (attachment is MessagePart messagePart)
         {
+            if (messagePart.Message is null) return null;
             await messagePart.Message.WriteToAsync(stream, ct);
-            fileName = messagePart.ContentDisposition?.FileName ?? messagePart.ContentType.Name ?? $"mensaje-{index + 1}.eml";
-            contentType = "message/rfc822";
+            return new MailAttachmentContent(stream.ToArray(), "message/rfc822",
+                messagePart.ContentDisposition?.FileName ?? messagePart.ContentType.Name ?? $"mensaje-{index + 1}.eml");
         }
-        else return null;
-        return new MailAttachmentContent(stream.ToArray(), contentType, fileName);
+        return null;
     }
 
     public async Task SendAsync(ComposeMessage message, CancellationToken ct)
     {
         var snapshot = await SnapshotAsync(message.FromAccountId, ct);
-        var outgoing = BuildOutgoing(snapshot, message);
-        await SendMimeAsync(snapshot, outgoing, ct);
+        await SendMimeAsync(snapshot, BuildOutgoing(snapshot, message), ct);
     }
 
-    public Task ReplyAsync(Guid accountId, string messageId, ComposeMessage message, CancellationToken ct) =>
-        SendReplyAsync(accountId, messageId, message, ct);
-
-    public Task ReplyAllAsync(Guid accountId, string messageId, ComposeMessage message, CancellationToken ct) =>
-        SendReplyAsync(accountId, messageId, message, ct);
-
-    public Task ForwardAsync(Guid accountId, string messageId, ComposeMessage message, CancellationToken ct) =>
-        SendAsync(message with { FromAccountId = accountId }, ct);
+    public Task ReplyAsync(Guid accountId, string messageId, ComposeMessage message, CancellationToken ct) => SendReplyAsync(accountId, messageId, message, ct);
+    public Task ReplyAllAsync(Guid accountId, string messageId, ComposeMessage message, CancellationToken ct) => SendReplyAsync(accountId, messageId, message, ct);
+    public Task ForwardAsync(Guid accountId, string messageId, ComposeMessage message, CancellationToken ct) => SendAsync(message with { FromAccountId = accountId }, ct);
 
     public async Task MarkReadAsync(Guid accountId, string messageId, bool read, CancellationToken ct)
     {
@@ -122,8 +110,7 @@ public sealed class ImapMailProvider(
         else await folder.RemoveFlagsAsync(uid, MessageFlags.Seen, true, ct);
     }
 
-    public Task MoveToTrashAsync(Guid accountId, string messageId, CancellationToken ct) =>
-        MoveToFolderAsync(accountId, messageId, "trash", ct);
+    public Task MoveToTrashAsync(Guid accountId, string messageId, CancellationToken ct) => MoveToFolderAsync(accountId, messageId, "trash", ct);
 
     public async Task MoveToFolderAsync(Guid accountId, string messageId, string folderId, CancellationToken ct)
     {
@@ -156,26 +143,17 @@ public sealed class ImapMailProvider(
         using var client = await ConnectImapAsync(snapshot, ct);
         var folders = new List<DomainMailFolder>
         {
-            new("inbox", "Bandeja de entrada", 0),
-            new("archive", "Archivados", 0),
-            new("sent", "Enviados", 0),
-            new("drafts", "Borradores", 0),
-            new("spam", "Spam", 0),
-            new("trash", "Papelera", 0)
+            new("inbox", "Bandeja de entrada", 0), new("archive", "Archivados", 0),
+            new("sent", "Enviados", 0), new("drafts", "Borradores", 0),
+            new("spam", "Spam", 0), new("trash", "Papelera", 0)
         };
         if (client.PersonalNamespaces.Count == 0) return folders;
         var all = await client.GetFoldersAsync(client.PersonalNamespaces[0], false, ct);
-        var systemNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var systemNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { client.Inbox.FullName };
         foreach (var special in new[] { SpecialFolder.Archive, SpecialFolder.Sent, SpecialFolder.Drafts, SpecialFolder.Junk, SpecialFolder.Trash })
         {
-            try
-            {
-                var folder = client.GetFolder(special);
-                if (folder is not null) systemNames.Add(folder.FullName);
-            }
-            catch { }
+            try { var folder = client.GetFolder(special); if (folder is not null) systemNames.Add(folder.FullName); } catch { }
         }
-        systemNames.Add(client.Inbox.FullName);
         foreach (var folder in all.Where(folder => !folder.Attributes.HasFlag(FolderAttributes.NonExistent) && !systemNames.Contains(folder.FullName)))
             folders.Add(new DomainMailFolder(EncodeCustomFolder(folder.FullName), folder.Name, 0));
         return folders;
@@ -201,14 +179,11 @@ public sealed class ImapMailProvider(
         var row = await database.MailAccounts.AsNoTracking()
             .Where(account => account.Id == accountId && account.Provider == MailProviderType.Imap && account.IsActive)
             .Join(database.ImapCredentials.AsNoTracking(), account => account.Id, credential => credential.MailAccountId,
-                (account, credential) => new { account, credential })
-            .SingleOrDefaultAsync(ct)
+                (account, credential) => new { account, credential }).SingleOrDefaultAsync(ct)
             ?? throw new InvalidOperationException("No existe una configuración IMAP/SMTP válida para esta cuenta.");
-        return new ImapSnapshot(
-            row.account.EmailAddress, row.account.DisplayName, row.credential.Username,
-            tokenProtector.Unprotect(row.credential.EncryptedPassword),
-            row.credential.ImapHost, row.credential.ImapPort, row.credential.ImapSecurity,
-            row.credential.SmtpHost, row.credential.SmtpPort, row.credential.SmtpSecurity);
+        return new ImapSnapshot(row.account.EmailAddress, row.account.DisplayName, row.credential.Username,
+            tokenProtector.Unprotect(row.credential.EncryptedPassword), row.credential.ImapHost, row.credential.ImapPort,
+            row.credential.ImapSecurity, row.credential.SmtpHost, row.credential.SmtpPort, row.credential.SmtpSecurity);
     }
 
     private static async Task<ImapClient> ConnectImapAsync(ImapSnapshot snapshot, CancellationToken ct)
@@ -221,11 +196,7 @@ public sealed class ImapMailProvider(
             await client.AuthenticateAsync(snapshot.Username, snapshot.Password, ct);
             return client;
         }
-        catch
-        {
-            client.Dispose();
-            throw;
-        }
+        catch { client.Dispose(); throw; }
     }
 
     private static async Task SendMimeAsync(ImapSnapshot snapshot, MimeMessage message, CancellationToken ct)
@@ -240,18 +211,13 @@ public sealed class ImapMailProvider(
 
     private static async Task<IMailFolder> ResolveFolderAsync(ImapClient client, string folderId, CancellationToken ct)
     {
-        if (folderId.StartsWith("custom:", StringComparison.OrdinalIgnoreCase))
-            return await client.GetFolderAsync(DecodeCustomFolder(folderId), ct);
-        if (!string.IsNullOrWhiteSpace(folderId) && !IsCanonicalFolder(folderId))
-            return await client.GetFolderAsync(folderId, ct);
+        if (folderId.StartsWith("custom:", StringComparison.OrdinalIgnoreCase)) return await client.GetFolderAsync(DecodeCustomFolder(folderId), ct);
+        if (!string.IsNullOrWhiteSpace(folderId) && !IsCanonicalFolder(folderId)) return await client.GetFolderAsync(folderId, ct);
         if (string.Equals(folderId, "inbox", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(folderId)) return client.Inbox;
         var special = folderId.ToLowerInvariant() switch
         {
-            "archive" => SpecialFolder.Archive,
-            "sent" => SpecialFolder.Sent,
-            "drafts" => SpecialFolder.Drafts,
-            "spam" => SpecialFolder.Junk,
-            "trash" => SpecialFolder.Trash,
+            "archive" => SpecialFolder.Archive, "sent" => SpecialFolder.Sent, "drafts" => SpecialFolder.Drafts,
+            "spam" => SpecialFolder.Junk, "trash" => SpecialFolder.Trash,
             _ => throw new InvalidOperationException("NexoMail no reconoce la carpeta IMAP solicitada.")
         };
         return client.GetFolder(special) ?? throw new InvalidOperationException($"El servidor IMAP no publica una carpeta compatible con {folderId}.");
@@ -261,26 +227,20 @@ public sealed class ImapMailProvider(
     {
         var from = summary.Envelope?.From?.Mailboxes.FirstOrDefault();
         var date = summary.InternalDate ?? summary.Date;
-        var preview = summary.PreviewText ?? string.Empty;
-        return new MailSummary(
-            EncodeMessageKey(fullName, summary.UniqueId), accountId,
+        return new MailSummary(EncodeMessageKey(fullName, summary.UniqueId), accountId,
             from?.Name ?? from?.Address ?? string.Empty, from?.Address ?? string.Empty,
-            summary.Envelope?.Subject ?? "(sin asunto)", preview,
+            summary.Envelope?.Subject ?? "(sin asunto)", summary.PreviewText ?? string.Empty,
             date == DateTimeOffset.MinValue ? DateTimeOffset.UtcNow : date,
-            summary.Flags?.HasFlag(MessageFlags.Seen) == true,
-            summary.Attachments.Any(), folderId);
+            summary.Flags?.HasFlag(MessageFlags.Seen) == true, summary.Attachments.Any(), folderId);
     }
 
     private static MailMessage ToMailMessage(MimeMessage source, Guid accountId, string providerMessageId, string folderId)
     {
         var from = source.From.Mailboxes.FirstOrDefault();
-        var html = source.HtmlBody;
-        if (string.IsNullOrWhiteSpace(html)) html = "<pre>" + WebUtility.HtmlEncode(source.TextBody ?? string.Empty) + "</pre>";
-        var attachments = source.Attachments.Select((attachment, index) => new MailAttachment(
-            index.ToString(), AttachmentName(attachment, index), attachment.ContentType.MimeType, 0)).ToArray();
+        var html = string.IsNullOrWhiteSpace(source.HtmlBody) ? "<pre>" + WebUtility.HtmlEncode(source.TextBody ?? string.Empty) + "</pre>" : source.HtmlBody;
+        var attachments = source.Attachments.Select((attachment, index) => new MailAttachment(index.ToString(), AttachmentName(attachment, index), attachment.ContentType.MimeType, 0)).ToArray();
         var received = source.Date == DateTimeOffset.MinValue ? DateTimeOffset.UtcNow : source.Date;
-        return new MailMessage(
-            providerMessageId, accountId,
+        return new MailMessage(providerMessageId, accountId,
             new MailAddress(from?.Name ?? from?.Address ?? string.Empty, from?.Address ?? string.Empty),
             source.To.Mailboxes.Select(ToAddress).ToArray(), source.Cc.Mailboxes.Select(ToAddress).ToArray(),
             source.Subject ?? "(sin asunto)", html, Preview(source), received, true, attachments, folderId, null,
@@ -299,18 +259,11 @@ public sealed class ImapMailProvider(
         foreach (var attachment in message.Attachments ?? [])
         {
             ContentType type;
-            try { type = ContentType.Parse(attachment.ContentType); }
-            catch { type = new ContentType("application", "octet-stream"); }
+            try { type = ContentType.Parse(attachment.ContentType); } catch { type = new ContentType("application", "octet-stream"); }
             builder.Attachments.Add(attachment.Name, Convert.FromBase64String(attachment.Base64Content), type);
         }
         mime.Body = builder.ToMessageBody();
         return mime;
-    }
-
-    private static async Task<bool> ExistsAsync(IMailFolder folder, UniqueId uid, CancellationToken ct)
-    {
-        var result = await folder.SearchAsync(SearchQuery.Uids([uid]), ct);
-        return result.Count > 0;
     }
 
     private static MailAddress ToAddress(MailboxAddress mailbox) => new(mailbox.Name ?? mailbox.Address, mailbox.Address);
@@ -353,8 +306,7 @@ public sealed class ImapMailProvider(
         if (string.Equals(folder.FullName, client.Inbox.FullName, StringComparison.OrdinalIgnoreCase)) return "inbox";
         foreach (var pair in new[] { (SpecialFolder.Archive, "archive"), (SpecialFolder.Sent, "sent"), (SpecialFolder.Drafts, "drafts"), (SpecialFolder.Junk, "spam"), (SpecialFolder.Trash, "trash") })
         {
-            try { if (string.Equals(client.GetFolder(pair.Item1)?.FullName, folder.FullName, StringComparison.OrdinalIgnoreCase)) return pair.Item2; }
-            catch { }
+            try { if (string.Equals(client.GetFolder(pair.Item1)?.FullName, folder.FullName, StringComparison.OrdinalIgnoreCase)) return pair.Item2; } catch { }
         }
         return EncodeCustomFolder(folder.FullName);
     }
@@ -366,8 +318,6 @@ public sealed class ImapMailProvider(
     }
 
     private sealed record MessageKey(string Folder, uint Uid);
-    private sealed record ImapSnapshot(
-        string EmailAddress, string DisplayName, string Username, string Password,
-        string ImapHost, int ImapPort, string ImapSecurity,
-        string SmtpHost, int SmtpPort, string SmtpSecurity);
+    private sealed record ImapSnapshot(string EmailAddress, string DisplayName, string Username, string Password,
+        string ImapHost, int ImapPort, string ImapSecurity, string SmtpHost, int SmtpPort, string SmtpSecurity);
 }
