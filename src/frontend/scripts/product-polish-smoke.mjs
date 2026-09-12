@@ -7,6 +7,9 @@ const read = path => readFileSync(resolve(root, path), 'utf8')
 const weather = read('src/components/WeatherWidget.tsx')
 const share = read('src/components/PerspectiveShareMenu.tsx')
 const perspectives = read('src/pages/PerspectivesPage.tsx')
+const landing = read('src/pages/LandingPage.tsx')
+const landingCss = read('src/styles/landing.css')
+const landingCommercialCss = read('src/styles/landing-commercial.css')
 const perspectiveStyles = [
   read('src/styles/nexo-perspective.css'),
   read('src/styles/perspective-share-cleanup.css'),
@@ -49,6 +52,50 @@ if (!perspectiveGridBlocks.some(block => block.includes('align-items: start'))) 
 
 if (packageJson.includes('"tailwindcss"')) {
   throw new Error('tailwindcss continúa declarado aunque no se utiliza')
+}
+
+const requiredLandingMarkers = [
+  'landing-commercial-preview',
+  'NexoMail le muestra lo que su bandeja no le dice.',
+  'Vea NexoMail en acción',
+  'landing-video-stage',
+  'metric-amber',
+  'metric-orange',
+  'Priorización asistida por Nexi',
+]
+
+for (const marker of requiredLandingMarkers) {
+  if (!landing.includes(marker)) throw new Error(`Falta ajuste comercial en landing: ${marker}`)
+}
+
+for (const forbidden of [
+  'landing-product-preview',
+  'landing-value-strip',
+  "name: 'White Label',",
+  "title: 'Nexi, su asistente'",
+  "title: 'Privacidad desde el diseño'",
+]) {
+  if (landing.includes(forbidden)) throw new Error(`La landing conserva contenido redundante: ${forbidden}`)
+}
+
+if (!landing.includes('Gmail, Microsoft 365 e IMAP / SMTP Beta')) {
+  throw new Error('El hero debe condensar la compatibilidad de proveedores en una sola línea.')
+}
+
+if (!landing.includes('Conecte sus cuentas actuales y trabaje desde una sola interfaz, sin cambiar su proveedor de correo.')) {
+  throw new Error('Integraciones debe usar el texto comercial simplificado.')
+}
+
+if (!landingCss.includes('padding: 56px 0')) {
+  throw new Error('La landing debe reducir el espaciado vertical general a 56px.')
+}
+
+if (!landingCss.includes('--warm-yellow: #f2b34f')) {
+  throw new Error('La demo comercial debe incorporar el acento amarillo/anaranjado aprobado.')
+}
+
+if (!landingCommercialCss.includes('grid-template-columns: repeat(3, minmax(0, 1fr))')) {
+  throw new Error('Los planes comerciales deben quedar en tres columnas.')
 }
 
 console.log('PASS product polish')
