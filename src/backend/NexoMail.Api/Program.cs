@@ -10,6 +10,7 @@ using NexoMail.Infrastructure;
 using NexoMail.Infrastructure.Data;
 using NexoMail.Infrastructure.Google;
 using Serilog;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 
@@ -180,6 +181,41 @@ using (var scope = app.Services.CreateScope())
     {
         await DatabaseBootstrap.EnsureAuthenticationSchemaAsync(database);
         await MailProviderBetaModule.EnsureSchemaAsync(database);
+    }
+
+    var existingPlanCodes = (await database.CommercialPlans
+        .AsNoTracking()
+        .Select(plan => plan.Code)
+        .ToArrayAsync())
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var sortOrder = 0;
+    foreach (var definition in CommercialPlanCatalog.All)
+    {
+        if (!existingPlanCodes.Contains(definition.Code))
+        {
+            database.CommercialPlans.Add(new CommercialPlanEntity
+            {
+                Code = definition.Code,
+                Name = definition.Name,
+                Price = definition.Price,
+                Cadence = definition.Cadence,
+                MaxAccounts = definition.MaxAccounts,
+                Description = definition.Description,
+                FeaturesJson = JsonSerializer.Serialize(definition.Features),
+                EntitlementsJson = JsonSerializer.Serialize(CommercialEntitlements.DefaultsForPlan(definition.Code)),
+                IsFeatured = definition.IsFeatured,
+                IsCorporate = definition.IsCorporate,
+                IsWhiteLabel = definition.IsWhiteLabel,
+                IsActive = true,
+                SortOrder = sortOrder,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
+        }
+        sortOrder++;
+    }
+    if (database.ChangeTracker.HasChanges())
+    {
+        await database.SaveChangesAsync();
     }
 
     var ownerEmail = builder.Configuration["Bootstrap:OwnerEmail"]?.Trim().ToLowerInvariant();
