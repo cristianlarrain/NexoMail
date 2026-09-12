@@ -129,7 +129,7 @@
   padding: 48px 24px;
 }
 
-/* Commercial product preview prepared for the future demo video */
+/* Commercial product preview with embedded product demo */
 .landing-commercial-preview {
   --warm-yellow: #f2b34f;
   --warm-orange: #e88b3d;
@@ -237,47 +237,42 @@
 }
 
 .landing-video-stage {
-  min-height: 190px;
   margin-top: 10px;
-  padding: 24px;
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: 7px;
+  overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--warm-yellow) 30%, var(--border));
   border-radius: 14px;
-  background:
-    radial-gradient(circle at center, color-mix(in srgb, var(--warm-yellow) 10%, transparent), transparent 42%),
-    color-mix(in srgb, var(--surface) 97%, var(--primary));
-  text-align: center;
+  background: #06141b;
+  box-shadow: 0 16px 34px rgb(0 0 0 / .16);
 }
 
-.landing-video-play {
-  width: 66px;
-  height: 66px;
-  margin-bottom: 5px;
-  padding: 0 0 0 4px;
-  display: grid;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--warm-yellow) 65%, transparent);
-  border-radius: 50%;
-  background: linear-gradient(180deg, #f7c46b, var(--warm-orange));
-  color: #111719;
-  font-size: 23px;
-  box-shadow:
-    0 0 0 10px color-mix(in srgb, var(--warm-yellow) 8%, transparent),
-    0 15px 34px color-mix(in srgb, var(--warm-orange) 22%, transparent);
+.landing-video-player {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: #06141b;
 }
 
-.landing-video-stage strong {
-  font-size: 13px;
+.landing-video-caption {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 13px;
+  border-top: 1px solid color-mix(in srgb, var(--primary) 19%, transparent);
+  background: color-mix(in srgb, #06141b 94%, var(--primary));
 }
 
-.landing-video-stage > span {
-  max-width: 320px;
-  color: var(--muted-foreground);
+.landing-video-caption strong {
+  color: #f4fbff;
+  font-size: 10px;
+  letter-spacing: .01em;
+}
+
+.landing-video-caption span {
+  color: #8eb8c5;
   font-size: 9px;
-  line-height: 1.5;
 }
 
 .landing-commercial-preview-foot {
@@ -314,5 +309,5 @@
   .landing-feature-grid { grid-template-columns: 1fr; }
   .landing-commercial-metrics { grid-template-columns: 1fr; }
   .landing-commercial-preview { padding: 17px; }
-  .landing-video-stage { min-height: 165px; }
+  .landing-video-caption { align-items: flex-start; flex-direction: column; gap: 2px; }
 }
