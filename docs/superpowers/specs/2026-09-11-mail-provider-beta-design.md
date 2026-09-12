@@ -80,13 +80,13 @@ Al presionarlo se abrirá un modal con opciones visuales y marcas reconocibles p
 - Microsoft 365 — `Conectar con Microsoft`.
 - Otro correo — `IMAP / SMTP · Beta` — `Configurar manualmente`.
 
-El modal podrá mostrar al pie proveedores futuros de forma deshabilitada y discreta:
+El modal mostrará al pie proveedores futuros de forma deshabilitada y discreta:
 
 - Outlook / Hotmail — próximamente.
 - Yahoo Mail — próximamente.
 - Exchange Server local — próximamente.
 
-Estos elementos no deberán iniciar ningún flujo ni sugerir que ya están soportados.
+Estos elementos no iniciarán ningún flujo ni sugerirán que ya están soportados.
 
 Los logotipos/marcas se implementarán como recursos locales livianos del frontend, evitando dependencias externas de ejecución y sin cargar imágenes desde terceros.
 
@@ -94,18 +94,18 @@ Los logotipos/marcas se implementarán como recursos locales livianos del fronte
 
 Se agregará un módulo `Microsoft` dentro de Infrastructure, equivalente conceptualmente al módulo `Google` existente.
 
-Componentes previstos:
+Componentes:
 
 - `Microsoft365Options`: ClientId, ClientSecret, RedirectUri, Authority/Tenant y configuración necesaria.
 - `MicrosoftOAuthService`: inicio OAuth, validación de `state`, intercambio de código, renovación de token y persistencia del refresh token protegido.
 - `MicrosoftGraphMailProvider`: implementación de `IMailProvider` para Microsoft Graph.
-- opcionalmente `MicrosoftGraphDraftProvider` si las pruebas confirman que el flujo actual de borradores requiere soporte en marcha blanca.
+- `MicrosoftGraphDraftProvider`: implementación de `IMailDraftProvider` para conservar el comportamiento de borradores del compositor.
 
 Se utilizará el gateway actual. El proveedor se registrará como `MailProviderType.MicrosoftGraph` y se envolverá con la misma protección de propiedad de cuenta que Gmail.
 
 ### Permisos
 
-Se solicitará el conjunto mínimo que permita las funciones de correo comprometidas. La base de diseño contempla:
+Se solicitará el conjunto mínimo que permita las funciones de correo comprometidas:
 
 - identidad básica del usuario;
 - acceso offline para renovación;
@@ -125,7 +125,7 @@ El callback creará o actualizará `MailAccounts` y su `OAuthCredential` asociad
 
 ## 6. IMAP / SMTP — arquitectura
 
-Se utilizará una biblioteca mantenida para protocolos IMAP/SMTP en .NET, preferentemente MailKit, en vez de implementar los protocolos manualmente.
+Se utilizará MailKit para protocolos IMAP/SMTP en .NET. No se implementarán estos protocolos manualmente.
 
 Se agregará un módulo `Imap` con:
 
@@ -139,7 +139,7 @@ Se agregará un módulo `Imap` con:
 
 Las contraseñas nunca se almacenarán en texto plano.
 
-Se agregará una entidad específica asociada 1:1 a `MailAccount` con, como mínimo:
+Se agregará una entidad específica asociada 1:1 a `MailAccount` con:
 
 - `MailAccountId`;
 - `Username`;
@@ -169,7 +169,7 @@ Una falla devolverá un error funcional sin persistir la contraseña ni crear un
 
 ### Seguridad de transporte
 
-La UI no ofrecerá conexión sin cifrado como opción recomendada. Se soportarán modos seguros habituales, priorizando TLS implícito o STARTTLS según el puerto y la configuración del usuario.
+La UI no ofrecerá conexión sin cifrado como opción recomendada. Se soportarán TLS implícito y STARTTLS. Las conexiones sin cifrado quedan fuera de la marcha blanca.
 
 ## 7. Capacidades durante la Beta
 
@@ -189,7 +189,7 @@ El núcleo mínimo que debe funcionar en Gmail, Microsoft 365 e IMAP/SMTP es:
 - mover a carpeta;
 - mover a papelera.
 
-Las capacidades avanzadas actualmente acopladas a Gmail no se presentarán como universales durante la marcha blanca. Esto incluye, cuando corresponda:
+Las capacidades avanzadas actualmente acopladas a Gmail no se presentarán como universales durante la marcha blanca. En Microsoft 365 e IMAP/SMTP quedarán fuera de esta fase:
 
 - Google Contacts;
 - reglas específicas de Gmail;
@@ -205,8 +205,8 @@ Los borradores requieren atención especial porque el gateway separa `IMailProvi
 Criterio para marcha blanca:
 
 - Gmail conserva su soporte actual.
-- Microsoft 365 deberá implementar borradores si el compositor actual los guarda automáticamente para todas las cuentas.
-- IMAP podrá implementar APPEND a la carpeta de borradores únicamente si la detección de carpeta es suficientemente confiable; de lo contrario, NexoMail deshabilitará el guardado remoto de borradores para cuentas IMAP durante la Beta y lo informará sin impedir enviar correos.
+- Microsoft 365 implementará borradores mediante Microsoft Graph.
+- IMAP/SMTP Beta no guardará borradores remotos durante estos 30 días. El compositor deshabilitará el guardado remoto para cuentas IMAP y mostrará una indicación discreta, sin impedir enviar correos.
 
 No se simulará soporte de borradores cuando el proveedor no lo pueda garantizar.
 
@@ -229,7 +229,7 @@ Los cuerpos completos de correo y bytes de adjuntos continuarán sin persistirse
 
 Además de los endpoints OAuth, se agregará un endpoint autenticado para IMAP/SMTP.
 
-Flujo recomendado:
+Flujo:
 
 1. Frontend envía configuración IMAP/SMTP a un endpoint de conexión.
 2. Backend valida límites comerciales de cuentas.
@@ -284,13 +284,13 @@ Dominio propio u otro proveedor compatible.
 
 ### Formulario IMAP
 
-Se abrirá en un segundo modal o paso del mismo modal. Tendrá valores iniciales seguros habituales, pero nunca se asumirá que un servidor es correcto sin probarlo.
+Se abrirá como segundo paso del mismo modal. Tendrá valores iniciales seguros habituales, pero nunca se asumirá que un servidor es correcto sin probarlo.
 
 La acción principal será `Probar y conectar`.
 
 ## 13. Marcha blanca de 30 días
 
-La aplicación se identificará como `Marcha blanca` o `Beta` en un lugar discreto de la experiencia, sin interferir con el uso normal.
+La aplicación se identificará como `Marcha blanca · 30 días` en un lugar discreto de la experiencia, sin interferir con el uso normal.
 
 Durante los 30 días se medirán al menos:
 
