@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, ChevronRight, Clock3, Eye, Inbox, Mail, Pause, RefreshCw, Send, Sparkles, X } from 'lucide-react'
+import { Check, Clock3, Eye, Inbox, Mail, Pause, RefreshCw, Send, Sparkles, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
 import type { ControlCenterPendingItem, ControlCenterSnapshot } from '../types/mail'
@@ -33,11 +33,10 @@ function isOverdue(item: ControlCenterPendingItem) {
   return Date.now() - new Date(item.since).getTime() >= 48 * 60 * 60 * 1000
 }
 
-function MetricCard({ tone, icon, value, label, hint, active, onClick }: { tone: string; icon: ReactNode; value: number; label: string; hint: string; active?: boolean; onClick: () => void }) {
-  return <button type="button" className={`control-metric ${tone} ${active ? 'active' : ''}`} onClick={onClick}>
+function MetricCard({ tone, icon, value, label, active, onClick }: { tone: string; icon: ReactNode; value: number; label: string; active?: boolean; onClick: () => void }) {
+  return <button type="button" className={`control-metric ${tone} ${active ? 'active' : ''}`} onClick={onClick} aria-label={`${label}: ${value}`}>
     <div className="control-metric-icon">{icon}</div>
-    <div><strong>{value}</strong><span>{label}</span><small>{hint}</small></div>
-    <ChevronRight size={16} className="control-metric-chevron" />
+    <div><strong>{value}</strong><span>{label}</span></div>
   </button>
 }
 
@@ -47,7 +46,7 @@ function managementCopy(view: Exclude<ManagementView, null>) {
   return { title: 'Pendientes de más de 48 horas', description: 'Reúne pendientes recibidos y enviados cuya última actividad ocurrió hace 48 horas o más.' }
 }
 
-export function ControlCenter({ accountId, accountName }: { accountId?: string; accountName?: string }) {
+export function ControlCenter({ accountId }: { accountId?: string; accountName?: string }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [activeView, setActiveView] = useState<ManagementView>(null)
@@ -137,7 +136,6 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
         ? data.pendingItems.filter(isOverdue)
         : []
   const activeCopy = activeView ? managementCopy(activeView) : null
-  const scopeLabel = accountId ? accountName ?? 'Esta cuenta' : 'Todas las cuentas'
   const priorityMap = new Map<string, PriorityDisplayItem>()
 
   data.pendingItems.forEach(item => priorityMap.set(messageKey(item), { item, automatic: true, manual: false }))
@@ -150,9 +148,6 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
 
   const priorityItems = [...priorityMap.values()].sort((left, right) => new Date(left.item.since).getTime() - new Date(right.item.since).getTime())
   const actionable = data.receivedWithoutReply + data.sentWithoutResponse
-  const summaryText = actionable === 0
-    ? `No hay conversaciones pendientes de respuesta o seguimiento. Quedan ${data.unread} correo${data.unread === 1 ? '' : 's'} sin leer.`
-    : `${actionable} conversación${actionable === 1 ? '' : 'es'} requieren respuesta o seguimiento; ${data.overdue} superan las 48 horas y ${data.unread} correos siguen sin leer.`
 
   function openManagementView(view: Exclude<ManagementView, null>) {
     setActiveView(view)
@@ -168,31 +163,23 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
     navigate(`/search?${params.toString()}`)
   }
 
-  return <section className="control-center control-center-cinematic" aria-labelledby="control-center-title">
-    <div className="control-center-header">
-      <div><div className="control-center-title-line"><h2 id="control-center-title">Prioridades</h2><span>Ventana · 14 días</span></div><p>{scopeLabel} · Nexi ordena lo que requiere acción.</p></div>
-      <div className="control-center-refresh"><span>Actualizado {updatedAt}</span></div>
-    </div>
+  return <section className="control-center control-center-cinematic" aria-label="Prioridades">
+    <div className="control-center-meta"><span>Actualizado {updatedAt}</span></div>
 
     {data.unavailableAccounts > 0 && <div className="notice control-center-warning">No se pudo consultar {data.unavailableAccounts} cuenta{data.unavailableAccounts === 1 ? '' : 's'}. Los indicadores consideran las cuentas disponibles.</div>}
 
-    <section className="nexi-insights-panel nexi-control-summary" aria-labelledby="control-center-findings-title">
-      <header className="nexi-insights-header">
-        <div><strong id="control-center-findings-title">Hallazgos y sugerencias</strong></div>
-      </header>
+    <div className="control-summary-strip" aria-label="Resumen operativo">
+      <strong>{actionable} pendiente{actionable === 1 ? '' : 's'}</strong>
+      <span>{data.overdue} +48 h</span>
+      <span>{data.unread} sin leer</span>
+    </div>
 
-      <section className="nexi-operational-summary" aria-label="Resumen operativo">
-        <span>Resumen operativo</span>
-        <p>{summaryText}</p>
-      </section>
-
-      <div className="control-metrics nexi-control-metrics">
-        <MetricCard tone="received" icon={<Inbox size={19} />} value={data.receivedWithoutReply} label="Recibidos sin responder" hint="Abrir gestión" active={activeView === 'received'} onClick={() => openManagementView('received')} />
-        <MetricCard tone="sent" icon={<Send size={19} />} value={data.sentWithoutResponse} label="Enviados sin respuesta" hint="Abrir seguimiento" active={activeView === 'sent'} onClick={() => openManagementView('sent')} />
-        <MetricCard tone="unread" icon={<Mail size={19} />} value={data.unread} label="Correos sin leer" hint="Ver correos" onClick={openUnread} />
-        <MetricCard tone="overdue" icon={<Clock3 size={19} />} value={data.overdue} label="Más de 48 horas" hint="Revisar pendientes" active={activeView === 'overdue'} onClick={() => openManagementView('overdue')} />
-      </div>
-    </section>
+    <div className="control-metrics nexi-control-metrics compact">
+      <MetricCard tone="received" icon={<Inbox size={18} />} value={data.receivedWithoutReply} label="Recibidos sin responder" active={activeView === 'received'} onClick={() => openManagementView('received')} />
+      <MetricCard tone="sent" icon={<Send size={18} />} value={data.sentWithoutResponse} label="Enviados sin respuesta" active={activeView === 'sent'} onClick={() => openManagementView('sent')} />
+      <MetricCard tone="unread" icon={<Mail size={18} />} value={data.unread} label="Sin leer" onClick={openUnread} />
+      <MetricCard tone="overdue" icon={<Clock3 size={18} />} value={data.overdue} label="Más de 48 h" active={activeView === 'overdue'} onClick={() => openManagementView('overdue')} />
+    </div>
 
     <NexiPriorityQueue
       items={priorityItems}
