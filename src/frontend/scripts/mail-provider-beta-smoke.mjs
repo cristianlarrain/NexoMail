@@ -36,8 +36,8 @@ assert(logos.includes("provider === 'gmail'") && logos.includes("provider === 'm
 assert(main.includes("./styles/account-providers.css"), 'Los estilos del modal de proveedores deben cargarse globalmente.')
 
 assert(providerStyles.includes('padding-inline:26px') || providerStyles.includes('padding:0 26px'), 'El contenido del modal de proveedores debe tener márgenes laterales internos consistentes.')
-assert(uiPolish.includes('overflow-y:auto'), 'El sidebar expandido debe permitir desplazamiento vertical en escritorio.')
-assert(uiPolish.includes('overflow-x:hidden'), 'El sidebar expandido no debe generar desplazamiento horizontal.')
+assert(uiPolish.includes('overflow: hidden'), 'El sidebar debe ocultar la barra de desplazamiento visual y delegar el overflow al área interna.')
+assert(!uiPolish.includes('scrollbar-gutter: stable'), 'El sidebar no debe reservar espacio para una barra de desplazamiento visible.')
 assert(landing.includes('Microsoft 365') && landing.includes('Disponible'), 'La landing debe mostrar Microsoft 365 como disponible durante la marcha blanca.')
 assert(landing.includes('IMAP / SMTP') && landing.includes('Beta'), 'La landing debe mostrar IMAP / SMTP como Beta disponible.')
 assert(landing.includes('autorización') && landing.includes('administrador'), 'La landing debe advertir que Microsoft 365 institucional puede requerir autorización administrativa.')
