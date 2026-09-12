@@ -7,7 +7,10 @@ const read = path => readFileSync(resolve(root, path), 'utf8')
 const weather = read('src/components/WeatherWidget.tsx')
 const share = read('src/components/PerspectiveShareMenu.tsx')
 const perspectives = read('src/pages/PerspectivesPage.tsx')
-const perspectiveStyles = read('src/styles/nexo-perspective.css')
+const perspectiveStyles = [
+  read('src/styles/nexo-perspective.css'),
+  read('src/styles/perspective-share-cleanup.css'),
+].join('\n')
 const packageJson = read('package.json')
 
 const requiredWeatherMarkers = [
