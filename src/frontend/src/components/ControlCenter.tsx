@@ -176,22 +176,15 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
 
     {data.unavailableAccounts > 0 && <div className="notice control-center-warning">No se pudo consultar {data.unavailableAccounts} cuenta{data.unavailableAccounts === 1 ? '' : 's'}. Los indicadores consideran las cuentas disponibles.</div>}
 
-    <section className="nexi-operational-summary" aria-label="Resumen operativo">
-      <span>Resumen operativo</span>
-      <p>{summaryText}</p>
-    </section>
-
-    <NexiPriorityQueue
-      items={priorityItems}
-      openingTarget={openingTarget}
-      onManage={item => void openComposer(item)}
-      onOpen={(item, manual) => navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: controlCenterPath, controlCenterItem: item, manualTracking: manual } })}
-    />
-
-    <section className="nexi-insights-panel nexi-control-summary" aria-label="Indicadores clave">
+    <section className="nexi-insights-panel nexi-control-summary" aria-labelledby="control-center-findings-title">
       <header className="nexi-insights-header">
-        <div><strong>Indicadores clave</strong><span>Vista rápida de pendientes, lectura y antigüedad.</span></div>
+        <div><strong id="control-center-findings-title">Hallazgos y sugerencias</strong></div>
       </header>
+
+      <section className="nexi-operational-summary" aria-label="Resumen operativo">
+        <span>Resumen operativo</span>
+        <p>{summaryText}</p>
+      </section>
 
       <div className="control-metrics nexi-control-metrics">
         <MetricCard tone="received" icon={<Inbox size={19} />} value={data.receivedWithoutReply} label="Recibidos sin responder" hint="Abrir gestión" active={activeView === 'received'} onClick={() => openManagementView('received')} />
@@ -200,6 +193,13 @@ export function ControlCenter({ accountId, accountName }: { accountId?: string; 
         <MetricCard tone="overdue" icon={<Clock3 size={19} />} value={data.overdue} label="Más de 48 horas" hint="Revisar pendientes" active={activeView === 'overdue'} onClick={() => openManagementView('overdue')} />
       </div>
     </section>
+
+    <NexiPriorityQueue
+      items={priorityItems}
+      openingTarget={openingTarget}
+      onManage={item => void openComposer(item)}
+      onOpen={(item, manual) => navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: controlCenterPath, controlCenterItem: item, manualTracking: manual } })}
+    />
 
     {activeView && activeCopy && <article className="control-management-panel">
       <header><div><p className="eyebrow">Gestión</p><strong>{activeCopy.title}</strong><span>{activeCopy.description}</span></div><button type="button" className="icon-button" onClick={() => { setActiveView(null); setSnoozeTarget(null) }} aria-label="Cerrar gestión"><X size={17} /></button></header>
