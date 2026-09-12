@@ -13,12 +13,22 @@ if (-not (Test-Path $webConfigPath)) {
 }
 
 $securePassword = Read-Host 'Contraseña MSSQL de dbo1111108584' -AsSecureString
+$smtpAddress = Read-Host 'Cuenta Gmail remitente'
+if ([string]::IsNullOrWhiteSpace($smtpAddress)) {
+    throw 'La cuenta Gmail remitente no puede estar vacía.'
+}
+$secureSmtpPassword = Read-Host 'Contraseña de aplicación de Gmail' -AsSecureString
 $passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
+$smtpPasswordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureSmtpPassword)
 
 try {
     $plainPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
+    $plainSmtpPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($smtpPasswordPointer)
     if ([string]::IsNullOrWhiteSpace($plainPassword)) {
         throw 'La contraseña MSSQL no puede estar vacía.'
+    }
+    if ([string]::IsNullOrWhiteSpace($plainSmtpPassword)) {
+        throw 'La contraseña de aplicación de Gmail no puede estar vacía.'
     }
 
     [xml]$configuration = Get-Content $webConfigPath -Raw
@@ -54,6 +64,13 @@ try {
     Set-EnvironmentVariable 'ASPNETCORE_ENVIRONMENT' 'Production'
     Set-EnvironmentVariable 'ASPNETCORE_FORWARDEDHEADERS_ENABLED' 'true'
     Set-EnvironmentVariable 'ConnectionStrings__NexoMail' $connectionString
+    Set-EnvironmentVariable 'RecoveryEmail__Host' 'smtp.gmail.com'
+    Set-EnvironmentVariable 'RecoveryEmail__Port' '587'
+    Set-EnvironmentVariable 'RecoveryEmail__UseSsl' 'true'
+    Set-EnvironmentVariable 'RecoveryEmail__UserName' $smtpAddress
+    Set-EnvironmentVariable 'RecoveryEmail__Password' $plainSmtpPassword
+    Set-EnvironmentVariable 'RecoveryEmail__FromAddress' $smtpAddress
+    Set-EnvironmentVariable 'RecoveryEmail__FromName' 'NexoMail'
 
     $xmlSettings = [System.Xml.XmlWriterSettings]::new()
     $xmlSettings.Indent = $true
@@ -70,7 +87,11 @@ finally {
     if ($passwordPointer -ne [IntPtr]::Zero) {
         [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer)
     }
+    if ($smtpPasswordPointer -ne [IntPtr]::Zero) {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($smtpPasswordPointer)
+    }
     $plainPassword = $null
+    $plainSmtpPassword = $null
 }
 
 if (Test-Path $zipPath) {
