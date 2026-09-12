@@ -62,20 +62,54 @@ public sealed class GoogleOAuthService(
             throw new InvalidOperationException("La solicitud de conexión a Google expiró. Iníciala nuevamente.");
 
         var tokenClient = httpClientFactory.CreateClient();
-        using var response = await tokenClient.PostAsync("https://oauth2.googleapis.com/token", new FormUrlEncodedContent(new Dictionary<string, string>
+        HttpResponseMessage response;
+        try
         {
-            ["code"] = code, ["client_id"] = _options.ClientId, ["client_secret"] = _options.ClientSecret,
-            ["redirect_uri"] = _options.RedirectUri, ["grant_type"] = "authorization_code"
-        }), cancellationToken);
-        response.EnsureSuccessStatusCode();
+            response = await tokenClient.PostAsync("https://oauth2.googleapis.com/token", new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["code"] = code, ["client_id"] = _options.ClientId, ["client_secret"] = _options.ClientSecret,
+                ["redirect_uri"] = _options.RedirectUri, ["grant_type"] = "authorization_code"
+            }), cancellationToken);
+        }
+        catch (TaskCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new InvalidOperationException("Google OAuth: tiempo de espera agotado al conectar con oauth2.googleapis.com:443.", exception);
+        }
+        catch (HttpRequestException exception)
+        {
+            throw new InvalidOperationException($"Google OAuth: fallo de red al conectar con oauth2.googleapis.com:443 ({DescribeNetworkFailure(exception)}).", exception);
+        }
+        using var tokenResponse = response;
+        if (!response.IsSuccessStatusCode)
+        {
+            var providerError = await ReadProviderErrorAsync(response, cancellationToken);
+            throw new InvalidOperationException($"Google rechazó el intercambio OAuth: HTTP {(int)response.StatusCode} ({providerError}).");
+        }
         var token = await response.Content.ReadFromJsonAsync<GoogleTokenResponse>(cancellationToken: cancellationToken)
             ?? throw new InvalidOperationException("Google no entregó un token válido.");
         if (string.IsNullOrWhiteSpace(token.RefreshToken)) throw new InvalidOperationException("Google no entregó un refresh token. Revoca el acceso anterior e inténtalo otra vez.");
 
         var profileClient = httpClientFactory.CreateClient("Gmail");
         profileClient.DefaultRequestHeaders.Authorization = new("Bearer", token.AccessToken);
-        using var profileResponse = await profileClient.GetAsync("users/me/profile", cancellationToken);
-        profileResponse.EnsureSuccessStatusCode();
+        HttpResponseMessage profileResponse;
+        try
+        {
+            profileResponse = await profileClient.GetAsync("users/me/profile", cancellationToken);
+        }
+        catch (TaskCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new InvalidOperationException("Gmail API: tiempo de espera agotado al conectar con gmail.googleapis.com:443.", exception);
+        }
+        catch (HttpRequestException exception)
+        {
+            throw new InvalidOperationException($"Gmail API: fallo de red ({DescribeNetworkFailure(exception)}).", exception);
+        }
+        using var gmailProfileResponse = profileResponse;
+        if (!profileResponse.IsSuccessStatusCode)
+        {
+            var providerError = await ReadProviderErrorAsync(profileResponse, cancellationToken);
+            throw new InvalidOperationException($"Gmail API rechazó la consulta del perfil: HTTP {(int)profileResponse.StatusCode} ({providerError}).");
+        }
         using var profileDocument = JsonDocument.Parse(await profileResponse.Content.ReadAsStreamAsync(cancellationToken));
         var email = profileDocument.RootElement.GetProperty("emailAddress").GetString()
             ?? throw new InvalidOperationException("No fue posible determinar la dirección Gmail.");
@@ -137,6 +171,51 @@ public sealed class GoogleOAuthService(
         {
             throw new InvalidOperationException("La solicitud de conexión a Google no es válida o ya expiró.");
         }
+    }
+
+    private static string DescribeNetworkFailure(Exception exception)
+    {
+        var root = exception.GetBaseException();
+        return root switch
+        {
+            System.Net.Sockets.SocketException socketException => $"SocketError={socketException.SocketErrorCode}",
+            System.Security.Authentication.AuthenticationException => "TLS",
+            _ => root.GetType().Name
+        };
+    }
+
+    private static async Task<string> ReadProviderErrorAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+            using var document = JsonDocument.Parse(payload);
+            var root = document.RootElement;
+            if (root.TryGetProperty("error", out var error))
+            {
+                if (error.ValueKind == JsonValueKind.String)
+                    return NormalizeProviderText(error.GetString());
+                if (error.ValueKind == JsonValueKind.Object)
+                {
+                    if (error.TryGetProperty("status", out var status) && status.ValueKind == JsonValueKind.String)
+                        return NormalizeProviderText(status.GetString());
+                    if (error.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String)
+                        return NormalizeProviderText(message.GetString());
+                }
+            }
+        }
+        catch (JsonException)
+        {
+        }
+
+        return response.ReasonPhrase ?? "respuesta sin detalle";
+    }
+
+    private static string NormalizeProviderText(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "respuesta sin detalle";
+        var normalized = string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return normalized.Length <= 180 ? normalized : normalized[..180];
     }
 
     private void EnsureConfigured()
