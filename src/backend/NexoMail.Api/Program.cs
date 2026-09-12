@@ -124,6 +124,7 @@ builder.Services.AddScoped<GmailRuleService>();
 builder.Services.AddScoped<IMailRuleProvider>(services => services.GetRequiredService<GmailRuleService>());
 builder.Services.AddScoped<GmailControlCenterService>();
 builder.Services.AddScoped<GmailControlCenterActivityService>();
+MailProviderBetaModule.AddServices(builder.Services, builder.Configuration);
 
 var demoMode = builder.Configuration.GetValue("MailProviders:DemoMode", true);
 if (demoMode)
@@ -147,6 +148,7 @@ using (var scope = app.Services.CreateScope())
     var database = scope.ServiceProvider.GetRequiredService<NexoMailDbContext>();
     await database.Database.EnsureCreatedAsync();
     await DatabaseBootstrap.EnsureAuthenticationSchemaAsync(database);
+    await MailProviderBetaModule.EnsureSchemaAsync(database);
 }
 
 app.Use(async (context, next) =>
@@ -178,6 +180,7 @@ var api = app.MapGroup("/api");
 api.MapGet("/health", () => Results.Ok(new { status = "ok", demoMode }));
 NexoMail.Api.CommercialEndpoints.MapNexoMailCommercial(api);
 NexoMail.Api.AiUsageEndpoints.Map(api);
+MailProviderBetaModule.Map(api);
 
 var oauth = api.MapGroup("/oauth").RequireAuthorization();
 oauth.MapGet("/google/start", async (GoogleOAuthService service, CancellationToken ct) =>
@@ -335,7 +338,7 @@ mail.MapGet("/messages/{accountId:guid}/{messageId}/attachments/{attachmentId}",
                 : Results.File(attachment.Content, contentType, enableRangeProcessing: true);
     }
     catch (InvalidOperationException exception) { return Results.BadRequest(new { error = exception.Message }); }
-    catch (HttpRequestException exception) { return Results.Problem($"Gmail no pudo entregar el adjunto ({exception.StatusCode?.ToString() ?? "sin código"}).", statusCode: 502); }
+    catch (HttpRequestException exception) { return Results.Problem($"El proveedor no pudo entregar el adjunto ({exception.StatusCode?.ToString() ?? "sin código"}).", statusCode: 502); }
 });
 mail.MapPatch("/messages/{accountId:guid}/{messageId}/read", async (IMailGateway gateway, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid accountId, string messageId, ReadState request, CancellationToken ct) =>
 {
@@ -358,7 +361,7 @@ mail.MapPost("/messages/{accountId:guid}/{messageId}/move", async (IMailGateway 
         return Results.NoContent();
     }
     catch (InvalidOperationException exception) { return Results.BadRequest(new { error = exception.Message }); }
-    catch (HttpRequestException exception) { return Results.Problem($"Gmail no pudo mover el correo ({exception.StatusCode?.ToString() ?? "sin código"}).", statusCode: 502); }
+    catch (HttpRequestException exception) { return Results.Problem($"El proveedor no pudo mover el correo ({exception.StatusCode?.ToString() ?? "sin código"}).", statusCode: 502); }
 });
 mail.MapPost("/ignored-senders/{accountId:guid}", async (NexoMailDbContext database, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid accountId, IgnoreSenderRequest request, CancellationToken ct) =>
 {
@@ -393,7 +396,7 @@ mail.MapPost("/folders/{folderId}/empty", async (IMailGateway gateway, NexoMail.
         cache.InvalidateAreas(userContext.UserId.ToString(), "messages", "control-center", "control-center-activity", "message-detail");
         return Results.NoContent();
     }
-    catch (HttpRequestException exception) { return Results.Problem($"Gmail rechazó el vaciado de Papelera ({exception.StatusCode?.ToString() ?? "sin código"}).", statusCode: 502); }
+    catch (HttpRequestException exception) { return Results.Problem($"El proveedor rechazó el vaciado de la carpeta ({exception.StatusCode?.ToString() ?? "sin código"}).", statusCode: 502); }
     catch (InvalidOperationException exception) { return Results.Problem(exception.Message, statusCode: 400); }
 });
 mail.MapPost("/send", async (IMailGateway gateway, NexoMail.Api.MailReadCache cache, IUserContext userContext, ComposeMessage request, CancellationToken ct) =>
