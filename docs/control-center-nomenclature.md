@@ -1,6 +1,8 @@
 # Centro de Control — nomenclatura de interfaz
 
-Esta nomenclatura es la referencia para futuras mejoras del Centro de Control de NexoMail.
+Este documento conserva la propuesta histórica de nomenclatura. Para instrucciones de uso prevalecen los nombres comprobados en `src/frontend/src/pages/ControlCenterPage.tsx` al 12 de septiembre de 2026: **Nexi Control Center**, con pestañas **Prioridades, Informes, Estadísticas, Contactos y Documentos**. El contexto conversacional sigue accesible mediante `?tab=context`, pero no figura como pestaña principal visible.
+
+Consulte la [guía actual de uso](help/user-guide.md) y el [inventario verificado](help/feature-inventory.md). Los nombres de las secciones siguientes son una referencia conceptual histórica, no instrucciones de navegación vigentes.
 
 ## Regla general
 
