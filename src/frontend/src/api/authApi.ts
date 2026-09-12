@@ -75,7 +75,7 @@ async function authRequest<T>(path: string, init?: RequestInit, allowUnauthorize
     headers: { 'Content-Type': 'application/json', ...init?.headers },
     ...init,
   })
-  if (allowUnauthorized && response.status === 401) return null
+  if (allowUnauthorized && (response.status === 401 || response.status === 204)) return null
 
   const rateLimit = readRateLimit(response)
   if (!response.ok) {
