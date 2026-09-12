@@ -42,8 +42,8 @@ if (!perspectives.includes('const collapsed = collapsedReflections[item.id] ?? t
   throw new Error('Las reflexiones de perspectivas guardadas deben iniciar colapsadas')
 }
 
-const perspectiveGridBlock = perspectiveStyles.match(/\.perspectives-grid\s*\{[\s\S]*?\}/)?.[0] ?? ''
-if (!perspectiveGridBlock.includes('align-items: start')) {
+const perspectiveGridBlocks = [...perspectiveStyles.matchAll(/\.perspectives-grid\s*\{[\s\S]*?\}/g)].map(match => match[0])
+if (!perspectiveGridBlocks.some(block => block.includes('align-items: start'))) {
   throw new Error('La grilla de perspectivas no debe estirar todas las tarjetas cuando una reflexión se expande')
 }
 
