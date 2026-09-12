@@ -10,6 +10,7 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
     public DbSet<UserSessionEntity> UserSessions => Set<UserSessionEntity>();
     public DbSet<MailAccountEntity> MailAccounts => Set<MailAccountEntity>();
     public DbSet<OAuthCredentialEntity> OAuthCredentials => Set<OAuthCredentialEntity>();
+    public DbSet<ImapCredentialEntity> ImapCredentials => Set<ImapCredentialEntity>();
     public DbSet<ControlCenterStateEntity> ControlCenterStates => Set<ControlCenterStateEntity>();
     public DbSet<IgnoredSenderEntity> IgnoredSenders => Set<IgnoredSenderEntity>();
     public DbSet<MailMessageIndexEntity> MailMessageIndex => Set<MailMessageIndexEntity>();
@@ -57,6 +58,18 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
             entity.HasKey(x => x.Id);
             entity.Property(x => x.EncryptedRefreshToken).IsRequired();
             entity.HasOne<MailAccountEntity>().WithOne().HasForeignKey<OAuthCredentialEntity>(x => x.MailAccountId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<ImapCredentialEntity>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Username).HasMaxLength(320).IsRequired();
+            entity.Property(x => x.EncryptedPassword).IsRequired();
+            entity.Property(x => x.ImapHost).HasMaxLength(255).IsRequired();
+            entity.Property(x => x.ImapSecurity).HasMaxLength(16).IsRequired();
+            entity.Property(x => x.SmtpHost).HasMaxLength(255).IsRequired();
+            entity.Property(x => x.SmtpSecurity).HasMaxLength(16).IsRequired();
+            entity.HasIndex(x => x.MailAccountId).IsUnique();
+            entity.HasOne<MailAccountEntity>().WithOne().HasForeignKey<ImapCredentialEntity>(x => x.MailAccountId).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<ControlCenterStateEntity>(entity =>
         {
