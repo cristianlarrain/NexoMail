@@ -40,37 +40,43 @@
 
 .account-switcher {
   position: relative;
-  margin: 0 0 5px;
+  margin: 1px 0 5px;
 }
 
 .account-switcher-trigger {
   width: 100%;
-  min-height: 38px;
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  padding: 0 9px;
-  background: color-mix(in srgb, var(--surface-hover) 42%, var(--surface));
-  color: var(--foreground);
+  height: 36px;
+  min-height: 36px;
+  border: 0;
+  border-radius: 7px;
+  padding: 0 10px;
+  background: transparent;
+  color: var(--muted-foreground);
+  box-shadow: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
   text-align: left;
 }
 
 .account-switcher-trigger:hover,
 .account-switcher.open .account-switcher-trigger {
-  border-color: color-mix(in srgb, var(--primary) 42%, var(--border));
-  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+  border-color: transparent;
+  background: var(--surface-hover);
+  color: var(--foreground);
 }
 
 .account-switcher-current {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 9px;
-  font-size: 13px;
-  font-weight: 680;
+  gap: 10px;
+  font-size: inherit;
+  font-weight: inherit;
 }
 
 .account-switcher-current > span {
@@ -92,7 +98,7 @@
 
 .all-accounts-dot {
   background: var(--primary);
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--surface) 72%, transparent);
+  box-shadow: none;
 }
 
 .account-switcher-popover {
