@@ -85,6 +85,7 @@ try {
 
     Set-EnvironmentVariable 'ASPNETCORE_ENVIRONMENT' 'Production'
     Set-EnvironmentVariable 'ASPNETCORE_FORWARDEDHEADERS_ENABLED' 'true'
+    Set-EnvironmentVariable 'DOTNET_SYSTEM_NET_DISABLEIPV6' '1'
     Set-EnvironmentVariable 'ConnectionStrings__NexoMail' $connectionString
     Set-EnvironmentVariable 'Bootstrap__OwnerEmail' $ownerEmail.Trim().ToLowerInvariant()
     Set-EnvironmentVariable 'RecoveryEmail__Host' 'smtp.ionos.com'
