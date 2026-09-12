@@ -40,6 +40,11 @@ var databaseProvider = builder.Configuration.GetValue<string>("Database:Provider
 var databaseConnection = builder.Configuration.GetConnectionString("NexoMail")
     ?? builder.Configuration.GetValue<string>("Database:ConnectionString")
     ?? "Data Source=nexomail.db";
+if (databaseProvider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase)
+    && string.IsNullOrWhiteSpace(databaseConnection))
+{
+    throw new InvalidOperationException("Configure ConnectionStrings__NexoMail para iniciar NexoMail con SQL Server.");
+}
 builder.Services.AddDbContext<NexoMailDbContext>(options =>
 {
     if (databaseProvider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
