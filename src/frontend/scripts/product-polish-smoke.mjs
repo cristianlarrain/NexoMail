@@ -9,6 +9,7 @@ const share = read('src/components/PerspectiveShareMenu.tsx')
 const perspectives = read('src/pages/PerspectivesPage.tsx')
 const landing = read('src/pages/LandingPage.tsx')
 const inbox = read('src/pages/InboxPage.tsx')
+const accountsPage = read('src/pages/AccountsPage.tsx')
 const landingCss = read('src/styles/landing.css')
 const landingCommercialCss = read('src/styles/landing-commercial.css')
 const landingStyles = `${landingCss}\n${landingCommercialCss}`
@@ -54,6 +55,10 @@ if (!perspectiveGridBlocks.some(block => block.includes('align-items: start'))) 
 
 if (packageJson.includes('"tailwindcss"')) {
   throw new Error('tailwindcss continúa declarado aunque no se utiliza')
+}
+
+if (!accountsPage.includes("save.error instanceof Error ? save.error.message")) {
+  throw new Error('La edición de cuentas debe mostrar el error real devuelto por el servidor.')
 }
 
 const requiredInboxOnboardingMarkers = [
