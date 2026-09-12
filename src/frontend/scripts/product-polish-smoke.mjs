@@ -8,6 +8,7 @@ const weather = read('src/components/WeatherWidget.tsx')
 const share = read('src/components/PerspectiveShareMenu.tsx')
 const perspectives = read('src/pages/PerspectivesPage.tsx')
 const landing = read('src/pages/LandingPage.tsx')
+const inbox = read('src/pages/InboxPage.tsx')
 const landingCss = read('src/styles/landing.css')
 const landingCommercialCss = read('src/styles/landing-commercial.css')
 const landingStyles = `${landingCss}\n${landingCommercialCss}`
@@ -53,6 +54,17 @@ if (!perspectiveGridBlocks.some(block => block.includes('align-items: start'))) 
 
 if (packageJson.includes('"tailwindcss"')) {
   throw new Error('tailwindcss continúa declarado aunque no se utiliza')
+}
+
+const requiredInboxOnboardingMarkers = [
+  'Comience conectando sus cuentas de correo',
+  'Conectar cuenta',
+  "navigate('/settings/accounts')",
+  'accounts.length === 0',
+]
+
+for (const marker of requiredInboxOnboardingMarkers) {
+  if (!inbox.includes(marker)) throw new Error(`Falta orientación inicial para conectar cuentas: ${marker}`)
 }
 
 const requiredLandingMarkers = [
