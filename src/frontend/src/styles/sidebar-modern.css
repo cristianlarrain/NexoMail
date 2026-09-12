@@ -159,39 +159,56 @@
   font-size: 10.5px;
 }
 
-.sidebar .control-center-nav {
-  position: relative;
-  border: 1px solid color-mix(in srgb, var(--primary) 38%, transparent);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--primary) 5%, transparent);
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--primary) 14%, transparent),
-    0 0 12px color-mix(in srgb, var(--primary) 18%, transparent),
-    inset 0 0 8px color-mix(in srgb, var(--primary) 7%, transparent);
-  transition: border-color .18s ease, background .18s ease, box-shadow .18s ease, transform .18s ease;
+/* Primary navigation deliberately uses the same flat language as folders. */
+.sidebar .sidebar-primary-link {
+  width: 100%;
+  height: 36px;
+  min-height: 36px;
+  margin: 1px 0;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted-foreground);
+  box-shadow: none;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: normal;
+  line-height: 1;
+  text-transform: none;
+  text-align: left;
 }
 
-.sidebar .control-center-nav:hover {
-  border-color: color-mix(in srgb, var(--primary) 56%, transparent);
-  background: color-mix(in srgb, var(--primary) 8%, transparent);
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent),
-    0 0 16px color-mix(in srgb, var(--primary) 26%, transparent),
-    inset 0 0 10px color-mix(in srgb, var(--primary) 10%, transparent);
-  transform: translateY(-1px);
+.sidebar .sidebar-primary-link:hover:not(.active) {
+  background: var(--surface-hover);
+  color: var(--foreground);
 }
 
-.sidebar .control-center-nav.active {
-  border-color: color-mix(in srgb, var(--primary) 68%, transparent);
-  background: color-mix(in srgb, var(--primary) 12%, var(--surface));
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--primary) 26%, transparent),
-    0 0 20px color-mix(in srgb, var(--primary) 32%, transparent),
-    inset 0 0 12px color-mix(in srgb, var(--primary) 12%, transparent);
+.sidebar .sidebar-primary-link.active {
+  border: 0;
+  background: color-mix(in srgb, var(--primary) 7%, var(--surface));
+  color: var(--foreground);
+  font-weight: 650;
+  box-shadow: inset 2px 0 0 var(--primary);
+}
+
+.sidebar .sidebar-primary-link .primary-nav-icon {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  margin: 0;
+  color: currentColor;
 }
 
 .sidebar .control-center-nav .nexi-sidebar-icon {
-  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--primary) 42%, transparent));
+  filter: none;
+  display: grid;
+  place-items: center;
 }
 
 @media (min-width: 761px) {
@@ -241,6 +258,24 @@
 
   .sidebar.collapsed .sidebar-nav-utilities {
     padding-top: 7px;
+  }
+
+  .sidebar.collapsed .sidebar-primary-link {
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+    min-height: 38px;
+    margin: 1px 6px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .sidebar.collapsed .sidebar-primary-link > span:not(.primary-nav-icon) {
+    display: none;
+  }
+
+  .sidebar.collapsed .sidebar-primary-link .primary-nav-icon {
+    margin: 0;
   }
 }
 
