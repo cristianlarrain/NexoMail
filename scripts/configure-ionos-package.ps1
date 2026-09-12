@@ -17,6 +17,10 @@ $smtpAddress = Read-Host 'Cuenta IONOS remitente (por ejemplo, contacto@eidosdig
 if ([string]::IsNullOrWhiteSpace($smtpAddress)) {
     throw 'La cuenta IONOS remitente no puede estar vacía.'
 }
+$ownerEmail = Read-Host 'Correo de la cuenta propietaria de NexoMail'
+if ([string]::IsNullOrWhiteSpace($ownerEmail)) {
+    throw 'El correo de la cuenta propietaria no puede estar vacío.'
+}
 $secureSmtpPassword = Read-Host 'Contraseña de la cuenta de correo IONOS' -AsSecureString
 $passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
 $smtpPasswordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureSmtpPassword)
@@ -64,6 +68,7 @@ try {
     Set-EnvironmentVariable 'ASPNETCORE_ENVIRONMENT' 'Production'
     Set-EnvironmentVariable 'ASPNETCORE_FORWARDEDHEADERS_ENABLED' 'true'
     Set-EnvironmentVariable 'ConnectionStrings__NexoMail' $connectionString
+    Set-EnvironmentVariable 'Bootstrap__OwnerEmail' $ownerEmail.Trim().ToLowerInvariant()
     Set-EnvironmentVariable 'RecoveryEmail__Host' 'smtp.ionos.com'
     Set-EnvironmentVariable 'RecoveryEmail__Port' '587'
     Set-EnvironmentVariable 'RecoveryEmail__UseSsl' 'true'
