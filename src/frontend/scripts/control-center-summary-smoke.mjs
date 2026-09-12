@@ -6,6 +6,7 @@ const page = readFileSync(resolve(root, 'src/pages/ControlCenterPage.tsx'), 'utf
 const controlCenter = readFileSync(resolve(root, 'src/components/ControlCenter.tsx'), 'utf8')
 const priorityQueue = readFileSync(resolve(root, 'src/components/NexiPriorityQueue.tsx'), 'utf8')
 const cleanupCss = readFileSync(resolve(root, 'src/styles/control-center-cleanup.css'), 'utf8')
+const spacingCss = readFileSync(resolve(root, 'src/styles/control-center-spacing.css'), 'utf8')
 
 if (page.includes('Nexi, la inteligencia que vive dentro de NexoMail.') || page.includes('Entiende, resume, prioriza y convierte tus correos en acciones.')) {
   throw new Error('El encabezado del Control Center debe ser compacto y no incluir el subtítulo promocional.')
@@ -39,8 +40,31 @@ if (controlCenter.includes('nexi-insights-panel nexi-control-summary')) {
   throw new Error('Los indicadores no deben estar dentro de otra caja de sección.')
 }
 
-if (!cleanupCss.includes('.control-summary-strip {') || !cleanupCss.includes('display: none;')) {
-  throw new Error('La franja de resumen operativo debe quedar completamente oculta por ser redundante con las tarjetas.')
+if (controlCenter.includes('control-summary-strip')) {
+  throw new Error('La franja de resumen operativo debe eliminarse del DOM por ser redundante con las tarjetas.')
+}
+
+if (controlCenter.includes('control-center-meta')) {
+  throw new Error('Actualizado no debe ocupar una fila propia sobre las tarjetas.')
+}
+
+if (!controlCenter.includes('onUpdatedAtChange')) {
+  throw new Error('ControlCenter debe comunicar la hora de actualización al encabezado de la página.')
+}
+
+if (!page.includes('control-page-updated') || !page.includes('onUpdatedAtChange={setUpdatedAt}')) {
+  throw new Error('La hora Actualizado debe mostrarse en la línea superior del Control Center.')
+}
+
+const metricsSpacingStart = spacingCss.indexOf('.nexi-control-center .nexi-control-metrics')
+if (metricsSpacingStart < 0) throw new Error('Falta la regla de espaciado de las métricas.')
+const metricsSpacingBlock = spacingCss.slice(metricsSpacingStart, metricsSpacingStart + 180)
+if (!metricsSpacingBlock.includes('padding: 0;')) {
+  throw new Error('Las tarjetas deben ocupar el mismo ancho útil que Priorización inteligente, sin inset lateral.')
+}
+
+if (!cleanupCss.includes('.control-center-page .control-page-updated')) {
+  throw new Error('Falta el estilo discreto para Actualizado en el encabezado.')
 }
 
 if (!priorityQueue.includes('Priorización inteligente') || !priorityQueue.includes('Qué atender primero')) {
