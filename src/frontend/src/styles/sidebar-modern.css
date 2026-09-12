@@ -159,7 +159,7 @@
   font-size: 10.5px;
 }
 
-/* Primary navigation deliberately uses the same flat language as folders. */
+/* Primary navigation deliberately matches the flat folder links. */
 .sidebar .sidebar-primary-link {
   width: 100%;
   height: 36px;
@@ -191,10 +191,10 @@
 
 .sidebar .sidebar-primary-link.active {
   border: 0;
-  background: color-mix(in srgb, var(--primary) 7%, var(--surface));
+  background: transparent;
   color: var(--foreground);
   font-weight: 650;
-  box-shadow: inset 2px 0 0 var(--primary);
+  box-shadow: none;
 }
 
 .sidebar .sidebar-primary-link .primary-nav-icon {
