@@ -75,6 +75,7 @@ import './styles/topbar-stacking.css'
 import './styles/layout-regression-fixes.css'
 import './styles/collapsed-account-dots.css'
 import './styles/sidebar-tooltips.css'
+import './styles/account-providers.css'
 
 const client = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, retry: 1 } } })
 createRoot(document.getElementById('root')!).render(
