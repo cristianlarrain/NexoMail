@@ -13,11 +13,11 @@ if (-not (Test-Path $webConfigPath)) {
 }
 
 $securePassword = Read-Host 'Contraseña MSSQL de dbo1111108584' -AsSecureString
-$smtpAddress = Read-Host 'Cuenta Gmail remitente'
+$smtpAddress = Read-Host 'Cuenta IONOS remitente (por ejemplo, contacto@eidosdigital.cl)'
 if ([string]::IsNullOrWhiteSpace($smtpAddress)) {
-    throw 'La cuenta Gmail remitente no puede estar vacía.'
+    throw 'La cuenta IONOS remitente no puede estar vacía.'
 }
-$secureSmtpPassword = Read-Host 'Contraseña de aplicación de Gmail' -AsSecureString
+$secureSmtpPassword = Read-Host 'Contraseña de la cuenta de correo IONOS' -AsSecureString
 $passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
 $smtpPasswordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureSmtpPassword)
 
@@ -28,7 +28,7 @@ try {
         throw 'La contraseña MSSQL no puede estar vacía.'
     }
     if ([string]::IsNullOrWhiteSpace($plainSmtpPassword)) {
-        throw 'La contraseña de aplicación de Gmail no puede estar vacía.'
+        throw 'La contraseña de la cuenta de correo IONOS no puede estar vacía.'
     }
 
     [xml]$configuration = Get-Content $webConfigPath -Raw
@@ -64,7 +64,7 @@ try {
     Set-EnvironmentVariable 'ASPNETCORE_ENVIRONMENT' 'Production'
     Set-EnvironmentVariable 'ASPNETCORE_FORWARDEDHEADERS_ENABLED' 'true'
     Set-EnvironmentVariable 'ConnectionStrings__NexoMail' $connectionString
-    Set-EnvironmentVariable 'RecoveryEmail__Host' 'smtp.gmail.com'
+    Set-EnvironmentVariable 'RecoveryEmail__Host' 'smtp.ionos.com'
     Set-EnvironmentVariable 'RecoveryEmail__Port' '587'
     Set-EnvironmentVariable 'RecoveryEmail__UseSsl' 'true'
     Set-EnvironmentVariable 'RecoveryEmail__UserName' $smtpAddress
