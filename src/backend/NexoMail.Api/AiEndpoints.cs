@@ -20,12 +20,16 @@ public static class AiEndpoints
             if (string.IsNullOrWhiteSpace(options.Model))
                 options.Model = "gpt-5.6-luna";
         });
+        services.Configure<AiUsagePriceCatalogOptions>(configuration.GetSection(AiUsagePriceCatalogOptions.SectionName));
 
         services.AddHttpClient("OpenAI", client =>
         {
             client.BaseAddress = new Uri("https://api.openai.com/v1/");
             client.Timeout = TimeSpan.FromSeconds(35);
         });
+        services.AddScoped<AiUsageCostCalculator>();
+        services.AddScoped<IAiUsageTracker, AiUsageTracker>();
+        services.AddScoped<AiResponseClient>();
         services.AddScoped<AiWritingService>();
         services.AddScoped<AiSearchService>();
         services.AddScoped<AiMailInsightsService>();

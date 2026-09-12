@@ -75,6 +75,10 @@ public static class CsrfProtection
     {
         if (!request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase)) return false;
 
+        // External payment providers cannot send NexoMail's antiforgery token. Their
+        // webhook endpoint has its own HMAC signature validation instead.
+        if (request.Path.StartsWithSegments("/api/commercial/webhooks", StringComparison.OrdinalIgnoreCase)) return false;
+
         return HttpMethods.IsPost(request.Method) ||
                HttpMethods.IsPut(request.Method) ||
                HttpMethods.IsPatch(request.Method) ||

@@ -81,12 +81,24 @@
     overflow: visible;
   }
 
-  .sidebar.collapsed .compose-button {
-    width: 44px;
-    height: 44px;
-    min-height: 44px;
-    margin-inline: 3px;
+  .sidebar.collapsed .compose-button,
+  .sidebar.collapsed .control-center-nav,
+  .sidebar.collapsed .inbox-primary-nav {
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+    margin: 0 auto 7px;
     padding: 0;
+    border-radius: 9px;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sidebar.collapsed .primary-nav-icon {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+    margin: 0;
   }
 }
 

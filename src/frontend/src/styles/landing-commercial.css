@@ -1,5 +1,5 @@
 .landing-commercial-plans {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .landing-commercial-plans > article {
@@ -32,11 +32,6 @@
   margin-top: auto;
 }
 
-.landing-commercial-plans .white-label-plan {
-  border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
-  background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 5%, var(--surface)), var(--surface));
-}
-
 .landing-pricing-note {
   margin: 18px 0 0;
   color: var(--muted-foreground);
@@ -49,7 +44,7 @@
   grid-template-columns: 72px minmax(0, 1fr) minmax(280px, .72fr);
   align-items: center;
   gap: 30px;
-  padding-block: 58px;
+  padding-block: 52px;
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
 }
@@ -100,14 +95,219 @@
 
 .landing-white-label-points svg { color: var(--primary); }
 
+/* Final commercial landing rhythm */
+.landing-hero {
+  min-height: 0;
+  gap: 42px;
+  padding: 54px 0 48px;
+}
+
+.landing-section {
+  padding: 56px 0;
+}
+
+.landing-section-heading {
+  margin-bottom: 26px;
+}
+
+.landing-feature-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.landing-nexi-section {
+  gap: 42px;
+  padding-block: 54px;
+}
+
+.landing-security {
+  gap: 44px;
+  padding-block: 58px;
+}
+
+.landing-cta {
+  margin: 6px auto 56px;
+  padding: 48px 24px;
+}
+
+/* Commercial product preview with embedded product demo */
+.landing-commercial-preview {
+  --warm-yellow: #f2b34f;
+  --warm-orange: #e88b3d;
+  min-width: 0;
+  padding: 22px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--border));
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--warm-yellow) 14%, transparent), transparent 34%),
+    radial-gradient(circle at 0% 100%, color-mix(in srgb, var(--primary) 9%, transparent), transparent 38%),
+    var(--surface);
+  box-shadow: 0 28px 70px rgb(0 0 0 / .13);
+}
+
+.landing-commercial-preview-head {
+  max-width: 540px;
+}
+
+.landing-commercial-kicker {
+  display: inline-flex;
+  align-items: center;
+  min-height: 25px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--warm-yellow) 42%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warm-yellow) 9%, var(--surface));
+  color: var(--warm-yellow);
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.landing-commercial-preview h3 {
+  margin: 13px 0 0;
+  font-size: clamp(26px, 2.8vw, 38px);
+  line-height: 1.06;
+  letter-spacing: -.045em;
+}
+
+.landing-commercial-preview-head p {
+  max-width: 520px;
+  margin: 11px 0 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.landing-commercial-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 20px;
+}
+
+.landing-commercial-metrics article {
+  position: relative;
+  min-height: 88px;
+  padding: 13px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.landing-commercial-metrics article::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+}
+
+.landing-commercial-metrics .metric-cyan::before { background: var(--primary); }
+.landing-commercial-metrics .metric-amber::before { background: var(--warm-yellow); }
+.landing-commercial-metrics .metric-orange::before { background: var(--warm-orange); }
+
+.landing-commercial-metrics .metric-cyan {
+  background: color-mix(in srgb, var(--primary) 5%, var(--surface));
+}
+
+.landing-commercial-metrics .metric-amber {
+  background: color-mix(in srgb, var(--warm-yellow) 6%, var(--surface));
+}
+
+.landing-commercial-metrics .metric-orange {
+  background: color-mix(in srgb, var(--warm-orange) 6%, var(--surface));
+}
+
+.landing-commercial-metrics b {
+  display: block;
+  font-size: 28px;
+  line-height: 1;
+  letter-spacing: -.045em;
+}
+
+.landing-commercial-metrics span {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted-foreground);
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.landing-video-stage {
+  margin-top: 10px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--warm-yellow) 30%, var(--border));
+  border-radius: 14px;
+  background: #06141b;
+  box-shadow: 0 16px 34px rgb(0 0 0 / .16);
+}
+
+.landing-video-player {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: #06141b;
+}
+
+.landing-video-caption {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 13px;
+  border-top: 1px solid color-mix(in srgb, var(--primary) 19%, transparent);
+  background: color-mix(in srgb, #06141b 94%, var(--primary));
+}
+
+.landing-video-caption strong {
+  color: #f4fbff;
+  font-size: 10px;
+  letter-spacing: .01em;
+}
+
+.landing-video-caption span {
+  color: #8eb8c5;
+  font-size: 9px;
+}
+
+.landing-commercial-preview-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 17px;
+  margin-top: 13px;
+  color: var(--muted-foreground);
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.landing-commercial-preview-foot span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.landing-commercial-preview-foot svg {
+  color: var(--warm-yellow);
+}
+
 @media (max-width: 1080px) {
   .landing-commercial-plans { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .landing-white-label { grid-template-columns: 64px minmax(0, 1fr); }
   .landing-white-label-points { grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .landing-feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 700px) {
   .landing-commercial-plans { grid-template-columns: 1fr; }
   .landing-white-label { grid-template-columns: 1fr; gap: 18px; }
   .landing-white-label-points { grid-column: auto; grid-template-columns: 1fr; }
+  .landing-feature-grid { grid-template-columns: 1fr; }
+  .landing-commercial-metrics { grid-template-columns: 1fr; }
+  .landing-commercial-preview { padding: 17px; }
+  .landing-video-caption { align-items: flex-start; flex-direction: column; gap: 2px; }
 }

@@ -1,0 +1,119 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
+const root = process.cwd()
+const layout = readFileSync(resolve(root, 'src/layouts/AppLayout.tsx'), 'utf8')
+const modernCss = readFileSync(resolve(root, 'src/styles/sidebar-modern.css'), 'utf8')
+const navigationCss = readFileSync(resolve(root, 'src/styles/navigation-enhancements.css'), 'utf8')
+const darkTheme = readFileSync(resolve(root, 'src/styles/cinematic-dark-theme.css'), 'utf8')
+const uiPolish = readFileSync(resolve(root, 'src/styles/ui-polish.css'), 'utf8')
+const main = readFileSync(resolve(root, 'src/main.tsx'), 'utf8')
+
+const layoutMarkers = [
+  "const [accountsOpen, setAccountsOpen] = useState(false)",
+  "localStorage.getItem(FOLDERS_COLLAPSED_KEY) !== '0'",
+  'className="sidebar-nav-main"',
+  'account-switcher',
+  'className="account-switcher-popover"',
+  'account-switcher-option',
+  'className="sidebar-nav-utilities"',
+  'sidebar-primary-link',
+]
+
+for (const marker of layoutMarkers) {
+  if (!layout.includes(marker)) throw new Error(`Falta navegación moderna en AppLayout: ${marker}`)
+}
+
+if (layout.includes('<button className="theme-switch"')) {
+  throw new Error('El selector de tema no debe duplicarse en el sidebar; ya está disponible en el menú de perfil.')
+}
+
+if (!layout.includes('className={`nav-item compose-button sidebar-primary-link')) {
+  throw new Error('Redactar debe usar el mismo lenguaje visual nav-item que el resto de la navegación.')
+}
+
+for (const marker of [
+  'nav-item sidebar-primary-link inbox-primary-nav',
+  'nav-item sidebar-primary-link control-center-nav',
+]) {
+  if (!layout.includes(marker)) throw new Error(`Falta navegación plana para: ${marker}`)
+}
+
+const inboxIcon = layout.indexOf('<Inbox className="primary-nav-icon"')
+const inboxText = layout.indexOf('<span>Bandeja de Entrada</span>')
+const composeIcon = layout.indexOf('<PenLine className="primary-nav-icon"')
+const composeText = layout.indexOf('<span>Redactar</span>')
+const nexiIcon = layout.indexOf('className="primary-nav-icon nexi-sidebar-icon"')
+const nexiText = layout.indexOf('<span>Nexi Control Center</span>')
+
+if (!(inboxIcon >= 0 && inboxIcon < inboxText)) throw new Error('Bandeja de entrada debe mostrar icono a la izquierda como los menús de carpetas.')
+if (!(composeIcon >= 0 && composeIcon < composeText)) throw new Error('Redactar debe mostrar icono a la izquierda como los menús de carpetas.')
+if (!(nexiIcon >= 0 && nexiIcon < nexiText)) throw new Error('Nexi Control Center debe mostrar icono a la izquierda como los menús de carpetas.')
+
+const cssMarkers = [
+  '.sidebar-nav-main',
+  'overflow-y: auto',
+  'scrollbar-width: none',
+  '.sidebar-nav-main::-webkit-scrollbar',
+  '.sidebar-nav-utilities',
+  '.account-switcher-popover',
+  '.sidebar .sidebar-primary-link',
+  'justify-content: flex-start',
+  'text-transform: none',
+  'letter-spacing: normal',
+]
+for (const marker of cssMarkers) {
+  if (!modernCss.includes(marker)) throw new Error(`Falta estilo de navegación moderna: ${marker}`)
+}
+
+const activeBlock = modernCss.match(/\.sidebar \.sidebar-primary-link\.active\s*\{([\s\S]*?)\}/)?.[1] ?? ''
+if (!activeBlock) throw new Error('Falta el estado activo de la navegación principal.')
+if (!activeBlock.includes('background: transparent')) throw new Error('El acceso activo debe mantener fondo transparente.')
+if (!activeBlock.includes('box-shadow: none')) throw new Error('El acceso activo no debe usar barra lateral ni sombras.')
+if (!activeBlock.includes('border: 0')) throw new Error('El acceso activo no debe usar bordes decorativos.')
+
+const accountTriggerBlock = modernCss.match(/\.account-switcher-trigger\s*\{([\s\S]*?)\}/)?.[1] ?? ''
+if (!accountTriggerBlock) throw new Error('Falta el estilo del selector Todas las cuentas.')
+for (const marker of ['height: 36px', 'min-height: 36px', 'padding: 0 10px', 'border: 0', 'background: transparent', 'box-shadow: none']) {
+  if (!accountTriggerBlock.includes(marker)) throw new Error(`Todas las cuentas debe usar navegación plana: falta ${marker}`)
+}
+
+const accountHoverBlock = modernCss.match(/\.account-switcher-trigger:hover,\s*\n\.account-switcher\.open \.account-switcher-trigger\s*\{([\s\S]*?)\}/)?.[1] ?? ''
+if (!accountHoverBlock.includes('border-color: transparent')) throw new Error('Todas las cuentas no debe recuperar borde destacado al abrir o pasar el mouse.')
+if (!accountHoverBlock.includes('background: var(--surface-hover)')) throw new Error('Todas las cuentas debe usar el mismo hover suave del resto del menú.')
+
+for (const forbidden of [
+  'drop-shadow(',
+  'box-shadow: inset 2px 0 0 var(--primary)',
+  'background: color-mix(in srgb, var(--primary) 7%, var(--surface))',
+]) {
+  if (modernCss.includes(forbidden)) throw new Error(`Los accesos principales deben ser completamente planos: ${forbidden}`)
+}
+
+if (navigationCss.includes(':root[data-theme="dark"] .sidebar .compose-button.active') ||
+    navigationCss.includes(':root[data-theme="dark"] .sidebar .control-center-nav.active') ||
+    navigationCss.includes(':root[data-theme="dark"] .sidebar .inbox-primary-nav.active')) {
+  throw new Error('navigation-enhancements no debe recolorear los accesos principales en modo oscuro.')
+}
+
+if (darkTheme.includes(':root[data-theme="dark"] .compose-button,')) {
+  throw new Error('El tema oscuro no debe convertir Redactar en un botón turquesa.')
+}
+
+if (darkTheme.includes(':root[data-theme="dark"] .sidebar .nav-item.active {')) {
+  throw new Error('El estado activo genérico oscuro debe excluir los accesos principales planos.')
+}
+
+if (darkTheme.includes(':root[data-theme="dark"] .sidebar .control-center-nav.active')) {
+  throw new Error('Nexi Control Center no debe tener un fondo activo especial en modo oscuro.')
+}
+
+if (uiPolish.includes('scrollbar-gutter: stable')) {
+  throw new Error('El sidebar no debe reservar espacio para una barra de desplazamiento visible.')
+}
+
+if (!main.includes("import './styles/sidebar-modern.css'")) {
+  throw new Error('Falta importar sidebar-modern.css')
+}
+
+console.log('PASS fully flat primary sidebar navigation')

@@ -1,0 +1,69 @@
+name: Frontend build
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.25.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify sidebar tooltips
+        run: node scripts/sidebar-tooltip-smoke.mjs
+
+      - name: Verify modern sidebar navigation
+        run: node scripts/sidebar-modern-navigation-smoke.mjs
+
+      - name: Verify perspective visibility
+        run: node scripts/perspective-visibility-smoke.mjs
+
+      - name: Verify search result contrast
+        run: node scripts/search-contrast-smoke.mjs
+
+      - name: Verify concise Control Center hierarchy
+        run: node scripts/control-center-summary-smoke.mjs
+
+      - name: Verify commercial feature gates
+        run: node scripts/commercial-entitlement-smoke.mjs
+
+      - name: Verify admin user plan management
+        run: node scripts/admin-users-smoke.mjs
+
+      - name: Verify Nexi usage admin panel
+        run: node scripts/ai-usage-admin-smoke.mjs
+
+      - name: Verify registration legal consent
+        run: node scripts/legal-consent-smoke.mjs
+
+      - name: Verify product polish
+        run: node scripts/product-polish-smoke.mjs
+
+      - name: Verify mail provider beta onboarding
+        run: node scripts/mail-provider-beta-smoke.mjs
+
+      - name: Build frontend
+        run: pnpm build

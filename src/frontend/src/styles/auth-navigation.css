@@ -1,0 +1,23 @@
+.auth-back-home {
+  width: fit-content;
+  margin: 18px auto 0;
+  padding-top: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.auth-back-home:hover {
+  color: var(--primary);
+}
+
+.auth-back-home:focus-visible {
+  border-radius: 6px;
+}

@@ -1,18 +1,30 @@
 # NexoMail
 
-Cliente web para consultar varias cuentas de correo desde una bandeja unificada. NexoMail no es un servidor de correo: en la primera fase usa datos de demostración y no guarda mensajes, cuerpos ni adjuntos.
+Cliente web para consultar varias cuentas de correo desde una bandeja unificada. NexoMail no es un servidor de correo y no guarda cuerpos completos de mensajes ni bytes de adjuntos; consulta el contenido desde cada proveedor cuando el usuario lo necesita y mantiene sólo la información operativa o índices de metadatos requeridos por sus funciones.
+
+## Marcha blanca
+
+La versión actual está preparada para una marcha blanca de 30 días con tres formas de conexión:
+
+- **Gmail / Google Workspace** mediante OAuth 2.0.
+- **Microsoft 365** mediante Microsoft Graph y OAuth organizacional.
+- **IMAP / SMTP** en modalidad **Beta**, con configuración manual y validación de ambos servidores antes de guardar la cuenta.
+
+Outlook/Hotmail personal, Yahoo dedicado y Exchange Server local aparecen como próximos proveedores y no forman parte del alcance inicial.
+
+Las cuentas Microsoft 365 institucionales pueden requerir autorización del administrador de la organización antes de permitir que NexoMail acceda al correo.
 
 ## Arquitectura
 
 - `src/backend/NexoMail.Domain`: modelos normalizados de correo.
-- `src/backend/NexoMail.Application`: contrato `IMailProvider` y gateway de aplicación.
-- `src/backend/NexoMail.Infrastructure`: proveedor demo y proveedor Gmail mediante OAuth 2.0.
-- `src/backend/NexoMail.Api`: API REST, OAuth local y almacenamiento de credenciales cifradas.
-- `src/frontend`: React, TypeScript, Vite, Tailwind 4 y TanStack Query.
+- `src/backend/NexoMail.Application`: contratos `IMailProvider`, `IMailDraftProvider` y gateway de aplicación.
+- `src/backend/NexoMail.Infrastructure`: Gmail, Microsoft Graph, IMAP/SMTP, cifrado de credenciales y persistencia.
+- `src/backend/NexoMail.Api`: API REST, OAuth, autenticación y endpoints de configuración.
+- `src/frontend`: React, TypeScript, Vite y TanStack Query.
 
-La UI no conoce las clases de Graph o Gmail. El backend normaliza los datos y los expone como `MailSummary`, `MailMessage`, `MailAccount` y `ComposeMessage`. El HTML se filtra antes de mostrarse, bloqueando contenido activo e imágenes remotas.
+La UI no depende de las clases internas de Gmail, Graph o MailKit. El backend normaliza los datos y los expone como `MailSummary`, `MailMessage`, `MailAccount` y `ComposeMessage`. El HTML se filtra antes de mostrarse, bloqueando contenido activo e imágenes remotas.
 
-## Ejecutar
+## Ejecutar en desarrollo
 
 Requisitos: .NET SDK 10 y Node.js con pnpm.
 
@@ -32,23 +44,85 @@ Abra la dirección mostrada por Vite (por defecto `http://localhost:5173`). El p
 
 ## Modo demostración
 
-`MailProviders:DemoMode` está habilitado en `src/backend/NexoMail.Api/appsettings.json`. Incluye tres cuentas y veintiún mensajes ficticios. En este modo enviar, responder, reenviar y marcar leído simulan las operaciones; solo el estado de lectura se mantiene mientras la API está en memoria.
+`MailProviders:DemoMode` está habilitado por defecto en `src/backend/NexoMail.Api/appsettings.json`. En producción debe estar desactivado. El modo demo incluye cuentas y mensajes ficticios y no usa los proveedores reales.
 
-## Conectar Gmail localmente
+## Gmail / Google Workspace
 
-En Google Cloud, el cliente OAuth de tipo **Aplicación web** debe tener esta URI de redirección exacta:
+En Google Cloud, el cliente OAuth de tipo **Aplicación web** debe registrar la URI de redirección correspondiente al ambiente.
+
+Desarrollo:
 
 `http://localhost:5052/api/oauth/google/callback`
 
-Agrega tu correo como usuario de prueba y habilita los permisos `gmail.modify` y `gmail.send`. Después guarda las credenciales del cliente en User Secrets y desactiva el modo demo:
+Las credenciales deben almacenarse fuera del repositorio. Para desarrollo puede usar User Secrets:
 
 ```powershell
 dotnet user-secrets set "Google:ClientId" "TU_CLIENT_ID" --project .\src\backend\NexoMail.Api\NexoMail.Api.csproj
 dotnet user-secrets set "Google:ClientSecret" "TU_CLIENT_SECRET" --project .\src\backend\NexoMail.Api\NexoMail.Api.csproj
+```
+
+NexoMail almacena el refresh token protegido mediante Data Protection; no almacena la contraseña de Google.
+
+## Microsoft 365
+
+Registrar NexoMail como aplicación web en Microsoft Entra ID para cuentas organizacionales. Durante la marcha blanca `AuthorityTenant` debe permanecer en `organizations`.
+
+Desarrollo:
+
+`http://localhost:5052/api/oauth/microsoft/callback`
+
+Configuración local mediante User Secrets:
+
+```powershell
+dotnet user-secrets set "Microsoft365:ClientId" "TU_CLIENT_ID" --project .\src\backend\NexoMail.Api\NexoMail.Api.csproj
+dotnet user-secrets set "Microsoft365:ClientSecret" "TU_CLIENT_SECRET" --project .\src\backend\NexoMail.Api\NexoMail.Api.csproj
+dotnet user-secrets set "Microsoft365:AuthorityTenant" "organizations" --project .\src\backend\NexoMail.Api\NexoMail.Api.csproj
+```
+
+Permisos delegados requeridos por la marcha blanca:
+
+- `User.Read`
+- `Mail.ReadWrite`
+- `Mail.Send`
+- `offline_access`
+
+NexoMail no solicita permisos de calendario, archivos, OneDrive o SharePoint para este flujo. Una organización puede exigir consentimiento administrativo antes de autorizar estos permisos.
+
+## IMAP / SMTP Beta
+
+La opción **IMAP / SMTP · Beta** solicita:
+
+- correo y nombre visible;
+- usuario y contraseña o contraseña de aplicación;
+- host, puerto y seguridad IMAP;
+- host, puerto y seguridad SMTP.
+
+Sólo se ofrecen conexiones cifradas `SSL/TLS` o `STARTTLS`. Antes de persistir una cuenta, el backend valida DNS, conexión TLS y autenticación en IMAP y SMTP. Las contraseñas se protegen con Data Protection antes de almacenarse y no se registran en logs.
+
+Durante esta marcha blanca IMAP/SMTP no ofrece borradores remotos. El envío, lectura y operaciones principales de correo usan MailKit/MimeKit.
+
+## Configuración mínima para producción
+
+Antes de publicar un ambiente real:
+
+1. Configure `MailProviders:DemoMode=false`.
+2. Configure una base de datos persistente y respaldada.
+3. Registre las URIs HTTPS públicas de callback en Google y Microsoft.
+4. Configure `Google:ClientId`, `Google:ClientSecret`, `Google:RedirectUri` y `Google:FrontendUrl` mediante secretos del hosting.
+5. Configure `Microsoft365:ClientId`, `Microsoft365:ClientSecret`, `Microsoft365:RedirectUri`, `Microsoft365:FrontendUrl` y `Microsoft365:AuthorityTenant=organizations` mediante secretos del hosting.
+6. Mantenga las claves de ASP.NET Data Protection en almacenamiento persistente. Si esas claves se pierden, NexoMail no podrá descifrar refresh tokens ni contraseñas IMAP guardadas previamente.
+7. Use HTTPS en frontend, API y callbacks.
+8. No incluya Client Secrets, contraseñas, tokens ni claves de Data Protection dentro del repositorio o imágenes de despliegue públicas.
+
+Ejemplo para desactivar el modo demo localmente:
+
+```powershell
 dotnet user-secrets set "MailProviders:DemoMode" "false" --project .\src\backend\NexoMail.Api\NexoMail.Api.csproj
 ```
 
-Reinicia la API, abre `http://localhost:5173/settings/accounts` y selecciona **Agregar Gmail**. El consentimiento ocurre directamente en Google; NexoMail guarda solo la cuenta y el refresh token cifrado con DPAPI de Windows. No guarda mensajes, cuerpos ni adjuntos.
+## Configuración de cuentas
+
+Abra `/settings/accounts` y seleccione **Agregar cuenta**. El modal ofrece Gmail, Microsoft 365 e IMAP/SMTP Beta y muestra los proveedores futuros como no disponibles.
 
 ## Tema
 

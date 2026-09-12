@@ -126,15 +126,10 @@
   gap: var(--cc-section-gap) !important;
 }
 
-/* Indicadores y hallazgos: mismo margen interior del contenedor. */
-.nexi-control-center .nexi-insights-header {
-  min-height: 56px;
-  padding: var(--cc-panel-padding-y) var(--cc-panel-padding-x);
-}
-
+/* Los cuatro indicadores comparten exactamente los bordes exteriores con Priorización inteligente. */
 .nexi-control-center .nexi-control-metrics {
   margin: 0;
-  padding: var(--cc-inner-gap) var(--cc-panel-padding-x) var(--cc-panel-padding-x);
+  padding: 0;
 }
 
 .nexi-control-center .nexi-findings-heading {

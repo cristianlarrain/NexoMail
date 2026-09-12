@@ -10,11 +10,16 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
     public DbSet<UserSessionEntity> UserSessions => Set<UserSessionEntity>();
     public DbSet<MailAccountEntity> MailAccounts => Set<MailAccountEntity>();
     public DbSet<OAuthCredentialEntity> OAuthCredentials => Set<OAuthCredentialEntity>();
+    public DbSet<ImapCredentialEntity> ImapCredentials => Set<ImapCredentialEntity>();
     public DbSet<ControlCenterStateEntity> ControlCenterStates => Set<ControlCenterStateEntity>();
     public DbSet<IgnoredSenderEntity> IgnoredSenders => Set<IgnoredSenderEntity>();
     public DbSet<MailMessageIndexEntity> MailMessageIndex => Set<MailMessageIndexEntity>();
     public DbSet<MailAttachmentIndexEntity> MailAttachmentIndex => Set<MailAttachmentIndexEntity>();
     public DbSet<MailIndexStateEntity> MailIndexStates => Set<MailIndexStateEntity>();
+    public DbSet<CommercialPlanEntity> CommercialPlans => Set<CommercialPlanEntity>();
+    public DbSet<AiUsageEventEntity> AiUsageEvents => Set<AiUsageEventEntity>();
+    public DbSet<AiUsageMonthlySummaryEntity> AiUsageMonthlySummaries => Set<AiUsageMonthlySummaryEntity>();
+    public DbSet<AiUsageSettingsEntity> AiUsageSettings => Set<AiUsageSettingsEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -27,6 +32,8 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
             entity.Property(x => x.PasswordResetTokenHash).HasMaxLength(128);
             entity.Property(x => x.EmailVerificationTokenHash).HasMaxLength(128);
             entity.Property(x => x.AvatarDataUrl).HasMaxLength(200_000);
+            entity.Property(x => x.PlanCode).HasMaxLength(32).IsRequired();
+            entity.Property(x => x.LegalConsentVersion).HasMaxLength(32);
             entity.HasIndex(x => x.Email).IsUnique();
         });
         modelBuilder.Entity<UserSessionEntity>(entity =>
@@ -51,6 +58,18 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
             entity.HasKey(x => x.Id);
             entity.Property(x => x.EncryptedRefreshToken).IsRequired();
             entity.HasOne<MailAccountEntity>().WithOne().HasForeignKey<OAuthCredentialEntity>(x => x.MailAccountId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<ImapCredentialEntity>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Username).HasMaxLength(320).IsRequired();
+            entity.Property(x => x.EncryptedPassword).IsRequired();
+            entity.Property(x => x.ImapHost).HasMaxLength(255).IsRequired();
+            entity.Property(x => x.ImapSecurity).HasMaxLength(16).IsRequired();
+            entity.Property(x => x.SmtpHost).HasMaxLength(255).IsRequired();
+            entity.Property(x => x.SmtpSecurity).HasMaxLength(16).IsRequired();
+            entity.HasIndex(x => x.MailAccountId).IsUnique();
+            entity.HasOne<MailAccountEntity>().WithOne().HasForeignKey<ImapCredentialEntity>(x => x.MailAccountId).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<ControlCenterStateEntity>(entity =>
         {
@@ -109,6 +128,43 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
             entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne<MailAccountEntity>().WithOne().HasForeignKey<MailIndexStateEntity>(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
         });
+        modelBuilder.Entity<CommercialPlanEntity>(entity =>
+        {
+            entity.ToTable("CommercialPlans");
+            entity.HasKey(x => x.Code);
+            entity.Property(x => x.Code).HasMaxLength(32);
+            entity.Property(x => x.Name).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.Price).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.Cadence).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(600).IsRequired();
+            entity.Property(x => x.FeaturesJson).HasMaxLength(6000).IsRequired();
+            entity.Property(x => x.EntitlementsJson).HasMaxLength(6000).IsRequired();
+            entity.HasIndex(x => new { x.IsActive, x.SortOrder });
+        });
+        modelBuilder.Entity<AiUsageEventEntity>(entity =>
+        {
+            entity.ToTable("AiUsageEvents");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.OperationType).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.Model).HasMaxLength(96).IsRequired();
+            entity.Property(x => x.ErrorCategory).HasMaxLength(64);
+            entity.HasIndex(x => new { x.UserId, x.OccurredAt });
+            entity.HasIndex(x => x.OccurredAt);
+            entity.HasIndex(x => new { x.OperationType, x.OccurredAt });
+            entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<AiUsageMonthlySummaryEntity>(entity =>
+        {
+            entity.ToTable("AiUsageMonthlySummaries");
+            entity.HasKey(x => new { x.UserId, x.Year, x.Month });
+            entity.HasIndex(x => new { x.Year, x.Month });
+            entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<AiUsageSettingsEntity>(entity =>
+        {
+            entity.ToTable("AiUsageSettings");
+            entity.HasKey(x => x.Id);
+        });
     }
 }
 
@@ -126,9 +182,32 @@ public sealed class UserEntity
     public DateTimeOffset? EmailVerificationTokenExpiresAt { get; set; }
     public int EmailVerificationAttempts { get; set; }
     public string? AvatarDataUrl { get; set; }
+    public string PlanCode { get; set; } = CommercialPlanCatalog.Freemium;
+    public bool IsAdministrator { get; set; }
+    public bool IsOwner { get; set; }
+    public string? LegalConsentVersion { get; set; }
+    public DateTimeOffset? LegalConsentAcceptedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? LastLoginAt { get; set; }
     public bool IsActive { get; set; } = true;
+}
+
+public sealed class CommercialPlanEntity
+{
+    public string Code { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Price { get; set; } = string.Empty;
+    public string Cadence { get; set; } = string.Empty;
+    public int? MaxAccounts { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public string FeaturesJson { get; set; } = "[]";
+    public string EntitlementsJson { get; set; } = "[]";
+    public bool IsFeatured { get; set; }
+    public bool IsCorporate { get; set; }
+    public bool IsWhiteLabel { get; set; }
+    public bool IsActive { get; set; } = true;
+    public int SortOrder { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
 }
 
 public sealed class UserSessionEntity

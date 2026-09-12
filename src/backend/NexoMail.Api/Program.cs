@@ -109,6 +109,8 @@ builder.Services.AddScoped<IUserContext, HttpUserContext>();
 builder.Services.Configure<RecoveryEmailOptions>(builder.Configuration.GetSection(RecoveryEmailOptions.SectionName));
 builder.Services.AddScoped<IPasswordRecoveryEmailSender, SmtpPasswordRecoveryEmailSender>();
 NexoMail.Api.AiEndpoints.AddNexoMailAi(builder.Services, builder.Configuration);
+builder.Services.AddScoped<AiUsageRetentionService>();
+builder.Services.AddHostedService<AiUsageRetentionHostedService>();
 
 var dataProtection = builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NexoMail", "keys")));
@@ -118,8 +120,11 @@ builder.Services.Configure<GmailOptions>(builder.Configuration.GetSection(GmailO
 builder.Services.AddScoped<ITokenProtector, DataProtectionTokenProtector>();
 builder.Services.AddScoped<GoogleOAuthService>();
 builder.Services.AddScoped<GoogleContactsService>();
+builder.Services.AddScoped<GmailRuleService>();
+builder.Services.AddScoped<IMailRuleProvider>(services => services.GetRequiredService<GmailRuleService>());
 builder.Services.AddScoped<GmailControlCenterService>();
 builder.Services.AddScoped<GmailControlCenterActivityService>();
+MailProviderBetaModule.AddServices(builder.Services, builder.Configuration);
 
 var demoMode = builder.Configuration.GetValue("MailProviders:DemoMode", true);
 if (demoMode)
@@ -143,6 +148,7 @@ using (var scope = app.Services.CreateScope())
     var database = scope.ServiceProvider.GetRequiredService<NexoMailDbContext>();
     await database.Database.EnsureCreatedAsync();
     await DatabaseBootstrap.EnsureAuthenticationSchemaAsync(database);
+    await MailProviderBetaModule.EnsureSchemaAsync(database);
 }
 
 app.Use(async (context, next) =>
@@ -172,9 +178,23 @@ app.MapNexoMailSessions();
 
 var api = app.MapGroup("/api");
 api.MapGet("/health", () => Results.Ok(new { status = "ok", demoMode }));
+NexoMail.Api.CommercialEndpoints.MapNexoMailCommercial(api);
+NexoMail.Api.AiUsageEndpoints.Map(api);
+MailProviderBetaModule.Map(api);
 
 var oauth = api.MapGroup("/oauth").RequireAuthorization();
-oauth.MapGet("/google/start", (GoogleOAuthService service) => Results.Redirect(service.BeginAuthorization()));
+oauth.MapGet("/google/start", async (GoogleOAuthService service, CancellationToken ct) =>
+{
+    try
+    {
+        await service.EnsureCanConnectAnotherAccountAsync(ct);
+        return Results.Redirect(service.BeginAuthorization());
+    }
+    catch (InvalidOperationException exception)
+    {
+        return Results.Redirect(service.FailureRedirect(exception.Message));
+    }
+});
 oauth.MapGet("/google/callback", async (string? code, string? state, string? error, GoogleOAuthService service, CancellationToken ct) =>
 {
     if (!string.IsNullOrWhiteSpace(error)) return Results.Redirect(service.FailureRedirect("Google canceló la autorización."));
@@ -186,6 +206,7 @@ oauth.MapGet("/google/callback", async (string? code, string? state, string? err
 
 var mail = api.MapGroup("/mail").RequireAuthorization();
 NexoMail.Api.AiEndpoints.MapNexoMailAi(mail);
+NexoMail.Api.MailRuleEndpoints.Map(mail);
 mail.MapGet("/accounts", async (IMailGateway gateway, CancellationToken ct) => Results.Ok(await gateway.GetAccountsAsync(ct)));
 mail.MapPost("/refresh", (NexoMail.Api.MailReadCache cache, IUserContext userContext) =>
 {
@@ -317,7 +338,7 @@ mail.MapGet("/messages/{accountId:guid}/{messageId}/attachments/{attachmentId}",
                 : Results.File(attachment.Content, contentType, enableRangeProcessing: true);
     }
     catch (InvalidOperationException exception) { return Results.BadRequest(new { error = exception.Message }); }
-    catch (HttpRequestException exception) { return Results.Problem($"Gmail no pudo entregar el adjunto ({exception.StatusCode?.ToString() ?? "sin código"}).", statusCode: 502); }
+    catch (HttpRequestException exception) { return Results.Problem($"El proveedor no pudo entregar el adjunto ({exception.StatusCode?.ToString() ?? "sin código"}).", statusCode: 502); }
 });
 mail.MapPatch("/messages/{accountId:guid}/{messageId}/read", async (IMailGateway gateway, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid accountId, string messageId, ReadState request, CancellationToken ct) =>
 {
@@ -340,7 +361,7 @@ mail.MapPost("/messages/{accountId:guid}/{messageId}/move", async (IMailGateway 
         return Results.NoContent();
     }
     catch (InvalidOperationException exception) { return Results.BadRequest(new { error = exception.Message }); }
-    catch (HttpRequestException exception) { return Results.Problem($"Gmail no pudo mover el correo ({exception.StatusCode?.ToString() ?? "sin código"}).", statusCode: 502); }
+    catch (HttpRequestException exception) { return Results.Problem($"El proveedor no pudo mover el correo ({exception.StatusCode?.ToString() ?? "sin código"}).", statusCode: 502); }
 });
 mail.MapPost("/ignored-senders/{accountId:guid}", async (NexoMailDbContext database, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid accountId, IgnoreSenderRequest request, CancellationToken ct) =>
 {
@@ -375,7 +396,7 @@ mail.MapPost("/folders/{folderId}/empty", async (IMailGateway gateway, NexoMail.
         cache.InvalidateAreas(userContext.UserId.ToString(), "messages", "control-center", "control-center-activity", "message-detail");
         return Results.NoContent();
     }
-    catch (HttpRequestException exception) { return Results.Problem($"Gmail rechazó el vaciado de Papelera ({exception.StatusCode?.ToString() ?? "sin código"}).", statusCode: 502); }
+    catch (HttpRequestException exception) { return Results.Problem($"El proveedor rechazó el vaciado de la carpeta ({exception.StatusCode?.ToString() ?? "sin código"}).", statusCode: 502); }
     catch (InvalidOperationException exception) { return Results.Problem(exception.Message, statusCode: 400); }
 });
 mail.MapPost("/send", async (IMailGateway gateway, NexoMail.Api.MailReadCache cache, IUserContext userContext, ComposeMessage request, CancellationToken ct) =>

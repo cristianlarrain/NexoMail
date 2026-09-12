@@ -1,0 +1,129 @@
+.nexi-greeting-image {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--nexi-accent) 24%, var(--border));
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--nexi-accent-soft), var(--surface) 68%);
+}
+
+.nexi-greeting-image > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.nexi-greeting-image-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.nexi-greeting-image-title .nexi-visual.small,
+.nexi-greeting-generate .nexi-visual.small {
+  width: 28px;
+  height: 28px;
+}
+
+.nexi-greeting-image-title > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.nexi-greeting-image-title strong {
+  color: var(--nexi-accent);
+  font-size: 12px;
+}
+
+.nexi-greeting-image-title span {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.nexi-greeting-open,
+.nexi-greeting-generate,
+.nexi-greeting-result-actions button {
+  width: fit-content;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1px solid color-mix(in srgb, var(--nexi-accent) 30%, var(--border));
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--nexi-accent);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nexi-greeting-open:hover,
+.nexi-greeting-generate:hover:not(:disabled),
+.nexi-greeting-result-actions button:hover:not(:disabled) {
+  border-color: var(--nexi-accent);
+  background: var(--nexi-accent-soft);
+}
+
+.nexi-greeting-styles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.nexi-greeting-styles button {
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted-foreground);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.nexi-greeting-styles button.active {
+  border-color: color-mix(in srgb, var(--nexi-accent) 45%, var(--border));
+  color: var(--nexi-accent);
+  background: var(--nexi-accent-soft);
+  font-weight: 700;
+}
+
+.nexi-greeting-result {
+  display: grid;
+  gap: 10px;
+}
+
+.nexi-greeting-result img {
+  display: block;
+  width: min(360px, 100%);
+  aspect-ratio: 1;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.nexi-greeting-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.nexi-greeting-result-actions button:disabled,
+.nexi-greeting-generate:disabled {
+  opacity: .58;
+  cursor: default;
+}
+
+.nexi-greeting-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 11px;
+}

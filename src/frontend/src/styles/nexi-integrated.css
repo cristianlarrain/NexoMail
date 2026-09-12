@@ -1,0 +1,378 @@
+.nexi-processing-icon {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary) 7%, var(--surface));
+  overflow: hidden;
+}
+
+.nexi-processing-icon .nexi-visual.small,
+.nexi-inline-processing.nexi-visual.small {
+  width: 22px;
+  height: 22px;
+}
+
+.nexi-inline-processing {
+  animation: nexi-processing-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes nexi-processing-pulse {
+  0%, 100% { opacity: .58; transform: scale(.94); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+.nexi-integrated-loading {
+  min-height: 110px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.nexi-control-brandmark {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+  overflow: hidden;
+}
+
+.nexi-control-brandmark .nexi-visual.small {
+  width: 25px;
+  height: 25px;
+}
+
+.nexi-operational-summary {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+  padding: 11px 13px;
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary) 4%, var(--surface));
+}
+
+.nexi-operational-summary > span {
+  color: var(--primary);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.nexi-operational-summary p {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.control-statistics-view {
+  display: grid;
+  gap: 10px;
+}
+
+.control-module-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 2px;
+}
+
+.control-module-heading > div {
+  display: grid;
+  gap: 3px;
+}
+
+.control-module-heading span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--primary);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.control-module-heading strong {
+  color: var(--foreground);
+  font-size: 15px;
+}
+
+.control-module-heading p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 10.5px;
+}
+
+.control-statistics-loading {
+  min-height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.nexi-report-avatar {
+  overflow: hidden;
+}
+
+.nexi-report-avatar .nexi-visual.small {
+  width: 27px;
+  height: 27px;
+}
+
+.nexi-report-summary small {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+
+.nexi-report-visual-statistics {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.nexi-report-visual-statistics > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.nexi-report-visual-statistics > header > div {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.nexi-report-visual-statistics > header svg {
+  color: var(--primary);
+}
+
+.nexi-report-visual-statistics > header strong {
+  font-size: 13px;
+}
+
+.nexi-report-visual-statistics > header > span {
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+
+.nexi-report-stat-cards {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.nexi-report-stat-cards > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 10px 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--primary) 3%, var(--surface));
+}
+
+.nexi-report-stat-cards span {
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 9.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nexi-report-stat-cards strong {
+  color: var(--foreground);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.nexi-report-stat-bars {
+  display: grid;
+  gap: 7px;
+}
+
+.nexi-report-stat-bar {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) 26px;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+
+.nexi-report-stat-bar > i {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted-foreground) 10%, var(--surface));
+}
+
+.nexi-report-stat-bar > i > b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+}
+
+.nexi-report-stat-bar.alta > i > b {
+  background: #c94f45;
+}
+
+.nexi-report-stat-bar.media > i > b {
+  background: #b88a27;
+}
+
+.nexi-report-stat-bar.baja > i > b {
+  background: #568b9c;
+}
+
+.nexi-report-stat-bar > strong {
+  color: var(--foreground);
+  text-align: right;
+}
+
+.nexi-report-export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.nexi-report-export-actions button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nexi-report-action-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.nexi-report-action-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 96%, var(--primary) 4%);
+}
+
+.nexi-report-action-card p {
+  margin: 0;
+  color: var(--foreground);
+  line-height: 1.45;
+}
+
+.nexi-report-action-card > div,
+.nexi-report-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.nexi-report-row-actions {
+  margin-top: 10px;
+}
+
+.nexi-report-row-actions .compact-action,
+.nexi-report-action-card .compact-action {
+  min-height: 30px;
+  padding-inline: 10px;
+}
+
+.nexi-report-account-select {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+}
+
+.nexi-report-account-select > span {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.nexi-report-account-select select {
+  min-height: 34px;
+  min-width: 180px;
+  max-width: 230px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 30px 0 10px;
+  background: var(--surface);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 11px;
+}
+
+.global-nexo-perspective {
+  padding: 10px 16px 0;
+}
+
+@media (max-width: 900px) {
+  .nexi-report-stat-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .nexi-report-action-card > div,
+  .nexi-report-row-actions,
+  .nexi-report-export-actions {
+    align-items: stretch;
+  }
+
+  .nexi-report-action-card .compact-action,
+  .nexi-report-row-actions .compact-action,
+  .nexi-report-export-actions button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .nexi-report-stat-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .nexi-report-visual-statistics > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .nexi-report-account-select {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .nexi-report-account-select select {
+    width: 100%;
+    max-width: none;
+  }
+
+  .global-nexo-perspective {
+    padding: 8px 10px 0;
+  }
+}

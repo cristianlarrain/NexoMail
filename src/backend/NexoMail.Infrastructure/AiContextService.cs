@@ -1,16 +1,11 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Text;
-using System.Text.Json;
 using System.Text.RegularExpressions;
-using Microsoft.Extensions.Options;
 using NexoMail.Domain;
 
 namespace NexoMail.Infrastructure;
 
-public sealed class AiContextService(
-    IHttpClientFactory httpClientFactory,
-    IOptions<AiWritingOptions> options)
+public sealed class AiContextService(AiResponseClient responseClient)
 {
     private const int MaximumMessages = 20;
     private const int MaximumPromptCharacters = 28_000;
@@ -42,10 +37,6 @@ public sealed class AiContextService(
             if (builder.Length >= MaximumPromptCharacters - 1_500) break;
         }
 
-        var settings = options.Value;
-        if (string.IsNullOrWhiteSpace(settings.ApiKey))
-            throw new InvalidOperationException("La función de IA todavía no está configurada en el servidor.");
-
         var system = """
             Eres Nexi, el asistente inteligente de NexoMail.
             Estás trabajando sobre un conjunto concreto de correos ya encontrado por NexoMail.
@@ -59,34 +50,15 @@ public sealed class AiContextService(
             Responde en español claro, directo y sin JSON.
             """;
 
-        var payload = JsonSerializer.Serialize(new
-        {
-            model = string.IsNullOrWhiteSpace(settings.Model) ? "gpt-5.6-luna" : settings.Model,
-            reasoning = new { effort = "low" },
-            instructions = system,
-            input = $"Pregunta actual del usuario:\n{Limit(instruction.Trim(), 3_500)}\n\nContexto de correos:\n{Limit(builder.ToString(), MaximumPromptCharacters)}",
-            max_output_tokens = 1_500
-        });
+        var input = $"Pregunta actual del usuario:\n{Limit(instruction.Trim(), 3_500)}\n\nContexto de correos:\n{Limit(builder.ToString(), MaximumPromptCharacters)}";
+        var output = (await responseClient.SendAsync(
+            "mail_context_analysis",
+            system,
+            input,
+            1_500,
+            "low",
+            cancellationToken)).Trim();
 
-        var client = httpClientFactory.CreateClient("OpenAI");
-        using var request = new HttpRequestMessage(HttpMethod.Post, "responses")
-        {
-            Content = new StringContent(payload, Encoding.UTF8, "application/json")
-        };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiKey);
-
-        using var response = await client.SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            var detail = await response.Content.ReadAsStringAsync(cancellationToken);
-            throw new HttpRequestException(
-                $"OpenAI rechazó la solicitud ({(int)response.StatusCode}). {Limit(detail, 500)}",
-                null,
-                response.StatusCode);
-        }
-
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
-        var output = ExtractOutputText(document.RootElement).Trim();
         if (string.IsNullOrWhiteSpace(output))
             throw new InvalidOperationException("Nexi no devolvió una respuesta válida para este contexto.");
         return Limit(output, 8_000);
@@ -99,26 +71,6 @@ public sealed class AiContextService(
         var withoutTags = Regex.Replace(withBreaks, "<[^>]+>", " ");
         var decoded = WebUtility.HtmlDecode(withoutTags);
         return Regex.Replace(decoded, "[ \\t]+", " ").Replace("\r", string.Empty).Trim();
-    }
-
-    private static string ExtractOutputText(JsonElement root)
-    {
-        if (!root.TryGetProperty("output", out var output) || output.ValueKind != JsonValueKind.Array)
-            return string.Empty;
-
-        var builder = new StringBuilder();
-        foreach (var item in output.EnumerateArray())
-        {
-            if (!item.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.Array) continue;
-            foreach (var part in content.EnumerateArray())
-            {
-                if (!part.TryGetProperty("type", out var type) || type.GetString() != "output_text") continue;
-                if (!part.TryGetProperty("text", out var text) || string.IsNullOrWhiteSpace(text.GetString())) continue;
-                if (builder.Length > 0) builder.AppendLine();
-                builder.Append(text.GetString());
-            }
-        }
-        return builder.ToString();
     }
 
     private static string Limit(string value, int maximum) => value.Length <= maximum ? value : value[..maximum];
