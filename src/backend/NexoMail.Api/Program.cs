@@ -181,6 +181,18 @@ using (var scope = app.Services.CreateScope())
         await DatabaseBootstrap.EnsureAuthenticationSchemaAsync(database);
         await MailProviderBetaModule.EnsureSchemaAsync(database);
     }
+
+    var ownerEmail = builder.Configuration["Bootstrap:OwnerEmail"]?.Trim().ToLowerInvariant();
+    if (!string.IsNullOrWhiteSpace(ownerEmail))
+    {
+        var owner = await database.Users.SingleOrDefaultAsync(user => user.Email == ownerEmail);
+        if (owner is not null && (!owner.IsOwner || !owner.IsAdministrator))
+        {
+            owner.IsOwner = true;
+            owner.IsAdministrator = true;
+            await database.SaveChangesAsync();
+        }
+    }
 }
 
 app.Use(async (context, next) =>
