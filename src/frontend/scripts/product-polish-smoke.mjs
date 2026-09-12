@@ -7,6 +7,7 @@ const read = path => readFileSync(resolve(root, path), 'utf8')
 const weather = read('src/components/WeatherWidget.tsx')
 const share = read('src/components/PerspectiveShareMenu.tsx')
 const perspectives = read('src/pages/PerspectivesPage.tsx')
+const perspectiveStyles = read('src/styles/nexo-perspective.css')
 const packageJson = read('package.json')
 
 const requiredWeatherMarkers = [
@@ -36,6 +37,11 @@ for (const marker of requiredShareMarkers) {
 
 if (!perspectives.includes('const collapsed = collapsedReflections[item.id] ?? true')) {
   throw new Error('Las reflexiones de perspectivas guardadas deben iniciar colapsadas')
+}
+
+const perspectiveGridBlock = perspectiveStyles.match(/\.perspectives-grid\s*\{[\s\S]*?\}/)?.[0] ?? ''
+if (!perspectiveGridBlock.includes('align-items: start')) {
+  throw new Error('La grilla de perspectivas no debe estirar todas las tarjetas cuando una reflexión se expande')
 }
 
 if (packageJson.includes('"tailwindcss"')) {
