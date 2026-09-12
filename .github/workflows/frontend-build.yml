@@ -50,5 +50,8 @@ jobs:
       - name: Verify product polish
         run: node scripts/product-polish-smoke.mjs
 
+      - name: Verify mail provider beta onboarding
+        run: node scripts/mail-provider-beta-smoke.mjs
+
       - name: Build frontend
         run: pnpm build
