@@ -1,0 +1,220 @@
+.sidebar {
+  overflow: hidden;
+}
+
+.sidebar-nav {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-nav-main {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  padding-bottom: 8px;
+}
+
+.sidebar-nav-main::-webkit-scrollbar,
+.account-switcher-popover::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.sidebar-nav-utilities {
+  flex: 0 0 auto;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.sidebar-account-heading {
+  margin-top: 14px;
+}
+
+.account-switcher {
+  position: relative;
+  margin: 0 0 5px;
+}
+
+.account-switcher-trigger {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 0 9px;
+  background: color-mix(in srgb, var(--surface-hover) 42%, var(--surface));
+  color: var(--foreground);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+}
+
+.account-switcher-trigger:hover,
+.account-switcher.open .account-switcher-trigger {
+  border-color: color-mix(in srgb, var(--primary) 42%, var(--border));
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+}
+
+.account-switcher-current {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  font-weight: 680;
+}
+
+.account-switcher-current > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-switcher-trigger > svg {
+  flex: 0 0 auto;
+  color: var(--muted-foreground);
+  transition: transform .16s ease;
+}
+
+.account-switcher-trigger > svg.open {
+  transform: rotate(180deg);
+}
+
+.all-accounts-dot {
+  background: var(--primary);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--surface) 72%, transparent);
+}
+
+.account-switcher-popover {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: min(320px, 52vh);
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface);
+  box-shadow: 0 16px 38px rgb(0 0 0 / .18);
+}
+
+.account-switcher-option {
+  width: 100%;
+  min-height: 46px;
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 8px;
+  background: transparent;
+  color: var(--foreground);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  text-align: left;
+}
+
+.account-switcher-option:hover,
+.account-switcher-option.active,
+.account-switcher-option[aria-current="page"] {
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+}
+
+.account-switcher-option > svg,
+.account-switcher-option > .account-dot {
+  flex: 0 0 auto;
+}
+
+.account-switcher-option > span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.account-switcher-option strong,
+.account-switcher-option small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-switcher-option strong {
+  font-size: 12.5px;
+}
+
+.account-switcher-option small {
+  color: var(--muted-foreground);
+  font-size: 10.5px;
+}
+
+@media (min-width: 761px) {
+  .sidebar.collapsed .sidebar-nav-main {
+    overflow: visible;
+  }
+
+  .sidebar.collapsed .sidebar-account-heading {
+    display: none;
+  }
+
+  .sidebar.collapsed .account-switcher {
+    margin: 7px auto 5px;
+    width: 40px;
+  }
+
+  .sidebar.collapsed .account-switcher-trigger {
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+    padding: 0;
+    justify-content: center;
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .sidebar.collapsed .account-switcher-current {
+    justify-content: center;
+  }
+
+  .sidebar.collapsed .account-switcher-current > span,
+  .sidebar.collapsed .account-switcher-trigger > svg {
+    display: none;
+  }
+
+  .sidebar.collapsed .account-switcher-current .account-dot {
+    width: 11px;
+    height: 11px;
+  }
+
+  .sidebar.collapsed .account-switcher-popover {
+    top: 0;
+    right: auto;
+    left: calc(100% + 10px);
+    width: 230px;
+  }
+
+  .sidebar.collapsed .sidebar-nav-utilities {
+    padding-top: 7px;
+  }
+}
+
+@media (max-width: 760px) {
+  .sidebar-nav-main {
+    padding-right: 1px;
+  }
+
+  .account-switcher-popover {
+    max-height: 42vh;
+  }
+}
