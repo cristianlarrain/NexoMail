@@ -50,26 +50,12 @@
 }
 
 .nexi-control-summary .nexi-insights-header {
-  min-height: 48px;
-  padding-block: 8px;
+  min-height: 0;
+  padding-block: 8px 4px;
 }
 
 .nexi-control-summary .nexi-insights-header > div > strong {
-  font-size: 0;
-}
-
-.nexi-control-summary .nexi-insights-header > div > strong::after {
-  content: "Nexi";
   font-size: 13px;
-}
-
-.nexi-control-summary .nexi-insights-header > div > span {
-  font-size: 0;
-}
-
-.nexi-control-summary .nexi-insights-header > div > span::after {
-  content: "Hallazgos y sugerencias de esta vista.";
-  font-size: 9px;
 }
 
 .nexi-control-summary .nexi-findings-heading span {
