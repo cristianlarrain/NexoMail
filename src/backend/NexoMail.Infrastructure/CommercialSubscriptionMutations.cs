@@ -144,46 +144,35 @@ public static class CommercialSubscriptionMutations
         DateTimeOffset? trialEndsAt,
         CancellationToken ct)
     {
+        var isSqlite = database.Database.IsSqlite();
         var connection = database.Database.GetDbConnection();
         var shouldClose = connection.State != ConnectionState.Open;
         if (shouldClose) await connection.OpenAsync(ct);
         try
         {
-            await EnsureSchemaAsync(connection, ct);
+            await EnsureSchemaAsync(connection, isSqlite, ct);
             var now = DateTimeOffset.UtcNow;
+            var prefix = isSqlite ? "$" : "@";
             await using var command = connection.CreateCommand();
-            command.CommandText = @"
-                INSERT INTO CommercialSubscriptions
-                (UserId, PlanCode, Status, Provider, ProviderCustomerId, ProviderSubscriptionId,
-                 CurrentPeriodStart, CurrentPeriodEnd, TrialEndsAt, CancelAtPeriodEnd, CanceledAt, PaymentDueAt, CreatedAt, UpdatedAt)
-                VALUES
-                ($userId, $planCode, $status, $provider, NULL, $providerSubscriptionId,
-                 $periodStart, $periodEnd, $trialEndsAt, 0, $canceledAt, $paymentDueAt, $createdAt, $updatedAt)
-                ON CONFLICT(UserId) DO UPDATE SET
-                    PlanCode = excluded.PlanCode,
-                    Status = excluded.Status,
-                    Provider = excluded.Provider,
-                    ProviderCustomerId = NULL,
-                    ProviderSubscriptionId = excluded.ProviderSubscriptionId,
-                    CurrentPeriodStart = excluded.CurrentPeriodStart,
-                    CurrentPeriodEnd = excluded.CurrentPeriodEnd,
-                    TrialEndsAt = excluded.TrialEndsAt,
-                    CancelAtPeriodEnd = 0,
-                    CanceledAt = excluded.CanceledAt,
-                    PaymentDueAt = excluded.PaymentDueAt,
-                    UpdatedAt = excluded.UpdatedAt;";
-            AddParameter(command, "$userId", userId);
-            AddParameter(command, "$planCode", planCode);
-            AddParameter(command, "$status", status);
-            AddParameter(command, "$provider", provider);
-            AddParameter(command, "$providerSubscriptionId", providerSubscriptionId);
-            AddParameter(command, "$periodStart", currentPeriodStart?.ToString("O"));
-            AddParameter(command, "$periodEnd", currentPeriodEnd?.ToString("O"));
-            AddParameter(command, "$trialEndsAt", trialEndsAt?.ToString("O"));
-            AddParameter(command, "$canceledAt", status == CommercialSubscriptionStatuses.Canceled ? now.ToString("O") : null);
-            AddParameter(command, "$paymentDueAt", status == CommercialSubscriptionStatuses.PastDue ? now.ToString("O") : null);
-            AddParameter(command, "$createdAt", now.ToString("O"));
-            AddParameter(command, "$updatedAt", now.ToString("O"));
+            command.CommandText = BuildUpsertCommandText(isSqlite);
+            AddParameter(command, $"{prefix}userId", isSqlite ? userId.ToString() : userId);
+            AddParameter(command, $"{prefix}planCode", planCode);
+            AddParameter(command, $"{prefix}status", status);
+            AddParameter(command, $"{prefix}provider", provider);
+            AddParameter(command, $"{prefix}providerSubscriptionId", providerSubscriptionId);
+            AddParameter(command, $"{prefix}periodStart", isSqlite ? currentPeriodStart?.ToString("O") : currentPeriodStart);
+            AddParameter(command, $"{prefix}periodEnd", isSqlite ? currentPeriodEnd?.ToString("O") : currentPeriodEnd);
+            AddParameter(command, $"{prefix}trialEndsAt", isSqlite ? trialEndsAt?.ToString("O") : trialEndsAt);
+            AddParameter(command, $"{prefix}canceledAt",
+                status == CommercialSubscriptionStatuses.Canceled
+                    ? isSqlite ? now.ToString("O") : now
+                    : null);
+            AddParameter(command, $"{prefix}paymentDueAt",
+                status == CommercialSubscriptionStatuses.PastDue
+                    ? isSqlite ? now.ToString("O") : now
+                    : null);
+            AddParameter(command, $"{prefix}createdAt", isSqlite ? now.ToString("O") : now);
+            AddParameter(command, $"{prefix}updatedAt", isSqlite ? now.ToString("O") : now);
             await command.ExecuteNonQueryAsync(ct);
         }
         finally
@@ -192,27 +181,104 @@ public static class CommercialSubscriptionMutations
         }
     }
 
-    private static async Task EnsureSchemaAsync(DbConnection connection, CancellationToken ct)
+    private static string BuildUpsertCommandText(bool isSqlite) => isSqlite
+        ? """
+            INSERT INTO CommercialSubscriptions
+            (UserId, PlanCode, Status, Provider, ProviderCustomerId, ProviderSubscriptionId,
+             CurrentPeriodStart, CurrentPeriodEnd, TrialEndsAt, CancelAtPeriodEnd, CanceledAt, PaymentDueAt, CreatedAt, UpdatedAt)
+            VALUES
+            ($userId, $planCode, $status, $provider, NULL, $providerSubscriptionId,
+             $periodStart, $periodEnd, $trialEndsAt, 0, $canceledAt, $paymentDueAt, $createdAt, $updatedAt)
+            ON CONFLICT(UserId) DO UPDATE SET
+                PlanCode = excluded.PlanCode,
+                Status = excluded.Status,
+                Provider = excluded.Provider,
+                ProviderCustomerId = NULL,
+                ProviderSubscriptionId = excluded.ProviderSubscriptionId,
+                CurrentPeriodStart = excluded.CurrentPeriodStart,
+                CurrentPeriodEnd = excluded.CurrentPeriodEnd,
+                TrialEndsAt = excluded.TrialEndsAt,
+                CancelAtPeriodEnd = 0,
+                CanceledAt = excluded.CanceledAt,
+                PaymentDueAt = excluded.PaymentDueAt,
+                UpdatedAt = excluded.UpdatedAt;
+            """
+        : """
+            IF EXISTS (SELECT 1 FROM [CommercialSubscriptions] WHERE [UserId] = @userId)
+            BEGIN
+                UPDATE [CommercialSubscriptions] SET
+                    [PlanCode] = @planCode,
+                    [Status] = @status,
+                    [Provider] = @provider,
+                    [ProviderCustomerId] = NULL,
+                    [ProviderSubscriptionId] = @providerSubscriptionId,
+                    [CurrentPeriodStart] = @periodStart,
+                    [CurrentPeriodEnd] = @periodEnd,
+                    [TrialEndsAt] = @trialEndsAt,
+                    [CancelAtPeriodEnd] = CAST(0 AS bit),
+                    [CanceledAt] = @canceledAt,
+                    [PaymentDueAt] = @paymentDueAt,
+                    [UpdatedAt] = @updatedAt
+                WHERE [UserId] = @userId;
+            END
+            ELSE
+            BEGIN
+                INSERT INTO [CommercialSubscriptions]
+                ([UserId], [PlanCode], [Status], [Provider], [ProviderCustomerId], [ProviderSubscriptionId],
+                 [CurrentPeriodStart], [CurrentPeriodEnd], [TrialEndsAt], [CancelAtPeriodEnd],
+                 [CanceledAt], [PaymentDueAt], [CreatedAt], [UpdatedAt])
+                VALUES
+                (@userId, @planCode, @status, @provider, NULL, @providerSubscriptionId,
+                 @periodStart, @periodEnd, @trialEndsAt, CAST(0 AS bit),
+                 @canceledAt, @paymentDueAt, @createdAt, @updatedAt);
+            END;
+            """;
+
+    private static async Task EnsureSchemaAsync(DbConnection connection, bool isSqlite, CancellationToken ct)
     {
         await using var command = connection.CreateCommand();
-        command.CommandText = @"
-            CREATE TABLE IF NOT EXISTS CommercialSubscriptions (
-                UserId TEXT NOT NULL CONSTRAINT PK_CommercialSubscriptions PRIMARY KEY,
-                PlanCode TEXT NOT NULL,
-                Status TEXT NOT NULL,
-                Provider TEXT NULL,
-                ProviderCustomerId TEXT NULL,
-                ProviderSubscriptionId TEXT NULL,
-                CurrentPeriodStart TEXT NULL,
-                CurrentPeriodEnd TEXT NULL,
-                TrialEndsAt TEXT NULL,
-                CancelAtPeriodEnd INTEGER NOT NULL DEFAULT 0,
-                CanceledAt TEXT NULL,
-                PaymentDueAt TEXT NULL,
-                CreatedAt TEXT NOT NULL,
-                UpdatedAt TEXT NOT NULL,
-                CONSTRAINT FK_CommercialSubscriptions_Users_UserId FOREIGN KEY (UserId) REFERENCES Users (Id) ON DELETE CASCADE
-            );";
+        command.CommandText = isSqlite
+            ? """
+                CREATE TABLE IF NOT EXISTS CommercialSubscriptions (
+                    UserId TEXT NOT NULL CONSTRAINT PK_CommercialSubscriptions PRIMARY KEY,
+                    PlanCode TEXT NOT NULL,
+                    Status TEXT NOT NULL,
+                    Provider TEXT NULL,
+                    ProviderCustomerId TEXT NULL,
+                    ProviderSubscriptionId TEXT NULL,
+                    CurrentPeriodStart TEXT NULL,
+                    CurrentPeriodEnd TEXT NULL,
+                    TrialEndsAt TEXT NULL,
+                    CancelAtPeriodEnd INTEGER NOT NULL DEFAULT 0,
+                    CanceledAt TEXT NULL,
+                    PaymentDueAt TEXT NULL,
+                    CreatedAt TEXT NOT NULL,
+                    UpdatedAt TEXT NOT NULL,
+                    CONSTRAINT FK_CommercialSubscriptions_Users_UserId FOREIGN KEY (UserId) REFERENCES Users (Id) ON DELETE CASCADE
+                );
+                """
+            : """
+                IF OBJECT_ID(N'CommercialSubscriptions', N'U') IS NULL
+                BEGIN
+                    CREATE TABLE [CommercialSubscriptions] (
+                        [UserId] uniqueidentifier NOT NULL CONSTRAINT [PK_CommercialSubscriptions] PRIMARY KEY,
+                        [PlanCode] nvarchar(32) NOT NULL,
+                        [Status] nvarchar(32) NOT NULL,
+                        [Provider] nvarchar(64) NULL,
+                        [ProviderCustomerId] nvarchar(256) NULL,
+                        [ProviderSubscriptionId] nvarchar(256) NULL,
+                        [CurrentPeriodStart] datetimeoffset NULL,
+                        [CurrentPeriodEnd] datetimeoffset NULL,
+                        [TrialEndsAt] datetimeoffset NULL,
+                        [CancelAtPeriodEnd] bit NOT NULL CONSTRAINT [DF_CommercialSubscriptions_CancelAtPeriodEnd] DEFAULT CAST(0 AS bit),
+                        [CanceledAt] datetimeoffset NULL,
+                        [PaymentDueAt] datetimeoffset NULL,
+                        [CreatedAt] datetimeoffset NOT NULL,
+                        [UpdatedAt] datetimeoffset NOT NULL,
+                        CONSTRAINT [FK_CommercialSubscriptions_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [Users] ([Id]) ON DELETE CASCADE
+                    );
+                END;
+                """;
         await command.ExecuteNonQueryAsync(ct);
     }
 
