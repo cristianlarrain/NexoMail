@@ -12,20 +12,20 @@ if (-not (Test-Path $webConfigPath)) {
 }
 
 Write-Host ''
-Write-Host 'CUENTAS DE PRODUCCIÓN' -ForegroundColor Cyan
-$smtpAddress = Read-Host '1. Cuenta IONOS que enviará códigos (ejemplo: contacto@eidosdigital.cl)'
+Write-Host 'CUENTAS DE PRODUCCION' -ForegroundColor Cyan
+$smtpAddress = Read-Host '1. Cuenta IONOS que enviara codigos (ejemplo: contacto@eidosdigital.cl)'
 if ([string]::IsNullOrWhiteSpace($smtpAddress)) {
-    throw 'La cuenta IONOS remitente no puede estar vacía.'
+    throw 'La cuenta IONOS remitente no puede estar vacia.'
 }
 $ownerEmail = Read-Host '2. Cuenta de usuario NexoMail con acceso total (NO ingrese la cuenta remitente)'
 if ([string]::IsNullOrWhiteSpace($ownerEmail)) {
-    throw 'La cuenta propietaria de NexoMail no puede estar vacía.'
+    throw 'La cuenta propietaria de NexoMail no puede estar vacia.'
 }
 
 Write-Host ''
-Write-Host 'CONTRASEÑAS DE PRODUCCIÓN' -ForegroundColor Cyan
-$securePassword = Read-Host '3. Contraseña MSSQL del usuario dbo1111108584' -AsSecureString
-$secureSmtpPassword = Read-Host "4. Contraseña del correo IONOS $smtpAddress" -AsSecureString
+Write-Host 'CONTRASENAS DE PRODUCCION' -ForegroundColor Cyan
+$securePassword = Read-Host '3. Contrasena MSSQL del usuario dbo1111108584' -AsSecureString
+$secureSmtpPassword = Read-Host "4. Contrasena del correo IONOS $smtpAddress" -AsSecureString
 $passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
 $smtpPasswordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureSmtpPassword)
 
@@ -33,16 +33,16 @@ try {
     $plainPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
     $plainSmtpPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($smtpPasswordPointer)
     if ([string]::IsNullOrWhiteSpace($plainPassword)) {
-        throw 'La contraseña MSSQL no puede estar vacía.'
+        throw 'La contrasena MSSQL no puede estar vacia.'
     }
     if ([string]::IsNullOrWhiteSpace($plainSmtpPassword)) {
-        throw 'La contraseña de la cuenta de correo IONOS no puede estar vacía.'
+        throw 'La contrasena de la cuenta de correo IONOS no puede estar vacia.'
     }
 
     [xml]$configuration = Get-Content $webConfigPath -Raw
     $aspNetCore = $configuration.configuration.location.'system.webServer'.aspNetCore
     if ($null -eq $aspNetCore) {
-        throw 'El web.config publicado no contiene la sección aspNetCore.'
+        throw 'El web.config publicado no contiene la seccion aspNetCore.'
     }
 
     $environmentVariables = $aspNetCore.environmentVariables
@@ -104,6 +104,6 @@ finally {
 }
 
 Write-Host ''
-Write-Host 'Publicación configurada correctamente, sin comprimir:' -ForegroundColor Green
+Write-Host 'Publicacion configurada correctamente, sin comprimir:' -ForegroundColor Green
 Write-Host $publishPath
 Write-Host 'La carpeta contiene secretos en web.config. No la comparta ni la suba a Git.'
