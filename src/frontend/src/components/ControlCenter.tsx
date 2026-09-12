@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, Clock3, Eye, Inbox, Mail, Pause, RefreshCw, Send, Sparkles, X } from 'lucide-react'
@@ -46,7 +46,7 @@ function managementCopy(view: Exclude<ManagementView, null>) {
   return { title: 'Pendientes de más de 48 horas', description: 'Reúne pendientes recibidos y enviados cuya última actividad ocurrió hace 48 horas o más.' }
 }
 
-export function ControlCenter({ accountId }: { accountId?: string; accountName?: string }) {
+export function ControlCenter({ accountId, onUpdatedAtChange }: { accountId?: string; accountName?: string; onUpdatedAtChange?: (value: string) => void }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [activeView, setActiveView] = useState<ManagementView>(null)
@@ -73,6 +73,12 @@ export function ControlCenter({ accountId }: { accountId?: string; accountName?:
     refetchOnMount: 'always',
     refetchOnWindowFocus: false,
   })
+
+  const generatedAt = snapshot.data?.generatedAt
+  useEffect(() => {
+    if (!generatedAt || !onUpdatedAtChange) return
+    onUpdatedAtChange(new Date(generatedAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }))
+  }, [generatedAt, onUpdatedAtChange])
 
   const manage = useMutation({
     mutationFn: ({ item, action, snoozeHours }: { item: ControlCenterPendingItem; action: 'resolved' | 'snoozed'; snoozeHours?: number }) => mailApi.updateControlCenterState(item.accountId, item.conversationId, { messageId: item.messageId, action, snoozeHours }),
@@ -127,7 +133,6 @@ export function ControlCenter({ accountId }: { accountId?: string; accountName?:
   if (snapshot.isError || !snapshot.data) return <section className="control-center control-center-cinematic"><div className="control-center-header"><div><h2>Estado operativo</h2><p>No fue posible cargar los indicadores.</p></div><button className="icon-button" onClick={() => snapshot.refetch()} aria-label="Reintentar indicadores"><RefreshCw size={17} /></button></div></section>
 
   const data = snapshot.data
-  const updatedAt = new Date(data.generatedAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
   const managementItems = activeView === 'received'
     ? data.pendingItems.filter(item => item.direction === 'received')
     : activeView === 'sent'
@@ -147,7 +152,6 @@ export function ControlCenter({ accountId }: { accountId?: string; accountName?:
   })
 
   const priorityItems = [...priorityMap.values()].sort((left, right) => new Date(left.item.since).getTime() - new Date(right.item.since).getTime())
-  const actionable = data.receivedWithoutReply + data.sentWithoutResponse
 
   function openManagementView(view: Exclude<ManagementView, null>) {
     setActiveView(view)
@@ -164,15 +168,7 @@ export function ControlCenter({ accountId }: { accountId?: string; accountName?:
   }
 
   return <section className="control-center control-center-cinematic" aria-label="Prioridades">
-    <div className="control-center-meta"><span>Actualizado {updatedAt}</span></div>
-
     {data.unavailableAccounts > 0 && <div className="notice control-center-warning">No se pudo consultar {data.unavailableAccounts} cuenta{data.unavailableAccounts === 1 ? '' : 's'}. Los indicadores consideran las cuentas disponibles.</div>}
-
-    <div className="control-summary-strip" aria-label="Resumen operativo">
-      <strong>{actionable} pendiente{actionable === 1 ? '' : 's'}</strong>
-      <span>{data.overdue} +48 h</span>
-      <span>{data.unread} sin leer</span>
-    </div>
 
     <div className="control-metrics nexi-control-metrics compact">
       <MetricCard tone="received" icon={<Inbox size={18} />} value={data.receivedWithoutReply} label="Recibidos sin responder" active={activeView === 'received'} onClick={() => openManagementView('received')} />
