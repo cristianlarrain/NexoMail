@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Check, ImagePlus, RefreshCw, Sparkles, X } from 'lucide-react'
+import { authApi } from '../api/authApi'
 import { commercialApi } from '../api/commercialApi'
 import { nexiApi, type NexiGeneratedImage } from '../api/nexiApi'
 import { commercialEntitlements } from '../utils/commercialEntitlements'
@@ -38,7 +39,13 @@ export function NexiGreetingImageAssistant() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [inserted, setInserted] = useState(false)
-  const { data: commercialSubscription } = useQuery({ queryKey: ['commercial-subscription'], queryFn: commercialApi.subscription, staleTime: 30_000 })
+  const { data: session } = useQuery({ queryKey: ['session'], queryFn: authApi.me, retry: false, staleTime: 60_000 })
+  const { data: commercialSubscription } = useQuery({
+    queryKey: ['commercial-subscription'],
+    queryFn: commercialApi.subscription,
+    enabled: Boolean(session),
+    staleTime: 30_000,
+  })
   const hasNexi = commercialSubscription?.entitlements.includes(commercialEntitlements.nexiAi) === true
 
   useEffect(() => {
