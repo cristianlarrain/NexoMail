@@ -24,36 +24,51 @@ for (const redundantCopy of [
   }
 }
 
-if (!controlCenter.includes('control-summary-strip')) {
-  throw new Error('El resumen operativo debe mostrarse como una franja compacta.')
+if (controlCenter.includes('control-summary-strip')) {
+  throw new Error('La franja de resumen operativo es redundante con las tarjetas y debe eliminarse.')
 }
 
 if (!controlCenter.includes('control-metrics nexi-control-metrics compact')) {
   throw new Error('Los cuatro indicadores deben usar la variante compacta.')
 }
 
-const summaryIndex = controlCenter.indexOf('control-summary-strip')
 const metricsIndex = controlCenter.indexOf('control-metrics nexi-control-metrics compact')
 const priorityIndex = controlCenter.indexOf('<NexiPriorityQueue')
 
-if (!(summaryIndex >= 0 && summaryIndex < metricsIndex && metricsIndex < priorityIndex)) {
-  throw new Error('El orden debe ser resumen compacto > indicadores > Priorización inteligente.')
+if (!(metricsIndex >= 0 && metricsIndex < priorityIndex)) {
+  throw new Error('El orden debe ser indicadores compactos > Priorización inteligente.')
 }
 
 if (controlCenter.includes('nexi-insights-panel nexi-control-summary')) {
-  throw new Error('El resumen y los indicadores no deben estar dentro de otra caja de sección.')
+  throw new Error('Los indicadores no deben estar dentro de otra caja de sección.')
 }
 
 if (!priorityQueue.includes('Priorización inteligente') || !priorityQueue.includes('Qué atender primero')) {
   throw new Error('Debe mantenerse la jerarquía Priorización inteligente > Qué atender primero.')
 }
 
+if (priorityQueue.includes('Revisar con Nexi')) {
+  throw new Error('El botón principal debe decir Analizar con Nexi.')
+}
+
+if (!priorityQueue.includes("'Analizar con Nexi'")) {
+  throw new Error('Falta la etiqueta Analizar con Nexi en el botón principal.')
+}
+
+if (!priorityQueue.includes('nexi-priority-refine nexi-glow-action')) {
+  throw new Error('El botón Analizar con Nexi debe usar la variante turquesa glow.')
+}
+
 if (priorityQueue.includes('Nexi ordena las conversaciones y permite resumir, responder o dar seguimiento desde la misma grilla.')) {
   throw new Error('La priorización no debe incluir texto explicativo redundante.')
 }
 
-for (const marker of ['.control-summary-strip', '.nexi-control-metrics.compact', '.control-center-page .control-tabs-inline']) {
+for (const marker of ['.nexi-control-metrics.compact', '.control-center-page .control-tabs-inline', '.control-center-page .nexi-priority-refine.nexi-glow-action']) {
   if (!cleanupCss.includes(marker)) throw new Error(`Falta el estilo minimalista requerido: ${marker}`)
+}
+
+if (!cleanupCss.includes('background: var(--primary);') || !cleanupCss.includes('box-shadow: 0 0 18px')) {
+  throw new Error('El botón Analizar con Nexi debe usar el turquesa principal con glow.')
 }
 
 console.log('PASS minimalist Control Center hierarchy')
