@@ -2,85 +2,187 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  gap: 14px;
+  margin-bottom: 10px;
   flex-wrap: wrap;
 }
 
 .control-center-page .control-page-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
 }
 
 .control-center-page .control-page-title h1 {
   margin: 0;
+  font-size: 24px;
+  line-height: 1.1;
 }
 
-.control-center-page .control-tabs-inline {
-  margin-left: auto;
+.control-center-page .nexi-control-brandmark {
   flex: 0 0 auto;
 }
 
-.control-center-page .control-center-header {
-  min-height: 36px;
-  padding-block: 6px;
+.control-center-page .control-tabs-inline {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  padding-bottom: 3px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  flex: 0 0 auto;
 }
 
-.control-center-page .control-center-title-line h2,
-.control-center-page .control-center-header > div:first-child > p {
-  display: none;
-}
-
-.control-center-page .control-center-title-line span {
-  padding: 0;
-  border: 0;
+.control-center-page .control-tabs-inline button {
+  min-height: 32px;
+  padding: 6px 9px;
+  border-color: transparent;
   background: transparent;
-  color: var(--muted-foreground);
-  font-size: 0;
-  font-weight: 700;
+  box-shadow: none;
+  font-size: 11px;
+  opacity: .72;
 }
 
-.control-center-page .control-center-title-line span::after {
-  content: "Todas las cuentas · 14 días";
-  font-size: 10px;
+.control-center-page .control-tabs-inline button:hover,
+.control-center-page .control-tabs-inline button.active {
+  opacity: 1;
 }
 
-.control-center-page .control-center-refresh span {
+.control-center-page .control-tabs-inline button.active {
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+}
+
+.control-center-page .control-center-cinematic {
+  gap: 0;
+}
+
+.control-center-meta {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 14px;
+  margin: -2px 2px 2px;
+}
+
+.control-center-meta span {
   color: var(--muted-foreground);
   font-size: 9px;
   font-weight: 600;
 }
 
-.nexi-control-summary .nexi-insights-header {
-  min-height: 0;
-  padding-block: 8px 4px;
+.control-summary-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 7px 2px 9px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
 }
 
-.nexi-control-summary .nexi-insights-header > div > strong {
+.control-summary-strip strong {
+  color: var(--foreground);
   font-size: 13px;
+  line-height: 1.2;
 }
 
-.nexi-control-summary .nexi-findings-heading span {
-  display: none;
+.control-summary-strip span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.control-summary-strip span::before {
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+  content: '';
+}
+
+.nexi-control-metrics.compact {
+  gap: 8px;
+  margin: 10px 0 14px;
+  padding: 0;
+}
+
+.nexi-control-metrics.compact .control-metric {
+  min-height: 74px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.nexi-control-metrics.compact .control-metric-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+}
+
+.nexi-control-metrics.compact .control-metric strong {
+  margin-top: 0;
+  font-size: 22px;
+}
+
+.nexi-control-metrics.compact .control-metric span {
+  margin-top: 4px;
+  font-size: 11px;
+}
+
+.control-center-page .nexi-priority-featured {
+  margin-top: 4px;
+  box-shadow: none;
+}
+
+.control-center-page .nexi-priority-header {
+  min-height: 0;
+  padding: 12px 14px;
+}
+
+.control-center-page .nexi-priority-kicker {
+  font-size: 10px;
+}
+
+.control-center-page .nexi-priority-header strong {
+  font-size: 16px;
+}
+
+.control-center-page .nexi-priority-refine {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 11px;
 }
 
 @media (max-width: 760px) {
   .control-center-page > .control-page-header {
     align-items: flex-start;
-    gap: 10px;
+    gap: 8px;
   }
 
   .control-center-page .control-tabs-inline {
     width: 100%;
     margin-left: 0;
+    overflow-x: auto;
   }
 }
 
 @media (max-width: 640px) {
-  .control-center-page .control-center-header {
-    align-items: flex-start;
-    gap: 4px;
+  .control-center-page .control-page-title h1 {
+    font-size: 21px;
   }
 
-  .control-center-page .control-center-refresh {
-    margin-left: 0;
+  .control-center-meta {
+    justify-content: flex-start;
+  }
+
+  .control-summary-strip {
+    gap: 6px;
+  }
+
+  .nexi-control-metrics.compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
