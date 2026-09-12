@@ -10,6 +10,7 @@ const perspectives = read('src/pages/PerspectivesPage.tsx')
 const landing = read('src/pages/LandingPage.tsx')
 const landingCss = read('src/styles/landing.css')
 const landingCommercialCss = read('src/styles/landing-commercial.css')
+const landingStyles = `${landingCss}\n${landingCommercialCss}`
 const perspectiveStyles = [
   read('src/styles/nexo-perspective.css'),
   read('src/styles/perspective-share-cleanup.css'),
@@ -86,11 +87,11 @@ if (!landing.includes('Conecte sus cuentas actuales y trabaje desde una sola int
   throw new Error('Integraciones debe usar el texto comercial simplificado.')
 }
 
-if (!landingCss.includes('padding: 56px 0')) {
+if (!landingStyles.includes('padding: 56px 0')) {
   throw new Error('La landing debe reducir el espaciado vertical general a 56px.')
 }
 
-if (!landingCss.includes('--warm-yellow: #f2b34f')) {
+if (!landingStyles.includes('--warm-yellow: #f2b34f')) {
   throw new Error('La demo comercial debe incorporar el acento amarillo/anaranjado aprobado.')
 }
 
