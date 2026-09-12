@@ -167,7 +167,7 @@ public static class CommercialAccessStore
                 VALUES
                 ({prefix}userId, {prefix}planCode, {prefix}status, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, {prefix}createdAt, {prefix}updatedAt);
                 """;
-            AddParameter(insert, $"{prefix}userId", isSqlite ? userId.ToString() : userId);
+            AddParameter(insert, $"{prefix}userId", userId);
             AddParameter(insert, $"{prefix}planCode", planCode);
             AddParameter(insert, $"{prefix}status", status);
             AddParameter(insert, $"{prefix}createdAt", isSqlite ? now.ToString("O") : now);
@@ -250,7 +250,7 @@ public static class CommercialAccessStore
                        TrialEndsAt, CancelAtPeriodEnd, CanceledAt, PaymentDueAt, UpdatedAt
                 FROM CommercialSubscriptions WHERE UserId = {prefix}userId;
                 """;
-        AddParameter(command, $"{prefix}userId", isSqlite ? userId.ToString() : userId);
+        AddParameter(command, $"{prefix}userId", userId);
         await using var reader = await command.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) return null;
         return new CommercialSubscriptionState(
