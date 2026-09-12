@@ -13,7 +13,7 @@ const layoutMarkers = [
   'className="sidebar-nav-main"',
   'className="account-switcher"',
   'className="account-switcher-popover"',
-  'className="account-switcher-option"',
+  'account-switcher-option',
   'className="sidebar-nav-utilities"',
 ]
 
