@@ -44,10 +44,10 @@ public static class AuthEndpoints
 
         auth.MapGet("/me", async (HttpContext context, NexoMailDbContext database, CancellationToken ct) =>
         {
-            if (!TryUserId(context.User, out var userId)) return Results.Unauthorized();
+            if (!TryUserId(context.User, out var userId)) return Results.NoContent();
             var user = await database.Users.AsNoTracking().SingleOrDefaultAsync(x => x.Id == userId && x.IsActive && x.IsEmailVerified, ct);
-            return user is null ? Results.Unauthorized() : Results.Ok(ToSession(user));
-        }).RequireAuthorization();
+            return user is null ? Results.NoContent() : Results.Ok(ToSession(user));
+        });
 
         auth.MapPatch("/me", UpdateProfileAsync).RequireAuthorization();
 
@@ -206,10 +206,11 @@ public static class AuthEndpoints
         var email = request.Email.Trim().ToLowerInvariant();
         var user = await database.Users.SingleOrDefaultAsync(x => x.Email == email && x.IsActive, ct);
         if (user is null || string.IsNullOrWhiteSpace(user.PasswordHash))
-            return Results.Unauthorized();
+            return Results.BadRequest(new { error = "Correo o contraseña incorrectos." });
 
         var result = passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
-        if (result == PasswordVerificationResult.Failed) return Results.Unauthorized();
+        if (result == PasswordVerificationResult.Failed)
+            return Results.BadRequest(new { error = "Correo o contraseña incorrectos." });
         if (!user.IsEmailVerified)
             return Results.Json(new { error = "Debes verificar tu correo antes de iniciar sesión." }, statusCode: StatusCodes.Status403Forbidden);
 
