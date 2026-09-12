@@ -155,7 +155,7 @@ public static class CommercialSubscriptionMutations
             var prefix = isSqlite ? "$" : "@";
             await using var command = connection.CreateCommand();
             command.CommandText = BuildUpsertCommandText(isSqlite);
-            AddParameter(command, $"{prefix}userId", isSqlite ? userId.ToString() : userId);
+            AddParameter(command, $"{prefix}userId", userId);
             AddParameter(command, $"{prefix}planCode", planCode);
             AddParameter(command, $"{prefix}status", status);
             AddParameter(command, $"{prefix}provider", provider);
