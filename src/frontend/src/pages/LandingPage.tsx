@@ -4,6 +4,9 @@ import { ArrowRight, Building2, Check, Clock3, Gauge, Inbox, Layers3, LockKeyhol
 import { NexoMailLogo } from '../components/brand/NexoMailLogo'
 import { NexiVisual } from '../components/nexi/NexiVisual'
 
+const demoVideoUrl = 'https://cdn.creativeclaw.co/u/372f7075/videos/d1cab7f4-113a-43c9-bc48-ea80643f0088.mp4'
+const demoPosterUrl = 'https://cdn.creativeclaw.co/u/372f7075/images/8b998e07-5e31-4275-bf93-836a2e3723ae.png'
+
 const features = [
   { icon: <Inbox size={21} />, title: 'Todas sus cuentas, en un solo lugar', description: 'Revise, responda y gestione varias cuentas de correo desde una interfaz única, sin saltar entre proveedores.' },
   { icon: <Gauge size={21} />, title: 'Centro de Control', description: 'Detecte correos sin responder, mensajes enviados sin respuesta, pendientes de más de 48 horas y actividad por cuenta.' },
@@ -97,9 +100,21 @@ export function LandingPage() {
         </div>
 
         <div className="landing-video-stage" id="demo-video">
-          <button type="button" className="landing-video-play" aria-label="Ver NexoMail en acción">▶</button>
-          <strong>Vea NexoMail en acción</strong>
-          <span>Este espacio queda preparado para incorporar el video demostrativo.</span>
+          <video
+            className="landing-video-player"
+            controls
+            playsInline
+            preload="metadata"
+            poster={demoPosterUrl}
+            aria-label="Vea NexoMail en acción"
+          >
+            <source src={demoVideoUrl} type="video/mp4" />
+            Su navegador no admite reproducción de video HTML5.
+          </video>
+          <div className="landing-video-caption">
+            <strong>Vea NexoMail en acción</strong>
+            <span>Demo de producto · 55 segundos</span>
+          </div>
         </div>
 
         <div className="landing-commercial-preview-foot">
