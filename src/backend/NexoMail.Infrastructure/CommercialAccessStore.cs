@@ -144,31 +144,34 @@ public static class CommercialAccessStore
 
     private static async Task<CommercialSubscriptionState> EnsureSubscriptionAsync(NexoMailDbContext database, Guid userId, string planCode, CancellationToken ct)
     {
+        var isSqlite = database.Database.IsSqlite();
         var connection = database.Database.GetDbConnection();
         var shouldClose = connection.State != ConnectionState.Open;
         if (shouldClose) await connection.OpenAsync(ct);
         try
         {
-            await EnsureSchemaAsync(connection, ct);
-            var existing = await ReadAsync(connection, userId, ct);
+            await EnsureSchemaAsync(connection, isSqlite, ct);
+            var existing = await ReadAsync(connection, userId, isSqlite, ct);
             if (existing is not null) return existing;
 
             var now = DateTimeOffset.UtcNow;
             var status = string.Equals(planCode, CommercialPlanCatalog.Freemium, StringComparison.OrdinalIgnoreCase)
                 ? CommercialSubscriptionStatuses.Active
                 : CommercialSubscriptionStatuses.Legacy;
+            var prefix = isSqlite ? "$" : "@";
             await using var insert = connection.CreateCommand();
-            insert.CommandText = @"
+            insert.CommandText = $"""
                 INSERT INTO CommercialSubscriptions
                 (UserId, PlanCode, Status, Provider, ProviderCustomerId, ProviderSubscriptionId,
                  CurrentPeriodStart, CurrentPeriodEnd, TrialEndsAt, CancelAtPeriodEnd, CanceledAt, PaymentDueAt, CreatedAt, UpdatedAt)
                 VALUES
-                ($userId, $planCode, $status, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, $createdAt, $updatedAt);";
-            AddParameter(insert, "$userId", userId);
-            AddParameter(insert, "$planCode", planCode);
-            AddParameter(insert, "$status", status);
-            AddParameter(insert, "$createdAt", now.ToString("O"));
-            AddParameter(insert, "$updatedAt", now.ToString("O"));
+                ({prefix}userId, {prefix}planCode, {prefix}status, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, {prefix}createdAt, {prefix}updatedAt);
+                """;
+            AddParameter(insert, $"{prefix}userId", isSqlite ? userId.ToString() : userId);
+            AddParameter(insert, $"{prefix}planCode", planCode);
+            AddParameter(insert, $"{prefix}status", status);
+            AddParameter(insert, $"{prefix}createdAt", isSqlite ? now.ToString("O") : now);
+            AddParameter(insert, $"{prefix}updatedAt", isSqlite ? now.ToString("O") : now);
             await insert.ExecuteNonQueryAsync(ct);
             return new(status, null, null, null, null, null, null, false, null, null, now) { PlanCode = planCode };
         }
@@ -178,40 +181,76 @@ public static class CommercialAccessStore
         }
     }
 
-    private static async Task EnsureSchemaAsync(DbConnection connection, CancellationToken ct)
+    private static async Task EnsureSchemaAsync(DbConnection connection, bool isSqlite, CancellationToken ct)
     {
         await using var command = connection.CreateCommand();
-        command.CommandText = @"
-            CREATE TABLE IF NOT EXISTS CommercialSubscriptions (
-                UserId TEXT NOT NULL CONSTRAINT PK_CommercialSubscriptions PRIMARY KEY,
-                PlanCode TEXT NOT NULL,
-                Status TEXT NOT NULL,
-                Provider TEXT NULL,
-                ProviderCustomerId TEXT NULL,
-                ProviderSubscriptionId TEXT NULL,
-                CurrentPeriodStart TEXT NULL,
-                CurrentPeriodEnd TEXT NULL,
-                TrialEndsAt TEXT NULL,
-                CancelAtPeriodEnd INTEGER NOT NULL DEFAULT 0,
-                CanceledAt TEXT NULL,
-                PaymentDueAt TEXT NULL,
-                CreatedAt TEXT NOT NULL,
-                UpdatedAt TEXT NOT NULL,
-                CONSTRAINT FK_CommercialSubscriptions_Users_UserId FOREIGN KEY (UserId) REFERENCES Users (Id) ON DELETE CASCADE
-            );
-            CREATE INDEX IF NOT EXISTS IX_CommercialSubscriptions_Status ON CommercialSubscriptions (Status);
-            CREATE INDEX IF NOT EXISTS IX_CommercialSubscriptions_ProviderSubscriptionId ON CommercialSubscriptions (ProviderSubscriptionId);";
+        command.CommandText = isSqlite
+            ? """
+                CREATE TABLE IF NOT EXISTS CommercialSubscriptions (
+                    UserId TEXT NOT NULL CONSTRAINT PK_CommercialSubscriptions PRIMARY KEY,
+                    PlanCode TEXT NOT NULL,
+                    Status TEXT NOT NULL,
+                    Provider TEXT NULL,
+                    ProviderCustomerId TEXT NULL,
+                    ProviderSubscriptionId TEXT NULL,
+                    CurrentPeriodStart TEXT NULL,
+                    CurrentPeriodEnd TEXT NULL,
+                    TrialEndsAt TEXT NULL,
+                    CancelAtPeriodEnd INTEGER NOT NULL DEFAULT 0,
+                    CanceledAt TEXT NULL,
+                    PaymentDueAt TEXT NULL,
+                    CreatedAt TEXT NOT NULL,
+                    UpdatedAt TEXT NOT NULL,
+                    CONSTRAINT FK_CommercialSubscriptions_Users_UserId FOREIGN KEY (UserId) REFERENCES Users (Id) ON DELETE CASCADE
+                );
+                CREATE INDEX IF NOT EXISTS IX_CommercialSubscriptions_Status ON CommercialSubscriptions (Status);
+                CREATE INDEX IF NOT EXISTS IX_CommercialSubscriptions_ProviderSubscriptionId ON CommercialSubscriptions (ProviderSubscriptionId);
+                """
+            : """
+                IF OBJECT_ID(N'CommercialSubscriptions', N'U') IS NULL
+                BEGIN
+                    CREATE TABLE [CommercialSubscriptions] (
+                        [UserId] uniqueidentifier NOT NULL CONSTRAINT [PK_CommercialSubscriptions] PRIMARY KEY,
+                        [PlanCode] nvarchar(32) NOT NULL,
+                        [Status] nvarchar(32) NOT NULL,
+                        [Provider] nvarchar(64) NULL,
+                        [ProviderCustomerId] nvarchar(256) NULL,
+                        [ProviderSubscriptionId] nvarchar(256) NULL,
+                        [CurrentPeriodStart] datetimeoffset NULL,
+                        [CurrentPeriodEnd] datetimeoffset NULL,
+                        [TrialEndsAt] datetimeoffset NULL,
+                        [CancelAtPeriodEnd] bit NOT NULL CONSTRAINT [DF_CommercialSubscriptions_CancelAtPeriodEnd] DEFAULT CAST(0 AS bit),
+                        [CanceledAt] datetimeoffset NULL,
+                        [PaymentDueAt] datetimeoffset NULL,
+                        [CreatedAt] datetimeoffset NOT NULL,
+                        [UpdatedAt] datetimeoffset NOT NULL,
+                        CONSTRAINT [FK_CommercialSubscriptions_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [Users] ([Id]) ON DELETE CASCADE
+                    );
+                END;
+                IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_CommercialSubscriptions_Status' AND object_id = OBJECT_ID(N'CommercialSubscriptions'))
+                    CREATE INDEX [IX_CommercialSubscriptions_Status] ON [CommercialSubscriptions] ([Status]);
+                IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_CommercialSubscriptions_ProviderSubscriptionId' AND object_id = OBJECT_ID(N'CommercialSubscriptions'))
+                    CREATE INDEX [IX_CommercialSubscriptions_ProviderSubscriptionId] ON [CommercialSubscriptions] ([ProviderSubscriptionId]);
+                """;
         await command.ExecuteNonQueryAsync(ct);
     }
 
-    private static async Task<CommercialSubscriptionState?> ReadAsync(DbConnection connection, Guid userId, CancellationToken ct)
+    private static async Task<CommercialSubscriptionState?> ReadAsync(DbConnection connection, Guid userId, bool isSqlite, CancellationToken ct)
     {
+        var prefix = isSqlite ? "$" : "@";
         await using var command = connection.CreateCommand();
-        command.CommandText = @"
-            SELECT PlanCode, Status, Provider, ProviderCustomerId, ProviderSubscriptionId, CurrentPeriodStart, CurrentPeriodEnd,
-                   TrialEndsAt, CancelAtPeriodEnd, CanceledAt, PaymentDueAt, UpdatedAt
-            FROM CommercialSubscriptions WHERE UserId = $userId LIMIT 1;";
-        AddParameter(command, "$userId", userId);
+        command.CommandText = isSqlite
+            ? $"""
+                SELECT PlanCode, Status, Provider, ProviderCustomerId, ProviderSubscriptionId, CurrentPeriodStart, CurrentPeriodEnd,
+                       TrialEndsAt, CancelAtPeriodEnd, CanceledAt, PaymentDueAt, UpdatedAt
+                FROM CommercialSubscriptions WHERE UserId = {prefix}userId LIMIT 1;
+                """
+            : $"""
+                SELECT TOP (1) PlanCode, Status, Provider, ProviderCustomerId, ProviderSubscriptionId, CurrentPeriodStart, CurrentPeriodEnd,
+                       TrialEndsAt, CancelAtPeriodEnd, CanceledAt, PaymentDueAt, UpdatedAt
+                FROM CommercialSubscriptions WHERE UserId = {prefix}userId;
+                """;
+        AddParameter(command, $"{prefix}userId", isSqlite ? userId.ToString() : userId);
         await using var reader = await command.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) return null;
         return new CommercialSubscriptionState(
@@ -222,17 +261,28 @@ public static class CommercialAccessStore
             ReadNullableDate(reader, 5),
             ReadNullableDate(reader, 6),
             ReadNullableDate(reader, 7),
-            reader.GetInt32(8) != 0,
+            Convert.ToBoolean(reader.GetValue(8)),
             ReadNullableDate(reader, 9),
             ReadNullableDate(reader, 10),
-            DateTimeOffset.Parse(reader.GetString(11)))
+            ReadDate(reader, 11))
         {
             PlanCode = reader.GetString(0)
         };
     }
 
     private static string? ReadNullableString(DbDataReader reader, int ordinal) => reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
-    private static DateTimeOffset? ReadNullableDate(DbDataReader reader, int ordinal) => reader.IsDBNull(ordinal) ? null : DateTimeOffset.Parse(reader.GetString(ordinal));
+
+    private static DateTimeOffset? ReadNullableDate(DbDataReader reader, int ordinal) =>
+        reader.IsDBNull(ordinal) ? null : ReadDate(reader, ordinal);
+
+    private static DateTimeOffset ReadDate(DbDataReader reader, int ordinal) =>
+        reader.GetValue(ordinal) switch
+        {
+            DateTimeOffset value => value,
+            DateTime value => new DateTimeOffset(value),
+            string value => DateTimeOffset.Parse(value),
+            var value => DateTimeOffset.Parse(Convert.ToString(value)!)
+        };
 
     private static void AddParameter(DbCommand command, string name, object? value)
     {
