@@ -6,22 +6,26 @@ $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $artifactsPath = Join-Path $repositoryRoot 'artifacts'
 $publishPath = Join-Path $artifactsPath 'ionos'
 $webConfigPath = Join-Path $publishPath 'web.config'
-$zipPath = Join-Path $artifactsPath 'NexoMail-IONOS.zip'
 
 if (-not (Test-Path $webConfigPath)) {
     throw 'No existe artifacts\ionos\web.config. Ejecute primero scripts\publish-ionos.ps1.'
 }
 
-$securePassword = Read-Host 'Contraseña MSSQL de dbo1111108584' -AsSecureString
-$smtpAddress = Read-Host 'Cuenta IONOS remitente (por ejemplo, contacto@eidosdigital.cl)'
+Write-Host ''
+Write-Host 'CUENTAS DE PRODUCCIÓN' -ForegroundColor Cyan
+$smtpAddress = Read-Host '1. Cuenta IONOS que enviará códigos (ejemplo: contacto@eidosdigital.cl)'
 if ([string]::IsNullOrWhiteSpace($smtpAddress)) {
     throw 'La cuenta IONOS remitente no puede estar vacía.'
 }
-$ownerEmail = Read-Host 'Correo de la cuenta propietaria de NexoMail'
+$ownerEmail = Read-Host '2. Cuenta de usuario NexoMail con acceso total (NO ingrese la cuenta remitente)'
 if ([string]::IsNullOrWhiteSpace($ownerEmail)) {
-    throw 'El correo de la cuenta propietaria no puede estar vacío.'
+    throw 'La cuenta propietaria de NexoMail no puede estar vacía.'
 }
-$secureSmtpPassword = Read-Host 'Contraseña de la cuenta de correo IONOS' -AsSecureString
+
+Write-Host ''
+Write-Host 'CONTRASEÑAS DE PRODUCCIÓN' -ForegroundColor Cyan
+$securePassword = Read-Host '3. Contraseña MSSQL del usuario dbo1111108584' -AsSecureString
+$secureSmtpPassword = Read-Host "4. Contraseña del correo IONOS $smtpAddress" -AsSecureString
 $passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
 $smtpPasswordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureSmtpPassword)
 
@@ -99,12 +103,7 @@ finally {
     $plainSmtpPassword = $null
 }
 
-if (Test-Path $zipPath) {
-    Remove-Item $zipPath -Force
-}
-Compress-Archive -Path (Join-Path $publishPath '*') -DestinationPath $zipPath -CompressionLevel Optimal
-
 Write-Host ''
-Write-Host 'Paquete configurado correctamente:' -ForegroundColor Green
-Write-Host $zipPath
-Write-Host 'El ZIP contiene la contraseña MSSQL. No lo comparta ni lo suba a Git.'
+Write-Host 'Publicación configurada correctamente, sin comprimir:' -ForegroundColor Green
+Write-Host $publishPath
+Write-Host 'La carpeta contiene secretos en web.config. No la comparta ni la suba a Git.'
