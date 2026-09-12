@@ -72,6 +72,16 @@ if (!activeBlock.includes('background: transparent')) throw new Error('El acceso
 if (!activeBlock.includes('box-shadow: none')) throw new Error('El acceso activo no debe usar barra lateral ni sombras.')
 if (!activeBlock.includes('border: 0')) throw new Error('El acceso activo no debe usar bordes decorativos.')
 
+const accountTriggerBlock = modernCss.match(/\.account-switcher-trigger\s*\{([\s\S]*?)\}/)?.[1] ?? ''
+if (!accountTriggerBlock) throw new Error('Falta el estilo del selector Todas las cuentas.')
+for (const marker of ['height: 36px', 'min-height: 36px', 'padding: 0 10px', 'border: 0', 'background: transparent', 'box-shadow: none']) {
+  if (!accountTriggerBlock.includes(marker)) throw new Error(`Todas las cuentas debe usar navegación plana: falta ${marker}`)
+}
+
+const accountHoverBlock = modernCss.match(/\.account-switcher-trigger:hover,\s*\n\.account-switcher\.open \.account-switcher-trigger\s*\{([\s\S]*?)\}/)?.[1] ?? ''
+if (!accountHoverBlock.includes('border-color: transparent')) throw new Error('Todas las cuentas no debe recuperar borde destacado al abrir o pasar el mouse.')
+if (!accountHoverBlock.includes('background: var(--surface-hover)')) throw new Error('Todas las cuentas debe usar el mismo hover suave del resto del menú.')
+
 for (const forbidden of [
   'drop-shadow(',
   'box-shadow: inset 2px 0 0 var(--primary)',
