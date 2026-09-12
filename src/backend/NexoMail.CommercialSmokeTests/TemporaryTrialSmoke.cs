@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore;
 using NexoMail.Domain;
@@ -11,6 +12,8 @@ internal static class TemporaryTrialSmoke
 
     private static async Task VerifyAsync()
     {
+        VerifyProviderSpecificUpsertSql();
+
         var ct = CancellationToken.None;
         var dbPath = Path.Combine(Path.GetTempPath(), $"nexomail-trial-smoke-{Guid.NewGuid():N}.db");
 
@@ -96,6 +99,25 @@ internal static class TemporaryTrialSmoke
                 if (File.Exists(path)) File.Delete(path);
             }
         }
+    }
+
+    private static void VerifyProviderSpecificUpsertSql()
+    {
+        var method = typeof(CommercialSubscriptionMutations).GetMethod(
+            "BuildUpsertCommandText",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        Ensure(method is not null,
+            "Las mutaciones comerciales deben generar SQL compatible con el proveedor activo.");
+
+        var sqlServer = method!.Invoke(null, [false]) as string;
+        Ensure(sqlServer is not null &&
+               sqlServer.Contains("IF EXISTS", StringComparison.OrdinalIgnoreCase) &&
+               !sqlServer.Contains("ON CONFLICT", StringComparison.OrdinalIgnoreCase),
+            "La prueba Premium debe usar una actualización compatible con SQL Server.");
+
+        var sqlite = method.Invoke(null, [true]) as string;
+        Ensure(sqlite is not null && sqlite.Contains("ON CONFLICT", StringComparison.OrdinalIgnoreCase),
+            "El entorno local debe conservar la operación UPSERT de SQLite.");
     }
 
     private static void Ensure(bool condition, string message)
