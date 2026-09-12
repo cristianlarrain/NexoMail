@@ -81,6 +81,48 @@ try {
     Set-EnvironmentVariable 'RecoveryEmail__FromAddress' $smtpAddress
     Set-EnvironmentVariable 'RecoveryEmail__FromName' 'NexoMail'
 
+    $systemWebServer = $configuration.configuration.location.'system.webServer'
+    $rewrite = $systemWebServer.rewrite
+    if ($null -eq $rewrite) {
+        $rewrite = $configuration.CreateElement('rewrite')
+        [void]$systemWebServer.AppendChild($rewrite)
+    }
+    $rules = $rewrite.rules
+    if ($null -eq $rules) {
+        $rules = $configuration.CreateElement('rules')
+        [void]$rewrite.AppendChild($rules)
+    }
+
+    $existingHttpsRule = @($rules.rule) |
+        Where-Object { $_.name -eq 'NexoMail Force HTTPS' } |
+        Select-Object -First 1
+    if ($null -ne $existingHttpsRule) {
+        [void]$rules.RemoveChild($existingHttpsRule)
+    }
+
+    $httpsRule = $configuration.CreateElement('rule')
+    $httpsRule.SetAttribute('name', 'NexoMail Force HTTPS')
+    $httpsRule.SetAttribute('stopProcessing', 'true')
+
+    $match = $configuration.CreateElement('match')
+    $match.SetAttribute('url', '(.*)')
+    [void]$httpsRule.AppendChild($match)
+
+    $conditions = $configuration.CreateElement('conditions')
+    $condition = $configuration.CreateElement('add')
+    $condition.SetAttribute('input', '{HTTPS}')
+    $condition.SetAttribute('pattern', 'off')
+    $condition.SetAttribute('ignoreCase', 'true')
+    [void]$conditions.AppendChild($condition)
+    [void]$httpsRule.AppendChild($conditions)
+
+    $action = $configuration.CreateElement('action')
+    $action.SetAttribute('type', 'Redirect')
+    $action.SetAttribute('url', 'https://{HTTP_HOST}/{R:1}')
+    $action.SetAttribute('redirectType', 'Permanent')
+    [void]$httpsRule.AppendChild($action)
+    [void]$rules.PrependChild($httpsRule)
+
     $xmlSettings = [System.Xml.XmlWriterSettings]::new()
     $xmlSettings.Indent = $true
     $xmlSettings.Encoding = [System.Text.UTF8Encoding]::new($false)
