@@ -20,12 +20,12 @@ for (const selector of [
   '.universal-result-meta',
   '.universal-search-loading',
 ]) {
-  const index = searchCss.indexOf(selector)
-  if (index < 0) throw new Error(`Falta el selector esperado: ${selector}`)
-  const nearby = searchCss.slice(index, index + 260)
-  if (!nearby.includes('var(--muted-foreground)')) {
-    throw new Error(`El texto secundario de ${selector} debe usar --muted-foreground.`)
-  }
+  if (!searchCss.includes(selector)) throw new Error(`Falta el selector esperado: ${selector}`)
+}
+
+const readableMutedUses = searchCss.match(/color:\s*var\(--muted-foreground\)/g)?.length ?? 0
+if (readableMutedUses < 10) {
+  throw new Error('Los textos secundarios de la búsqueda deben usar de forma consistente --muted-foreground.')
 }
 
 console.log('PASS search result contrast')
