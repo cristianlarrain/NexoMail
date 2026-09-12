@@ -22,6 +22,10 @@
   flex: 0 0 auto;
 }
 
+.perspectives-grid {
+  align-items: start;
+}
+
 @media (max-width: 760px) {
   .perspective-share-popover {
     width: min(280px, calc(100vw - 24px));
