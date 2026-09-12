@@ -137,7 +137,13 @@ if (string.IsNullOrWhiteSpace(dataProtectionKeysPath))
 Directory.CreateDirectory(dataProtectionKeysPath);
 var dataProtection = builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
-if (OperatingSystem.IsWindows()) dataProtection.ProtectKeysWithDpapi();
+var protectKeysWithDpapi = builder.Configuration.GetValue(
+    "DataProtection:ProtectKeysWithDpapi",
+    builder.Environment.IsDevelopment());
+if (protectKeysWithDpapi && OperatingSystem.IsWindows())
+{
+    dataProtection.ProtectKeysWithDpapi();
+}
 
 builder.Services.Configure<GmailOptions>(builder.Configuration.GetSection(GmailOptions.SectionName));
 builder.Services.AddScoped<ITokenProtector, DataProtectionTokenProtector>();
