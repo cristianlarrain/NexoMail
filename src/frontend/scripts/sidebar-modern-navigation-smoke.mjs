@@ -32,6 +32,12 @@ const cssMarkers = [
   '.sidebar-nav-main::-webkit-scrollbar',
   '.sidebar-nav-utilities',
   '.account-switcher-popover',
+  '.sidebar .control-center-nav',
+  'box-shadow:',
+  '.sidebar .control-center-nav:hover',
+  '.sidebar .control-center-nav.active',
+  '.sidebar .control-center-nav .nexi-sidebar-icon',
+  'drop-shadow(',
 ]
 for (const marker of cssMarkers) {
   if (!modernCss.includes(marker)) throw new Error(`Falta estilo de navegación moderna: ${marker}`)
