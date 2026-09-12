@@ -26,17 +26,31 @@ Write-Host ''
 Write-Host 'CONTRASENAS DE PRODUCCION' -ForegroundColor Cyan
 $securePassword = Read-Host '3. Contrasena MSSQL del usuario dbo1111108584' -AsSecureString
 $secureSmtpPassword = Read-Host "4. Contrasena del correo IONOS $smtpAddress" -AsSecureString
+
+Write-Host ''
+Write-Host 'GOOGLE OAUTH DE PRODUCCION' -ForegroundColor Cyan
+$googleClientId = Read-Host '5. Google OAuth Client ID'
+if ([string]::IsNullOrWhiteSpace($googleClientId)) {
+    throw 'El Google OAuth Client ID no puede estar vacio.'
+}
+$secureGoogleClientSecret = Read-Host '6. Google OAuth Client Secret' -AsSecureString
+
 $passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
 $smtpPasswordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureSmtpPassword)
+$googleSecretPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureGoogleClientSecret)
 
 try {
     $plainPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
     $plainSmtpPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($smtpPasswordPointer)
+    $plainGoogleClientSecret = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($googleSecretPointer)
     if ([string]::IsNullOrWhiteSpace($plainPassword)) {
         throw 'La contrasena MSSQL no puede estar vacia.'
     }
     if ([string]::IsNullOrWhiteSpace($plainSmtpPassword)) {
         throw 'La contrasena de la cuenta de correo IONOS no puede estar vacia.'
+    }
+    if ([string]::IsNullOrWhiteSpace($plainGoogleClientSecret)) {
+        throw 'El Google OAuth Client Secret no puede estar vacio.'
     }
 
     [xml]$configuration = Get-Content $webConfigPath -Raw
@@ -80,48 +94,15 @@ try {
     Set-EnvironmentVariable 'RecoveryEmail__Password' $plainSmtpPassword
     Set-EnvironmentVariable 'RecoveryEmail__FromAddress' $smtpAddress
     Set-EnvironmentVariable 'RecoveryEmail__FromName' 'NexoMail'
+    Set-EnvironmentVariable 'Google__ClientId' $googleClientId.Trim()
+    Set-EnvironmentVariable 'Google__ClientSecret' $plainGoogleClientSecret
+    Set-EnvironmentVariable 'Google__RedirectUri' 'https://nexomail.eidosdigital.cl/api/oauth/google/callback'
 
     $systemWebServer = $configuration.configuration.location.'system.webServer'
     $rewrite = $systemWebServer.rewrite
-    if ($null -eq $rewrite) {
-        $rewrite = $configuration.CreateElement('rewrite')
-        [void]$systemWebServer.AppendChild($rewrite)
+    if ($null -ne $rewrite) {
+        [void]$systemWebServer.RemoveChild($rewrite)
     }
-    $rules = $rewrite.rules
-    if ($null -eq $rules) {
-        $rules = $configuration.CreateElement('rules')
-        [void]$rewrite.AppendChild($rules)
-    }
-
-    $existingHttpsRule = @($rules.rule) |
-        Where-Object { $_.name -eq 'NexoMail Force HTTPS' } |
-        Select-Object -First 1
-    if ($null -ne $existingHttpsRule) {
-        [void]$rules.RemoveChild($existingHttpsRule)
-    }
-
-    $httpsRule = $configuration.CreateElement('rule')
-    $httpsRule.SetAttribute('name', 'NexoMail Force HTTPS')
-    $httpsRule.SetAttribute('stopProcessing', 'true')
-
-    $match = $configuration.CreateElement('match')
-    $match.SetAttribute('url', '(.*)')
-    [void]$httpsRule.AppendChild($match)
-
-    $conditions = $configuration.CreateElement('conditions')
-    $condition = $configuration.CreateElement('add')
-    $condition.SetAttribute('input', '{HTTPS}')
-    $condition.SetAttribute('pattern', 'off')
-    $condition.SetAttribute('ignoreCase', 'true')
-    [void]$conditions.AppendChild($condition)
-    [void]$httpsRule.AppendChild($conditions)
-
-    $action = $configuration.CreateElement('action')
-    $action.SetAttribute('type', 'Redirect')
-    $action.SetAttribute('url', 'https://{HTTP_HOST}/{R:1}')
-    $action.SetAttribute('redirectType', 'Permanent')
-    [void]$httpsRule.AppendChild($action)
-    [void]$rules.PrependChild($httpsRule)
 
     $xmlSettings = [System.Xml.XmlWriterSettings]::new()
     $xmlSettings.Indent = $true
@@ -141,8 +122,12 @@ finally {
     if ($smtpPasswordPointer -ne [IntPtr]::Zero) {
         [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($smtpPasswordPointer)
     }
+    if ($googleSecretPointer -ne [IntPtr]::Zero) {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($googleSecretPointer)
+    }
     $plainPassword = $null
     $plainSmtpPassword = $null
+    $plainGoogleClientSecret = $null
 }
 
 Write-Host ''
