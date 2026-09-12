@@ -246,6 +246,12 @@ app.Use(async (context, next) =>
     }
 });
 
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+    app.UseHttpsRedirection();
+}
+
 app.UseDefaultFiles();
 app.UseStaticFiles();
 if (app.Environment.IsDevelopment()) app.UseCors();
