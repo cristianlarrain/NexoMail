@@ -69,6 +69,27 @@ for (const marker of requiredLandingMarkers) {
   if (!landing.includes(marker)) throw new Error(`Falta ajuste comercial en landing: ${marker}`)
 }
 
+const requiredDemoVideoMarkers = [
+  '<video',
+  'className="landing-video-player"',
+  'controls',
+  'playsInline',
+  'preload="metadata"',
+  'https://cdn.creativeclaw.co/u/372f7075/videos/d1cab7f4-113a-43c9-bc48-ea80643f0088.mp4',
+]
+
+for (const marker of requiredDemoVideoMarkers) {
+  if (!landing.includes(marker)) throw new Error(`La landing no incorpora el video demostrativo: ${marker}`)
+}
+
+if (landing.includes('Este espacio queda preparado para incorporar el video demostrativo.')) {
+  throw new Error('La landing conserva el placeholder anterior del video demostrativo.')
+}
+
+if (!landingCommercialCss.includes('.landing-video-player')) {
+  throw new Error('Faltan estilos responsivos para el reproductor de la demo.')
+}
+
 for (const forbidden of [
   'landing-product-preview',
   'landing-value-strip',
