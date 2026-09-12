@@ -4,6 +4,8 @@ import { resolve } from 'node:path'
 const root = process.cwd()
 const layout = readFileSync(resolve(root, 'src/layouts/AppLayout.tsx'), 'utf8')
 const modernCss = readFileSync(resolve(root, 'src/styles/sidebar-modern.css'), 'utf8')
+const navigationCss = readFileSync(resolve(root, 'src/styles/navigation-enhancements.css'), 'utf8')
+const darkTheme = readFileSync(resolve(root, 'src/styles/cinematic-dark-theme.css'), 'utf8')
 const uiPolish = readFileSync(resolve(root, 'src/styles/ui-polish.css'), 'utf8')
 const main = readFileSync(resolve(root, 'src/main.tsx'), 'utf8')
 
@@ -76,6 +78,24 @@ for (const forbidden of [
   'background: color-mix(in srgb, var(--primary) 7%, var(--surface))',
 ]) {
   if (modernCss.includes(forbidden)) throw new Error(`Los accesos principales deben ser completamente planos: ${forbidden}`)
+}
+
+if (navigationCss.includes(':root[data-theme="dark"] .sidebar .compose-button.active') ||
+    navigationCss.includes(':root[data-theme="dark"] .sidebar .control-center-nav.active') ||
+    navigationCss.includes(':root[data-theme="dark"] .sidebar .inbox-primary-nav.active')) {
+  throw new Error('navigation-enhancements no debe recolorear los accesos principales en modo oscuro.')
+}
+
+if (darkTheme.includes(':root[data-theme="dark"] .compose-button,')) {
+  throw new Error('El tema oscuro no debe convertir Redactar en un botón turquesa.')
+}
+
+if (darkTheme.includes(':root[data-theme="dark"] .sidebar .nav-item.active {')) {
+  throw new Error('El estado activo genérico oscuro debe excluir los accesos principales planos.')
+}
+
+if (darkTheme.includes(':root[data-theme="dark"] .sidebar .control-center-nav.active')) {
+  throw new Error('Nexi Control Center no debe tener un fondo activo especial en modo oscuro.')
 }
 
 if (uiPolish.includes('scrollbar-gutter: stable')) {
