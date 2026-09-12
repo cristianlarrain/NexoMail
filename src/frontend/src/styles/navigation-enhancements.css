@@ -1,13 +1,13 @@
 .control-center-refresh .icon-button { display: none; }
 
-/* Active navigation is communicated by its background, consistently across the sidebar. */
-.sidebar .nav-item.active {
+/* Active navigation is communicated by its background, consistently across secondary sidebar links. */
+.sidebar .nav-item.active:not(.sidebar-primary-link) {
   background: color-mix(in srgb, var(--primary) 10%, var(--surface));
   color: var(--primary);
   font-weight: 700;
 }
 
-/* Primary actions use the same visual language as section headers. */
+/* Legacy primary-action geometry remains as a fallback; sidebar-modern.css owns the final flat appearance. */
 .sidebar .compose-button,
 .sidebar .control-center-nav,
 .sidebar .inbox-primary-nav {
@@ -74,14 +74,6 @@
   font-weight: 780;
   box-shadow: none;
   text-align: left;
-}
-
-:root[data-theme="dark"] .sidebar .compose-button.active,
-:root[data-theme="dark"] .sidebar .control-center-nav.active,
-:root[data-theme="dark"] .sidebar .inbox-primary-nav.active {
-  border-color: color-mix(in srgb, #78d4f8 30%, var(--border));
-  background: color-mix(in srgb, #1b586c 24%, var(--surface));
-  color: var(--primary);
 }
 
 /* Secondary navigation stays readable and balanced with the primary group. */
