@@ -9,6 +9,8 @@ public static class AiUsageSchemaBootstrap
 {
     public static async Task EnsureAsync(NexoMailDbContext database, CancellationToken ct = default)
     {
+        if (!database.Database.IsSqlite()) return;
+
         var connection = database.Database.GetDbConnection();
         var shouldClose = connection.State != ConnectionState.Open;
         if (shouldClose) await connection.OpenAsync(ct);
