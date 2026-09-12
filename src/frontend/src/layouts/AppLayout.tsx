@@ -100,6 +100,9 @@ export function AppLayout() {
     : undefined
   const contextualAccountId = activeAccountId ?? contextualQueryAccount
   const selectedSidebarAccount = contextualAccountId ? accounts.find(account => account.id === contextualAccountId) : undefined
+  const showGlobalPerspective = location.pathname === '/inbox'
+    || location.pathname.startsWith('/account/')
+    || location.pathname.startsWith('/message/')
 
   function runSearch() {
     const query = search.trim()
@@ -204,7 +207,7 @@ export function AppLayout() {
         <button className={`avatar ${session?.avatarDataUrl ? 'has-image' : ''}`} aria-label="Menú de perfil" aria-expanded={profileOpen} onClick={() => setProfileOpen(!profileOpen)}>{session?.avatarDataUrl ? <img src={session.avatarDataUrl} alt="" /> : initials(session?.displayName ?? session?.email ?? '')}</button>
         {profileOpen && <div className="profile-menu"><p><strong>{session?.displayName}</strong><br />{session?.email}</p><button onClick={() => { setProfileOpen(false); navigate('/settings/profile') }}><UserRound size={16} /> Mi perfil</button><button onClick={() => { setProfileOpen(false); navigate('/settings/plan') }}><CreditCard size={16} /> Plan y uso</button><button onClick={() => { setProfileOpen(false); navigate('/settings/accounts') }}><Settings size={16} /> Configurar cuentas</button><button onClick={() => { setTheme(theme === 'dark' ? 'light' : 'dark'); setProfileOpen(false) }}>{theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}{theme === 'dark' ? 'Usar tema claro' : 'Usar tema oscuro'}</button><button disabled={logout.isPending} onClick={() => logout.mutate()}><LogOut size={16} /> {logout.isPending ? 'Saliendo…' : 'Cerrar sesión'}</button></div>}
       </header>
-      <div className="global-nexo-perspective"><NexoPerspective contextKey={location.pathname} /></div>
+      {showGlobalPerspective && <div className="global-nexo-perspective"><NexoPerspective contextKey={location.pathname} /></div>}
       <Outlet />
       <AppFooter />
       <BackToTopButton />
