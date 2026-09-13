@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { Bookmark, BookmarkCheck, Clock3, FileText, Inbox, Mail, Paperclip, Search, Send, Sparkles, Users, X } from 'lucide-react'
+import { ArrowLeft, Bookmark, BookmarkCheck, Clock3, FileText, Inbox, Mail, Paperclip, Search, Send, Sparkles, Users, X } from 'lucide-react'
 import { mailApi } from '../api/mailApi'
 import { searchApi } from '../api/searchApi'
 import type { ContactAnalyticsItem, DocumentIndexItem, MailSummary } from '../types/mail'
@@ -67,6 +67,14 @@ export function SearchPage() {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const location = useLocation()
+
+  function returnFromSearch() {
+    if (location.key !== 'default') {
+      navigate(-1)
+      return
+    }
+    navigate(explicitAccount ? `/control-center?account=${encodeURIComponent(explicitAccount)}` : '/control-center')
+  }
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>(readSavedSearches)
   const query = params.get('q')?.trim() ?? ''
   const explicitAccount = params.get('account') ?? ''
@@ -299,6 +307,7 @@ export function SearchPage() {
   </section>
 
   return <section className="mail-view universal-search-page">
+    <button type="button" className="back-link universal-search-back" onClick={returnFromSearch}><ArrowLeft size={16} /> Volver</button>
     <div className="view-header universal-search-heading">
       <div><h1>Resultados de búsqueda</h1><p className="view-context">{selectedAccount ? selectedAccount.displayName : 'Todas las cuentas'} · “{query}”</p></div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

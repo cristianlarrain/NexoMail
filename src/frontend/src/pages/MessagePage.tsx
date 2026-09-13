@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanst
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Archive, ArrowLeft, Ban, Check, ChevronLeft, ChevronRight, Clock3, Download, EyeOff, FileText, Forward, Paperclip, Reply, ReplyAll, ShieldAlert, Trash2, Undo2, X } from 'lucide-react'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { MessageNexiReaderTools } from '../components/MessageNexiReaderTools'
 import { commercialApi } from '../api/commercialApi'
 import { mailApi } from '../api/mailApi'
 import type { ControlCenterPendingItem, ControlCenterSnapshot, MailAttachment, MailSummary, PagedResult } from '../types/mail'
@@ -45,6 +46,7 @@ export function MessagePage() {
   })
   const hasMailActions = commercialSubscription?.entitlements.includes(commercialEntitlements.mailActions) === true
   const hasTracking = commercialSubscription?.entitlements.includes(commercialEntitlements.trackingBasic) === true
+  const hasNexi = commercialSubscription?.entitlements.includes(commercialEntitlements.nexiAi) === true
   const { data: message, isLoading } = useQuery({
     queryKey: ['message', accountId, messageId],
     queryFn: () => mailApi.message(accountId, messageId),
@@ -274,7 +276,8 @@ export function MessagePage() {
     <section className="message-reading-pane">
       <div className="message-navigation"><button className="back-link" onClick={returnToPreviousView}><ArrowLeft size={17} /> {openedFromControlCenter ? 'Volver al Centro de control' : 'Volver'}</button><div className="message-navigation-arrows" aria-label="Navegación entre correos"><button className="icon-button" onClick={() => goToMessage(previousMessage)} disabled={!previousMessage} aria-label="Correo anterior" title="Correo anterior"><ChevronLeft size={19} /></button><button className="icon-button" onClick={() => goToMessage(nextMessage)} disabled={!nextMessage} aria-label="Correo siguiente" title="Correo siguiente"><ChevronRight size={19} /></button></div></div>
       <div className="message-title-row"><h1>{message.subject}</h1></div>
-      {(hasMailActions || hasTracking || message.unsubscribeUrl) && <div className="message-actions message-action-toolbar unified-message-actions" aria-label="Acciones del correo">
+      {(hasMailActions || hasTracking || message.unsubscribeUrl || hasNexi) && <div className="message-actions message-action-toolbar unified-message-actions" aria-label="Acciones del correo">
+        <div className="message-standard-actions">
         {hasMailActions && <button className="message-action-button primary-action" aria-label="Responder" title="Responder" onClick={() => compose('reply')}><Reply size={16} /><span>Responder</span></button>}
         {hasMailActions && <button className="message-action-button" aria-label="Responder a todos" title="Responder a todos" onClick={() => compose('replyAll')}><ReplyAll size={16} /><span>Responder a todos</span></button>}
         {hasMailActions && <button className="message-action-button" aria-label="Reenviar" title="Reenviar" onClick={() => compose('forward')}><Forward size={16} /><span>Reenviar</span></button>}
@@ -291,6 +294,8 @@ export function MessagePage() {
         {hasTracking && canTrackOrFinalize && !isFinalized && automaticPending && <button className="message-action-button finalize-action" aria-label="Finalizar" title="Este correo no requiere ninguna acción. Retirarlo de pendientes." disabled={mailboxActionPending} onClick={() => finalizeMessage.mutate()}><Check size={16} /><span>Finalizar</span></button>}
         {hasMailActions && <span className="message-action-separator" aria-hidden="true" />}
         {hasMailActions && <button className="message-action-button danger-action" aria-label={destructiveActionLabel} title={destructiveActionLabel} disabled={mailboxActionPending} onClick={() => setConfirmTrash(true)}><Trash2 size={16} /><span>{destructiveActionLabel}</span></button>}
+        </div>
+        {hasNexi && <MessageNexiReaderTools accountId={accountId} messageId={messageId} />}
       </div>}
       <div className="message-meta"><div className="sender-avatar">{message.from.name.slice(0, 1)}</div><div><strong>{message.from.name}</strong><span>{message.from.address}</span><small>para {message.to.map(x => x.address).join(', ')} · {new Date(message.receivedAt).toLocaleString('es-CL')}</small></div></div>
 

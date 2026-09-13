@@ -1,14 +1,11 @@
 import { csrfFetch } from './csrfFetch'
 import type { AiTone, AiWritingSuggestion, ComposeMessage, ContactAnalyticsSnapshot, ContactSuggestion, ControlCenterActivitySnapshot, ControlCenterPendingItem, ControlCenterSnapshot, DocumentIndexSnapshot, MailAccount, MailAttachment, MailMessage, MailMetadataSyncResult, MailSummary, MailThreadMessage, OutgoingAttachment, PagedResult } from '../types/mail'
+import { buildAttachmentUrl } from '../utils/attachmentUrl'
 
 const messageAttachmentCache = new Map<string, MailAttachment[]>()
 
 function attachmentCacheKey(accountId: string, messageId: string) {
   return `${accountId}:${messageId}`
-}
-
-function attachmentPath(accountId: string, messageId: string, attachment: MailAttachment, download = false) {
-  return `/api/mail/messages/${encodeURIComponent(accountId)}/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachment.id)}?fileName=${encodeURIComponent(attachment.name)}${download ? '&download=true' : ''}`
 }
 
 function blobToBase64(blob: Blob) {
@@ -25,7 +22,7 @@ function blobToBase64(blob: Blob) {
 }
 
 async function fetchSourceAttachment(accountId: string, messageId: string, attachment: MailAttachment): Promise<OutgoingAttachment> {
-  const response = await csrfFetch(attachmentPath(accountId, messageId, attachment, true))
+  const response = await csrfFetch(buildAttachmentUrl(accountId, messageId, attachment, true))
   if (!response.ok) {
     const problem = await response.json().catch(() => null) as { detail?: string; error?: string } | null
     throw new Error(problem?.detail ?? problem?.error ?? `No fue posible recuperar el adjunto ${attachment.name}.`)
@@ -113,9 +110,7 @@ export const mailApi = {
     return api<void>(`/mail/drafts/${encodeURIComponent(accountId)}/${encodeURIComponent(draftMessageId)}/send`, { method: 'POST', body: JSON.stringify(payload) })
   },
   attachmentUrl: (accountId: string, messageId: string, attachment: MailAttachment, download = false) => {
-    const base = attachmentPath(accountId, messageId, attachment, download)
-    const isPdf = attachment.contentType === 'application/pdf' || /\.pdf$/i.test(attachment.name)
-    return !download && isPdf ? `${base}#page=1&view=Fit&zoom=page-fit&navpanes=0&pagemode=none` : base
+    return buildAttachmentUrl(accountId, messageId, attachment, download)
   },
   read: (accountId: string, messageId: string, read: boolean) => api<void>(`/mail/messages/${accountId}/${messageId}/read`, { method: 'PATCH', body: JSON.stringify({ read }) }),
   trash: (accountId: string, messageId: string) => api<void>(`/mail/messages/${accountId}/${messageId}/trash`, { method: 'POST' }),

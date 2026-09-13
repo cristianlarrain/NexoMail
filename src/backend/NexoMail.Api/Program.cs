@@ -438,6 +438,26 @@ mail.MapGet("/messages/{accountId:guid}/{messageId}", async (IMailGateway gatewa
         ct);
     return Results.Ok(message);
 });
+mail.MapGet("/attachments/{accountId:guid}", async (IMailGateway gateway, Guid accountId, string messageId, string attachmentId, string? fileName, bool? download, CancellationToken ct) =>
+{
+    try
+    {
+        var attachment = await gateway.GetAttachmentAsync(accountId, messageId, attachmentId, ct);
+        var safeFileName = Path.GetFileName(string.IsNullOrWhiteSpace(fileName) ? attachment?.FileName ?? "adjunto" : fileName);
+        var contentType = Path.GetExtension(safeFileName).ToLowerInvariant() switch
+        {
+            ".pdf" => "application/pdf", ".png" => "image/png", ".jpg" or ".jpeg" => "image/jpeg", ".gif" => "image/gif", ".webp" => "image/webp",
+            ".txt" or ".log" or ".csv" => "text/plain; charset=utf-8", ".json" => "application/json", ".xml" => "application/xml", _ => attachment?.ContentType ?? "application/octet-stream"
+        };
+        return attachment is null
+            ? Results.NotFound(new { error = "El adjunto no existe o ya no está disponible." })
+            : download == true
+                ? Results.File(attachment.Content, contentType, safeFileName, enableRangeProcessing: true)
+                : Results.File(attachment.Content, contentType, enableRangeProcessing: true);
+    }
+    catch (InvalidOperationException exception) { return Results.BadRequest(new { error = exception.Message }); }
+    catch (HttpRequestException exception) { return Results.Problem($"El proveedor no pudo entregar el adjunto ({exception.StatusCode?.ToString() ?? "sin código"}).", statusCode: 502); }
+});
 mail.MapGet("/messages/{accountId:guid}/{messageId}/attachments/{attachmentId}", async (IMailGateway gateway, Guid accountId, string messageId, string attachmentId, string? fileName, bool? download, CancellationToken ct) =>
 {
     try

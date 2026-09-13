@@ -8,6 +8,8 @@ internal static class CommercialFeaturePolicySmoke
     {
         Ensure(CommercialFeaturePolicy.RequiredEntitlement("GET", "/api/mail/messages") == CommercialEntitlements.UnifiedMail,
             "Leer la bandeja debe exigir Bandeja unificada.");
+        Ensure(CommercialFeaturePolicy.RequiredEntitlement("GET", "/api/mail/attachments/account-id?messageId=message-id") == CommercialEntitlements.UnifiedMail,
+            "La vista previa segura de adjuntos debe exigir Bandeja unificada.");
         Ensure(CommercialFeaturePolicy.RequiredEntitlement("POST", "/api/mail/send") == CommercialEntitlements.MailActions,
             "Enviar correo debe exigir acciones de correo.");
         Ensure(CommercialFeaturePolicy.RequiredEntitlement("POST", "/api/mail/messages/abc/reply") == CommercialEntitlements.MailActions,

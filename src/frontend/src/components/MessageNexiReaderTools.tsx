@@ -3,7 +3,6 @@ import { useMutation } from '@tanstack/react-query'
 import { ChevronDown, ChevronUp, FileText, MessagesSquare, Sparkles } from 'lucide-react'
 import { nexiApi } from '../api/nexiApi'
 import type { AiMessageInsight } from '../types/mail'
-import { NexiVisual } from './nexi/NexiVisual'
 
 export function MessageNexiReaderTools({ accountId, messageId }: { accountId: string; messageId: string }) {
   const [insight, setInsight] = useState<AiMessageInsight | null>(null)
@@ -19,13 +18,8 @@ export function MessageNexiReaderTools({ accountId, messageId }: { accountId: st
     },
   })
 
-  return <section className="message-nexi-reader" aria-label="Herramientas de Nexi para este correo">
-    <div className="message-nexi-reader-bar">
-      <div className="message-nexi-reader-identity">
-        <NexiVisual size="small" />
-        <div><strong>Nexi</strong><span>Entiende este correo y su conversación.</span></div>
-      </div>
-      <div className="message-nexi-reader-actions">
+  return <>
+      <div className="message-ai-actions" aria-label="Acciones de Nexi">
         <button type="button" disabled={analyze.isPending} onClick={() => analyze.mutate(false)}>
           <FileText size={15} /> {analyze.isPending && mode !== 'thread' ? 'Resumiendo…' : 'Resumir correo'}
         </button>
@@ -33,7 +27,6 @@ export function MessageNexiReaderTools({ accountId, messageId }: { accountId: st
           <MessagesSquare size={15} /> {analyze.isPending && mode === 'thread' ? 'Analizando…' : 'Analizar conversación'}
         </button>
       </div>
-    </div>
 
     {analyze.isError && <div className="message-nexi-error">{analyze.error instanceof Error ? analyze.error.message : 'Nexi no pudo analizar este correo.'}</div>}
 
@@ -52,5 +45,5 @@ export function MessageNexiReaderTools({ accountId, messageId }: { accountId: st
         {insight.keyPoints.length > 0 && <section><span>Puntos clave</span><ul>{insight.keyPoints.map(point => <li key={point}>{point}</li>)}</ul></section>}
       </div>}
     </article>}
-  </section>
+  </>
 }

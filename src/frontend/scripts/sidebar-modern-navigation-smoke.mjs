@@ -10,11 +10,12 @@ const uiPolish = readFileSync(resolve(root, 'src/styles/ui-polish.css'), 'utf8')
 const main = readFileSync(resolve(root, 'src/main.tsx'), 'utf8')
 
 const layoutMarkers = [
-  "const [accountsOpen, setAccountsOpen] = useState(false)",
+  "const ACCOUNTS_COLLAPSED_KEY = 'nexomail-sidebar-accounts-collapsed'",
+  "const [accountsCollapsed, setAccountsCollapsed] = useState(() => localStorage.getItem(ACCOUNTS_COLLAPSED_KEY) === '1')",
   "localStorage.getItem(FOLDERS_COLLAPSED_KEY) !== '0'",
   'className="sidebar-nav-main"',
   'account-switcher',
-  'className="account-switcher-popover"',
+  'className="account-switcher-list"',
   'account-switcher-option',
   'className="sidebar-nav-utilities"',
   'sidebar-primary-link',
@@ -22,6 +23,10 @@ const layoutMarkers = [
 
 for (const marker of layoutMarkers) {
   if (!layout.includes(marker)) throw new Error(`Falta navegación moderna en AppLayout: ${marker}`)
+}
+
+if (!layout.includes("localStorage.setItem(ACCOUNTS_COLLAPSED_KEY, next ? '1' : '0')")) {
+  throw new Error('El selector de cuentas debe recordar si el usuario lo colapsó.')
 }
 
 if (layout.includes('<button className="theme-switch"')) {
@@ -56,7 +61,7 @@ const cssMarkers = [
   'scrollbar-width: none',
   '.sidebar-nav-main::-webkit-scrollbar',
   '.sidebar-nav-utilities',
-  '.account-switcher-popover',
+  '.account-switcher-list',
   '.sidebar .sidebar-primary-link',
   'justify-content: flex-start',
   'text-transform: none',

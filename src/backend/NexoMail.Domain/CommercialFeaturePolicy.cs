@@ -53,7 +53,9 @@ public static class CommercialFeaturePolicy
             return CommercialEntitlements.UnifiedMail;
         }
 
-        if (normalizedPath == "/api/mail/messages" || normalizedPath == "/api/mail/accounts")
+        if (normalizedPath == "/api/mail/messages"
+            || normalizedPath == "/api/mail/accounts"
+            || normalizedPath.StartsWith("/api/mail/attachments/", StringComparison.Ordinal))
             return CommercialEntitlements.UnifiedMail;
 
         if (normalizedPath.StartsWith("/api/mail/ignored-senders/", StringComparison.Ordinal)

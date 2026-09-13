@@ -80,7 +80,7 @@ export function AdminUsersPage() {
   return <section className="settings-page commercial-admin-page commercial-users-page">
     <div className="commercial-admin-header">
       <div><p className="eyebrow">Administración</p><h1>Administración de usuarios</h1><p className="page-description">Revise los usuarios registrados, asigne tipos de cuenta y otorgue pruebas temporales de Premium o Nexi.</p></div>
-      <div className="commercial-admin-header-actions"><Link to="/settings/plan" className="secondary-button"><ArrowLeft size={16} /> Plan y uso</Link><Link to="/admin/plans" className="secondary-button">Tipos de cuenta</Link></div>
+      <div className="commercial-admin-header-actions"><Link to="/settings/plan" className="secondary-button"><ArrowLeft size={16} /> Plan y uso</Link><Link to="/admin/plans" className="secondary-button">Tipos de cuenta</Link><Link to="/admin/ai-usage" className="secondary-button">Consumo Nexi</Link></div>
     </div>
 
     <div className="commercial-admin-guidance"><ShieldCheck size={18} /><span>Los usuarios Freemium pueden recibir una prueba temporal de Premium completo o sólo de Nexi. Al vencer, recuperan automáticamente las funciones de Freemium. El Owner / Administrador general no depende de planes ni pruebas comerciales.</span></div>

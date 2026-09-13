@@ -20,7 +20,7 @@
 }
 
 .sidebar-nav-main::-webkit-scrollbar,
-.account-switcher-popover::-webkit-scrollbar {
+.account-switcher-list::-webkit-scrollbar {
   width: 0;
   height: 0;
   display: none;
@@ -101,20 +101,12 @@
   box-shadow: none;
 }
 
-.account-switcher-popover {
-  position: absolute;
-  z-index: 40;
-  top: calc(100% + 6px);
-  left: 0;
-  right: 0;
+.account-switcher-list {
+  position: relative;
   max-height: min(320px, 52vh);
   overflow-y: auto;
   scrollbar-width: none;
-  padding: 6px;
-  border: 1px solid var(--border);
-  border-radius: 11px;
-  background: var(--surface);
-  box-shadow: 0 16px 38px rgb(0 0 0 / .18);
+  padding: 4px 0 6px;
 }
 
 .account-switcher-option {
@@ -255,11 +247,18 @@
     height: 11px;
   }
 
-  .sidebar.collapsed .account-switcher-popover {
+  .sidebar.collapsed .account-switcher-list {
+    position: absolute;
+    z-index: 40;
     top: 0;
     right: auto;
     left: calc(100% + 10px);
     width: 230px;
+    padding: 6px;
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    background: var(--surface);
+    box-shadow: 0 16px 38px rgb(0 0 0 / .18);
   }
 
   .sidebar.collapsed .sidebar-nav-utilities {
@@ -290,7 +289,7 @@
     padding-right: 1px;
   }
 
-  .account-switcher-popover {
+  .account-switcher-list {
     max-height: 42vh;
   }
 }
