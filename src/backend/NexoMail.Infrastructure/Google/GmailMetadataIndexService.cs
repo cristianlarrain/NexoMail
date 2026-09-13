@@ -304,16 +304,21 @@ public sealed class GmailMetadataIndexService(
         }
     }
 
-    private Task<int> TryAcquireLeaseUpdateAsync(Guid accountId, string owner, DateTimeOffset now, CancellationToken cancellationToken) =>
-        database.MailIndexStates
-            .Where(x => x.AccountId == accountId && (x.SyncLeaseUntil == null || x.SyncLeaseUntil <= now || x.SyncLeaseOwner == owner))
+    private async Task<bool> TryAcquireLeaseAsync(Guid accountId, string owner, CancellationToken cancellationToken)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var current = await database.MailIndexStates
+            .AsNoTracking()
+            .SingleOrDefaultAsync(x => x.AccountId == accountId, cancellationToken);
+        if (current is null) return false;
+        if (current.SyncLeaseUntil is { } until && until > now && !string.Equals(current.SyncLeaseOwner, owner, StringComparison.Ordinal)) return false;
+
+        var observedOwner = current.SyncLeaseOwner;
+        var affected = await database.MailIndexStates
+            .Where(x => x.AccountId == accountId && x.SyncLeaseOwner == observedOwner)
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(x => x.SyncLeaseOwner, owner)
                 .SetProperty(x => x.SyncLeaseUntil, now.Add(SyncLeaseDuration)), cancellationToken);
-
-    private async Task<bool> TryAcquireLeaseAsync(Guid accountId, string owner, CancellationToken cancellationToken)
-    {
-        var affected = await TryAcquireLeaseUpdateAsync(accountId, owner, DateTimeOffset.UtcNow, cancellationToken);
         return affected == 1;
     }
 
