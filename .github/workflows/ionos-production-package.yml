@@ -33,6 +33,10 @@ jobs:
         shell: pwsh
         run: .\scripts\test-ionos-secure-secrets.ps1
 
+      - name: Verify encrypted credentials with Windows PowerShell 5.1
+        shell: powershell
+        run: .\scripts\test-ionos-secure-secrets.ps1
+
       - name: Build and test production package
         shell: pwsh
         run: .\scripts\publish-ionos.ps1
