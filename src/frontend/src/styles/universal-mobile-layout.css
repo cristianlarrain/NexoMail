@@ -432,3 +432,114 @@ body,
     padding-inline: 8px !important;
   }
 }
+
+/* iPhone containment: override the wider desktop rail with enough specificity. */
+@media (max-width: 767px) {
+  html,
+  body,
+  #root,
+  .app-shell,
+  .main-content {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-x: clip;
+  }
+
+  .main-content > .mail-view,
+  .main-content > .settings-page,
+  .main-content > .compose-page,
+  .main-content > .control-center-page,
+  .main-content > .universal-search-page,
+  .main-content > .commercial-admin-page,
+  .main-content > .commercial-settings-page,
+  .main-content > .ai-usage-page,
+  .main-content > .nexi-context-page {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-inline: 0 !important;
+    padding-inline: 12px !important;
+    overflow-x: hidden;
+    overflow-x: clip;
+  }
+
+  .topbar,
+  .topbar .top-search,
+  .control-center-page > .control-page-header,
+  .control-center-page .nexi-control-header,
+  .control-center-page .control-page-title,
+  .control-center-page .control-classic-link {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .control-center-page .control-page-title {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .control-center-page .control-page-updated {
+    grid-column: 1 / -1;
+    margin: 0;
+    justify-self: start;
+  }
+
+  .control-center-page .control-tabs-inline {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 6px;
+    overflow: visible;
+    border-bottom: 0;
+  }
+
+  .control-center-page .control-tabs-inline button {
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-start;
+    border: 1px solid var(--border);
+  }
+
+  .control-center-page .control-tabs-inline button:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .nexi-control-center .nexi-control-metrics.compact,
+  .nexi-control-center .control-metrics {
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .nexi-control-center .nexi-priority-panel,
+  .nexi-control-center .nexi-priority-list,
+  .nexi-control-center .nexi-priority-row {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .nexi-priority-summary {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    overflow: visible;
+  }
+
+  .nexi-priority-summary > button {
+    width: 100%;
+    min-width: 0;
+    flex: initial;
+  }
+
+  .nexi-priority-main > strong,
+  .nexi-priority-main > span,
+  .nexi-priority-main > small,
+  .nexi-priority-main > em {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .nexi-priority-main > strong {
+    white-space: normal;
+  }
+}
