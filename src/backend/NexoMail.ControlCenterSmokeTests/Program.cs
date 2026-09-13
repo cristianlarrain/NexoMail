@@ -55,7 +55,7 @@ database.MailIndexStates.Add(new MailIndexStateEntity
     UserId = userId,
     LastIndexedAt = now,
     WindowDays = 90,
-    IndexedMessageCount = 3,
+    IndexedMessageCount = 4,
 });
 database.MailMessageIndex.AddRange(
     new MailMessageIndexEntity
@@ -75,6 +75,12 @@ database.MailMessageIndex.AddRange(
         Id = Guid.NewGuid(), UserId = userId, AccountId = accountId, ProviderMessageId = "info-1", ThreadId = "thread-info",
         Direction = "received", FromAddress = "notificaciones@banco.test", ToAddresses = $"Cristian\t{ownAddress}",
         Subject = "Comprobante de pago", OccurredAt = now.AddHours(-4), IndexedAt = now, GmailLabels = "INBOX,UNREAD,CATEGORY_UPDATES", IsInbox = true, IsUnread = true,
+    },
+    new MailMessageIndexEntity
+    {
+        Id = Guid.NewGuid(), UserId = userId, AccountId = accountId, ProviderMessageId = "old-unread-1", ThreadId = "thread-old-unread",
+        Direction = "received", FromAddress = "noreply@archivo.test", ToAddresses = $"Cristian\t{ownAddress}",
+        Subject = "Aviso antiguo", OccurredAt = now.AddDays(-40), IndexedAt = now, GmailLabels = "INBOX,UNREAD", IsInbox = true, IsUnread = true,
     });
 await database.SaveChangesAsync(cancellationToken);
 
@@ -82,9 +88,9 @@ var controlCenter = new GmailControlCenterService(database, userContext);
 var initialSnapshot = await controlCenter.GetSnapshotAsync(accountId, cancellationToken);
 Ensure(initialSnapshot.ReceivedWithoutReply == 1, "La métrica Recibidos sin responder no coincide con el índice.");
 Ensure(initialSnapshot.SentWithoutResponse == 1, "La métrica Enviados sin respuesta no coincide con el índice.");
-Ensure(initialSnapshot.Unread == 2, "La métrica de correos sin leer no coincide con el índice.");
+Ensure(initialSnapshot.Unread == 3, "La métrica de correos sin leer debe incluir no leídos indexados fuera de la ventana operativa de 14 días.");
 Ensure(initialSnapshot.Overdue == 1, "La métrica de pendientes de más de 48 horas no coincide.");
-Ensure(initialSnapshot.PendingItems.Count == 2, "Los avisos transaccionales deberían quedar excluidos de los pendientes.");
+Ensure(initialSnapshot.PendingItems.Count == 2, "Los avisos transaccionales y los no leídos antiguos no deben entrar como pendientes operacionales.");
 Ensure(initialSnapshot.UnavailableAccounts == 0, "Una cuenta con índice recién actualizado no debe figurar como no disponible.");
 
 var receivedPending = initialSnapshot.PendingItems.Single(item => item.Direction == "received");
@@ -103,7 +109,7 @@ Ensure(afterSnooze.SentWithoutResponse == 0, "Posponer no actualizó la métrica
 var activityService = new GmailControlCenterActivityService(database, userContext);
 var activity = await activityService.GetActivityAsync(accountId, 7, 0, cancellationToken);
 Ensure(activity.Accounts.Count == 1 && activity.Accounts.Single().IsAvailable, "Actividad debe usar el estado del índice para disponibilidad.");
-Ensure(activity.Activity.Sum(x => x.Received) == 2, "Actividad debe contar los dos mensajes INBOX indexados.");
+Ensure(activity.Activity.Sum(x => x.Received) == 2, "Actividad debe contar los dos mensajes INBOX indexados dentro de la ventana de 7 días.");
 Ensure(activity.Activity.Sum(x => x.Sent) == 1, "Actividad debe contar el mensaje enviado indexado.");
 
 var demoProvider = new DemoMailProvider();
