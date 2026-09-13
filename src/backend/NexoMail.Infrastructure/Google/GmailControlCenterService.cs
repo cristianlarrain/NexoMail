@@ -51,13 +51,16 @@ public sealed class GmailControlCenterService(
         var queryStart = new DateTimeOffset(DateTime.SpecifyKind(activityStart, DateTimeKind.Utc));
         if (lookbackStart < queryStart) queryStart = lookbackStart;
 
-        var messages = accountIds.Length == 0
+        var indexedMessages = accountIds.Length == 0
             ? []
             : await database.MailMessageIndex
                 .AsNoTracking()
-                .Where(x => x.UserId == userId && accountIds.Contains(x.AccountId) && x.OccurredAt >= queryStart)
-                .OrderBy(x => x.OccurredAt)
+                .Where(x => x.UserId == userId && accountIds.Contains(x.AccountId))
                 .ToArrayAsync(cancellationToken);
+        var messages = indexedMessages
+            .Where(x => x.OccurredAt >= queryStart)
+            .OrderBy(x => x.OccurredAt)
+            .ToArray();
 
         var accountLookup = accounts.ToDictionary(x => x.Id);
         var stateLookup = states.ToDictionary(x => (x.AccountId, x.ConversationId));
