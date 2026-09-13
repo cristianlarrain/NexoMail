@@ -20,16 +20,20 @@ public sealed class GmailMetadataIndexService(
     IUserContext userContext)
 {
     private const int MaximumConcurrentRequests = 8;
-    private const int DefaultSyncLimitPerAccount = 80;
-    private const int MaximumSyncLimitPerAccount = 300;
+    private const int DefaultSyncLimitPerAccount = 300;
+    private const int MaximumSyncLimitPerAccount = 1500;
     private const int DefaultWindowDays = 90;
-    private const int RefreshNewestCount = 24;
+    private const int RefreshNewestCount = 100;
+    private const int UnreadDiscoveryLimit = 500;
+    private static readonly TimeSpan SyncLeaseDuration = TimeSpan.FromMinutes(10);
 
-    public async Task<MailMetadataSyncResult> SyncAsync(int? requestedDays, int? requestedLimitPerAccount, CancellationToken cancellationToken)
+    public Task<MailMetadataSyncResult> SyncAsync(int? requestedDays, int? requestedLimitPerAccount, CancellationToken cancellationToken) =>
+        SyncForUserAsync(userContext.UserId, requestedDays, requestedLimitPerAccount, cancellationToken);
+
+    public async Task<MailMetadataSyncResult> SyncForUserAsync(Guid userId, int? requestedDays, int? requestedLimitPerAccount, CancellationToken cancellationToken)
     {
         var days = Math.Clamp(requestedDays ?? DefaultWindowDays, 7, 365);
         var limitPerAccount = Math.Clamp(requestedLimitPerAccount ?? DefaultSyncLimitPerAccount, 25, MaximumSyncLimitPerAccount);
-        var userId = userContext.UserId;
         var accounts = await database.MailAccounts
             .Where(x => x.UserId == userId && x.IsActive && x.Provider == MailProviderType.Gmail)
             .OrderBy(x => x.DisplayName)
@@ -39,42 +43,62 @@ public sealed class GmailMetadataIndexService(
         var totalAttachments = 0;
         var now = DateTimeOffset.UtcNow;
         var cutoff = now.AddDays(-days);
+        var leaseOwner = $"{Environment.MachineName}:{Environment.ProcessId}:{Guid.NewGuid():N}";
 
         foreach (var account in accounts)
         {
-            var client = await CreateClientAsync(account.Id, cancellationToken);
-            var existingAccountMessages = await database.MailMessageIndex
-                .AsNoTracking()
-                .Where(x => x.UserId == userId && x.AccountId == account.Id)
-                .ToArrayAsync(cancellationToken);
-            var windowMessages = existingAccountMessages.Where(x => x.OccurredAt >= cutoff).ToArray();
-            var existingCount = windowMessages.Length;
+            await EnsureIndexStateExistsAsync(account, userId, days, cancellationToken);
+            if (!await TryAcquireLeaseAsync(account.Id, leaseOwner, cancellationToken)) continue;
 
-            List<string> ids;
-            if (existingCount == 0)
+            try
             {
-                ids = await ListMessageIdsAsync(client, days, limitPerAccount, null, cancellationToken);
+                var client = await CreateClientAsync(account.Id, cancellationToken);
+                var existingAccountMessages = await database.MailMessageIndex
+                    .AsNoTracking()
+                    .Where(x => x.UserId == userId && x.AccountId == account.Id)
+                    .ToArrayAsync(cancellationToken);
+                var windowMessages = existingAccountMessages.Where(x => x.OccurredAt >= cutoff).ToArray();
+                var existingCount = windowMessages.Length;
+
+                List<string> ids;
+                if (existingCount == 0)
+                {
+                    ids = await ListMessageIdsAsync(client, days, limitPerAccount, null, cancellationToken);
+                }
+                else
+                {
+                    var newestLimit = Math.Min(RefreshNewestCount, limitPerAccount);
+                    var newest = await ListMessageIdsAsync(client, days, newestLimit, null, cancellationToken);
+                    var oldest = windowMessages.Min(x => x.OccurredAt);
+                    var backfillLimit = Math.Max(0, limitPerAccount - newest.Count);
+                    var older = oldest > cutoff && backfillLimit > 0
+                        ? await ListMessageIdsAsync(client, days, backfillLimit, oldest.ToUnixTimeSeconds(), cancellationToken)
+                        : [];
+                    ids = newest.Concat(older).Distinct(StringComparer.Ordinal).Take(limitPerAccount).ToList();
+                }
+
+                var unreadIds = await ListUnreadMessageIdsAsync(client, UnreadDiscoveryLimit, cancellationToken);
+                var previouslyUnread = existingAccountMessages.Where(x => x.IsUnread).Select(x => x.ProviderMessageId);
+                ids = ids
+                    .Concat(unreadIds)
+                    .Concat(previouslyUnread)
+                    .Distinct(StringComparer.Ordinal)
+                    .Take(MaximumSyncLimitPerAccount)
+                    .ToList();
+
+                var indexed = await LoadMetadataAsync(client, ids, cancellationToken);
+                totalMessages += indexed.Count;
+                totalAttachments += indexed.Sum(x => x.Attachments.Count);
+
+                if (indexed.Count > 0)
+                    await UpsertAccountIndexAsync(account, userId, indexed, now, days, cancellationToken);
+                else
+                    await UpsertStateAsync(account, userId, now, days, existingAccountMessages.Length, cancellationToken);
             }
-            else
+            finally
             {
-                var newestLimit = Math.Min(RefreshNewestCount, limitPerAccount);
-                var newest = await ListMessageIdsAsync(client, days, newestLimit, null, cancellationToken);
-                var oldest = windowMessages.Min(x => x.OccurredAt);
-                var backfillLimit = Math.Max(0, limitPerAccount - newest.Count);
-                var older = oldest > cutoff && backfillLimit > 0
-                    ? await ListMessageIdsAsync(client, days, backfillLimit, oldest.ToUnixTimeSeconds(), cancellationToken)
-                    : [];
-                ids = newest.Concat(older).Distinct(StringComparer.Ordinal).Take(limitPerAccount).ToList();
+                await ReleaseLeaseAsync(account.Id, leaseOwner, cancellationToken);
             }
-
-            var indexed = await LoadMetadataAsync(client, ids, cancellationToken);
-            totalMessages += indexed.Count;
-            totalAttachments += indexed.Sum(x => x.Attachments.Count);
-
-            if (indexed.Count > 0)
-                await UpsertAccountIndexAsync(account, indexed, now, days, cancellationToken);
-            else
-                await UpsertStateAsync(account, now, days, existingCount, cancellationToken);
         }
 
         return new MailMetadataSyncResult(accounts.Length, totalMessages, totalAttachments, now);
@@ -203,9 +227,8 @@ public sealed class GmailMetadataIndexService(
         return new DocumentIndexSnapshot(page, rows.Length, skip + page.Length < rows.Length, indexedMessageCount, states.Length == 0 ? null : states.Max(x => x.LastIndexedAt));
     }
 
-    private async Task UpsertAccountIndexAsync(MailAccountEntity account, IReadOnlyCollection<IndexedMessage> indexed, DateTimeOffset now, int days, CancellationToken cancellationToken)
+    private async Task UpsertAccountIndexAsync(MailAccountEntity account, Guid userId, IReadOnlyCollection<IndexedMessage> indexed, DateTimeOffset now, int days, CancellationToken cancellationToken)
     {
-        var userId = userContext.UserId;
         var ids = indexed.Select(x => x.MessageId).ToArray();
         var existing = await database.MailMessageIndex.Where(x => x.UserId == userId && x.AccountId == account.Id && ids.Contains(x.ProviderMessageId)).ToDictionaryAsync(x => x.ProviderMessageId, cancellationToken);
         var oldAttachments = await database.MailAttachmentIndex.Where(x => x.UserId == userId && x.AccountId == account.Id && ids.Contains(x.ProviderMessageId)).ToArrayAsync(cancellationToken);
@@ -228,6 +251,12 @@ public sealed class GmailMetadataIndexService(
             entity.OccurredAt = message.OccurredAt;
             entity.HasAttachments = message.Attachments.Count > 0;
             entity.IndexedAt = now;
+            entity.GmailLabels = string.Join(',', message.Labels.OrderBy(x => x, StringComparer.OrdinalIgnoreCase));
+            entity.IsInbox = message.Labels.Contains("INBOX");
+            entity.IsUnread = message.Labels.Contains("UNREAD");
+            entity.AutoSubmitted = message.AutoSubmitted;
+            entity.Precedence = message.Precedence;
+            entity.HasListUnsubscribe = message.HasListUnsubscribe;
 
             foreach (var attachment in message.Attachments)
                 database.MailAttachmentIndex.Add(new MailAttachmentIndexEntity { Id = Guid.NewGuid(), UserId = userId, AccountId = account.Id, ProviderMessageId = message.MessageId, AttachmentId = attachment.AttachmentId, FileName = attachment.FileName, ContentType = attachment.ContentType, Size = attachment.Size, IndexedAt = now });
@@ -235,17 +264,66 @@ public sealed class GmailMetadataIndexService(
 
         await database.SaveChangesAsync(cancellationToken);
         var totalCount = await database.MailMessageIndex.AsNoTracking().CountAsync(x => x.UserId == userId && x.AccountId == account.Id, cancellationToken);
-        await UpsertStateAsync(account, now, days, totalCount, cancellationToken);
+        await UpsertStateAsync(account, userId, now, days, totalCount, cancellationToken);
     }
 
-    private async Task UpsertStateAsync(MailAccountEntity account, DateTimeOffset now, int days, int count, CancellationToken cancellationToken)
+    private async Task UpsertStateAsync(MailAccountEntity account, Guid userId, DateTimeOffset now, int days, int count, CancellationToken cancellationToken)
     {
         var state = await database.MailIndexStates.SingleOrDefaultAsync(x => x.AccountId == account.Id, cancellationToken);
-        if (state is null) { state = new MailIndexStateEntity { AccountId = account.Id, UserId = userContext.UserId }; database.MailIndexStates.Add(state); }
+        if (state is null)
+        {
+            state = new MailIndexStateEntity { AccountId = account.Id, UserId = userId };
+            database.MailIndexStates.Add(state);
+        }
         state.LastIndexedAt = now;
         state.WindowDays = days;
         state.IndexedMessageCount = count;
         await database.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task EnsureIndexStateExistsAsync(MailAccountEntity account, Guid userId, int days, CancellationToken cancellationToken)
+    {
+        if (await database.MailIndexStates.AsNoTracking().AnyAsync(x => x.AccountId == account.Id, cancellationToken)) return;
+
+        var state = new MailIndexStateEntity
+        {
+            AccountId = account.Id,
+            UserId = userId,
+            LastIndexedAt = DateTimeOffset.UnixEpoch,
+            WindowDays = days,
+            IndexedMessageCount = 0
+        };
+        database.MailIndexStates.Add(state);
+        try
+        {
+            await database.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            database.Entry(state).State = EntityState.Detached;
+        }
+    }
+
+    private Task<int> TryAcquireLeaseUpdateAsync(Guid accountId, string owner, DateTimeOffset now, CancellationToken cancellationToken) =>
+        database.MailIndexStates
+            .Where(x => x.AccountId == accountId && (x.SyncLeaseUntil == null || x.SyncLeaseUntil <= now || x.SyncLeaseOwner == owner))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.SyncLeaseOwner, owner)
+                .SetProperty(x => x.SyncLeaseUntil, now.Add(SyncLeaseDuration)), cancellationToken);
+
+    private async Task<bool> TryAcquireLeaseAsync(Guid accountId, string owner, CancellationToken cancellationToken)
+    {
+        var affected = await TryAcquireLeaseUpdateAsync(accountId, owner, DateTimeOffset.UtcNow, cancellationToken);
+        return affected == 1;
+    }
+
+    private async Task ReleaseLeaseAsync(Guid accountId, string owner, CancellationToken cancellationToken)
+    {
+        await database.MailIndexStates
+            .Where(x => x.AccountId == accountId && x.SyncLeaseOwner == owner)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.SyncLeaseOwner, (string?)null)
+                .SetProperty(x => x.SyncLeaseUntil, (DateTimeOffset?)null), cancellationToken);
     }
 
     private async Task<List<string>> ListMessageIdsAsync(HttpClient client, int days, int limit, long? beforeEpoch, CancellationToken cancellationToken)
@@ -257,6 +335,27 @@ public sealed class GmailMetadataIndexService(
             var remaining = Math.Min(100, limit - ids.Count);
             var before = beforeEpoch.HasValue ? $" before:{beforeEpoch.Value}" : string.Empty;
             var query = Uri.EscapeDataString($"newer_than:{days}d{before} -label:drafts -label:spam -label:trash");
+            var url = $"users/me/messages?maxResults={remaining}&q={query}";
+            if (!string.IsNullOrWhiteSpace(pageToken)) url += $"&pageToken={Uri.EscapeDataString(pageToken)}";
+            using var response = await client.GetAsync(url, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
+            if (document.RootElement.TryGetProperty("messages", out var messages))
+                foreach (var item in messages.EnumerateArray()) if (item.TryGetProperty("id", out var id) && !string.IsNullOrWhiteSpace(id.GetString())) ids.Add(id.GetString()!);
+            pageToken = document.RootElement.TryGetProperty("nextPageToken", out var next) ? next.GetString() : null;
+        }
+        while (ids.Count < limit && !string.IsNullOrWhiteSpace(pageToken));
+        return ids;
+    }
+
+    private static async Task<List<string>> ListUnreadMessageIdsAsync(HttpClient client, int limit, CancellationToken cancellationToken)
+    {
+        var ids = new List<string>(limit);
+        string? pageToken = null;
+        do
+        {
+            var remaining = Math.Min(100, limit - ids.Count);
+            var query = Uri.EscapeDataString("is:unread in:inbox -label:spam -label:trash");
             var url = $"users/me/messages?maxResults={remaining}&q={query}";
             if (!string.IsNullOrWhiteSpace(pageToken)) url += $"&pageToken={Uri.EscapeDataString(pageToken)}";
             using var response = await client.GetAsync(url, cancellationToken);
@@ -293,11 +392,26 @@ public sealed class GmailMetadataIndexService(
         var root = document.RootElement;
         if (!root.TryGetProperty("payload", out var payload)) return null;
         var headers = Headers(payload);
-        var labels = root.TryGetProperty("labelIds", out var labelIds) ? labelIds.EnumerateArray().Select(x => x.GetString() ?? string.Empty).ToHashSet(StringComparer.OrdinalIgnoreCase) : [];
+        var labels = root.TryGetProperty("labelIds", out var labelIds)
+            ? labelIds.EnumerateArray().Select(x => x.GetString() ?? string.Empty).Where(x => !string.IsNullOrWhiteSpace(x)).ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : [];
         var occurredAt = root.TryGetProperty("internalDate", out var timestamp) && long.TryParse(timestamp.GetString(), out var ms) ? DateTimeOffset.FromUnixTimeMilliseconds(ms) : DateTimeOffset.UtcNow;
         var attachments = new List<IndexedAttachment>();
         ReadAttachments(payload, attachments);
-        return new IndexedMessage(id, root.TryGetProperty("threadId", out var thread) ? thread.GetString() ?? id : id, labels.Contains("SENT") ? "sent" : "received", ParseAddress(Header(headers, "From")), ParseAddresses(Header(headers, "To")), Header(headers, "Subject", "(sin asunto)"), root.TryGetProperty("snippet", out var snippet) ? snippet.GetString() ?? string.Empty : string.Empty, occurredAt, attachments);
+        return new IndexedMessage(
+            id,
+            root.TryGetProperty("threadId", out var thread) ? thread.GetString() ?? id : id,
+            labels.Contains("SENT") ? "sent" : "received",
+            ParseAddress(Header(headers, "From")),
+            ParseAddresses(Header(headers, "To")),
+            Header(headers, "Subject", "(sin asunto)"),
+            root.TryGetProperty("snippet", out var snippet) ? snippet.GetString() ?? string.Empty : string.Empty,
+            occurredAt,
+            labels,
+            Header(headers, "Auto-Submitted"),
+            Header(headers, "Precedence"),
+            !string.IsNullOrWhiteSpace(Header(headers, "List-Unsubscribe")),
+            attachments);
     }
 
     private static Dictionary<string, string> Headers(JsonElement payload)
@@ -396,7 +510,20 @@ public sealed class GmailMetadataIndexService(
 
     private sealed record IndexedAddress(string Name, string Address);
     private sealed record IndexedAttachment(string AttachmentId, string FileName, string ContentType, long Size);
-    private sealed record IndexedMessage(string MessageId, string ThreadId, string Direction, IndexedAddress From, IReadOnlyCollection<IndexedAddress> To, string Subject, string Snippet, DateTimeOffset OccurredAt, IReadOnlyCollection<IndexedAttachment> Attachments);
+    private sealed record IndexedMessage(
+        string MessageId,
+        string ThreadId,
+        string Direction,
+        IndexedAddress From,
+        IReadOnlyCollection<IndexedAddress> To,
+        string Subject,
+        string Snippet,
+        DateTimeOffset OccurredAt,
+        HashSet<string> Labels,
+        string AutoSubmitted,
+        string Precedence,
+        bool HasListUnsubscribe,
+        IReadOnlyCollection<IndexedAttachment> Attachments);
     private sealed record TimelineEvent(DateTimeOffset At, bool Sent);
     private sealed class SubjectStat { public required string Subject { get; init; } public int Count { get; set; } public DateTimeOffset LastAt { get; set; } }
     private sealed class ContactAccumulator(string email, string name)
