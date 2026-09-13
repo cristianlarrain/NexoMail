@@ -61,7 +61,7 @@ database.MailMessageIndex.AddRange(
     new MailMessageIndexEntity
     {
         Id = Guid.NewGuid(), UserId = userId, AccountId = accountId, ProviderMessageId = "recv-1", ThreadId = "thread-received",
-        Direction = "received", FromName = "Ana", FromAddress = "ana@nexomail.test", ToAddresses = $"Cristian\t{ownAddress}",
+        Direction = "received", FromName = "Laura", FromAddress = "laura@nexomail.test", ToAddresses = $"Cristian\t{ownAddress}",
         Subject = "Necesito respuesta", OccurredAt = now.AddDays(-3), IndexedAt = now, GmailLabels = "INBOX,UNREAD", IsInbox = true, IsUnread = true,
     },
     new MailMessageIndexEntity
