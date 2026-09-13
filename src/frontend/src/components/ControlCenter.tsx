@@ -6,6 +6,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
 import type { ControlCenterPendingItem, ControlCenterSnapshot } from '../types/mail'
 import { NexiPriorityQueue } from './NexiPriorityQueue'
+import { ConfirmDialog } from './ConfirmDialog'
 import { NexiEmptyState } from './nexi/NexiEmptyState'
 import { NexiVisual } from './nexi/NexiVisual'
 import { classifyByRules } from './nexi/priorityEngine'
@@ -57,6 +58,7 @@ export function ControlCenter({ accountId, onUpdatedAtChange }: { accountId?: st
   const [openingTarget, setOpeningTarget] = useState<string | null>(null)
   const [actionError, setActionError] = useState('')
   const [trashedItem, setTrashedItem] = useState<ControlCenterPendingItem | null>(null)
+  const [trashCandidate, setTrashCandidate] = useState<ControlCenterPendingItem | null>(null)
   const queryKey = ['control-center', accountId ?? 'all'] as const
   const controlCenterPath = accountId ? `/control-center?account=${encodeURIComponent(accountId)}` : '/control-center'
 
@@ -146,6 +148,7 @@ export function ControlCenter({ accountId, onUpdatedAtChange }: { accountId?: st
     onSuccess: async (_, item) => {
       removeFromSnapshot(item)
       setTrashedItem(item)
+      setTrashCandidate(null)
       await queryClient.invalidateQueries({ queryKey: ['messages'] })
     },
     onError: error => setActionError(error instanceof Error ? error.message : 'No fue posible eliminar el correo.'),
@@ -261,7 +264,7 @@ export function ControlCenter({ accountId, onUpdatedAtChange }: { accountId?: st
       onSnooze={item => manage.mutate({ item, action: 'snoozed', snoozeHours: 24 })}
       onTrack={(item, manual) => tracking.mutate({ item, manual })}
       onSuppressUrgency={(item, suppressed) => urgency.mutate({ item, suppressed })}
-      onTrash={item => { if (window.confirm(`¿Enviar “${item.subject}” de ${item.accountName} a la papelera?`)) trash.mutate(item) }}
+      onTrash={setTrashCandidate}
       busyTarget={manage.isPending ? itemKey(manage.variables.item) : tracking.isPending ? itemKey(tracking.variables.item) : urgency.isPending ? itemKey(urgency.variables.item) : trash.isPending ? itemKey(trash.variables) : null}
       suppressedUrgency={suppressedUrgency}
     />
@@ -290,5 +293,6 @@ export function ControlCenter({ accountId, onUpdatedAtChange }: { accountId?: st
         })}
       </div>}
     </article>}
+    <ConfirmDialog open={Boolean(trashCandidate)} title="Mover correo a Papelera" message={trashCandidate ? `“${trashCandidate.subject}” de ${trashCandidate.accountName} dejará de aparecer en esta bandeja y podrá restaurarse desde Papelera.` : ''} confirmLabel="Mover a Papelera" tone="danger" pending={trash.isPending} onCancel={() => setTrashCandidate(null)} onConfirm={() => { if (trashCandidate) trash.mutate(trashCandidate) }} />
   </section>
 }

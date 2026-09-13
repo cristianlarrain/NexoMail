@@ -68,6 +68,32 @@
   background: color-mix(in srgb, var(--surface-hover) 45%, var(--surface));
 }
 
+.dialog-input-form {
+  padding: 0 22px 18px;
+}
+
+.dialog-input-form label {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.dialog-input-form input {
+  width: 100%;
+  min-height: 42px;
+}
+
+.dialog-input-form small {
+  display: block;
+  margin-top: 7px;
+  color: var(--danger);
+}
+
+.dialog-input-form footer {
+  margin: 18px -22px -18px;
+}
+
 .confirm-danger-button {
   height: 36px;
   padding: 0 14px;

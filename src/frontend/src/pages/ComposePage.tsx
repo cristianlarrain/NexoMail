@@ -5,6 +5,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Bold, ChevronDown, Italic, Link, List, ListOrdered, Mic, MicOff, Paperclip, Save, Send, Sparkles, Trash2, Underline, X } from 'lucide-react'
 import { AiInlineWritingAssistant } from '../components/AiInlineWritingAssistant'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { LinkDialog } from '../components/LinkDialog'
 import { commercialApi } from '../api/commercialApi'
 import { mailApi } from '../api/mailApi'
 import type { AiWritingSuggestion, ComposeMessage, MailAttachment, MailMessage, OutgoingAttachment } from '../types/mail'
@@ -92,6 +93,7 @@ export function ComposePage() {
   const [listening, setListening] = useState(false)
   const [dictationError, setDictationError] = useState('')
   const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false)
   const editor = useRef<HTMLDivElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const recognition = useRef<SpeechRecognitionLike | null>(null)
@@ -359,7 +361,7 @@ export function ComposePage() {
               <button type="button" title="Subrayado" onMouseDown={event => event.preventDefault()} onClick={() => format('underline')}><Underline size={16} /></button>
               <button type="button" title="Lista" onMouseDown={event => event.preventDefault()} onClick={() => format('insertUnorderedList')}><List size={16} /></button>
               <button type="button" title="Lista numerada" onMouseDown={event => event.preventDefault()} onClick={() => format('insertOrderedList')}><ListOrdered size={16} /></button>
-              <button type="button" title="Insertar enlace" onMouseDown={event => event.preventDefault()} onClick={() => { const url = window.prompt('Pega una URL segura (https://...)'); if (url?.startsWith('https://')) format('createLink', url) }}><Link size={16} /></button>
+              <button type="button" title="Insertar enlace" onMouseDown={event => event.preventDefault()} onClick={() => setLinkDialogOpen(true)}><Link size={16} /></button>
               <button type="button" className={`dictation-button ${listening ? 'listening' : ''}`} title={listening ? 'Detener dictado' : 'Dictar mensaje'} aria-label={listening ? 'Detener dictado' : 'Dictar mensaje con micrófono'} onMouseDown={event => event.preventDefault()} onClick={toggleDictation}>{listening ? <MicOff size={16} /> : <Mic size={16} />}</button>
               {listening && <span className="dictation-status">Escuchando…</span>}
             </div>
@@ -398,5 +400,6 @@ export function ComposePage() {
       </form>
     </div>
     <ConfirmDialog open={confirmDiscard} title="Descartar cambios" message="Los cambios de este correo se perderán si no los guardas como borrador." confirmLabel="Descartar" tone="danger" pending={false} onCancel={() => setConfirmDiscard(false)} onConfirm={discardComposer} />
+    <LinkDialog open={linkDialogOpen} onCancel={() => setLinkDialogOpen(false)} onInsert={url => { setLinkDialogOpen(false); format('createLink', url) }} />
   </section>
 }
