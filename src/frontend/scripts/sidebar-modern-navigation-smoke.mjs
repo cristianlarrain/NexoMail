@@ -40,15 +40,15 @@ for (const marker of [
 }
 
 const inboxIcon = layout.indexOf('<Inbox className="primary-nav-icon"')
-const inboxText = layout.indexOf('<span>Bandeja de Entrada</span>')
+const inboxText = layout.indexOf('<span>Vista clásica</span>')
 const composeIcon = layout.indexOf('<PenLine className="primary-nav-icon"')
 const composeText = layout.indexOf('<span>Redactar</span>')
 const nexiIcon = layout.indexOf('className="primary-nav-icon nexi-sidebar-icon"')
-const nexiText = layout.indexOf('<span>Nexi Control Center</span>')
+const nexiText = layout.indexOf('<span>Inicio</span>')
 
-if (!(inboxIcon >= 0 && inboxIcon < inboxText)) throw new Error('Bandeja de entrada debe mostrar icono a la izquierda como los menús de carpetas.')
+if (!(inboxIcon >= 0 && inboxIcon < inboxText)) throw new Error('Vista clásica debe mostrar icono a la izquierda como los menús de carpetas.')
 if (!(composeIcon >= 0 && composeIcon < composeText)) throw new Error('Redactar debe mostrar icono a la izquierda como los menús de carpetas.')
-if (!(nexiIcon >= 0 && nexiIcon < nexiText)) throw new Error('Nexi Control Center debe mostrar icono a la izquierda como los menús de carpetas.')
+if (!(nexiIcon >= 0 && nexiIcon < nexiText)) throw new Error('Inicio debe mostrar el icono de Nexi a la izquierda.')
 
 const cssMarkers = [
   '.sidebar-nav-main',
