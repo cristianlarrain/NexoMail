@@ -37,6 +37,14 @@ public sealed class GmailControlCenterService(
                 .Where(x => x.UserId == userId && accountIds.Contains(x.AccountId))
                 .ToArrayAsync(cancellationToken);
 
+        var unreadAccountIds = accountIds.Length == 0
+            ? []
+            : await database.MailMessageIndex
+                .AsNoTracking()
+                .Where(x => x.UserId == userId && accountIds.Contains(x.AccountId) && x.IsInbox && x.IsUnread)
+                .Select(x => x.AccountId)
+                .ToArrayAsync(cancellationToken);
+
         var now = DateTimeOffset.UtcNow;
         var lookbackStart = now.AddDays(-LookbackDays);
         var activityStart = now.UtcDateTime.Date.AddDays(-(ActivityDays - 1));
@@ -119,13 +127,13 @@ public sealed class GmailControlCenterService(
             account.Color,
             orderedPending.Count(item => item.AccountId == account.Id && item.Direction == "received"),
             orderedPending.Count(item => item.AccountId == account.Id && item.Direction == "sent"),
-            messages.Count(message => message.AccountId == account.Id && message.IsInbox && message.IsUnread),
+            unreadAccountIds.Count(id => id == account.Id),
             freshAccounts.Contains(account.Id))).ToArray();
 
         return new ControlCenterSnapshot(
             orderedPending.Count(x => x.Direction == "received"),
             orderedPending.Count(x => x.Direction == "sent"),
-            messages.Count(x => x.IsInbox && x.IsUnread),
+            unreadAccountIds.Length,
             orderedPending.Count(x => now - x.Since >= TimeSpan.FromHours(48)),
             activity,
             priorityItems,
