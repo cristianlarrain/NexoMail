@@ -1,3 +1,5 @@
+using System.Net;
+using System.Text;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -48,6 +50,13 @@ database.MailAccounts.Add(new MailAccountEntity
     Color = "#c6524b",
     IsActive = true,
     CreatedAt = now,
+});
+database.OAuthCredentials.Add(new OAuthCredentialEntity
+{
+    Id = Guid.NewGuid(),
+    MailAccountId = accountId,
+    EncryptedRefreshToken = "refresh-token",
+    UpdatedAt = now,
 });
 database.MailIndexStates.Add(new MailIndexStateEntity
 {
@@ -151,7 +160,14 @@ Ensure(ana.AverageResponseMinutes is >= 59 and <= 61, "El tiempo medio de respue
 var documents = await metadata.GetDocumentsAsync("informe", "PDF", 50, 0, cancellationToken);
 Ensure(documents.Total == 1 && documents.Items.Single().FileName == "informe.pdf", "Documentos no encontró el PDF indexado.");
 
-Console.WriteLine("PASS: índice -> clasificación -> métricas -> actividad -> resolver -> posponer -> seguimiento -> contactos -> documentos");
+var syncMetadata = new GmailMetadataIndexService(new SyncHttpClientFactory(), database, new PassthroughTokenProtector(), Options.Create(new GmailOptions { ClientId = "test", ClientSecret = "test" }), userContext);
+var syncResult = await syncMetadata.SyncForUserAsync(userId, 90, 25, cancellationToken);
+Ensure(syncResult.Accounts == 1, "La sincronización explícita no procesó la cuenta Gmail esperada.");
+database.ChangeTracker.Clear();
+var leaseState = await database.MailIndexStates.AsNoTracking().SingleAsync(x => x.AccountId == accountId, cancellationToken);
+Ensure(leaseState.SyncLeaseOwner is null && leaseState.SyncLeaseUntil is null, "La lease de sincronización no se liberó al finalizar.");
+
+Console.WriteLine("PASS: índice -> clasificación -> métricas -> actividad -> resolver -> posponer -> seguimiento -> contactos -> documentos -> lease sync");
 
 sealed class TestUserContext(Guid userId, string email, string displayName) : IUserContext
 {
@@ -170,4 +186,32 @@ sealed class PassthroughTokenProtector : ITokenProtector
 sealed class ThrowingHttpClientFactory : IHttpClientFactory
 {
     public HttpClient CreateClient(string name) => throw new InvalidOperationException($"El camino de lectura no debe solicitar HttpClient: {name}");
+}
+
+sealed class SyncHttpClientFactory : IHttpClientFactory
+{
+    public HttpClient CreateClient(string name) => new(new SyncHttpHandler());
+}
+
+sealed class SyncHttpHandler : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var uri = request.RequestUri?.AbsoluteUri ?? string.Empty;
+        if (uri.Contains("oauth2.googleapis.com/token", StringComparison.OrdinalIgnoreCase))
+            return Task.FromResult(Json(HttpStatusCode.OK, "{\"access_token\":\"test-access-token\",\"expires_in\":3600}"));
+
+        if (uri.Contains("/users/me/messages?", StringComparison.OrdinalIgnoreCase))
+            return Task.FromResult(Json(HttpStatusCode.OK, "{\"messages\":[]}"));
+
+        if (uri.Contains("/users/me/messages/", StringComparison.OrdinalIgnoreCase))
+            return Task.FromResult(Json(HttpStatusCode.NotFound, "{}"));
+
+        return Task.FromResult(Json(HttpStatusCode.NotFound, "{}"));
+    }
+
+    private static HttpResponseMessage Json(HttpStatusCode status, string content) => new(status)
+    {
+        Content = new StringContent(content, Encoding.UTF8, "application/json")
+    };
 }
