@@ -28,7 +28,16 @@ try {
     }
 
     Save-NexoMailProductionSecrets -Path $testPath -Secrets $secrets
+
+    $looseAcl = Get-Acl $testPath
+    $looseAcl.SetAccessRuleProtection($false, $true)
+    Set-Acl -Path $testPath -AclObject $looseAcl
+
     $loaded = Get-NexoMailProductionSecrets -Path $testPath
+
+    if (-not (Get-Acl $testPath).AreAccessRulesProtected) {
+        throw 'La lectura no reparó los permisos heredados del archivo cifrado.'
+    }
 
     if ($loaded.SmtpAddress -ne $secrets.SmtpAddress) { throw 'No se recuperó la cuenta SMTP.' }
     if ($loaded.OwnerEmail -ne $secrets.OwnerEmail) { throw 'No se recuperó la cuenta propietaria.' }
