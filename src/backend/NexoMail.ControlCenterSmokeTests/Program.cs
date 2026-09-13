@@ -190,7 +190,13 @@ sealed class ThrowingHttpClientFactory : IHttpClientFactory
 
 sealed class SyncHttpClientFactory : IHttpClientFactory
 {
-    public HttpClient CreateClient(string name) => new(new SyncHttpHandler());
+    public HttpClient CreateClient(string name)
+    {
+        var client = new HttpClient(new SyncHttpHandler());
+        if (string.Equals(name, "Gmail", StringComparison.Ordinal))
+            client.BaseAddress = new Uri("https://gmail.googleapis.com/gmail/v1/");
+        return client;
+    }
 }
 
 sealed class SyncHttpHandler : HttpMessageHandler
