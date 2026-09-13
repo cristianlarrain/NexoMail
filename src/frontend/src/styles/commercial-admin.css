@@ -104,6 +104,10 @@
 .commercial-user-trial-control > .secondary-button { min-height: 34px; padding: 0 9px; gap: 5px; font-size: 10.5px; white-space: nowrap; }
 .commercial-users-table td small.commercial-user-trial-active { margin-top: 0; color: var(--primary); font-weight: 700; }
 .commercial-users-empty { padding: 22px; text-align: center; color: var(--muted); font-size: 12px; }
+.commercial-connected-accounts { min-width: 190px; display: grid; gap: 5px; }
+.commercial-connected-account { min-width: 0; display: grid; grid-template-columns: 9px minmax(0, 1fr); align-items: center; gap: 6px; }
+.commercial-connected-account > i { width: 9px; height: 9px; border-radius: 50%; }
+.commercial-connected-account > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--foreground); font-size: 10.5px; }
 
 @media (max-width: 760px) {
   .commercial-plan-title-row,

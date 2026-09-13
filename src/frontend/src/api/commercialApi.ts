@@ -80,6 +80,13 @@ export interface CommercialAdminUser {
   effectivePlanCode: string
   effectivePlanName: string
   connectedAccounts: number
+  connectedMailAccounts: Array<{
+    id: string
+    emailAddress: string
+    displayName: string
+    provider: string
+    color: string
+  }>
   subscription: CommercialSubscriptionState | null
   createdAt: string
   lastLoginAt: string | null

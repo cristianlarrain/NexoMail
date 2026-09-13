@@ -69,7 +69,7 @@ export function AdminUsersPage() {
   const filteredUsers = useMemo(() => {
     const term = search.trim().toLocaleLowerCase('es')
     if (!term) return users.data ?? []
-    return (users.data ?? []).filter(user => `${user.displayName} ${user.email} ${user.planName}`.toLocaleLowerCase('es').includes(term))
+    return (users.data ?? []).filter(user => `${user.displayName} ${user.email} ${user.planName} ${user.connectedMailAccounts.map(account => account.emailAddress).join(' ')}`.toLocaleLowerCase('es').includes(term))
   }, [search, users.data])
 
   const activePlans = (plans.data ?? []).filter(plan => plan.isActive)
@@ -97,7 +97,7 @@ export function AdminUsersPage() {
 
     <div className="commercial-admin-table-wrap">
       <table className="commercial-admin-table commercial-users-table">
-        <thead><tr><th>Usuario</th><th>Plan asignado</th><th>Plan efectivo</th><th>Prueba temporal</th><th>Cuentas</th><th>Suscripción</th><th>Último acceso</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Usuario</th><th>Plan asignado</th><th>Plan efectivo</th><th>Prueba temporal</th><th>Cuentas conectadas</th><th>Suscripción</th><th>Último acceso</th><th>Estado</th></tr></thead>
         <tbody>
           {filteredUsers.map(user => {
             const isOwner = user.effectivePlanCode === 'owner'
@@ -141,7 +141,11 @@ export function AdminUsersPage() {
                     </div>
                   : <small>{isOwner ? 'No aplica al Owner' : user.planCode !== 'freemium' ? 'Disponible sólo para Freemium' : 'Usuario inactivo'}</small>}
               </td>
-              <td><strong>{user.connectedAccounts}</strong><small>conectada{user.connectedAccounts === 1 ? '' : 's'}</small></td>
+              <td><div className="commercial-connected-accounts">
+                {user.connectedMailAccounts.length > 0
+                  ? user.connectedMailAccounts.map(account => <span className="commercial-connected-account" key={account.id} title={account.displayName || account.emailAddress}><i style={{ background: account.color }} /><span>{account.emailAddress}</span></span>)
+                  : <small>Sin cuentas conectadas</small>}
+              </div></td>
               <td><strong>{isOwner ? 'No aplica' : subscriptionLabel(user.subscription?.status)}</strong><small>{isOwner ? 'Acceso interno' : providerLabel(user.subscription?.provider)}</small></td>
               <td>{formatDate(user.lastLoginAt)}</td>
               <td><span className={`commercial-admin-status ${user.isActive ? 'active' : 'inactive'}`}>{user.isActive ? 'Activo' : 'Inactivo'}</span></td>

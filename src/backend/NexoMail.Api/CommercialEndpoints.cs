@@ -203,11 +203,17 @@ public static class CommercialEndpoints
                 .OrderBy(x => x.DisplayName)
                 .ThenBy(x => x.Email)
                 .ToArrayAsync(ct);
-            var accountCounts = await database.MailAccounts.AsNoTracking()
+            var connectedAccounts = await database.MailAccounts.AsNoTracking()
                 .Where(x => x.IsActive)
+                .OrderBy(x => x.EmailAddress)
+                .ToArrayAsync(ct);
+            var accountsByUser = connectedAccounts
                 .GroupBy(x => x.UserId)
-                .Select(group => new { UserId = group.Key, Count = group.Count() })
-                .ToDictionaryAsync(x => x.UserId, x => x.Count, ct);
+                .ToDictionary(
+                    group => group.Key,
+                    group => (IReadOnlyList<CommercialAdminConnectedAccountDto>)group
+                        .Select(ToAdminConnectedAccountDto)
+                        .ToArray());
             var plans = await database.CommercialPlans.AsNoTracking().ToArrayAsync(ct);
             var plansByCode = plans.ToDictionary(x => x.Code, StringComparer.OrdinalIgnoreCase);
 
@@ -218,7 +224,7 @@ public static class CommercialEndpoints
                     ?? plansByCode.GetValueOrDefault(CommercialPlanCatalog.Freemium);
                 CommercialAccessSnapshot? access = null;
                 if (user.IsActive) access = await CommercialAccessStore.GetAsync(database, user.Id, ct);
-                result.Add(ToAdminUserDto(user, assignedPlan, access, accountCounts.GetValueOrDefault(user.Id)));
+                result.Add(ToAdminUserDto(user, assignedPlan, access, accountsByUser.GetValueOrDefault(user.Id) ?? []));
             }
 
             return Results.Ok(result);
@@ -240,7 +246,10 @@ public static class CommercialEndpoints
 
             await CommercialSubscriptionMutations.AssignPlanManuallyAsync(database, user.Id, plan.Code, ct);
             var access = await CommercialAccessStore.GetAsync(database, user.Id, ct);
-            var connectedAccounts = await database.MailAccounts.AsNoTracking().CountAsync(x => x.UserId == user.Id && x.IsActive, ct);
+            var connectedAccounts = (await database.MailAccounts.AsNoTracking()
+                .Where(x => x.UserId == user.Id && x.IsActive)
+                .OrderBy(x => x.EmailAddress)
+                .ToArrayAsync(ct)).Select(ToAdminConnectedAccountDto).ToArray();
             return Results.Ok(ToAdminUserDto(user, plan, access, connectedAccounts));
         });
 
@@ -267,7 +276,10 @@ public static class CommercialEndpoints
             var assignedPlan = await database.CommercialPlans.AsNoTracking()
                 .SingleOrDefaultAsync(x => x.Code == user.PlanCode, ct);
             var access = await CommercialAccessStore.GetAsync(database, user.Id, ct);
-            var connectedAccounts = await database.MailAccounts.AsNoTracking().CountAsync(x => x.UserId == user.Id && x.IsActive, ct);
+            var connectedAccounts = (await database.MailAccounts.AsNoTracking()
+                .Where(x => x.UserId == user.Id && x.IsActive)
+                .OrderBy(x => x.EmailAddress)
+                .ToArrayAsync(ct)).Select(ToAdminConnectedAccountDto).ToArray();
             return Results.Ok(ToAdminUserDto(user, assignedPlan, access, connectedAccounts));
         });
 
@@ -438,7 +450,7 @@ public static class CommercialEndpoints
         UserEntity user,
         CommercialPlanEntity? assignedPlan,
         CommercialAccessSnapshot? access,
-        int connectedAccounts)
+        IReadOnlyList<CommercialAdminConnectedAccountDto> connectedAccounts)
     {
         var assignedCode = assignedPlan?.Code ?? user.PlanCode;
         var assignedName = assignedPlan?.Name ?? user.PlanCode;
@@ -454,11 +466,19 @@ public static class CommercialEndpoints
             assignedName,
             effectiveCode,
             effectiveName,
+            connectedAccounts.Count,
             connectedAccounts,
             access is null ? null : ToSubscriptionDto(access.Subscription),
             user.CreatedAt,
             user.LastLoginAt);
     }
+
+    private static CommercialAdminConnectedAccountDto ToAdminConnectedAccountDto(MailAccountEntity account) => new(
+        account.Id,
+        account.EmailAddress,
+        account.DisplayName,
+        account.Provider.ToString().ToLowerInvariant(),
+        account.Color);
 
     private static CommercialSubscriptionStateDto ToSubscriptionDto(CommercialSubscriptionState state) => new(
         state.Status,
@@ -544,9 +564,17 @@ public sealed record CommercialAdminUserDto(
     string EffectivePlanCode,
     string EffectivePlanName,
     int ConnectedAccounts,
+    IReadOnlyList<CommercialAdminConnectedAccountDto> ConnectedMailAccounts,
     CommercialSubscriptionStateDto? Subscription,
     DateTimeOffset CreatedAt,
     DateTimeOffset? LastLoginAt);
+
+public sealed record CommercialAdminConnectedAccountDto(
+    Guid Id,
+    string EmailAddress,
+    string DisplayName,
+    string Provider,
+    string Color);
 
 public sealed record CommercialUserPlanAssignmentRequest(string PlanCode);
 public sealed record CommercialUserTrialRequest(string TrialType, int Days);
