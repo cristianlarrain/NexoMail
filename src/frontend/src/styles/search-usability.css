@@ -1,0 +1,9 @@
+.universal-search-heading > div:last-child > .primary-button {
+  font-size: 0;
+}
+
+.universal-search-heading > div:last-child > .primary-button::after {
+  content: "Resumir resultados";
+  font-size: 12px;
+  line-height: 1;
+}

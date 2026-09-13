@@ -2,99 +2,168 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  gap: 14px;
+  margin-bottom: 10px;
   flex-wrap: wrap;
 }
 
 .control-center-page .control-page-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
 }
 
 .control-center-page .control-page-title h1 {
   margin: 0;
+  font-size: 24px;
+  line-height: 1.1;
 }
 
-.control-center-page .control-tabs-inline {
-  margin-left: auto;
+.control-center-page .nexi-control-brandmark {
   flex: 0 0 auto;
 }
 
-.control-center-page .control-center-header {
-  min-height: 36px;
-  padding-block: 6px;
-}
-
-.control-center-page .control-center-title-line h2,
-.control-center-page .control-center-header > div:first-child > p {
-  display: none;
-}
-
-.control-center-page .control-center-title-line span {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--muted-foreground);
-  font-size: 0;
-  font-weight: 700;
-}
-
-.control-center-page .control-center-title-line span::after {
-  content: "Todas las cuentas · 14 días";
-  font-size: 10px;
-}
-
-.control-center-page .control-center-refresh span {
+.control-center-page .control-page-updated {
+  flex: 0 0 auto;
+  margin-left: 2px;
   color: var(--muted-foreground);
   font-size: 9px;
   font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
 }
 
-.nexi-control-summary .nexi-insights-header {
-  min-height: 48px;
-  padding-block: 8px;
+.control-center-page .control-tabs-inline {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  padding-bottom: 3px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  flex: 0 0 auto;
 }
 
-.nexi-control-summary .nexi-insights-header > div > strong {
-  font-size: 0;
+.control-center-page .control-tabs-inline button {
+  min-height: 32px;
+  padding: 6px 9px;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  font-size: 11px;
+  opacity: .72;
 }
 
-.nexi-control-summary .nexi-insights-header > div > strong::after {
-  content: "Nexi";
-  font-size: 13px;
+.control-center-page .control-tabs-inline button:hover,
+.control-center-page .control-tabs-inline button.active {
+  opacity: 1;
 }
 
-.nexi-control-summary .nexi-insights-header > div > span {
-  font-size: 0;
+.control-center-page .control-tabs-inline button.active {
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
-.nexi-control-summary .nexi-insights-header > div > span::after {
-  content: "Hallazgos y sugerencias de esta vista.";
-  font-size: 9px;
+.control-center-page .control-center-cinematic {
+  gap: 0;
 }
 
-.nexi-control-summary .nexi-findings-heading span {
-  display: none;
+.nexi-control-metrics.compact {
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 0;
+}
+
+.nexi-control-metrics.compact .control-metric {
+  min-height: 74px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.nexi-control-metrics.compact .control-metric-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+}
+
+.nexi-control-metrics.compact .control-metric strong {
+  margin-top: 0;
+  font-size: 22px;
+}
+
+.nexi-control-metrics.compact .control-metric span {
+  margin-top: 4px;
+  font-size: 11px;
+}
+
+.control-center-page .nexi-priority-featured {
+  margin-top: 4px;
+  box-shadow: none;
+}
+
+.control-center-page .nexi-priority-header {
+  min-height: 0;
+  padding: 12px 14px;
+}
+
+.control-center-page .nexi-priority-kicker {
+  font-size: 10px;
+}
+
+.control-center-page .nexi-priority-header strong {
+  font-size: 16px;
+}
+
+.control-center-page .nexi-priority-refine {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 11px;
+}
+
+.control-center-page .nexi-priority-refine.nexi-glow-action {
+  border-color: color-mix(in srgb, var(--primary) 82%, white 18%);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--primary) 34%, transparent), 0 6px 18px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+.control-center-page .nexi-priority-refine.nexi-glow-action:not(:disabled):hover {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 90%, white 10%);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--primary) 44%, transparent), 0 8px 22px color-mix(in srgb, var(--primary) 22%, transparent);
+  transform: translateY(-1px);
+}
+
+.control-center-page .nexi-priority-refine.nexi-glow-action:disabled {
+  background: color-mix(in srgb, var(--primary) 42%, var(--surface));
+  color: color-mix(in srgb, var(--primary-foreground) 72%, var(--muted-foreground));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--primary) 16%, transparent);
 }
 
 @media (max-width: 760px) {
   .control-center-page > .control-page-header {
     align-items: flex-start;
-    gap: 10px;
+    gap: 8px;
+  }
+
+  .control-center-page .control-page-updated {
+    align-self: center;
   }
 
   .control-center-page .control-tabs-inline {
     width: 100%;
     margin-left: 0;
+    overflow-x: auto;
   }
 }
 
 @media (max-width: 640px) {
-  .control-center-page .control-center-header {
-    align-items: flex-start;
-    gap: 4px;
+  .control-center-page .control-page-title h1 {
+    font-size: 21px;
   }
 
-  .control-center-page .control-center-refresh {
-    margin-left: 0;
+  .nexi-control-metrics.compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

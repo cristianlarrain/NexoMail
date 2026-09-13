@@ -3,8 +3,10 @@ import { useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanst
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Archive, ArrowLeft, Ban, Check, ChevronLeft, ChevronRight, Clock3, Download, EyeOff, FileText, Forward, Paperclip, Reply, ReplyAll, ShieldAlert, Trash2, Undo2, X } from 'lucide-react'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { commercialApi } from '../api/commercialApi'
 import { mailApi } from '../api/mailApi'
 import type { ControlCenterPendingItem, ControlCenterSnapshot, MailAttachment, MailSummary, PagedResult } from '../types/mail'
+import { commercialEntitlements } from '../utils/commercialEntitlements'
 import { sanitizeEmailHtml } from '../utils/sanitizeEmailHtml'
 
 type MessageNavigationItem = { accountId: string; messageId: string }
@@ -36,6 +38,13 @@ export function MessagePage() {
   const [preview, setPreview] = useState<MailAttachment | null>(null)
   const [confirmTrash, setConfirmTrash] = useState(false)
   const [finalizationNotice, setFinalizationNotice] = useState<'finalized' | 'reopened' | null>(null)
+  const { data: commercialSubscription } = useQuery({
+    queryKey: ['commercial-subscription'],
+    queryFn: commercialApi.subscription,
+    staleTime: 30_000,
+  })
+  const hasMailActions = commercialSubscription?.entitlements.includes(commercialEntitlements.mailActions) === true
+  const hasTracking = commercialSubscription?.entitlements.includes(commercialEntitlements.trackingBasic) === true
   const { data: message, isLoading } = useQuery({
     queryKey: ['message', accountId, messageId],
     queryFn: () => mailApi.message(accountId, messageId),
@@ -59,7 +68,7 @@ export function MessagePage() {
   const trackingState = useQuery({
     queryKey: ['control-center-tracking-state', accountId, messageId],
     queryFn: () => mailApi.controlCenterTrackingState(accountId, messageId),
-    enabled: Boolean(accountId && messageId && canTrackOrFinalize),
+    enabled: Boolean(accountId && messageId && hasTracking && canTrackOrFinalize),
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: false,
@@ -67,7 +76,7 @@ export function MessagePage() {
   const controlCenterQuery = useQuery({
     queryKey: ['control-center', accountId],
     queryFn: () => mailApi.controlCenter(accountId),
-    enabled: Boolean(accountId && messageId && canTrackOrFinalize),
+    enabled: Boolean(accountId && messageId && hasTracking && canTrackOrFinalize),
     staleTime: 90_000,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
@@ -75,7 +84,7 @@ export function MessagePage() {
   const messageStateQuery = useQuery({
     queryKey: ['control-center-message-state', accountId, messageId],
     queryFn: () => mailApi.controlCenterMessageState(accountId, messageId),
-    enabled: Boolean(accountId && messageId && canTrackOrFinalize),
+    enabled: Boolean(accountId && messageId && hasTracking && canTrackOrFinalize),
     staleTime: 30_000,
     refetchOnMount: 'always',
     refetchOnWindowFocus: false,
@@ -265,39 +274,39 @@ export function MessagePage() {
     <section className="message-reading-pane">
       <div className="message-navigation"><button className="back-link" onClick={returnToPreviousView}><ArrowLeft size={17} /> {openedFromControlCenter ? 'Volver al Centro de control' : 'Volver'}</button><div className="message-navigation-arrows" aria-label="Navegación entre correos"><button className="icon-button" onClick={() => goToMessage(previousMessage)} disabled={!previousMessage} aria-label="Correo anterior" title="Correo anterior"><ChevronLeft size={19} /></button><button className="icon-button" onClick={() => goToMessage(nextMessage)} disabled={!nextMessage} aria-label="Correo siguiente" title="Correo siguiente"><ChevronRight size={19} /></button></div></div>
       <div className="message-title-row"><h1>{message.subject}</h1></div>
-      <div className="message-actions message-action-toolbar unified-message-actions" aria-label="Acciones del correo">
-        <button className="message-action-button primary-action" aria-label="Responder" title="Responder" onClick={() => compose('reply')}><Reply size={16} /><span>Responder</span></button>
-        <button className="message-action-button" aria-label="Responder a todos" title="Responder a todos" onClick={() => compose('replyAll')}><ReplyAll size={16} /><span>Responder a todos</span></button>
-        <button className="message-action-button" aria-label="Reenviar" title="Reenviar" onClick={() => compose('forward')}><Forward size={16} /><span>Reenviar</span></button>
-        {canOrganize && <span className="message-action-separator" aria-hidden="true" />}
-        {canRestoreToInbox && <button className="message-action-button" aria-label="Restaurar a Bandeja" title="Restaurar a Bandeja" disabled={mailboxActionPending} onClick={() => move.mutate('inbox')}><Undo2 size={16} /><span>Restaurar a Bandeja</span></button>}
-        {canArchive && <button className="message-action-button" aria-label="Archivar" title="Archivar" disabled={mailboxActionPending} onClick={() => move.mutate('archive')}><Archive size={16} /><span>Archivar</span></button>}
-        {canOrganize && (openedFromIgnored ? <button className="message-action-button" aria-label="Dejar de ignorar remitente" title="Dejar de ignorar remitente" disabled={mailboxActionPending} onClick={() => unignore.mutate()}><Undo2 size={16} /><span>Dejar de ignorar</span></button> : <button className="message-action-button" aria-label="Ignorar remitente" title="Ignorar remitente" disabled={mailboxActionPending} onClick={() => ignore.mutate()}><EyeOff size={16} /><span>Ignorar remitente</span></button>)}
-        {canOrganize && message.folderId !== 'spam' && <button className="message-action-button" aria-label="Marcar como spam" title="Marcar como spam" disabled={mailboxActionPending} onClick={() => move.mutate('spam')}><ShieldAlert size={16} /><span>Spam</span></button>}
+      {(hasMailActions || hasTracking || message.unsubscribeUrl) && <div className="message-actions message-action-toolbar unified-message-actions" aria-label="Acciones del correo">
+        {hasMailActions && <button className="message-action-button primary-action" aria-label="Responder" title="Responder" onClick={() => compose('reply')}><Reply size={16} /><span>Responder</span></button>}
+        {hasMailActions && <button className="message-action-button" aria-label="Responder a todos" title="Responder a todos" onClick={() => compose('replyAll')}><ReplyAll size={16} /><span>Responder a todos</span></button>}
+        {hasMailActions && <button className="message-action-button" aria-label="Reenviar" title="Reenviar" onClick={() => compose('forward')}><Forward size={16} /><span>Reenviar</span></button>}
+        {hasMailActions && canOrganize && <span className="message-action-separator" aria-hidden="true" />}
+        {hasMailActions && canRestoreToInbox && <button className="message-action-button" aria-label="Restaurar a Bandeja" title="Restaurar a Bandeja" disabled={mailboxActionPending} onClick={() => move.mutate('inbox')}><Undo2 size={16} /><span>Restaurar a Bandeja</span></button>}
+        {hasMailActions && canArchive && <button className="message-action-button" aria-label="Archivar" title="Archivar" disabled={mailboxActionPending} onClick={() => move.mutate('archive')}><Archive size={16} /><span>Archivar</span></button>}
+        {hasMailActions && canOrganize && (openedFromIgnored ? <button className="message-action-button" aria-label="Dejar de ignorar remitente" title="Dejar de ignorar remitente" disabled={mailboxActionPending} onClick={() => unignore.mutate()}><Undo2 size={16} /><span>Dejar de ignorar</span></button> : <button className="message-action-button" aria-label="Ignorar remitente" title="Ignorar remitente" disabled={mailboxActionPending} onClick={() => ignore.mutate()}><EyeOff size={16} /><span>Ignorar remitente</span></button>)}
+        {hasMailActions && canOrganize && message.folderId !== 'spam' && <button className="message-action-button" aria-label="Marcar como spam" title="Marcar como spam" disabled={mailboxActionPending} onClick={() => move.mutate('spam')}><ShieldAlert size={16} /><span>Spam</span></button>}
         {message.unsubscribeUrl && <a className="message-action-button" href={message.unsubscribeUrl} target="_blank" rel="noopener noreferrer" aria-label="Desuscribirse" title="Desuscribirse"><Ban size={16} /><span>Desuscribirse</span></a>}
-        {canManualTrack && !controlCenterItem && <><span className="message-action-separator" aria-hidden="true" />{isManuallyTracked ? <button className="message-action-button" aria-label="Quitar seguimiento" title="Quitar este correo del seguimiento manual" disabled={mailboxActionPending} onClick={() => untrackMessage.mutate()}><Check size={16} /><span>Quitar seguimiento</span></button> : <button className="message-action-button" aria-label="Hacer seguimiento" title="Añadir este correo a Seguimiento prioritario" disabled={mailboxActionPending || trackingState.isLoading} onClick={() => trackMessage.mutate()}><Clock3 size={16} /><span>Hacer seguimiento</span></button>}</>}
-        {openedManualTracking && <><span className="message-action-separator" aria-hidden="true" /><button className="message-action-button" aria-label="Quitar seguimiento" title="Quitar este correo del seguimiento manual" disabled={mailboxActionPending} onClick={() => untrackMessage.mutate()}><Check size={16} /><span>Quitar seguimiento</span></button></>}
-        {canTrackOrFinalize && (isFinalized || automaticPending) && <span className="message-action-separator" aria-hidden="true" />}
-        {canTrackOrFinalize && isFinalized && <button className="message-action-button" aria-label="Deshacer finalización" title="Volver a evaluar esta conversación como pendiente" disabled={mailboxActionPending} onClick={() => reopenMessage.mutate()}><Undo2 size={16} /><span>Deshacer finalización</span></button>}
-        {canTrackOrFinalize && !isFinalized && automaticPending && <button className="message-action-button finalize-action" aria-label="Finalizar" title="Este correo no requiere ninguna acción. Retirarlo de pendientes." disabled={mailboxActionPending} onClick={() => finalizeMessage.mutate()}><Check size={16} /><span>Finalizar</span></button>}
-        <span className="message-action-separator" aria-hidden="true" />
-        <button className="message-action-button danger-action" aria-label={destructiveActionLabel} title={destructiveActionLabel} disabled={mailboxActionPending} onClick={() => setConfirmTrash(true)}><Trash2 size={16} /><span>{destructiveActionLabel}</span></button>
-      </div>
+        {hasTracking && canManualTrack && !controlCenterItem && <><span className="message-action-separator" aria-hidden="true" />{isManuallyTracked ? <button className="message-action-button" aria-label="Quitar seguimiento" title="Quitar este correo del seguimiento manual" disabled={mailboxActionPending} onClick={() => untrackMessage.mutate()}><Check size={16} /><span>Quitar seguimiento</span></button> : <button className="message-action-button" aria-label="Hacer seguimiento" title="Añadir este correo a Seguimiento prioritario" disabled={mailboxActionPending || trackingState.isLoading} onClick={() => trackMessage.mutate()}><Clock3 size={16} /><span>Hacer seguimiento</span></button>}</>}
+        {hasTracking && openedManualTracking && <><span className="message-action-separator" aria-hidden="true" /><button className="message-action-button" aria-label="Quitar seguimiento" title="Quitar este correo del seguimiento manual" disabled={mailboxActionPending} onClick={() => untrackMessage.mutate()}><Check size={16} /><span>Quitar seguimiento</span></button></>}
+        {hasTracking && canTrackOrFinalize && (isFinalized || automaticPending) && <span className="message-action-separator" aria-hidden="true" />}
+        {hasTracking && canTrackOrFinalize && isFinalized && <button className="message-action-button" aria-label="Deshacer finalización" title="Volver a evaluar esta conversación como pendiente" disabled={mailboxActionPending} onClick={() => reopenMessage.mutate()}><Undo2 size={16} /><span>Deshacer finalización</span></button>}
+        {hasTracking && canTrackOrFinalize && !isFinalized && automaticPending && <button className="message-action-button finalize-action" aria-label="Finalizar" title="Este correo no requiere ninguna acción. Retirarlo de pendientes." disabled={mailboxActionPending} onClick={() => finalizeMessage.mutate()}><Check size={16} /><span>Finalizar</span></button>}
+        {hasMailActions && <span className="message-action-separator" aria-hidden="true" />}
+        {hasMailActions && <button className="message-action-button danger-action" aria-label={destructiveActionLabel} title={destructiveActionLabel} disabled={mailboxActionPending} onClick={() => setConfirmTrash(true)}><Trash2 size={16} /><span>{destructiveActionLabel}</span></button>}
+      </div>}
       <div className="message-meta"><div className="sender-avatar">{message.from.name.slice(0, 1)}</div><div><strong>{message.from.name}</strong><span>{message.from.address}</span><small>para {message.to.map(x => x.address).join(', ')} · {new Date(message.receivedAt).toLocaleString('es-CL')}</small></div></div>
 
-      {trackMessage.isSuccess && <div className="success-notice">Correo añadido a Seguimiento prioritario.</div>}
-      {untrackMessage.isSuccess && <div className="success-notice">Seguimiento manual retirado. El correo no fue movido ni eliminado.</div>}
-      {finalizationNotice === 'finalized' && <div className="success-notice">Finalizado. Este correo ya no se considera pendiente y no fue movido ni eliminado.</div>}
-      {finalizationNotice === 'reopened' && <div className="success-notice">Finalización deshecha. NexoMail volverá a evaluar esta conversación.</div>}
-      {trackingMutationError && <div className="notice message-mailbox-error">{trackingMutationError instanceof Error ? trackingMutationError.message : 'No fue posible actualizar el seguimiento manual.'}</div>}
-      {finalizationError && <div className="notice message-mailbox-error">{finalizationError instanceof Error ? finalizationError.message : 'No fue posible actualizar el estado de la conversación.'}</div>}
-      {(move.isError || ignore.isError || unignore.isError) && <div className="notice message-mailbox-error">No fue posible completar la acción sobre este correo.</div>}
+      {hasTracking && trackMessage.isSuccess && <div className="success-notice">Correo añadido a Seguimiento prioritario.</div>}
+      {hasTracking && untrackMessage.isSuccess && <div className="success-notice">Seguimiento manual retirado. El correo no fue movido ni eliminado.</div>}
+      {hasTracking && finalizationNotice === 'finalized' && <div className="success-notice">Finalizado. Este correo ya no se considera pendiente y no fue movido ni eliminado.</div>}
+      {hasTracking && finalizationNotice === 'reopened' && <div className="success-notice">Finalización deshecha. NexoMail volverá a evaluar esta conversación.</div>}
+      {hasTracking && trackingMutationError && <div className="notice message-mailbox-error">{trackingMutationError instanceof Error ? trackingMutationError.message : 'No fue posible actualizar el seguimiento manual.'}</div>}
+      {hasTracking && finalizationError && <div className="notice message-mailbox-error">{finalizationError instanceof Error ? finalizationError.message : 'No fue posible actualizar el estado de la conversación.'}</div>}
+      {hasMailActions && (move.isError || ignore.isError || unignore.isError) && <div className="notice message-mailbox-error">No fue posible completar la acción sobre este correo.</div>}
 
       {thread.length > 1 ? <section className="thread-view"><h2>Conversación</h2>{thread.map(item => <article className={`thread-message ${item.isCurrent ? 'current' : ''}`} key={item.providerMessageId}><header><strong>{item.from.name}</strong><span>{item.from.address} · {new Date(item.receivedAt).toLocaleString('es-CL')}</span></header><div dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(item.htmlBody) }} /></article>)}</section> : <div className="message-body" dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(message.htmlBody) }} />}
       {message.attachments.length > 0 && <div className="attachments"><h2><Paperclip size={16} /> Adjuntos</h2><div className="attachment-list">{message.attachments.map(file => <div key={file.id} className={`attachment-card ${preview?.id === file.id ? 'selected' : ''}`}><button type="button" className="attachment-preview-button" onClick={() => setPreview(file)} title="Abrir vista previa"><Paperclip size={17} /><span><strong>{file.name}</strong><small>{Math.max(1, Math.round(file.size / 1000))} KB · Vista previa</small></span></button><a href={mailApi.attachmentUrl(accountId, messageId, file, true)} className="attachment-download" title={`Descargar ${file.name}`} aria-label={`Descargar ${file.name}`}><Download size={16} /></a></div>)}</div></div>}
-      <div className="reply-bar message-action-footer"><button className="message-action-button primary-action" onClick={() => compose('reply')}><Reply size={16} /> Responder</button><button className="message-action-button" onClick={() => compose('replyAll')}><ReplyAll size={16} /> Responder a todos</button><button className="message-action-button" onClick={() => compose('forward')}><Forward size={16} /> Reenviar</button></div>
+      {hasMailActions && <div className="reply-bar message-action-footer"><button className="message-action-button primary-action" onClick={() => compose('reply')}><Reply size={16} /> Responder</button><button className="message-action-button" onClick={() => compose('replyAll')}><ReplyAll size={16} /> Responder a todos</button><button className="message-action-button" onClick={() => compose('forward')}><Forward size={16} /> Reenviar</button></div>}
     </section>
     {preview && <aside className="attachment-preview" aria-label="Vista previa de adjunto"><header><div><p className="eyebrow">Vista previa</p><strong title={preview.name}>{preview.name}</strong></div><button className="icon-button" onClick={() => setPreview(null)} aria-label="Cerrar vista previa"><X size={18} /></button></header><div className="attachment-preview-content">{preview.contentType.startsWith('image/') ? <img src={previewUrl} alt={preview.name} /> : canPreview(preview) ? <iframe src={previewUrl} title={`Vista previa: ${preview.name}`} /> : <div className="unsupported-preview"><FileText size={32} /><h2>Vista previa no disponible</h2><p>Este tipo de archivo no puede mostrarse de forma segura en el navegador.</p></div>}</div><footer><a href={downloadUrl} className="primary-button"><Download size={16} /> Descargar</a></footer></aside>}
-    <ConfirmDialog open={confirmTrash} title={isDraft ? 'Descartar borrador' : 'Mover correo a Papelera'} message={isDraft ? 'Este borrador se eliminará definitivamente. Esta acción no se puede deshacer.' : 'El correo dejará de aparecer en esta bandeja y podrá restaurarse desde Papelera.'} confirmLabel={destructiveActionLabel} pending={trash.isPending} onCancel={() => setConfirmTrash(false)} onConfirm={() => trash.mutate()} />
+    {hasMailActions && <ConfirmDialog open={confirmTrash} title={isDraft ? 'Descartar borrador' : 'Mover correo a Papelera'} message={isDraft ? 'Este borrador se eliminará definitivamente. Esta acción no se puede deshacer.' : 'El correo dejará de aparecer en esta bandeja y podrá restaurarse desde Papelera.'} confirmLabel={destructiveActionLabel} pending={trash.isPending} onCancel={() => setConfirmTrash(false)} onConfirm={() => trash.mutate()} />}
   </article>
 }

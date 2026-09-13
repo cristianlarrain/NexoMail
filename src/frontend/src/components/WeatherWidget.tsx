@@ -99,7 +99,7 @@ async function resolveLocation(latitude: number, longitude: number) {
 }
 
 export function WeatherWidget() {
-  const [weather, setWeather] = useState<WeatherState>({ status: 'loading', location: SANTIAGO.location })
+  const [weather, setWeather] = useState<WeatherState>({ status: 'loading', location: 'Tu ubicación' })
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -137,25 +137,37 @@ export function WeatherWidget() {
           forecast: buildForecast(data),
         })
       } catch {
-        if (active && !resolveCity) setWeather({ status: 'error', location: fallbackLocation })
+        if (!active) return
+        if (resolveCity) {
+          void loadWeather(SANTIAGO.latitude, SANTIAGO.longitude, SANTIAGO.location, false)
+          return
+        }
+        setWeather({ status: 'error', location: fallbackLocation })
       }
     }
 
+    function fallbackToSantiago() {
+      if (!active) return
+      void loadWeather(SANTIAGO.latitude, SANTIAGO.longitude, SANTIAGO.location, false)
+    }
+
     function requestActualLocation() {
-      if (!navigator.geolocation) return
+      if (!navigator.geolocation) {
+        fallbackToSantiago()
+        return
+      }
       navigator.geolocation.getCurrentPosition(
         position => {
           if (!active) return
           void loadWeather(position.coords.latitude, position.coords.longitude, 'Tu ubicación', true)
         },
-        () => undefined,
-        { enableHighAccuracy: false, timeout: 8_000, maximumAge: 15 * 60_000 },
+        fallbackToSantiago,
+        { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 },
       )
     }
 
-    void loadWeather(SANTIAGO.latitude, SANTIAGO.longitude, SANTIAGO.location, false)
     requestActualLocation()
-    const refresh = window.setInterval(requestActualLocation, 15 * 60_000)
+    const refresh = window.setInterval(requestActualLocation, 10 * 60_000)
 
     return () => {
       active = false

@@ -1,9 +1,7 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using Microsoft.Extensions.Options;
 using NexoMail.Domain;
 
 namespace NexoMail.Infrastructure;
@@ -28,9 +26,7 @@ public sealed record AiMailReport(
     IReadOnlyCollection<AiMailReportItem> Items,
     IReadOnlyCollection<string> Actions);
 
-public sealed class AiMailInsightsService(
-    IHttpClientFactory httpClientFactory,
-    IOptions<AiWritingOptions> options)
+public sealed class AiMailInsightsService(AiResponseClient responseClient)
 {
     private const int MaximumPromptCharacters = 26_000;
     private const int MaximumReportItems = 20;
@@ -60,7 +56,7 @@ public sealed class AiMailInsightsService(
             ? $"Resume toda esta conversación de correo. Da prioridad a lo más reciente y deja claro en qué quedó el hilo.\n\n{source}"
             : $"Resume este correo y explica en simple qué quiere decir.\n\n{source}";
 
-        var output = await AskAsync(instructions, input, 900, cancellationToken);
+        var output = await AskAsync(includeThread ? "thread_summary" : "mail_summary", instructions, input, 900, cancellationToken);
         var parsed = Deserialize<AiMessageInsightPayload>(output);
         if (parsed is null)
             return new AiMessageInsight(CleanFallbackText(output), CleanFallbackText(output), null, []);
@@ -120,7 +116,7 @@ public sealed class AiMailInsightsService(
             {"summary":"...","items":[{"sender":"...","subject":"...","summary":"...","requestedAction":null,"importance":"alta|media|baja"}],"actions":["..."]}
             """;
 
-        var output = await AskAsync(instructions, input.ToString(), 3_600, cancellationToken);
+        var output = await AskAsync("mail_report", instructions, input.ToString(), 3_600, cancellationToken);
         var parsed = Deserialize<AiMailReportPayload>(output);
 
         if (parsed is null)
@@ -133,7 +129,7 @@ public sealed class AiMailInsightsService(
                 Devuelve exclusivamente JSON válido y completo, sin Markdown, con esta forma exacta:
                 {"summary":"...","items":[{"sender":"...","subject":"...","summary":"...","requestedAction":null,"importance":"alta|media|baja"}],"actions":["..."]}
                 """;
-            output = await AskAsync(compactInstructions, input.ToString(), 3_000, cancellationToken);
+            output = await AskAsync("mail_report", compactInstructions, input.ToString(), 3_000, cancellationToken);
             parsed = Deserialize<AiMailReportPayload>(output);
         }
 
@@ -161,40 +157,20 @@ public sealed class AiMailInsightsService(
         return new AiMailReport(periodLabel, messages.Count, parsed.Summary?.Trim() ?? string.Empty, items, actions);
     }
 
-    private async Task<string> AskAsync(string instructions, string input, int maxTokens, CancellationToken cancellationToken)
+    private async Task<string> AskAsync(
+        string operationType,
+        string instructions,
+        string input,
+        int maxTokens,
+        CancellationToken cancellationToken)
     {
-        var settings = options.Value;
-        if (string.IsNullOrWhiteSpace(settings.ApiKey))
-            throw new InvalidOperationException("La función de IA todavía no está configurada en el servidor.");
-
-        var payload = JsonSerializer.Serialize(new
-        {
-            model = string.IsNullOrWhiteSpace(settings.Model) ? "gpt-5.6-luna" : settings.Model,
-            reasoning = new { effort = "low" },
+        var output = (await responseClient.SendAsync(
+            operationType,
             instructions,
-            input = Limit(input, MaximumPromptCharacters),
-            max_output_tokens = maxTokens
-        });
-
-        var client = httpClientFactory.CreateClient("OpenAI");
-        using var request = new HttpRequestMessage(HttpMethod.Post, "responses")
-        {
-            Content = new StringContent(payload, Encoding.UTF8, "application/json")
-        };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiKey);
-
-        using var response = await client.SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode)
-        {
-            var detail = await response.Content.ReadAsStringAsync(cancellationToken);
-            throw new HttpRequestException(
-                $"OpenAI rechazó la solicitud ({(int)response.StatusCode}). {Limit(detail, 500)}",
-                null,
-                response.StatusCode);
-        }
-
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
-        var output = ExtractOutputText(document.RootElement).Trim();
+            Limit(input, MaximumPromptCharacters),
+            maxTokens,
+            "low",
+            cancellationToken)).Trim();
         if (string.IsNullOrWhiteSpace(output))
             throw new InvalidOperationException("Nexi no devolvió un resumen válido.");
         return output;
@@ -288,27 +264,6 @@ public sealed class AiMailInsightsService(
         if (clean.StartsWith('{') || clean.StartsWith('['))
             return "Nexi no pudo estructurar este resumen. Intenta generarlo nuevamente.";
         return Limit(clean, 2_000);
-    }
-
-    private static string ExtractOutputText(JsonElement root)
-    {
-        if (!root.TryGetProperty("output", out var output) || output.ValueKind != JsonValueKind.Array)
-            return string.Empty;
-
-        var builder = new StringBuilder();
-        foreach (var item in output.EnumerateArray())
-        {
-            if (!item.TryGetProperty("type", out var itemType) || itemType.GetString() != "message") continue;
-            if (!item.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.Array) continue;
-            foreach (var part in content.EnumerateArray())
-            {
-                if (!part.TryGetProperty("type", out var type) || type.GetString() != "output_text") continue;
-                if (!part.TryGetProperty("text", out var text) || string.IsNullOrWhiteSpace(text.GetString())) continue;
-                if (builder.Length > 0) builder.AppendLine();
-                builder.Append(text.GetString());
-            }
-        }
-        return builder.ToString();
     }
 
     private static string NormalizeImportance(string? value) => value?.Trim().ToLowerInvariant() switch

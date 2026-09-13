@@ -21,6 +21,20 @@ public sealed class GoogleOAuthService(
     private readonly GmailOptions _options = options.Value;
     private readonly IDataProtector _stateProtector = dataProtectionProvider.CreateProtector("NexoMail.GoogleOAuth.State.v1");
 
+    public async Task EnsureCanConnectAnotherAccountAsync(CancellationToken cancellationToken)
+    {
+        var userId = userContext.UserId;
+        var access = await NexoMail.Infrastructure.CommercialAccessStore.GetAsync(database, userId, cancellationToken)
+            ?? throw new InvalidOperationException("No fue posible determinar el plan de la cuenta.");
+        var plan = access.EffectivePlan;
+        if (!plan.MaxAccounts.HasValue) return;
+
+        var connectedAccounts = await database.MailAccounts.AsNoTracking()
+            .CountAsync(x => x.UserId == userId && x.IsActive, cancellationToken);
+        if (connectedAccounts >= plan.MaxAccounts.Value)
+            throw new InvalidOperationException($"Su plan efectivo {plan.Name} permite hasta {plan.MaxAccounts.Value} cuentas de correo. Cambie de plan o regularice su suscripción para conectar una cuenta adicional.");
+    }
+
     public string BeginAuthorization()
     {
         EnsureConfigured();
@@ -30,7 +44,7 @@ public sealed class GoogleOAuthService(
             ["client_id"] = _options.ClientId,
             ["redirect_uri"] = _options.RedirectUri,
             ["response_type"] = "code",
-            ["scope"] = "openid email https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/contacts.other.readonly",
+            ["scope"] = "openid email https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.settings.basic https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/contacts.other.readonly",
             ["access_type"] = "offline",
             ["prompt"] = "consent",
             ["state"] = state
@@ -72,6 +86,7 @@ public sealed class GoogleOAuthService(
             cancellationToken);
         if (account is null)
         {
+            await EnsureCanConnectAnotherAccountAsync(cancellationToken);
             account = new MailAccountEntity
             {
                 Id = Guid.NewGuid(),

@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import type { ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Archive, CheckCircle2, Eye, EyeOff, Flag, FlagOff, Inbox, Mail, MessageSquareReply, Search, ShieldAlert, Sparkles, Trash2 } from 'lucide-react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'

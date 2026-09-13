@@ -4,6 +4,11 @@
   margin-bottom: 11px;
 }
 
+.nexi-priority-featured {
+  border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+  box-shadow: 0 8px 24px rgb(0 0 0 / .05);
+}
+
 .nexi-priority-header {
   display: flex;
   align-items: flex-start;
@@ -31,11 +36,11 @@
 
 .nexi-priority-header > div > strong {
   color: var(--foreground);
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .nexi-priority-header p {
-  max-width: 640px;
+  max-width: 720px;
   margin: 0;
   color: var(--muted-foreground, var(--muted));
   font-size: 10.5px;
@@ -120,6 +125,10 @@
   border: 1px solid var(--border);
   border-radius: 9px;
   background: var(--surface);
+}
+
+.nexi-priority-row.has-insight {
+  align-items: start;
 }
 
 .nexi-priority-row.urgent {
@@ -231,6 +240,46 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.nexi-priority-insight {
+  grid-column: 2 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+}
+
+.nexi-priority-insight > div {
+  min-width: 0;
+  padding: 8px 9px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--primary) 4%, var(--surface));
+}
+
+.nexi-priority-insight span {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--primary);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.nexi-priority-insight p,
+.nexi-priority-insight ul {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.nexi-priority-insight ul {
+  padding-left: 15px;
 }
 
 .nexi-priority-notice {
@@ -262,6 +311,10 @@
   .nexi-priority-summary {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .nexi-priority-insight {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 720px) {
@@ -282,8 +335,12 @@
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .nexi-priority-actions {
+  .nexi-priority-actions,
+  .nexi-priority-insight {
     grid-column: 2;
-    justify-content: flex-end;
+  }
+
+  .nexi-priority-actions {
+    justify-content: flex-start;
   }
 }

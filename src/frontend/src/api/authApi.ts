@@ -104,7 +104,7 @@ async function authRequest<T>(path: string, init?: RequestInit, allowUnauthorize
 
 export const authApi = {
   me: () => authRequest<AuthSession>('/me', undefined, true),
-  register: (request: { displayName: string; email: string; password: string }) => authRequest<RegisterResponse>('/register', { method: 'POST', body: JSON.stringify(request) }) as Promise<RegisterResponse>,
+  register: (request: { displayName: string; email: string; password: string; acceptedLegalTerms: boolean }) => authRequest<RegisterResponse>('/register', { method: 'POST', body: JSON.stringify(request) }) as Promise<RegisterResponse>,
   verifyEmail: (request: { email: string; code: string }) => authRequest<AuthSession>('/verify-email', { method: 'POST', body: JSON.stringify(request) }) as Promise<AuthSession>,
   resendVerification: (request: { email: string }) => authRequest<MessageResponse>('/resend-verification', { method: 'POST', body: JSON.stringify(request) }) as Promise<MessageResponse>,
   login: (request: { email: string; password: string }) => authRequest<AuthSession>('/login', { method: 'POST', body: JSON.stringify(request) }) as Promise<AuthSession>,

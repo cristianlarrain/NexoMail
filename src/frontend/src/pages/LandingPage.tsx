@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Bot, Building2, Check, Clock3, Gauge, Inbox, Layers3, LockKeyhole, Mail, Moon, Palette, ShieldCheck, Sparkles, Sun, Users } from 'lucide-react'
+import { ArrowRight, Building2, Check, Clock3, Gauge, Inbox, Layers3, LockKeyhole, Mail, Moon, Palette, ShieldCheck, Sparkles, Sun, Users } from 'lucide-react'
 import { NexoMailLogo } from '../components/brand/NexoMailLogo'
 import { NexiVisual } from '../components/nexi/NexiVisual'
+
+const demoVideoUrl = 'https://cdn.creativeclaw.co/u/372f7075/videos/d1cab7f4-113a-43c9-bc48-ea80643f0088.mp4'
+const demoPosterUrl = 'https://cdn.creativeclaw.co/u/372f7075/images/8b998e07-5e31-4275-bf93-836a2e3723ae.png'
 
 const features = [
   { icon: <Inbox size={21} />, title: 'Todas sus cuentas, en un solo lugar', description: 'Revise, responda y gestione varias cuentas de correo desde una interfaz única, sin saltar entre proveedores.' },
   { icon: <Gauge size={21} />, title: 'Centro de Control', description: 'Detecte correos sin responder, mensajes enviados sin respuesta, pendientes de más de 48 horas y actividad por cuenta.' },
-  { icon: <Clock3 size={21} />, title: 'Seguimiento inteligente', description: 'Marque conversaciones, identifique pendientes y vuelva rápidamente a los correos que requieren una acción.' },
-  { icon: <Layers3 size={21} />, title: 'Gestión operativa', description: 'Archive, ignore, marque spam, mueva a papelera, gestione no leídos y trabaje con adjuntos desde un mismo flujo.' },
-  { icon: <Bot size={21} />, title: 'Nexi, su asistente', description: 'Nexi interpreta el contexto del correo y del Centro de Control para facilitar el seguimiento y las próximas acciones.' },
-  { icon: <ShieldCheck size={21} />, title: 'Privacidad desde el diseño', description: 'NexoMail está diseñado para consultar el correo desde los proveedores y evitar almacenar de forma permanente el contenido de los mensajes.' },
+  { icon: <Clock3 size={21} />, title: 'Seguimiento inteligente', description: 'Identifique pendientes y vuelva rápidamente a las conversaciones que requieren una acción.' },
+  { icon: <Layers3 size={21} />, title: 'Gestión operativa', description: 'Archive, ignore, gestione no leídos, adjuntos y otras acciones habituales desde un mismo flujo.' },
 ]
 
 const plans = [
@@ -43,16 +44,6 @@ const plans = [
     cta: 'Conocer Corporativo',
     href: '/login?mode=register',
     note: 'Desde 5 usuarios',
-  },
-  {
-    name: 'White Label',
-    price: 'A medida',
-    cadence: 'cotización personalizada',
-    description: 'Para organizaciones que quieran ofrecer NexoMail bajo su propia identidad.',
-    items: ['Marca y logotipo propios', 'Dominio personalizado', 'Colores e identidad visual', 'Configuración y límites a medida', 'Implementación por EIDOS Digital'],
-    cta: 'Ver White Label',
-    href: '#white-label',
-    whiteLabel: true,
   },
 ]
 
@@ -89,27 +80,48 @@ export function LandingPage() {
           <Link to="/login?mode=register" className="landing-primary large">Comenzar gratis <ArrowRight size={17} /></Link>
           <a href="#planes" className="landing-secondary">Ver planes</a>
         </div>
-        <div className="landing-trust-row"><span><Check size={14} /> Gmail disponible</span><span><LockKeyhole size={14} /> Privacidad por diseño</span><span><Gauge size={14} /> Centro de Control</span></div>
-      </div>
-
-      <div className="landing-product-preview" aria-label="Vista conceptual de NexoMail">
-        <div className="landing-preview-top"><NexoMailLogo compact /><span>Centro de Control</span><i /></div>
-        <div className="landing-preview-body">
-          <aside><span className="active" /><span /><span /><span /><span /></aside>
-          <div className="landing-preview-main">
-            <div className="landing-preview-heading"><span /><small /></div>
-            <div className="landing-preview-metrics"><article><b>12</b><span>Recibidos sin responder</span></article><article><b>7</b><span>Enviados sin respuesta</span></article><article><b>4</b><span>Sin leer</span></article><article><b>3</b><span>Más de 48 horas</span></article></div>
-            <div className="landing-preview-lower"><article><div className="landing-preview-chart"><i /><i /><i /><i /><i /><i /><i /></div></article><article className="landing-preview-list"><span /><span /><span /><span /></article></div>
-          </div>
+        <div className="landing-trust-row">
+          <span><Check size={14} /> Gmail, Microsoft 365 e IMAP / SMTP Beta</span>
+          <span><Clock3 size={14} /> Marcha blanca · 30 días</span>
         </div>
       </div>
-    </section>
 
-    <section className="landing-section landing-value-strip" aria-label="Propuesta de valor">
-      <div><strong>Unificar</strong><span>Cuentas y bandejas</span></div>
-      <div><strong>Priorizar</strong><span>Lo que requiere atención</span></div>
-      <div><strong>Responder</strong><span>Con menos fricción</span></div>
-      <div><strong>Controlar</strong><span>Pendientes y seguimiento</span></div>
+      <div className="landing-commercial-preview" aria-label="NexoMail en acción">
+        <div className="landing-commercial-preview-head">
+          <span className="landing-commercial-kicker">Centro de Control</span>
+          <h3>NexoMail le muestra lo que su bandeja no le dice.</h3>
+          <p>Pendientes, respuestas y atrasos visibles antes de que algo importante quede olvidado.</p>
+        </div>
+
+        <div className="landing-commercial-metrics">
+          <article className="metric-cyan"><b>46</b><span>Recibidos sin responder</span></article>
+          <article className="metric-amber"><b>10</b><span>Esperando respuesta</span></article>
+          <article className="metric-orange"><b>39</b><span>Más de 48 horas</span></article>
+        </div>
+
+        <div className="landing-video-stage" id="demo-video">
+          <video
+            className="landing-video-player"
+            controls
+            playsInline
+            preload="metadata"
+            poster={demoPosterUrl}
+            aria-label="Vea NexoMail en acción"
+          >
+            <source src={demoVideoUrl} type="video/mp4" />
+            Su navegador no admite reproducción de video HTML5.
+          </video>
+          <div className="landing-video-caption">
+            <strong>Vea NexoMail en acción</strong>
+            <span>Demo de producto · 55 segundos</span>
+          </div>
+        </div>
+
+        <div className="landing-commercial-preview-foot">
+          <span><Sparkles size={14} /> Priorización asistida por Nexi</span>
+          <span><Check size={14} /> Lo importante, visible primero</span>
+        </div>
+      </div>
     </section>
 
     <section className="landing-section" id="caracteristicas">
@@ -133,12 +145,13 @@ export function LandingPage() {
     </section>
 
     <section className="landing-section" id="servicios">
-      <div className="landing-section-heading"><span>Integraciones</span><h2>Una plataforma para sus distintas cuentas</h2><p>La arquitectura está preparada para ampliar proveedores sin cambiar la experiencia central de NexoMail.</p></div>
+      <div className="landing-section-heading"><span>Integraciones</span><h2>Conecte las cuentas que ya utiliza</h2><p>Conecte sus cuentas actuales y trabaje desde una sola interfaz, sin cambiar su proveedor de correo.</p></div>
       <div className="landing-provider-grid">
-        <article className="available"><div className="provider-symbol"><Mail size={22} /></div><div><strong>Google / Gmail</strong><span>Disponible actualmente</span></div><b>Disponible</b></article>
-        <article><div className="provider-symbol microsoft"><span /><span /><span /><span /></div><div><strong>Microsoft / Outlook</strong><span>Microsoft 365 y Outlook</span></div><b>Próximamente</b></article>
-        <article><div className="provider-symbol"><Layers3 size={22} /></div><div><strong>IMAP / SMTP</strong><span>Otros proveedores compatibles</span></div><b>Próximamente</b></article>
+        <article className="available"><div className="provider-symbol"><Mail size={22} /></div><div><strong>Google / Gmail</strong><span>Gmail y Google Workspace</span></div><b>Disponible</b></article>
+        <article className="available"><div className="provider-symbol microsoft"><span /><span /><span /><span /></div><div><strong>Microsoft 365</strong><span>Profesional, educativa o institucional</span></div><b>Disponible</b></article>
+        <article className="available"><div className="provider-symbol"><Layers3 size={22} /></div><div><strong>IMAP / SMTP</strong><span>Dominio propio y otros proveedores compatibles</span></div><b>Beta</b></article>
       </div>
+      <p className="landing-pricing-note">Las cuentas Microsoft 365 institucionales pueden requerir autorización previa del administrador de su organización para permitir aplicaciones externas como NexoMail.</p>
     </section>
 
     <section className="landing-section landing-how">
@@ -148,14 +161,14 @@ export function LandingPage() {
 
     <section className="landing-section" id="planes">
       <div className="landing-section-heading"><span>Planes</span><h2>Una modalidad para cada forma de trabajar</h2><p>Comience sin costo, avance a Premium cuando necesite más capacidad o lleve NexoMail a toda su organización.</p></div>
-      <div className="landing-plan-grid landing-commercial-plans">{plans.map(plan => <article key={plan.name} className={`${plan.featured ? 'featured' : ''} ${plan.whiteLabel ? 'white-label-plan' : ''}`}>
+      <div className="landing-plan-grid landing-commercial-plans">{plans.map(plan => <article key={plan.name} className={plan.featured ? 'featured' : ''}>
         {plan.badge && <span className="landing-plan-badge">{plan.badge}</span>}
         {plan.note && <small>{plan.note}</small>}
         <h3>{plan.name}</h3>
         <div className="landing-plan-price"><strong>{plan.price}</strong><span>{plan.cadence}</span></div>
         <p>{plan.description}</p>
         <ul>{plan.items.map(item => <li key={item}><Check size={14} />{item}</li>)}</ul>
-        {plan.href.startsWith('/') ? <Link to={plan.href}>{plan.cta} <ArrowRight size={15} /></Link> : <a href={plan.href}>{plan.cta} <ArrowRight size={15} /></a>}
+        <Link to={plan.href}>{plan.cta} <ArrowRight size={15} /></Link>
       </article>)}</div>
       <p className="landing-pricing-note">Los valores corresponden a la propuesta comercial inicial y pueden ajustarse antes del lanzamiento definitivo.</p>
     </section>

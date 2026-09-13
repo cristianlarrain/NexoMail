@@ -3,7 +3,8 @@ name: Draft lifecycle smoke test
 on:
   push:
     branches:
-      - feature/nexi-assistant
+      - main
+      - 'feature/**'
   workflow_dispatch:
 
 jobs:

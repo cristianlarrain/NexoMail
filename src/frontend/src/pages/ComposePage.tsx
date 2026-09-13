@@ -5,8 +5,10 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Bold, ChevronDown, Italic, Link, List, ListOrdered, Mic, MicOff, Paperclip, Save, Send, Sparkles, Trash2, Underline, X } from 'lucide-react'
 import { AiInlineWritingAssistant } from '../components/AiInlineWritingAssistant'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { commercialApi } from '../api/commercialApi'
 import { mailApi } from '../api/mailApi'
 import type { AiWritingSuggestion, ComposeMessage, MailAttachment, MailMessage, OutgoingAttachment } from '../types/mail'
+import { commercialEntitlements } from '../utils/commercialEntitlements'
 import { sanitizeEmailHtml } from '../utils/sanitizeEmailHtml'
 
 type ComposeState = {
@@ -62,6 +64,8 @@ export function ComposePage() {
   const queryClient = useQueryClient()
   const state = (location.state ?? {}) as ComposeState
   const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: mailApi.accounts })
+  const { data: commercialSubscription } = useQuery({ queryKey: ['commercial-subscription'], queryFn: commercialApi.subscription, staleTime: 30_000 })
+  const hasNexi = commercialSubscription?.entitlements.includes(commercialEntitlements.nexiAi) === true
   const origin = state.message
   const editingDraft = Boolean(origin && state.mode === 'editDraft')
   const [from, setFrom] = useState(origin?.accountId ?? state.fromAccountId ?? '')
@@ -306,8 +310,8 @@ export function ComposePage() {
     <div className="compose-card ai-compose-card">
       <header className="ai-compose-header">
         <div className="ai-compose-heading">
-          <span className="ai-compose-mark"><Sparkles size={18} /></span>
-          <div><p className="eyebrow">Nexo IA</p><h1>{origin ? action : 'Redactar correo'}</h1></div>
+          {hasNexi && <span className="ai-compose-mark"><Sparkles size={18} /></span>}
+          <div><p className="eyebrow">{hasNexi ? 'Nexo IA' : 'NexoMail'}</p><h1>{origin ? action : 'Redactar correo'}</h1></div>
         </div>
         <button type="button" className="icon-button" onClick={closeComposer} aria-label={origin ? 'Volver' : 'Cerrar'} title={origin ? 'Volver' : 'Cerrar'}>{origin ? <ArrowLeft size={19} /> : <X size={19} />}</button>
       </header>
@@ -362,13 +366,13 @@ export function ComposePage() {
             {dictationError && <p className="dictation-error">{dictationError}</p>}
             <div ref={editor} className="editor rich-editor" contentEditable suppressContentEditableWarning role="textbox" aria-multiline="true" data-placeholder="Escribe tu mensaje…" onInput={event => setBody(event.currentTarget.innerHTML)} />
 
-            <AiInlineWritingAssistant
+            {hasNexi && <AiInlineWritingAssistant
               currentHtml={body}
               recipient={to}
               accountId={origin && state.mode !== 'forward' && state.mode !== 'editDraft' ? origin.accountId : undefined}
               messageId={origin && state.mode !== 'forward' && state.mode !== 'editDraft' ? origin.providerMessageId : undefined}
               onUse={useAiProposal}
-            />
+            />}
 
             <div className="outgoing-attachments">
               {retainedDraftAttachments.map(file => <span key={`draft-${file.id}`}><Paperclip size={14} />{file.name}<button type="button" onClick={() => setRetainedDraftAttachments(current => current.filter(item => item.id !== file.id))} aria-label={`Quitar ${file.name}`}><X size={14} /></button></span>)}

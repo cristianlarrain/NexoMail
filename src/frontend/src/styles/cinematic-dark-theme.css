@@ -43,7 +43,6 @@
 }
 
 :root[data-theme="dark"] .brand-mark,
-:root[data-theme="dark"] .compose-button,
 :root[data-theme="dark"] .primary-button {
   background: var(--primary);
   color: var(--primary-foreground);
@@ -63,13 +62,9 @@
   background: var(--surface-hover);
 }
 
-:root[data-theme="dark"] .sidebar .nav-item.active {
+:root[data-theme="dark"] .sidebar .nav-item.active:not(.sidebar-primary-link) {
   background: color-mix(in srgb, var(--primary) 15%, var(--surface));
   color: var(--primary);
-}
-
-:root[data-theme="dark"] .sidebar .control-center-nav.active {
-  background: color-mix(in srgb, var(--primary) 17%, var(--surface));
 }
 
 :root[data-theme="dark"] .message-list,

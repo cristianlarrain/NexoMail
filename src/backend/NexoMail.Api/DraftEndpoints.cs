@@ -7,6 +7,8 @@ public static class DraftEndpoints
 {
     public static RouteGroupBuilder Map(RouteGroupBuilder mail)
     {
+        PerspectiveEndpoints.Map(mail);
+
         mail.MapPost("/drafts", async (
             IMailGateway gateway,
             MailReadCache cache,

@@ -1,22 +1,26 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
-import { Archive, ChevronDown, ChevronLeft, Clock3, EyeOff, FileText, Inbox, LayoutDashboard, LogOut, Menu, Moon, PenLine, Send, Settings, ShieldAlert, Sun, Trash2, UserRound } from 'lucide-react'
+import { Archive, BookMarked, ChevronDown, ChevronLeft, Clock3, CreditCard, EyeOff, FileText, Inbox, LogOut, Menu, Moon, PenLine, Send, Settings, ShieldAlert, Sun, Trash2, UserRound } from 'lucide-react'
 import { authApi } from '../api/authApi'
+import { commercialApi } from '../api/commercialApi'
 import { mailApi } from '../api/mailApi'
 import type { MailSummary, PagedResult } from '../types/mail'
+import { AppFooter } from '../components/AppFooter'
 import { BackToTopButton } from '../components/BackToTopButton'
+import { NexoPerspective } from '../components/NexoPerspective'
 import { TopSearchBox } from '../components/TopSearchBox'
 import { NexoMailLogo } from '../components/brand/NexoMailLogo'
-import { NexiAssistantButton } from '../components/nexi/NexiAssistantButton'
-import { NexiAssistantPanel } from '../components/nexi/NexiAssistantPanel'
+import { NexiVisual } from '../components/nexi/NexiVisual'
 import { WeatherWidget } from '../components/WeatherWidget'
+import { commercialEntitlements } from '../utils/commercialEntitlements'
 import { detectNexiMailAction } from '../utils/nexiSearchIntent'
+import { detectNexiTrashRuleIntent } from '../utils/nexiRuleIntent'
 
 const FOLDERS_COLLAPSED_KEY = 'nexomail-sidebar-folders-collapsed'
 const navClass = ({ isActive }: { isActive: boolean }) => `nav-item ${isActive ? 'active' : ''}`
-const controlCenterNavClass = ({ isActive }: { isActive: boolean }) => `nav-item primary-nav-action control-center-nav ${isActive ? 'active' : ''}`
-const inboxNavClass = ({ isActive }: { isActive: boolean }) => `nav-item primary-nav-action inbox-primary-nav ${isActive ? 'active' : ''}`
+const controlCenterNavClass = ({ isActive }: { isActive: boolean }) => `nav-item sidebar-primary-link control-center-nav ${isActive ? 'active' : ''}`
+const inboxNavClass = ({ isActive }: { isActive: boolean }) => `nav-item sidebar-primary-link inbox-primary-nav ${isActive ? 'active' : ''}`
 function initials(value: string) { return value.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || 'NM' }
 function capitalize(value: string) { return value.charAt(0).toUpperCase() + value.slice(1) }
 function accountIdFromPath(pathname: string) {
@@ -37,23 +41,27 @@ function reportPeriodFromQuery(value: string): 'today' | 'this_week' | 'last_wee
 export function AppLayout() {
   const [open, setOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
-  const [foldersCollapsed, setFoldersCollapsed] = useState(() => localStorage.getItem(FOLDERS_COLLAPSED_KEY) === '1')
+  const [accountsOpen, setAccountsOpen] = useState(false)
+  const [foldersCollapsed, setFoldersCollapsed] = useState(() => localStorage.getItem(FOLDERS_COLLAPSED_KEY) !== '0')
   const [theme, setTheme] = useState(() => localStorage.getItem('nexomail-theme') ?? 'light')
   const [profileOpen, setProfileOpen] = useState(false)
-  const [nexiOpen, setNexiOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [now, setNow] = useState(() => new Date())
   const queryClient = useQueryClient()
   const { data: session } = useQuery({ queryKey: ['session'], queryFn: authApi.me, retry: false, staleTime: 60_000 })
   const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: mailApi.accounts })
+  const { data: commercialSubscription } = useQuery({ queryKey: ['commercial-subscription'], queryFn: commercialApi.subscription, staleTime: 30_000 })
   const navigate = useNavigate()
   const location = useLocation()
   const logout = useMutation({ mutationFn: authApi.logout, onSuccess: () => { queryClient.clear(); navigate('/login', { replace: true }) } })
 
+  const hasMailActions = !commercialSubscription || commercialSubscription.entitlements.includes(commercialEntitlements.mailActions)
+  const hasControlCenter = !commercialSubscription || commercialSubscription.entitlements.includes(commercialEntitlements.controlCenterBasic)
+  const isOwner = commercialSubscription?.effectivePlanCode === 'owner'
+
   useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem('nexomail-theme', theme) }, [theme])
   useEffect(() => { setSearch(new URLSearchParams(location.search).get('q') ?? '') }, [location.search])
-  useEffect(() => { setNexiOpen(false) }, [location.pathname])
-  useEffect(() => { setOpen(false); setProfileOpen(false) }, [location.pathname, location.search])
+  useEffect(() => { setOpen(false); setProfileOpen(false); setAccountsOpen(false) }, [location.pathname, location.search])
   useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 1000); return () => window.clearInterval(timer) }, [])
   useEffect(() => {
     if (!accounts.length || !(location.pathname === '/inbox' || location.pathname.startsWith('/account/'))) return
@@ -87,15 +95,25 @@ export function AppLayout() {
   const dateLabel = capitalize(now.toLocaleDateString('es-CL', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, ''))
   const timeLabel = now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
   const activeAccountId = accountIdFromPath(location.pathname)
-  const contextualQueryAccount = ['/search', '/search-action', '/control-center'].includes(location.pathname)
+  const contextualQueryAccount = ['/search', '/search-action', '/rules/new', '/control-center'].includes(location.pathname)
     ? new URLSearchParams(location.search).get('account') ?? undefined
     : undefined
   const contextualAccountId = activeAccountId ?? contextualQueryAccount
+  const selectedSidebarAccount = contextualAccountId ? accounts.find(account => account.id === contextualAccountId) : undefined
+  const showGlobalPerspective = location.pathname === '/inbox'
+    || location.pathname.startsWith('/account/')
+    || location.pathname.startsWith('/message/')
 
   function runSearch() {
     const query = search.trim()
     if (!query) {
       navigate(contextualAccountId ? `/search?account=${encodeURIComponent(contextualAccountId)}` : '/search')
+      return
+    }
+    if (detectNexiTrashRuleIntent(query)) {
+      const params = new URLSearchParams({ q: query })
+      if (contextualAccountId) params.set('account', contextualAccountId)
+      navigate(`/rules/new?${params.toString()}`)
       return
     }
     const reportPeriod = reportPeriodFromQuery(query)
@@ -120,30 +138,61 @@ export function AppLayout() {
     })
   }
 
+  function selectSidebarAccount(accountId?: string) {
+    setAccountsOpen(false)
+    setOpen(false)
+    navigate(accountId ? `/account/${encodeURIComponent(accountId)}` : '/inbox')
+  }
+
   return <div className="app-shell">
     <aside className={`sidebar ${open ? 'open' : ''} ${collapsed ? 'collapsed' : ''}`}>
-      <div className="brand-row"><button className="brand-home" onClick={() => { setOpen(false); navigate('/inbox') }} aria-label="Ir a Bandeja de entrada"><NexoMailLogo compact={collapsed} /></button><button className="icon-button collapse-button" onClick={() => setCollapsed(!collapsed)} aria-label="Contraer barra lateral"><ChevronLeft size={18} /></button></div>
-      <button className={`compose-button primary-nav-action ${location.pathname === '/compose' ? 'active' : ''}`} onClick={() => { setOpen(false); navigate('/compose', { state: contextualAccountId ? { fromAccountId: contextualAccountId } : undefined }) }}><span>Redactar</span><PenLine className="primary-nav-icon" size={15} /></button>
-      <nav aria-label="Navegación principal">
-        <NavLink to="/control-center" className={controlCenterNavClass}><span>Centro de Control</span><LayoutDashboard className="primary-nav-icon" size={15} /></NavLink>
-        <NavLink to="/inbox" end className={inboxNavClass}><span>Bandeja de entrada</span><Inbox className="primary-nav-icon" size={15} /></NavLink>
-        <p className="nav-heading">Cuentas</p>
-        {accounts.map(account => <NavLink key={account.id} to={`/account/${account.id}`} className={navClass}><i className="account-dot" style={{ background: account.color }} /><span>{account.displayName}</span></NavLink>)}
-        <button type="button" className="nav-section-toggle" onClick={toggleFolders} aria-expanded={!foldersCollapsed} aria-controls="sidebar-folders" title={foldersCollapsed ? 'Mostrar carpetas' : 'Ocultar carpetas'}>
-          <span>Carpetas</span><ChevronDown size={14} className={foldersCollapsed ? 'collapsed' : ''} />
-        </button>
-        <div id="sidebar-folders" className={`nav-folder-group ${foldersCollapsed ? 'collapsed' : ''}`}>
-          {!foldersCollapsed && <>
-            <NavLink to="/archive" className={navClass}><Archive size={17} /><span>Archivados</span></NavLink>
-            <NavLink to="/ignored" className={navClass}><EyeOff size={17} /><span>Ignorados</span></NavLink>
-            <NavLink to="/sent" className={navClass}><Send size={17} /><span>Enviados</span></NavLink>
-            <NavLink to="/drafts" className={navClass}><FileText size={17} /><span>Borradores</span></NavLink>
-            <NavLink to="/spam" className={navClass}><ShieldAlert size={17} /><span>Spam</span></NavLink>
-            <NavLink to="/trash" className={navClass}><Trash2 size={17} /><span>Papelera</span></NavLink>
-          </>}
+      <div className="brand-row"><button className="brand-home" data-sidebar-tooltip="Inicio" onClick={() => { setOpen(false); navigate('/inbox') }} aria-label="Ir a Bandeja de entrada"><NexoMailLogo compact={collapsed} /></button><button className="icon-button collapse-button" data-sidebar-tooltip={collapsed ? 'Expandir menú' : 'Contraer menú'} onClick={() => setCollapsed(!collapsed)} aria-label={collapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'}><ChevronLeft size={18} /></button></div>
+      <nav aria-label="Navegación principal" className="sidebar-nav">
+        <div className="sidebar-nav-main">
+          <NavLink to="/inbox" end className={inboxNavClass} data-sidebar-tooltip="Bandeja de entrada"><Inbox className="primary-nav-icon" size={17} /><span>Bandeja de Entrada</span></NavLink>
+          {hasMailActions && <button type="button" className={`nav-item compose-button sidebar-primary-link ${location.pathname === '/compose' ? 'active' : ''}`} data-sidebar-tooltip="Redactar" onClick={() => { setOpen(false); navigate('/compose', { state: contextualAccountId ? { fromAccountId: contextualAccountId } : undefined }) }}><PenLine className="primary-nav-icon" size={17} /><span>Redactar</span></button>}
+          {hasControlCenter && <NavLink to="/control-center" className={controlCenterNavClass} data-sidebar-tooltip="Nexi Control Center"><span className="primary-nav-icon nexi-sidebar-icon" aria-hidden="true"><NexiVisual size="small" /></span><span>Nexi Control Center</span></NavLink>}
+
+          <p className="nav-heading sidebar-account-heading">Cuenta</p>
+          <div className={`account-switcher ${accountsOpen ? 'open' : ''}`}>
+            <button type="button" className="account-switcher-trigger" data-sidebar-tooltip={selectedSidebarAccount?.displayName ?? 'Todas las cuentas'} aria-expanded={accountsOpen} aria-haspopup="menu" onClick={() => setAccountsOpen(current => !current)}>
+              <span className="account-switcher-current">
+                <i className={`account-dot ${selectedSidebarAccount ? '' : 'all-accounts-dot'}`} style={selectedSidebarAccount ? { background: selectedSidebarAccount.color } : undefined} />
+                <span>{selectedSidebarAccount?.displayName ?? 'Todas las cuentas'}</span>
+              </span>
+              <ChevronDown size={14} className={accountsOpen ? 'open' : ''} />
+            </button>
+            {accountsOpen && <div className="account-switcher-popover" role="menu" aria-label="Seleccionar cuenta">
+              <button type="button" className={`account-switcher-option ${!selectedSidebarAccount ? 'active' : ''}`} role="menuitem" onClick={() => selectSidebarAccount()}>
+                <Inbox size={15} /><span><strong>Todas las cuentas</strong><small>Bandeja unificada</small></span>
+              </button>
+              {accounts.map(account => <button type="button" key={account.id} className={`account-switcher-option ${selectedSidebarAccount?.id === account.id ? 'active' : ''}`} role="menuitem" data-sidebar-tooltip={account.displayName} onClick={() => selectSidebarAccount(account.id)}>
+                <i className="account-dot" style={{ background: account.color }} /><span><strong>{account.displayName}</strong><small>{account.emailAddress}</small></span>
+              </button>)}
+            </div>}
+          </div>
+
+          <button type="button" className="nav-section-toggle" data-sidebar-tooltip={foldersCollapsed ? 'Mostrar carpetas' : 'Ocultar carpetas'} onClick={toggleFolders} aria-expanded={!foldersCollapsed} aria-controls="sidebar-folders" title={foldersCollapsed ? 'Mostrar carpetas' : 'Ocultar carpetas'}>
+            <span>Carpetas</span><ChevronDown size={14} className={foldersCollapsed ? 'collapsed' : ''} />
+          </button>
+          <div id="sidebar-folders" className={`nav-folder-group ${foldersCollapsed ? 'collapsed' : ''}`}>
+            {!foldersCollapsed && <>
+              <NavLink to="/archive" className={navClass} data-sidebar-tooltip="Archivados"><Archive size={17} /><span>Archivados</span></NavLink>
+              <NavLink to="/ignored" className={navClass} data-sidebar-tooltip="Ignorados"><EyeOff size={17} /><span>Ignorados</span></NavLink>
+              <NavLink to="/sent" className={navClass} data-sidebar-tooltip="Enviados"><Send size={17} /><span>Enviados</span></NavLink>
+              <NavLink to="/drafts" className={navClass} data-sidebar-tooltip="Borradores"><FileText size={17} /><span>Borradores</span></NavLink>
+              <NavLink to="/spam" className={navClass} data-sidebar-tooltip="Spam"><ShieldAlert size={17} /><span>Spam</span></NavLink>
+              <NavLink to="/trash" className={navClass} data-sidebar-tooltip="Papelera"><Trash2 size={17} /><span>Papelera</span></NavLink>
+            </>}
+          </div>
+          <NavLink to="/perspectives" className={navClass} data-sidebar-tooltip="Perspectivas"><BookMarked size={17} /><span>Perspectivas</span></NavLink>
         </div>
-        <NavLink to="/settings/accounts" className={navClass}><Settings size={17} /><span>Configurar</span></NavLink>
-        <button className="theme-switch" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}><span>{theme === 'dark' ? 'Tema claro' : 'Tema oscuro'}</span><span className="switch" data-on={theme === 'dark'} /></button>
+
+        <div className="sidebar-nav-utilities">
+          <NavLink to="/settings/plan" className={navClass} data-sidebar-tooltip="Plan y uso"><CreditCard size={17} /><span>Plan y uso</span></NavLink>
+          {isOwner && <NavLink to="/admin/ai-usage" className={navClass} data-sidebar-tooltip="Consumo Nexi"><ShieldAlert size={17} /><span>Consumo Nexi</span></NavLink>}
+          <NavLink to="/settings/accounts" className={navClass} data-sidebar-tooltip="Configuración"><Settings size={17} /><span>Configurar</span></NavLink>
+        </div>
       </nav>
     </aside>
 
@@ -156,13 +205,12 @@ export function AppLayout() {
         <div className="operations-clock" aria-label={`${dateLabel}, ${timeLabel}`} title="Hora local"><Clock3 size={16} /><span className="operations-date">{dateLabel}</span><strong>{timeLabel}</strong></div>
         <WeatherWidget />
         <button className={`avatar ${session?.avatarDataUrl ? 'has-image' : ''}`} aria-label="Menú de perfil" aria-expanded={profileOpen} onClick={() => setProfileOpen(!profileOpen)}>{session?.avatarDataUrl ? <img src={session.avatarDataUrl} alt="" /> : initials(session?.displayName ?? session?.email ?? '')}</button>
-        {profileOpen && <div className="profile-menu"><p><strong>{session?.displayName}</strong><br />{session?.email}</p><button onClick={() => { setProfileOpen(false); navigate('/settings/profile') }}><UserRound size={16} /> Mi perfil</button><button onClick={() => { setProfileOpen(false); navigate('/settings/accounts') }}><Settings size={16} /> Configurar cuentas</button><button onClick={() => { setTheme(theme === 'dark' ? 'light' : 'dark'); setProfileOpen(false) }}>{theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}{theme === 'dark' ? 'Usar tema claro' : 'Usar tema oscuro'}</button><button disabled={logout.isPending} onClick={() => logout.mutate()}><LogOut size={16} /> {logout.isPending ? 'Saliendo…' : 'Cerrar sesión'}</button></div>}
+        {profileOpen && <div className="profile-menu"><p><strong>{session?.displayName}</strong><br />{session?.email}</p><button onClick={() => { setProfileOpen(false); navigate('/settings/profile') }}><UserRound size={16} /> Mi perfil</button><button onClick={() => { setProfileOpen(false); navigate('/settings/plan') }}><CreditCard size={16} /> Plan y uso</button><button onClick={() => { setProfileOpen(false); navigate('/settings/accounts') }}><Settings size={16} /> Configurar cuentas</button><button onClick={() => { setTheme(theme === 'dark' ? 'light' : 'dark'); setProfileOpen(false) }}>{theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}{theme === 'dark' ? 'Usar tema claro' : 'Usar tema oscuro'}</button><button disabled={logout.isPending} onClick={() => logout.mutate()}><LogOut size={16} /> {logout.isPending ? 'Saliendo…' : 'Cerrar sesión'}</button></div>}
       </header>
+      {showGlobalPerspective && <div className="global-nexo-perspective"><NexoPerspective contextKey={location.pathname} /></div>}
       <Outlet />
+      <AppFooter />
       <BackToTopButton />
     </main>
-
-    <NexiAssistantButton open={nexiOpen} onClick={() => { setProfileOpen(false); setNexiOpen(current => !current) }} />
-    <NexiAssistantPanel open={nexiOpen} onClose={() => setNexiOpen(false)} />
   </div>
 }
