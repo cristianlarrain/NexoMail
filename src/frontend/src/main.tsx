@@ -78,6 +78,7 @@ import './styles/sidebar-tooltips.css'
 import './styles/account-providers.css'
 import './styles/sidebar-modern.css'
 import './styles/mobile-foundation.css'
+import './styles/universal-mobile-layout.css'
 
 const client = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, retry: 1 } } })
 createRoot(document.getElementById('root')!).render(
