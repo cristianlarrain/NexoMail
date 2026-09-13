@@ -30,12 +30,15 @@ public sealed class GmailControlCenterActivityService(
         var accounts = await accountQuery.OrderBy(x => x.DisplayName).ToArrayAsync(cancellationToken);
         var accountIds = accounts.Select(x => x.Id).ToArray();
 
-        var messages = accountIds.Length == 0
+        var indexedMessages = accountIds.Length == 0
             ? []
             : await database.MailMessageIndex
                 .AsNoTracking()
-                .Where(x => x.UserId == userId && accountIds.Contains(x.AccountId) && x.OccurredAt >= startAt && x.OccurredAt < endExclusive)
+                .Where(x => x.UserId == userId && accountIds.Contains(x.AccountId))
                 .ToArrayAsync(cancellationToken);
+        var messages = indexedMessages
+            .Where(x => x.OccurredAt >= startAt && x.OccurredAt < endExclusive)
+            .ToArray();
 
         var indexStates = accountIds.Length == 0
             ? []
