@@ -9,6 +9,8 @@ const checks = [
   [endpoint, 'CommercialAdminConnectedAccountDto', 'El backend no expone el detalle de cuentas conectadas.'],
   [endpoint, 'ConnectedMailAccounts', 'El DTO administrativo no contiene las cuentas conectadas.'],
   [api, 'connectedMailAccounts:', 'El cliente no tipa las cuentas conectadas.'],
+  [page, '<th>Correo de registro</th>', 'La tabla no presenta el correo utilizado para registrar la cuenta.'],
+  [page, 'commercial-registration-email', 'El correo de registro no tiene una celda independiente.'],
   [page, 'Cuentas conectadas', 'La tabla no presenta la columna de cuentas conectadas.'],
   [page, 'commercial-connected-account', 'La tabla no representa cada cuenta y su color.'],
 ]
@@ -17,4 +19,4 @@ for (const [source, token, error] of checks) {
   if (!source.includes(token)) throw new Error(error)
 }
 
-console.log('PASS: administración muestra las cuentas de correo conectadas')
+console.log('PASS: administración distingue correo de registro y cuentas conectadas')

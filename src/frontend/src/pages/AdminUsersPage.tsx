@@ -97,7 +97,7 @@ export function AdminUsersPage() {
 
     <div className="commercial-admin-table-wrap">
       <table className="commercial-admin-table commercial-users-table">
-        <thead><tr><th>Usuario</th><th>Plan asignado</th><th>Plan efectivo</th><th>Prueba temporal</th><th>Cuentas conectadas</th><th>Suscripción</th><th>Último acceso</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Usuario</th><th>Correo de registro</th><th>Plan asignado</th><th>Plan efectivo</th><th>Prueba temporal</th><th>Cuentas conectadas</th><th>Suscripción</th><th>Último acceso</th><th>Estado</th></tr></thead>
         <tbody>
           {filteredUsers.map(user => {
             const isOwner = user.effectivePlanCode === 'owner'
@@ -116,7 +116,8 @@ export function AdminUsersPage() {
               : null
 
             return <tr key={user.id} className={user.isActive ? '' : 'inactive'}>
-              <td><strong>{user.displayName || 'Sin nombre'}</strong><small>{user.email}{isOwner ? ' · Owner / Administrador general' : user.isAdministrator ? ' · Administrador' : ''}</small></td>
+              <td><strong>{user.displayName || 'Sin nombre'}</strong><small>{isOwner ? 'Owner / Administrador general' : user.isAdministrator ? 'Administrador' : 'Usuario'}</small></td>
+              <td><span className="commercial-registration-email">{user.email}</span></td>
               <td>
                 <div className="commercial-user-plan-control">
                   <select value={selectedPlan} disabled={isOwner || !user.isActive || pendingThisUser} onChange={event => setDraftPlans(current => ({ ...current, [user.id]: event.target.value }))} aria-label={`Plan de ${user.displayName || user.email}`} title={isOwner ? 'El Owner no depende de un plan comercial.' : undefined}>
@@ -151,7 +152,7 @@ export function AdminUsersPage() {
               <td><span className={`commercial-admin-status ${user.isActive ? 'active' : 'inactive'}`}>{user.isActive ? 'Activo' : 'Inactivo'}</span></td>
             </tr>
           })}
-          {!users.isLoading && filteredUsers.length === 0 && <tr><td colSpan={8}><div className="commercial-users-empty">No hay usuarios que coincidan con la búsqueda.</div></td></tr>}
+          {!users.isLoading && filteredUsers.length === 0 && <tr><td colSpan={9}><div className="commercial-users-empty">No hay usuarios que coincidan con la búsqueda.</div></td></tr>}
         </tbody>
       </table>
     </div>
