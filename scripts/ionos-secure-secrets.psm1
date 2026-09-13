@@ -32,7 +32,7 @@ function Save-NexoMailProductionSecrets {
 
     $stored | Export-Clixml -Path $Path -Force
 
-    if ($IsWindows -or $env:OS -eq 'Windows_NT') {
+    if ($env:OS -eq 'Windows_NT') {
         $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
         $acl = Get-Acl $Path
         $acl.SetAccessRuleProtection($true, $false)
