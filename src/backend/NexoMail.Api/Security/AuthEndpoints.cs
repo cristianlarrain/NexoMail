@@ -50,6 +50,7 @@ public static class AuthEndpoints
         });
 
         auth.MapPatch("/me", UpdateProfileAsync).RequireAuthorization();
+        auth.MapPost("/me", UpdateProfileAsync).RequireAuthorization();
 
         return endpoints;
     }
