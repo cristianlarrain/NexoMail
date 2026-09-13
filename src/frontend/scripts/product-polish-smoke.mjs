@@ -10,6 +10,10 @@ const perspectives = read('src/pages/PerspectivesPage.tsx')
 const landing = read('src/pages/LandingPage.tsx')
 const inbox = read('src/pages/InboxPage.tsx')
 const accountsPage = read('src/pages/AccountsPage.tsx')
+const authApi = read('src/api/authApi.ts')
+const mailApi = read('src/api/mailApi.ts')
+const authEndpoints = read('../backend/NexoMail.Api/Security/AuthEndpoints.cs')
+const apiProgram = read('../backend/NexoMail.Api/Program.cs')
 const landingCss = read('src/styles/landing.css')
 const landingCommercialCss = read('src/styles/landing-commercial.css')
 const landingStyles = `${landingCss}\n${landingCommercialCss}`
@@ -59,6 +63,19 @@ if (packageJson.includes('"tailwindcss"')) {
 
 if (!accountsPage.includes("save.error instanceof Error ? save.error.message")) {
   throw new Error('La edición de cuentas debe mostrar el error real devuelto por el servidor.')
+}
+
+const ionosCompatibleWriteMarkers = [
+  [authApi, "updateProfile: (request:", "method: 'POST'"],
+  [mailApi, "updateAccount:", "method: 'POST'"],
+  [authEndpoints, 'auth.MapPost("/me", UpdateProfileAsync)', null],
+  [apiProgram, 'mail.MapPost("/accounts/{accountId:guid}"', null],
+]
+
+for (const [source, anchor, method] of ionosCompatibleWriteMarkers) {
+  const anchorIndex = source.indexOf(anchor)
+  if (anchorIndex < 0 || (method && !source.slice(anchorIndex, anchorIndex + 350).includes(method)))
+    throw new Error(`Falta escritura compatible con IONOS: ${anchor}`)
 }
 
 const requiredInboxOnboardingMarkers = [
