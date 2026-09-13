@@ -2,6 +2,7 @@ using MailKit.Security;
 using NexoMail.Application;
 using NexoMail.Infrastructure;
 using NexoMail.Infrastructure.Data;
+using NexoMail.Infrastructure.Google;
 using NexoMail.Infrastructure.Imap;
 using NexoMail.Infrastructure.Microsoft;
 
@@ -11,6 +12,9 @@ public static class MailProviderBetaModule
 {
     public static void AddServices(IServiceCollection services, IConfiguration configuration)
     {
+        services.Configure<GmailMetadataIndexSyncOptions>(configuration.GetSection(GmailMetadataIndexSyncOptions.SectionName));
+        services.AddHostedService<GmailMetadataIndexHostedService>();
+
         services.Configure<Microsoft365Options>(configuration.GetSection(Microsoft365Options.SectionName));
         services.AddScoped<MicrosoftOAuthService>();
         services.AddScoped<MicrosoftGraphClientFactory>();
@@ -30,8 +34,11 @@ public static class MailProviderBetaModule
             provider.GetRequiredService<IUserContext>()));
     }
 
-    public static Task EnsureSchemaAsync(NexoMailDbContext database, CancellationToken ct = default) =>
-        ImapSchemaBootstrap.EnsureAsync(database, ct);
+    public static async Task EnsureSchemaAsync(NexoMailDbContext database, CancellationToken ct = default)
+    {
+        await ImapSchemaBootstrap.EnsureAsync(database, ct);
+        await ControlCenterIndexSchemaBootstrap.EnsureAsync(database, ct);
+    }
 
     public static void Map(RouteGroupBuilder api)
     {
