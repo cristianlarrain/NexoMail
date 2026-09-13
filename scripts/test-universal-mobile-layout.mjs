@@ -32,6 +32,12 @@ const required = [
   'font-size: 13px',
   'min-height: 44px',
   'grid-template-columns: repeat(auto-fit, minmax(180px, 1fr))',
+  '.main-content > .control-center-page',
+  'margin-inline: 0 !important',
+  'overflow-x: clip',
+  'grid-template-columns: minmax(0, 1fr) !important',
+  '.control-center-page .control-tabs-inline',
+  'grid-template-columns: repeat(2, minmax(0, 1fr)) !important',
 ]
 
 for (const token of required) {
