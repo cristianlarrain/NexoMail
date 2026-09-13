@@ -287,6 +287,34 @@ body,
     max-width: 100%;
     min-width: 0;
   }
+
+  .nexi-priority-row {
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: 10px minmax(0, 1fr) !important;
+    align-items: start;
+    padding: 11px !important;
+  }
+
+  .nexi-priority-row .nexi-priority-actions,
+  .nexi-priority-row .nexi-priority-insight {
+    grid-column: 1 / -1 !important;
+  }
+
+  .nexi-priority-summary {
+    display: flex !important;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    padding-bottom: 3px;
+  }
+
+  .nexi-priority-summary > button {
+    flex: 0 0 132px;
+  }
+
+  .control-action-undo {
+    width: 100%;
+  }
 }
 
 @media (max-width: 390px) {

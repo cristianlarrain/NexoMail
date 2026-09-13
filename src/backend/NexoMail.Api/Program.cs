@@ -347,6 +347,20 @@ mail.MapPatch("/control-center/{accountId:guid}/{conversationId}/state", async (
     if (updated) cache.InvalidateAreas(userContext.UserId.ToString(), "control-center", "control-center-activity");
     return updated ? Results.NoContent() : Results.NotFound();
 });
+mail.MapPost("/control-center/{accountId:guid}/{conversationId}/state", async (GmailControlCenterService service, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid accountId, string conversationId, ControlCenterStateRequest request, CancellationToken ct) =>
+{
+    var action = request.Action.Trim().ToLowerInvariant();
+    if (string.IsNullOrWhiteSpace(conversationId) || string.IsNullOrWhiteSpace(request.MessageId))
+        return Results.BadRequest(new { error = "La conversación no es válida." });
+    if (action is not ("resolved" or "snoozed" or "active"))
+        return Results.BadRequest(new { error = "La acción solicitada no es válida." });
+    if (action == "snoozed" && request.SnoozeHours is < 1 or > 720)
+        return Results.BadRequest(new { error = "El plazo de posposición no es válido." });
+
+    var updated = await service.UpdateStateAsync(accountId, conversationId, request.MessageId, action, request.SnoozeHours, ct);
+    if (updated) cache.InvalidateAreas(userContext.UserId.ToString(), "control-center", "control-center-activity");
+    return updated ? Results.NoContent() : Results.NotFound();
+});
 mail.MapGet("/contacts", async (Guid accountId, string? search, GoogleContactsService contacts, CancellationToken ct) =>
 {
     try { return Results.Ok(await contacts.GetContactsAsync(accountId, search, ct)); }

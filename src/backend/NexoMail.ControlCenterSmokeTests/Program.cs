@@ -93,6 +93,11 @@ var trackedItems = await tracking.GetTrackedItemsAsync(accountId, cancellationTo
 Ensure(trackedItems.Count == 1 && trackedItems.Single().MessageId == "demo-2", "Seguimiento prioritario no devolvió el correo marcado manualmente.");
 Ensure(await tracking.UntrackAsync(accountId, "demo-2", cancellationToken), "No fue posible quitar seguimiento manual.");
 Ensure(!await tracking.IsTrackedAsync(accountId, "demo-2", cancellationToken), "El seguimiento manual siguió activo después de quitarlo.");
+Ensure(await tracking.SetPriorityOverrideAsync(accountId, "demo-2", true, cancellationToken), "No fue posible quitar la clasificación urgente.");
+var priorityOverrides = await tracking.GetPriorityOverridesAsync(accountId, cancellationToken);
+Ensure(priorityOverrides.Any(value => value.AccountId == accountId && value.MessageId == "demo-2"), "La exclusión de urgencia no quedó almacenada.");
+Ensure(await tracking.SetPriorityOverrideAsync(accountId, "demo-2", false, cancellationToken), "No fue posible restaurar la clasificación urgente.");
+Ensure(!(await tracking.GetPriorityOverridesAsync(accountId, cancellationToken)).Any(), "La exclusión de urgencia siguió activa después de restaurarla.");
 
 var now = DateTimeOffset.UtcNow;
 database.MailMessageIndex.AddRange(

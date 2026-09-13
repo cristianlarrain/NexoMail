@@ -141,17 +141,24 @@ export function AppLayout() {
   function selectSidebarAccount(accountId?: string) {
     setAccountsOpen(false)
     setOpen(false)
+    if (location.pathname === '/control-center') {
+      const params = new URLSearchParams(location.search)
+      if (accountId) params.set('account', accountId)
+      else params.delete('account')
+      navigate(`/control-center${params.size ? `?${params.toString()}` : ''}`)
+      return
+    }
     navigate(accountId ? `/account/${encodeURIComponent(accountId)}` : '/inbox')
   }
 
   return <div className="app-shell">
     <aside className={`sidebar ${open ? 'open' : ''} ${collapsed ? 'collapsed' : ''}`}>
-      <div className="brand-row"><button className="brand-home" data-sidebar-tooltip="Inicio" onClick={() => { setOpen(false); navigate('/inbox') }} aria-label="Ir a Bandeja de entrada"><NexoMailLogo compact={collapsed} /></button><button className="icon-button collapse-button" data-sidebar-tooltip={collapsed ? 'Expandir menú' : 'Contraer menú'} onClick={() => setCollapsed(!collapsed)} aria-label={collapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'}><ChevronLeft size={18} /></button></div>
+      <div className="brand-row"><button className="brand-home" data-sidebar-tooltip="Inicio" onClick={() => { setOpen(false); navigate('/control-center') }} aria-label="Ir a Inicio"><NexoMailLogo compact={collapsed} /></button><button className="icon-button collapse-button" data-sidebar-tooltip={collapsed ? 'Expandir menú' : 'Contraer menú'} onClick={() => setCollapsed(!collapsed)} aria-label={collapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'}><ChevronLeft size={18} /></button></div>
       <nav aria-label="Navegación principal" className="sidebar-nav">
         <div className="sidebar-nav-main">
-          <NavLink to="/inbox" end className={inboxNavClass} data-sidebar-tooltip="Bandeja de entrada"><Inbox className="primary-nav-icon" size={17} /><span>Bandeja de Entrada</span></NavLink>
+          {hasControlCenter && <NavLink to={contextualAccountId ? `/control-center?account=${encodeURIComponent(contextualAccountId)}` : '/control-center'} className={controlCenterNavClass} data-sidebar-tooltip="Inicio"><span className="primary-nav-icon nexi-sidebar-icon" aria-hidden="true"><NexiVisual size="small" /></span><span>Inicio</span></NavLink>}
+          <NavLink to={contextualAccountId ? `/account/${encodeURIComponent(contextualAccountId)}` : '/inbox'} end className={inboxNavClass} data-sidebar-tooltip="Vista clásica"><Inbox className="primary-nav-icon" size={17} /><span>Vista clásica</span></NavLink>
           {hasMailActions && <button type="button" className={`nav-item compose-button sidebar-primary-link ${location.pathname === '/compose' ? 'active' : ''}`} data-sidebar-tooltip="Redactar" onClick={() => { setOpen(false); navigate('/compose', { state: contextualAccountId ? { fromAccountId: contextualAccountId } : undefined }) }}><PenLine className="primary-nav-icon" size={17} /><span>Redactar</span></button>}
-          {hasControlCenter && <NavLink to="/control-center" className={controlCenterNavClass} data-sidebar-tooltip="Nexi Control Center"><span className="primary-nav-icon nexi-sidebar-icon" aria-hidden="true"><NexiVisual size="small" /></span><span>Nexi Control Center</span></NavLink>}
 
           <p className="nav-heading sidebar-account-heading">Cuenta</p>
           <div className={`account-switcher ${accountsOpen ? 'open' : ''}`}>

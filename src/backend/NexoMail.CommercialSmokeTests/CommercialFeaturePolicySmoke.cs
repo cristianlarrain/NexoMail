@@ -36,6 +36,10 @@ internal static class CommercialFeaturePolicySmoke
             "El seguimiento manual debe exigir seguimiento esencial.");
         Ensure(CommercialFeaturePolicy.RequiredEntitlement("PATCH", "/api/mail/control-center/account/conversation/state") == CommercialEntitlements.TrackingBasic,
             "Finalizar o reabrir una conversación debe exigir seguimiento esencial.");
+        Ensure(CommercialFeaturePolicy.RequiredEntitlement("POST", "/api/mail/control-center/account/conversation/state") == CommercialEntitlements.TrackingBasic,
+            "Finalizar o reabrir por POST debe exigir seguimiento esencial.");
+        Ensure(CommercialFeaturePolicy.RequiredEntitlement("POST", "/api/mail/control-center/priority-overrides/account/message") == CommercialEntitlements.TrackingBasic,
+            "Quitar urgencia debe exigir seguimiento esencial.");
         Ensure(CommercialFeaturePolicy.RequiredEntitlement("POST", "/api/mail/ai/write") == CommercialEntitlements.NexiAi,
             "Las operaciones de IA deben exigir Nexi e IA.");
     }

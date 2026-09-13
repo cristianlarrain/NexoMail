@@ -244,6 +244,24 @@
   justify-content: flex-end;
 }
 
+.nexi-priority-actions .danger {
+  color: #b93b35;
+}
+
+.nexi-priority-more-actions {
+  flex: 1 1 100%;
+  display: flex;
+  justify-content: flex-end;
+  gap: 5px;
+  flex-wrap: wrap;
+  padding-top: 3px;
+}
+
+.nexi-action-label {
+  font-size: 10px;
+  font-weight: 700;
+}
+
 .nexi-priority-insight {
   grid-column: 2 / -1;
   display: grid;
@@ -342,5 +360,28 @@
 
   .nexi-priority-actions {
     justify-content: flex-start;
+  }
+
+  .nexi-priority-actions > button {
+    min-height: 34px;
+  }
+
+  .nexi-priority-actions > .primary-button,
+  .nexi-priority-actions > .secondary-button:not(.nexi-secondary-action) {
+    flex: 1 1 calc(50% - 4px);
+    justify-content: center;
+  }
+
+  .nexi-priority-actions > .nexi-secondary-action {
+    flex: 1 1 auto;
+  }
+
+  .nexi-priority-more-actions {
+    justify-content: flex-start;
+  }
+
+  .nexi-priority-more-actions > button {
+    flex: 1 1 calc(50% - 4px);
+    justify-content: center;
   }
 }

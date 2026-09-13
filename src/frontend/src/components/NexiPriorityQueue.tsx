@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { AlertTriangle, CheckCircle2, ChevronRight, CircleHelp, Info, MessageSquareReply, Sparkles, TimerReset, X } from 'lucide-react'
+import { AlertTriangle, BellOff, Check, CheckCircle2, ChevronRight, CircleHelp, Clock3, Eye, Info, MailOpen, MessageSquareReply, MoreHorizontal, Sparkles, TimerReset, Trash2, X } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { nexiApi } from '../api/nexiApi'
 import type { AiMessageInsight, ControlCenterPendingItem } from '../types/mail'
@@ -16,8 +16,12 @@ import {
   type PriorityDisplayItem,
 } from './nexi/priorityEngine'
 
-type PriorityFilter = 'all' | NexiPriorityCategory
+type PriorityFilter = 'all' | 'unread' | NexiPriorityCategory
 type ContextFocus = 'overdue' | 'received' | 'sent' | 'person' | 'topic'
+
+function validPriorityFilter(value: string | null): PriorityFilter {
+  return value === 'urgent' || value === 'response' || value === 'follow_up' || value === 'unread' ? value : 'all'
+}
 
 const CATEGORY_META: Record<NexiPriorityCategory, { label: string; short: string; icon: typeof AlertTriangle }> = {
   urgent: { label: 'Urgente', short: 'Urgentes', icon: AlertTriangle },
@@ -70,32 +74,51 @@ export function NexiPriorityQueue({
   openingTarget,
   onManage,
   onOpen,
+  onResolve,
+  onSnooze,
+  onTrack,
+  onSuppressUrgency,
+  onTrash,
+  busyTarget,
+  suppressedUrgency,
 }: {
   items: PriorityDisplayItem[]
   openingTarget: string | null
   onManage: (item: ControlCenterPendingItem) => void
   onOpen: (item: ControlCenterPendingItem, manual: boolean) => void
+  onResolve: (item: ControlCenterPendingItem) => void
+  onSnooze: (item: ControlCenterPendingItem) => void
+  onTrack: (item: ControlCenterPendingItem, manual: boolean) => void
+  onSuppressUrgency: (item: ControlCenterPendingItem, suppressed: boolean) => void
+  onTrash: (item: ControlCenterPendingItem) => void
+  busyTarget: string | null
+  suppressedUrgency: Set<string>
 }) {
   const [params, setParams] = useSearchParams()
   const panelRef = useRef<HTMLElement>(null)
-  const [filter, setFilter] = useState<PriorityFilter>('all')
+  const priorityParam = params.get('priority')
+  const [filter, setFilter] = useState<PriorityFilter>(() => validPriorityFilter(priorityParam))
   const [visible, setVisible] = useState(10)
   const [semantic, setSemantic] = useState<Record<string, NexiPriorityClassification>>({})
   const [rowInsights, setRowInsights] = useState<Record<string, AiMessageInsight>>({})
   const [summarizingTarget, setSummarizingTarget] = useState<string | null>(null)
   const [semanticError, setSemanticError] = useState('')
+  const [expandedActions, setExpandedActions] = useState<string | null>(null)
   const focus = validFocus(params.get('focus'))
   const focusValue = params.get('value')?.trim() ?? ''
 
   const classified = useMemo(() => items.map(entry => {
     const key = priorityKey(entry.item)
-    const classification = semantic[key] ?? classifyByRules(entry)
+    const original = semantic[key] ?? classifyByRules(entry)
+    const classification = suppressedUrgency.has(key) && original.category === 'urgent'
+      ? { ...original, category: entry.item.direction === 'received' ? 'response' as const : 'follow_up' as const, reason: 'Urgencia retirada por usted', source: 'rules' as const }
+      : original
     return { entry, classification }
   }).sort((left, right) => {
     const priority = PRIORITY_ORDER[left.classification.category] - PRIORITY_ORDER[right.classification.category]
     if (priority !== 0) return priority
     return new Date(left.entry.item.since).getTime() - new Date(right.entry.item.since).getTime()
-  }), [items, semantic])
+  }), [items, semantic, suppressedUrgency])
 
   const focused = useMemo(() => {
     if (!focus) return classified
@@ -118,12 +141,14 @@ export function NexiPriorityQueue({
     window.requestAnimationFrame(() => panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }, [focus, focusValue])
 
+  useEffect(() => { setFilter(validPriorityFilter(priorityParam)) }, [priorityParam])
+
   const counts = useMemo(() => focused.reduce((result, value) => {
     result[value.classification.category] += 1
     return result
   }, { urgent: 0, response: 0, follow_up: 0, informative: 0, probably_resolved: 0 } as Record<NexiPriorityCategory, number>), [focused])
 
-  const filtered = filter === 'all' ? focused : focused.filter(value => value.classification.category === filter)
+  const filtered = filter === 'all' ? focused : filter === 'unread' ? focused.filter(value => !value.entry.item.isRead) : focused.filter(value => value.classification.category === filter)
   const shown = filtered.slice(0, visible)
 
   const candidates = useMemo(() => focused
@@ -177,9 +202,19 @@ export function NexiPriorityQueue({
     const next = new URLSearchParams(params)
     next.delete('focus')
     next.delete('value')
+    next.delete('priority')
     setParams(next, { replace: true })
     setFilter('all')
     setVisible(10)
+  }
+
+  function selectPriorityFilter(nextFilter: PriorityFilter) {
+    const next = new URLSearchParams(params)
+    if (nextFilter === 'all') next.delete('priority')
+    else next.set('priority', nextFilter)
+    setFilter(nextFilter)
+    setVisible(10)
+    setParams(next, { replace: true })
   }
 
   return <article ref={panelRef} className="control-panel nexi-priority-panel nexi-priority-featured" aria-label="Priorización inteligente">
@@ -200,13 +235,14 @@ export function NexiPriorityQueue({
     </div>}
 
     <div className="nexi-priority-summary" aria-label="Filtros de priorización">
-      <button type="button" className={filter === 'all' ? 'active all' : 'all'} onClick={() => { setFilter('all'); setVisible(10) }}><CircleHelp size={14} /><span>Todos</span><b>{focused.length}</b></button>
-      {(Object.keys(CATEGORY_META) as NexiPriorityCategory[]).map(category => {
+      <button type="button" className={filter === 'all' ? 'active all' : 'all'} onClick={() => selectPriorityFilter('all')}><CircleHelp size={14} /><span>Todos</span><b>{focused.length}</b></button>
+      {(['urgent', 'response', 'follow_up'] as NexiPriorityCategory[]).map(category => {
         const Icon = CATEGORY_META[category].icon
-        return <button type="button" key={category} className={`${filter === category ? 'active ' : ''}${category}`} onClick={() => { setFilter(category); setVisible(10) }}>
+        return <button type="button" key={category} className={`${filter === category ? 'active ' : ''}${category}`} onClick={() => selectPriorityFilter(category)}>
           <Icon size={14} /><span>{CATEGORY_META[category].short}</span><b>{counts[category]}</b>
         </button>
       })}
+      <button type="button" className={filter === 'unread' ? 'active unread' : 'unread'} onClick={() => selectPriorityFilter('unread')}><MailOpen size={14} /><span>Sin leer</span><b>{focused.filter(value => !value.entry.item.isRead).length}</b></button>
     </div>
 
     {semanticError && <div className="notice nexi-priority-notice">{semanticError}</div>}
@@ -220,7 +256,9 @@ export function NexiPriorityQueue({
         const Icon = meta.icon
         const canManage = classification.category === 'urgent' || classification.category === 'response' || classification.category === 'follow_up'
         const opening = openingTarget === rowKey(item)
+        const busy = busyTarget === rowKey(item)
         const summarizing = summarizingTarget === key
+        const urgencySuppressed = suppressedUrgency.has(key)
         return <div className={`nexi-priority-row ${classification.category} ${insight ? 'has-insight' : ''}`} key={key}>
           <i className="account-dot" style={{ background: item.accountColor }} />
           <button type="button" className="nexi-priority-main" onClick={() => onOpen(item, manual)}>
@@ -231,9 +269,17 @@ export function NexiPriorityQueue({
             <em className={classification.source}>{classification.source === 'nexi' ? 'Nexi' : 'Regla'} · {classification.reason}</em>
           </button>
           <div className="nexi-priority-actions">
-            <button type="button" className="secondary-button compact-action" disabled={summarizing} onClick={() => void summarizeRow(item)}>{summarizing ? <NexiVisual size="small" className="nexi-inline-processing" /> : insight ? <CheckCircle2 size={13} /> : <Sparkles size={13} />}{insight ? 'Resumen listo' : 'Resumir'}</button>
-            {canManage && <button type="button" className="secondary-button compact-action" disabled={opening} onClick={() => onManage(item)}>{opening ? <NexiVisual size="small" className="nexi-inline-processing" /> : <Sparkles size={13} />}{item.direction === 'received' ? 'Preparar respuesta' : 'Preparar seguimiento'}</button>}
-            <button type="button" className="icon-button" title="Ver correo" aria-label="Ver correo" onClick={() => onOpen(item, manual)}><ChevronRight size={16} /></button>
+            {canManage && <button type="button" className="primary-button compact-action" disabled={opening || busy} onClick={() => onManage(item)}>{opening ? <NexiVisual size="small" className="nexi-inline-processing" /> : <MessageSquareReply size={13} />}{item.direction === 'received' ? 'Responder' : 'Contactar'}</button>}
+            <button type="button" className="secondary-button compact-action" disabled={busy} onClick={() => onResolve(item)}><Check size={13} />Resolver</button>
+            <button type="button" className="secondary-button compact-action" aria-expanded={expandedActions === key} onClick={() => setExpandedActions(current => current === key ? null : key)}><MoreHorizontal size={14} />Más</button>
+            {expandedActions === key && <div className="nexi-priority-more-actions">
+              <button type="button" className="secondary-button compact-action" disabled={busy} onClick={() => onSnooze(item)}><Clock3 size={13} />Posponer</button>
+              <button type="button" className="secondary-button compact-action" disabled={busy} onClick={() => onTrack(item, manual)}><TimerReset size={13} />{manual ? 'No seguir' : 'Seguir'}</button>
+              {(classification.category === 'urgent' || urgencySuppressed) && <button type="button" className="secondary-button compact-action" disabled={busy} onClick={() => onSuppressUrgency(item, !urgencySuppressed)}><BellOff size={13} />{urgencySuppressed ? 'Restaurar urgencia' : 'Quitar urgencia'}</button>}
+              <button type="button" className="secondary-button compact-action danger" disabled={busy} onClick={() => onTrash(item)}><Trash2 size={13} />Eliminar</button>
+              <button type="button" className="secondary-button compact-action" disabled={summarizing} onClick={() => void summarizeRow(item)}>{summarizing ? <NexiVisual size="small" className="nexi-inline-processing" /> : insight ? <CheckCircle2 size={13} /> : <Sparkles size={13} />}{insight ? 'Resumen listo' : 'Resumir'}</button>
+              <button type="button" className="secondary-button compact-action" onClick={() => onOpen(item, manual)}><Eye size={14} />Ver<ChevronRight size={13} /></button>
+            </div>}
           </div>
           {insight && <div className="nexi-priority-insight">
             <div><span>Resumen</span><p>{insight.summary}</p></div>

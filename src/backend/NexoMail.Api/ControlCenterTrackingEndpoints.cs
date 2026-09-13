@@ -15,6 +15,27 @@ public static class ControlCenterTrackingEndpoints
             CancellationToken ct) =>
             Results.Ok(await service.GetTrackedItemsAsync(accountId, ct)));
 
+        mail.MapGet("/control-center/priority-overrides", async (
+            ControlCenterTrackingService service,
+            Guid? accountId,
+            CancellationToken ct) =>
+            Results.Ok(await service.GetPriorityOverridesAsync(accountId, ct)));
+
+        mail.MapPost("/control-center/priority-overrides/{accountId:guid}/{messageId}", async (
+            ControlCenterTrackingService service,
+            MailReadCache cache,
+            IUserContext userContext,
+            Guid accountId,
+            string messageId,
+            PriorityOverrideRequest request,
+            CancellationToken ct) =>
+        {
+            var updated = await service.SetPriorityOverrideAsync(accountId, messageId, request.Suppressed, ct);
+            if (!updated) return Results.NotFound();
+            cache.InvalidateAreas(userContext.UserId.ToString(), "control-center");
+            return Results.NoContent();
+        });
+
         mail.MapGet("/control-center/tracking/{accountId:guid}/{messageId}", async (
             ControlCenterTrackingService service,
             Guid accountId,
@@ -88,3 +109,5 @@ public static class ControlCenterTrackingEndpoints
         return mail;
     }
 }
+
+public sealed record PriorityOverrideRequest(bool Suppressed);

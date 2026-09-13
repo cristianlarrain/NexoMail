@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { BarChart3, Files, Gauge, LockKeyhole, Sparkles, Users } from 'lucide-react'
+import { BarChart3, Files, Gauge, Inbox, LockKeyhole, Sparkles, Users } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { commercialApi } from '../api/commercialApi'
 import { ControlCenter } from '../components/ControlCenter'
@@ -25,6 +25,7 @@ export function ControlCenterPage() {
   const [updatedAt, setUpdatedAt] = useState('')
   const subscription = useQuery({ queryKey: ['commercial-subscription'], queryFn: commercialApi.subscription, staleTime: 30_000 })
   const tab = normalizedTab(params.get('tab'))
+  const accountId = params.get('account') ?? undefined
   const hasNexi = subscription.data?.entitlements.includes(commercialEntitlements.nexiAi) === true
   const hasAdvancedAnalytics = subscription.data?.entitlements.includes(commercialEntitlements.advancedAnalytics) === true
   const hasFullControlCenter = subscription.data?.entitlements.includes(commercialEntitlements.controlCenterFull) === true
@@ -83,12 +84,13 @@ export function ControlCenterPage() {
         <button type="button" disabled={!hasFullControlCenter} title={!hasFullControlCenter ? 'No incluido en su plan' : undefined} className={tab === 'contacts' ? 'active' : ''} onClick={() => selectTab('contacts')}><Users size={16} /> Contactos {!hasFullControlCenter && <LockKeyhole size={12} />}</button>
         <button type="button" disabled={!hasFullControlCenter} title={!hasFullControlCenter ? 'No incluido en su plan' : undefined} className={tab === 'documents' ? 'active' : ''} onClick={() => selectTab('documents')}><Files size={16} /> Documentos {!hasFullControlCenter && <LockKeyhole size={12} />}</button>
       </nav>
+      <Link to={accountId ? `/account/${encodeURIComponent(accountId)}` : '/inbox'} className="secondary-button control-classic-link"><Inbox size={15} /> Vista clásica</Link>
     </div>
 
     {featureLocked
       ? <div className="commercial-feature-lock"><LockKeyhole size={22} /><div><strong>{lockTitle}</strong><span>{lockDetail}</span></div><Link to="/settings/plan" className="primary-button">Ver planes</Link></div>
       : tab === 'summary'
-        ? <ControlCenter onUpdatedAtChange={setUpdatedAt} />
+        ? <ControlCenter accountId={accountId} onUpdatedAtChange={setUpdatedAt} />
         : tab === 'report'
           ? <NexiMailReport />
           : tab === 'statistics'

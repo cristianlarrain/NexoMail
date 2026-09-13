@@ -24,8 +24,9 @@ public static class CommercialFeaturePolicy
             return CommercialEntitlements.ControlCenterFull;
 
         if (normalizedPath.StartsWith("/api/mail/control-center/tracking", StringComparison.Ordinal)
+            || normalizedPath.StartsWith("/api/mail/control-center/priority-overrides", StringComparison.Ordinal)
             || normalizedPath.StartsWith("/api/mail/control-center/state", StringComparison.Ordinal)
-            || (verb == "PATCH" && normalizedPath.StartsWith("/api/mail/control-center/", StringComparison.Ordinal)
+            || ((verb == "PATCH" || verb == "POST") && normalizedPath.StartsWith("/api/mail/control-center/", StringComparison.Ordinal)
                                 && normalizedPath.EndsWith("/state", StringComparison.Ordinal)))
             return CommercialEntitlements.TrackingBasic;
 

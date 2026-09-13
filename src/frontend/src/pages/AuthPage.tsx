@@ -100,7 +100,7 @@ export function AuthPage() {
       if (result.kind === 'login') {
         queryClient.setQueryData(['session'], result.session)
         void queryClient.invalidateQueries({ queryKey: ['accounts'] })
-        navigate('/inbox', { replace: true })
+        navigate('/control-center', { replace: true })
         return
       }
 
@@ -117,7 +117,7 @@ export function AuthPage() {
     onSuccess: session => {
       queryClient.setQueryData(['session'], session)
       void queryClient.invalidateQueries({ queryKey: ['accounts'] })
-      navigate('/inbox', { replace: true })
+      navigate('/control-center', { replace: true })
     },
   })
 

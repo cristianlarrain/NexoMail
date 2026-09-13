@@ -14,6 +14,7 @@ public sealed class ControlCenterTrackingService(
     IMailGateway gateway)
 {
     private const string ManualPrefix = "manual:";
+    private const string PriorityPrefix = "priority:";
     private const int MaximumTrackedItems = 100;
 
     public async Task<bool> IsTrackedAsync(Guid accountId, string messageId, CancellationToken cancellationToken)
@@ -74,6 +75,54 @@ public sealed class ControlCenterTrackingService(
         if (state is null) return true;
 
         database.ControlCenterStates.Remove(state);
+        await database.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<IReadOnlyCollection<ControlCenterPriorityOverride>> GetPriorityOverridesAsync(Guid? accountId, CancellationToken cancellationToken)
+    {
+        var query = database.ControlCenterStates.AsNoTracking()
+            .Where(x => x.UserId == userContext.UserId
+                && x.Status == "not_urgent"
+                && x.ConversationId.StartsWith(PriorityPrefix));
+        if (accountId.HasValue) query = query.Where(x => x.AccountId == accountId.Value);
+        var states = await query.ToArrayAsync(cancellationToken);
+        return states.Select(x => new ControlCenterPriorityOverride(x.AccountId, x.LastMessageId)).ToArray();
+    }
+
+    public async Task<bool> SetPriorityOverrideAsync(Guid accountId, string messageId, bool suppressed, CancellationToken cancellationToken)
+    {
+        var accountExists = await database.MailAccounts.AsNoTracking()
+            .AnyAsync(x => x.Id == accountId && x.UserId == userContext.UserId && x.IsActive, cancellationToken);
+        if (!accountExists) return false;
+
+        var normalizedMessageId = messageId.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedMessageId))
+            throw new InvalidOperationException("El correo no tiene un identificador válido.");
+        var key = $"{PriorityPrefix}{normalizedMessageId}";
+        var state = await database.ControlCenterStates.SingleOrDefaultAsync(
+            x => x.UserId == userContext.UserId && x.AccountId == accountId && x.ConversationId == key,
+            cancellationToken);
+
+        if (!suppressed)
+        {
+            if (state is not null) database.ControlCenterStates.Remove(state);
+            await database.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+
+        if (state is null)
+        {
+            state = new ControlCenterStateEntity
+            {
+                Id = Guid.NewGuid(), UserId = userContext.UserId, AccountId = accountId, ConversationId = key
+            };
+            database.ControlCenterStates.Add(state);
+        }
+        state.LastMessageId = normalizedMessageId;
+        state.Status = "not_urgent";
+        state.SnoozedUntil = null;
+        state.UpdatedAt = DateTimeOffset.UtcNow;
         await database.SaveChangesAsync(cancellationToken);
         return true;
     }
@@ -153,3 +202,5 @@ public sealed class ControlCenterTrackingService(
         return string.IsNullOrWhiteSpace(address.Name) ? address.Address : address.Name;
     }
 }
+
+public sealed record ControlCenterPriorityOverride(Guid AccountId, string MessageId);

@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, Clock3, Eye, Inbox, Mail, Pause, RefreshCw, Send, Sparkles, X } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { AlertTriangle, Check, Clock3, Eye, Inbox, Mail, Pause, RefreshCw, Send, Sparkles, Undo2, X } from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
 import type { ControlCenterPendingItem, ControlCenterSnapshot } from '../types/mail'
 import { NexiPriorityQueue } from './NexiPriorityQueue'
 import { NexiEmptyState } from './nexi/NexiEmptyState'
 import { NexiVisual } from './nexi/NexiVisual'
+import { classifyByRules } from './nexi/priorityEngine'
 
 type ManagementView = 'received' | 'sent' | 'overdue' | null
 type PriorityDisplayItem = { item: ControlCenterPendingItem; automatic: boolean; manual: boolean }
@@ -48,13 +49,16 @@ function managementCopy(view: Exclude<ManagementView, null>) {
 
 export function ControlCenter({ accountId, onUpdatedAtChange }: { accountId?: string; accountName?: string; onUpdatedAtChange?: (value: string) => void }) {
   const navigate = useNavigate()
+  const [params, setParams] = useSearchParams()
+  const focusParam = params.get('focus')
   const queryClient = useQueryClient()
   const [activeView, setActiveView] = useState<ManagementView>(null)
   const [snoozeTarget, setSnoozeTarget] = useState<string | null>(null)
   const [openingTarget, setOpeningTarget] = useState<string | null>(null)
   const [actionError, setActionError] = useState('')
+  const [trashedItem, setTrashedItem] = useState<ControlCenterPendingItem | null>(null)
   const queryKey = ['control-center', accountId ?? 'all'] as const
-  const controlCenterPath = '/control-center'
+  const controlCenterPath = accountId ? `/control-center?account=${encodeURIComponent(accountId)}` : '/control-center'
 
   const snapshot = useQuery({
     queryKey,
@@ -74,7 +78,38 @@ export function ControlCenter({ accountId, onUpdatedAtChange }: { accountId?: st
     refetchOnWindowFocus: false,
   })
 
+  const priorityOverrides = useQuery({
+    queryKey: ['control-center-priority-overrides', accountId ?? 'all'],
+    queryFn: () => mailApi.priorityOverrides(accountId),
+    staleTime: 0,
+    refetchOnMount: 'always',
+  })
+
+  const suppressedUrgency = useMemo(() => new Set((priorityOverrides.data ?? []).map(value => `${value.accountId}:${value.messageId}`)), [priorityOverrides.data])
+
+  function removeFromSnapshot(item: ControlCenterPendingItem) {
+    queryClient.setQueryData<ControlCenterSnapshot>(queryKey, current => {
+      if (!current) return current
+      return {
+        ...current,
+        receivedWithoutReply: Math.max(0, current.receivedWithoutReply - (item.direction === 'received' ? 1 : 0)),
+        sentWithoutResponse: Math.max(0, current.sentWithoutResponse - (item.direction === 'sent' ? 1 : 0)),
+        overdue: Math.max(0, current.overdue - (isOverdue(item) ? 1 : 0)),
+        priorityItems: current.priorityItems.filter(value => itemKey(value) !== itemKey(item)),
+        pendingItems: current.pendingItems.filter(value => itemKey(value) !== itemKey(item)),
+        accounts: current.accounts.map(value => value.accountId !== item.accountId ? value : {
+          ...value,
+          receivedWithoutReply: Math.max(0, value.receivedWithoutReply - (item.direction === 'received' ? 1 : 0)),
+          sentWithoutResponse: Math.max(0, value.sentWithoutResponse - (item.direction === 'sent' ? 1 : 0)),
+        }),
+      }
+    })
+  }
+
   const generatedAt = snapshot.data?.generatedAt
+  useEffect(() => {
+    setActiveView(focusParam === 'received' || focusParam === 'sent' || focusParam === 'overdue' ? focusParam : null)
+  }, [focusParam])
   useEffect(() => {
     if (!generatedAt || !onUpdatedAtChange) return
     onUpdatedAtChange(new Date(generatedAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }))
@@ -85,26 +120,44 @@ export function ControlCenter({ accountId, onUpdatedAtChange }: { accountId?: st
     onMutate: () => setActionError(''),
     onSuccess: (_, variables) => {
       const item = variables.item
-      queryClient.setQueryData<ControlCenterSnapshot>(queryKey, current => {
-        if (!current) return current
-        const overdueAdjustment = isOverdue(item) ? 1 : 0
-        return {
-          ...current,
-          receivedWithoutReply: Math.max(0, current.receivedWithoutReply - (item.direction === 'received' ? 1 : 0)),
-          sentWithoutResponse: Math.max(0, current.sentWithoutResponse - (item.direction === 'sent' ? 1 : 0)),
-          overdue: Math.max(0, current.overdue - overdueAdjustment),
-          priorityItems: current.priorityItems.filter(value => itemKey(value) !== itemKey(item)),
-          pendingItems: current.pendingItems.filter(value => itemKey(value) !== itemKey(item)),
-          accounts: current.accounts.map(account => account.accountId !== item.accountId ? account : {
-            ...account,
-            receivedWithoutReply: Math.max(0, account.receivedWithoutReply - (item.direction === 'received' ? 1 : 0)),
-            sentWithoutResponse: Math.max(0, account.sentWithoutResponse - (item.direction === 'sent' ? 1 : 0)),
-          }),
-        }
-      })
+      removeFromSnapshot(item)
       setSnoozeTarget(null)
     },
     onError: error => setActionError(error instanceof Error ? error.message : 'No fue posible actualizar el seguimiento.'),
+  })
+
+  const tracking = useMutation({
+    mutationFn: ({ item, manual }: { item: ControlCenterPendingItem; manual: boolean }) => manual ? mailApi.untrackMessage(item.accountId, item.messageId) : mailApi.trackMessage(item.accountId, item.messageId),
+    onMutate: () => setActionError(''),
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['control-center-tracking'] }) },
+    onError: error => setActionError(error instanceof Error ? error.message : 'No fue posible actualizar el seguimiento.'),
+  })
+
+  const urgency = useMutation({
+    mutationFn: ({ item, suppressed }: { item: ControlCenterPendingItem; suppressed: boolean }) => mailApi.setPriorityOverride(item.accountId, item.messageId, suppressed),
+    onMutate: () => setActionError(''),
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['control-center-priority-overrides'] }) },
+    onError: error => setActionError(error instanceof Error ? error.message : 'No fue posible actualizar la urgencia.'),
+  })
+
+  const trash = useMutation({
+    mutationFn: (item: ControlCenterPendingItem) => mailApi.trash(item.accountId, item.messageId),
+    onMutate: () => setActionError(''),
+    onSuccess: async (_, item) => {
+      removeFromSnapshot(item)
+      setTrashedItem(item)
+      await queryClient.invalidateQueries({ queryKey: ['messages'] })
+    },
+    onError: error => setActionError(error instanceof Error ? error.message : 'No fue posible eliminar el correo.'),
+  })
+
+  const restore = useMutation({
+    mutationFn: (item: ControlCenterPendingItem) => mailApi.move(item.accountId, item.messageId, 'inbox'),
+    onSuccess: async () => {
+      setTrashedItem(null)
+      await Promise.all([queryClient.invalidateQueries({ queryKey: ['messages'] }), queryClient.invalidateQueries({ queryKey: ['control-center'] })])
+    },
+    onError: error => setActionError(error instanceof Error ? error.message : 'No fue posible restaurar el correo.'),
   })
 
   async function openComposer(item: ControlCenterPendingItem) {
@@ -133,6 +186,9 @@ export function ControlCenter({ accountId, onUpdatedAtChange }: { accountId?: st
   if (snapshot.isError || !snapshot.data) return <section className="control-center control-center-cinematic"><div className="control-center-header"><div><h2>Estado operativo</h2><p>No fue posible cargar los indicadores.</p></div><button className="icon-button" onClick={() => snapshot.refetch()} aria-label="Reintentar indicadores"><RefreshCw size={17} /></button></div></section>
 
   const data = snapshot.data
+  if (data.accounts.length === 0) return <section className="control-center control-center-cinematic" aria-label="Comenzar">
+    <NexiEmptyState title="Comience conectando sus cuentas" description="Conecte al menos una cuenta para que Nexi organice su bandeja y detecte prioridades." action={<button type="button" className="primary-button" onClick={() => navigate('/settings/accounts')}>Conectar cuenta</button>} />
+  </section>
   const managementItems = activeView === 'received'
     ? data.pendingItems.filter(item => item.direction === 'received')
     : activeView === 'sent'
@@ -156,21 +212,40 @@ export function ControlCenter({ accountId, onUpdatedAtChange }: { accountId?: st
   function openManagementView(view: Exclude<ManagementView, null>) {
     setActiveView(view)
     setSnoozeTarget(null)
+    const updated = new URLSearchParams(params)
+    updated.delete('priority')
+    updated.set('focus', view)
+    setParams(updated, { replace: true })
     window.requestAnimationFrame(() => {
-      document.querySelector('.control-management-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      document.querySelector('.nexi-priority-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
   }
 
   function openUnread() {
-    const params = new URLSearchParams({ q: 'correos sin leer', scope: 'mail', unread: '1' })
-    if (accountId) params.set('account', accountId)
-    navigate(`/search?${params.toString()}`)
+    setActiveView(null)
+    const updated = new URLSearchParams(params)
+    updated.delete('focus')
+    updated.delete('value')
+    updated.set('priority', 'unread')
+    setParams(updated, { replace: true })
+    window.requestAnimationFrame(() => document.querySelector('.nexi-priority-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
+
+  function openUrgent() {
+    setActiveView(null)
+    const updated = new URLSearchParams(params)
+    updated.delete('focus')
+    updated.delete('value')
+    updated.set('priority', 'urgent')
+    setParams(updated, { replace: true })
+    window.requestAnimationFrame(() => document.querySelector('.nexi-priority-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
 
   return <section className="control-center control-center-cinematic" aria-label="Prioridades">
     {data.unavailableAccounts > 0 && <div className="notice control-center-warning">No se pudo consultar {data.unavailableAccounts} cuenta{data.unavailableAccounts === 1 ? '' : 's'}. Los indicadores consideran las cuentas disponibles.</div>}
 
     <div className="control-metrics nexi-control-metrics compact">
+      <MetricCard tone="urgent" icon={<AlertTriangle size={18} />} value={priorityItems.filter(value => classifyByRules(value).category === 'urgent' && !suppressedUrgency.has(messageKey(value.item))).length} label="Urgentes" active={params.get('priority') === 'urgent'} onClick={openUrgent} />
       <MetricCard tone="received" icon={<Inbox size={18} />} value={data.receivedWithoutReply} label="Recibidos sin responder" active={activeView === 'received'} onClick={() => openManagementView('received')} />
       <MetricCard tone="sent" icon={<Send size={18} />} value={data.sentWithoutResponse} label="Enviados sin respuesta" active={activeView === 'sent'} onClick={() => openManagementView('sent')} />
       <MetricCard tone="unread" icon={<Mail size={18} />} value={data.unread} label="Sin leer" onClick={openUnread} />
@@ -182,7 +257,17 @@ export function ControlCenter({ accountId, onUpdatedAtChange }: { accountId?: st
       openingTarget={openingTarget}
       onManage={item => void openComposer(item)}
       onOpen={(item, manual) => navigate(`/message/${item.accountId}/${item.messageId}`, { state: { returnTo: controlCenterPath, controlCenterItem: item, manualTracking: manual } })}
+      onResolve={item => manage.mutate({ item, action: 'resolved' })}
+      onSnooze={item => manage.mutate({ item, action: 'snoozed', snoozeHours: 24 })}
+      onTrack={(item, manual) => tracking.mutate({ item, manual })}
+      onSuppressUrgency={(item, suppressed) => urgency.mutate({ item, suppressed })}
+      onTrash={item => { if (window.confirm(`¿Enviar “${item.subject}” de ${item.accountName} a la papelera?`)) trash.mutate(item) }}
+      busyTarget={manage.isPending ? itemKey(manage.variables.item) : tracking.isPending ? itemKey(tracking.variables.item) : urgency.isPending ? itemKey(urgency.variables.item) : trash.isPending ? itemKey(trash.variables) : null}
+      suppressedUrgency={suppressedUrgency}
     />
+
+    {actionError && <div className="notice control-management-error">{actionError}</div>}
+    {trashedItem && <div className="control-action-undo" role="status"><span>Correo enviado a la papelera.</span><button type="button" className="secondary-button" disabled={restore.isPending} onClick={() => restore.mutate(trashedItem)}><Undo2 size={14} />Deshacer</button><button type="button" className="icon-button" aria-label="Cerrar aviso" onClick={() => setTrashedItem(null)}><X size={14} /></button></div>}
 
     {activeView && activeCopy && <article className="control-management-panel">
       <header><div><p className="eyebrow">Gestión</p><strong>{activeCopy.title}</strong><span>{activeCopy.description}</span></div><button type="button" className="icon-button" onClick={() => { setActiveView(null); setSnoozeTarget(null) }} aria-label="Cerrar gestión"><X size={17} /></button></header>
