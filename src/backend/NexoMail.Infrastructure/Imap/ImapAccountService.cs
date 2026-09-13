@@ -13,7 +13,8 @@ namespace NexoMail.Infrastructure.Imap;
 public sealed class ImapAccountService(
     NexoMailDbContext database,
     ITokenProtector tokenProtector,
-    IUserContext userContext)
+    IUserContext userContext,
+    ILogger<ImapAccountService> logger)
 {
     public async Task<MailAccount> ConnectAsync(ImapConnectionRequest request, CancellationToken ct)
     {
@@ -88,23 +89,55 @@ public sealed class ImapAccountService(
             throw new InvalidOperationException($"Su plan efectivo {access.EffectivePlan.Name} permite hasta {access.EffectivePlan.MaxAccounts.Value} cuentas de correo.");
     }
 
-    private static async Task ValidateConnectionsAsync(ImapConnectionRequest request, CancellationToken ct)
+    private async Task ValidateConnectionsAsync(ImapConnectionRequest request, CancellationToken ct)
     {
-        using (var imap = new ImapClient())
+        using (var imap = new ImapClient { Timeout = 10_000 })
         {
-            imap.Timeout = 10_000;
-            await imap.ConnectAsync(request.ImapHost, request.ImapPort, SocketOptions(request.ImapSecurity), ct);
+            try
+            {
+                await imap.ConnectAsync(request.ImapHost, request.ImapPort, SocketOptions(request.ImapSecurity), ct);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                throw ConnectionFailure("IMAP", request.ImapHost, request.ImapPort, request.ImapSecurity, exception);
+            }
             imap.AuthenticationMechanisms.Remove("XOAUTH2");
-            await imap.AuthenticateAsync(request.Username, request.Password, ct);
+            try { await imap.AuthenticateAsync(request.Username, request.Password, ct); }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                throw AuthenticationFailure("IMAP", request.ImapHost, exception);
+            }
             await imap.DisconnectAsync(true, ct);
         }
 
-        using var smtp = new SmtpClient();
-        smtp.Timeout = 10_000;
-        await smtp.ConnectAsync(request.SmtpHost, request.SmtpPort, SocketOptions(request.SmtpSecurity), ct);
+        using var smtp = new SmtpClient { Timeout = 10_000 };
+        try
+        {
+            await smtp.ConnectAsync(request.SmtpHost, request.SmtpPort, SocketOptions(request.SmtpSecurity), ct);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            throw ConnectionFailure("SMTP", request.SmtpHost, request.SmtpPort, request.SmtpSecurity, exception);
+        }
         smtp.AuthenticationMechanisms.Remove("XOAUTH2");
-        await smtp.AuthenticateAsync(request.Username, request.Password, ct);
+        try { await smtp.AuthenticateAsync(request.Username, request.Password, ct); }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            throw AuthenticationFailure("SMTP", request.SmtpHost, exception);
+        }
         await smtp.DisconnectAsync(true, ct);
+    }
+
+    private InvalidOperationException ConnectionFailure(string protocol, string host, int port, string security, Exception exception)
+    {
+        logger.LogWarning(exception, "IMAP setup failed during {Protocol} connection to {Host}:{Port} using {Security}.", protocol, host, port, security);
+        return new InvalidOperationException($"{protocol}: no fue posible establecer la conexión con {host}:{port}. Revise el puerto y el modo TLS ({security}).", exception);
+    }
+
+    private InvalidOperationException AuthenticationFailure(string protocol, string host, Exception exception)
+    {
+        logger.LogWarning(exception, "IMAP setup failed during {Protocol} authentication against {Host}.", protocol, host);
+        return new InvalidOperationException($"{protocol}: el servidor {host} rechazó la autenticación. Revise el usuario y la contraseña del buzón.", exception);
     }
 
     internal static SecureSocketOptions SocketOptions(string security) => security switch
@@ -114,27 +147,28 @@ public sealed class ImapAccountService(
         _ => throw new InvalidOperationException("Modo de seguridad no admitido.")
     };
 
-    private static async Task EnsurePublicHostAsync(string host, CancellationToken ct)
+    private async Task EnsurePublicHostAsync(string host, CancellationToken ct)
     {
         IPAddress[] addresses;
-        try { addresses = await Dns.GetHostAddressesAsync(host, ct); }
-        catch { throw new InvalidOperationException($"No fue posible resolver el servidor {host}."); }
-        if (addresses.Length == 0 || addresses.Any(IsPrivateOrLocal))
-            throw new InvalidOperationException("Por seguridad, el servidor de correo debe resolver únicamente a direcciones públicas.");
-    }
+        try
+        {
+            addresses = await Dns.GetHostAddressesAsync(host, ct);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(exception, "IMAP setup failed during DNS resolution for {Host}.", host);
+            throw new InvalidOperationException($"DNS: no fue posible resolver el servidor {host}.", exception);
+        }
 
-    private static bool IsPrivateOrLocal(IPAddress address)
-    {
-        if (IPAddress.IsLoopback(address) || address.IsIPv6LinkLocal || address.IsIPv6SiteLocal) return true;
-        if (address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
-            return address.Equals(IPAddress.IPv6Any) || address.Equals(IPAddress.IPv6None);
-        var bytes = address.GetAddressBytes();
-        return bytes[0] == 10
-            || bytes[0] == 127
-            || bytes[0] == 0
-            || bytes[0] == 169 && bytes[1] == 254
-            || bytes[0] == 172 && bytes[1] is >= 16 and <= 31
-            || bytes[0] == 192 && bytes[1] == 168
-            || bytes[0] == 100 && bytes[1] is >= 64 and <= 127;
+        logger.LogInformation("IMAP setup DNS resolved {Host} to {Addresses}.", host, string.Join(", ", addresses.Select(x => x.ToString())));
+        if (addresses.Length == 0)
+            throw new InvalidOperationException($"DNS: el servidor {host} no entregó ninguna dirección IP.");
+
+        var blocked = addresses.Where(address => !MailHostAddressPolicy.IsPublic(address)).ToArray();
+        if (blocked.Length > 0)
+        {
+            logger.LogWarning("IMAP setup blocked non-public addresses for {Host}: {Addresses}.", host, string.Join(", ", blocked.Select(x => x.ToString())));
+            throw new InvalidOperationException($"DNS: el servidor {host} resolvió a una dirección no pública ({string.Join(", ", blocked.Select(x => x.ToString()))}).");
+        }
     }
 }

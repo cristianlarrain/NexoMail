@@ -48,15 +48,16 @@ public sealed class MailGateway(
             ? accounts
             : accounts.Where(account => cursors.TryGetValue(account.Id, out var cursor) && cursor is not null).ToArray();
 
-        var results = await Task.WhenAll(activeAccounts.Select(async account => new
+        var results = new List<(MailAccount Account, PagedResult<MailSummary>? Result)>();
+        foreach (var account in activeAccounts)
         {
-            Account = account,
-            Result = await TryGetMessagesAsync(account, query with
+            var result = await TryGetMessagesAsync(account, query with
             {
                 AccountId = account.Id,
                 Cursor = cursors is null ? null : cursors.GetValueOrDefault(account.Id)
-            }, cancellationToken)
-        }));
+            }, cancellationToken);
+            results.Add((account, result));
+        }
 
         var items = results
             .Where(x => x.Result is not null)
@@ -109,7 +110,8 @@ public sealed class MailGateway(
             return;
         }
         var accounts = await GetAccountsAsync(cancellationToken);
-        await Task.WhenAll(accounts.Select(account => ProviderFor(account).EmptyFolderAsync(account.Id, folderId, cancellationToken)));
+        foreach (var account in accounts)
+            await ProviderFor(account).EmptyFolderAsync(account.Id, folderId, cancellationToken);
     }
 
     private async Task<MailAccount> AccountAsync(Guid id, CancellationToken ct)

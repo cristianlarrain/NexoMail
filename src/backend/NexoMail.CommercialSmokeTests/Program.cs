@@ -9,6 +9,8 @@ static void Ensure(bool condition, string message)
     if (!condition) throw new InvalidOperationException(message);
 }
 
+ImapConnectionSecuritySmoke.Run();
+
 var ct = CancellationToken.None;
 var dbPath = Path.Combine(Path.GetTempPath(), $"nexomail-commercial-smoke-{Guid.NewGuid():N}.db");
 

@@ -122,8 +122,9 @@ public static class AiEndpoints
 
                 var folder = interpretation.Folder is "inbox" or "sent" ? interpretation.Folder : "all";
                 var folders = folder == "all" ? new[] { "inbox", "sent", "archive" } : new[] { folder };
-                var pages = await Task.WhenAll(folders.Select(value =>
-                    gateway.GetMessagesAsync(new MailQuery(request.AccountId, value, 50, null, interpretation.GmailQuery), ct)));
+                var pages = new List<PagedResult<MailSummary>>();
+                foreach (var value in folders)
+                    pages.Add(await gateway.GetMessagesAsync(new MailQuery(request.AccountId, value, 50, null, interpretation.GmailQuery), ct));
 
                 var unique = new Dictionary<string, MailSummary>(StringComparer.Ordinal);
                 foreach (var page in pages)
@@ -137,34 +138,23 @@ public static class AiEndpoints
                     .Take(40)
                     .ToArray();
 
-                using var semaphore = new SemaphoreSlim(5);
-                var detailTasks = summaries.Take(20).Select(async item =>
+                var detailResults = new List<MailMessage?>();
+                foreach (var item in summaries.Take(20))
                 {
-                    await semaphore.WaitAsync(ct);
                     try
                     {
-                        try
-                        {
-                            return await cache.GetOrCreateAsync(
-                                userContext.UserId.ToString(),
-                                "message-detail",
-                                $"{item.AccountId:N}:{item.ProviderMessageId}",
-                                TimeSpan.FromMinutes(10),
-                                async token => await gateway.GetMessageAsync(item.AccountId, item.ProviderMessageId, token) ?? throw new KeyNotFoundException(),
-                                ct);
-                        }
-                        catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException or KeyNotFoundException)
-                        {
-                            return null;
-                        }
+                        detailResults.Add(await cache.GetOrCreateAsync(
+                            userContext.UserId.ToString(), "message-detail",
+                            $"{item.AccountId:N}:{item.ProviderMessageId}", TimeSpan.FromMinutes(10),
+                            async token => await gateway.GetMessageAsync(item.AccountId, item.ProviderMessageId, token) ?? throw new KeyNotFoundException(), ct));
                     }
-                    finally
+                    catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException or KeyNotFoundException)
                     {
-                        semaphore.Release();
+                        detailResults.Add(null);
                     }
-                });
+                }
 
-                var details = (await Task.WhenAll(detailTasks))
+                var details = detailResults
                     .Where(value => value is not null)
                     .Cast<MailMessage>()
                     .ToArray();
@@ -294,34 +284,23 @@ public static class AiEndpoints
                                 .ToArray();
                         }
 
-                        using var semaphore = new SemaphoreSlim(5);
-                        var detailTasks = summaries.Select(async item =>
+                        var detailResults = new List<MailMessage?>();
+                        foreach (var item in summaries)
                         {
-                            await semaphore.WaitAsync(token);
                             try
                             {
-                                try
-                                {
-                                    return await cache.GetOrCreateAsync(
-                                        userContext.UserId.ToString(),
-                                        "message-detail",
-                                        $"{item.AccountId:N}:{item.ProviderMessageId}",
-                                        TimeSpan.FromMinutes(10),
-                                        async innerToken => await gateway.GetMessageAsync(item.AccountId, item.ProviderMessageId, innerToken) ?? throw new KeyNotFoundException(),
-                                        token);
-                                }
-                                catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException or KeyNotFoundException)
-                                {
-                                    return null;
-                                }
+                                detailResults.Add(await cache.GetOrCreateAsync(
+                                    userContext.UserId.ToString(), "message-detail",
+                                    $"{item.AccountId:N}:{item.ProviderMessageId}", TimeSpan.FromMinutes(10),
+                                    async innerToken => await gateway.GetMessageAsync(item.AccountId, item.ProviderMessageId, innerToken) ?? throw new KeyNotFoundException(), token));
                             }
-                            finally
+                            catch (Exception exception) when (exception is HttpRequestException or InvalidOperationException or KeyNotFoundException)
                             {
-                                semaphore.Release();
+                                detailResults.Add(null);
                             }
-                        });
+                        }
 
-                        var details = (await Task.WhenAll(detailTasks)).Where(value => value is not null).Cast<MailMessage>().ToArray();
+                        var details = detailResults.Where(value => value is not null).Cast<MailMessage>().ToArray();
                         return await ai.GenerateReportAsync(periodLabel, details, token);
                     },
                     ct);
