@@ -29,6 +29,10 @@ jobs:
           corepack enable
           corepack prepare pnpm@11.25.0 --activate
 
+      - name: Verify encrypted production credentials
+        shell: pwsh
+        run: .\scripts\test-ionos-secure-secrets.ps1
+
       - name: Build and test production package
         shell: pwsh
         run: .\scripts\publish-ionos.ps1
