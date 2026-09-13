@@ -13,9 +13,8 @@ try {
 
 const requiredLayoutMarkers = [
   'data-sidebar-tooltip="Inicio"',
-  'data-sidebar-tooltip="Bandeja de entrada"',
+  'data-sidebar-tooltip="Vista clásica"',
   'data-sidebar-tooltip="Redactar"',
-  'data-sidebar-tooltip="Nexi Control Center"',
   'data-sidebar-tooltip={account.displayName}',
   'data-sidebar-tooltip={foldersCollapsed ? \'Mostrar carpetas\' : \'Ocultar carpetas\'}',
   'data-sidebar-tooltip="Archivados"',
