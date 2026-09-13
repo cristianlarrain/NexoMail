@@ -7,6 +7,11 @@ public sealed class MailReadCache(IMemoryCache memoryCache)
 {
     private readonly ConcurrentDictionary<string, long> userGenerations = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, long> areaGenerations = new(StringComparer.Ordinal);
+    private static readonly HashSet<string> SharedIndexAreas = new(StringComparer.Ordinal)
+    {
+        "control-center",
+        "control-center-activity"
+    };
 
     public async Task<T> GetOrCreateAsync<T>(
         string userKey,
@@ -17,6 +22,9 @@ public sealed class MailReadCache(IMemoryCache memoryCache)
         CancellationToken cancellationToken)
         where T : class
     {
+        if (SharedIndexAreas.Contains(area))
+            return await factory(cancellationToken);
+
         var userGeneration = userGenerations.GetOrAdd(userKey, 0);
         var areaGeneration = areaGenerations.GetOrAdd(AreaKey(userKey, area), 0);
         var cacheKey = $"mail-read:{userKey}:{userGeneration}:{area}:{areaGeneration}:{key}";
