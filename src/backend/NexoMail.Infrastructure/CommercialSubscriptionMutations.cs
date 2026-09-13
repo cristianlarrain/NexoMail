@@ -107,6 +107,49 @@ public static class CommercialSubscriptionMutations
             ct);
     }
 
+    public static async Task GrantWelcomeTrialAsync(
+        NexoMailDbContext database,
+        Guid userId,
+        int days,
+        CancellationToken ct)
+    {
+        if (days is < 1 or > 90)
+            throw new InvalidOperationException("La prueba de bienvenida debe durar entre 1 y 90 días.");
+
+        var user = await database.Users.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.Id == userId && x.IsActive, ct)
+            ?? throw new InvalidOperationException("El usuario seleccionado no existe o está inactivo.");
+        if (user.IsOwner || !user.IsEmailVerified ||
+            !string.Equals(user.PlanCode, CommercialPlanCatalog.Freemium, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var current = await CommercialAccessStore.GetAsync(database, user.Id, ct);
+        if (current is null ||
+            string.Equals(current.Subscription.Provider, CommercialAccessStore.WelcomeTrialProvider, StringComparison.OrdinalIgnoreCase) ||
+            current.Subscription.Provider is not null ||
+            !string.Equals(current.Subscription.PlanCode, CommercialPlanCatalog.Freemium, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(current.Subscription.Status, CommercialSubscriptionStatuses.Active, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var premiumExists = await database.CommercialPlans.AsNoTracking()
+            .AnyAsync(x => x.Code == CommercialPlanCatalog.Premium && x.IsActive, ct);
+        if (!premiumExists)
+            throw new InvalidOperationException("El plan Premium no está disponible para iniciar la bienvenida.");
+
+        var now = DateTimeOffset.UtcNow;
+        await UpsertAsync(
+            database,
+            user.Id,
+            CommercialPlanCatalog.Premium,
+            CommercialSubscriptionStatuses.Trialing,
+            CommercialAccessStore.WelcomeTrialProvider,
+            null,
+            now,
+            null,
+            now.AddDays(days),
+            ct);
+    }
+
     public static async Task ApplyProviderStateAsync(
         NexoMailDbContext database,
         Guid userId,

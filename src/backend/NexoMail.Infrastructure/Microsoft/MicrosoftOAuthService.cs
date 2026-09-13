@@ -110,11 +110,15 @@ public sealed class MicrosoftOAuthService(
         if (account is null)
         {
             await EnsureCanConnectAnotherAccountAsync(ct);
+            var usedColors = await database.MailAccounts.AsNoTracking()
+                .Where(x => x.UserId == userId && x.IsActive)
+                .Select(x => x.Color)
+                .ToArrayAsync(ct);
             account = new MailAccountEntity
             {
                 Id = Guid.NewGuid(), UserId = userId, Provider = MailProviderType.MicrosoftGraph,
                 EmailAddress = email, DisplayName = string.IsNullOrWhiteSpace(displayName) ? "Microsoft 365" : displayName!,
-                Color = "#2563eb", CreatedAt = DateTimeOffset.UtcNow, IsActive = true
+                Color = AccountColorSelector.Select(usedColors), CreatedAt = DateTimeOffset.UtcNow, IsActive = true
             };
             database.MailAccounts.Add(account);
         }

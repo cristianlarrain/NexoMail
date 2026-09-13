@@ -34,6 +34,7 @@ public static class CommercialAccessStore
 {
     public const string OwnerAccessCode = "owner";
     public const string AdminTrialProvider = "admin_trial";
+    public const string WelcomeTrialProvider = "welcome_trial";
     private static readonly IReadOnlyList<string> OwnerEntitlements = CommercialEntitlements.Definitions.Select(x => x.Code).ToArray();
 
     public static async Task<CommercialAccessSnapshot?> GetAsync(NexoMailDbContext database, Guid userId, CancellationToken ct = default)
@@ -69,7 +70,8 @@ public static class CommercialAccessStore
             return new CommercialAccessSnapshot(assigned, ownerPlan, subscription, OwnerEntitlements, true);
         }
 
-        var isAdminTrial = string.Equals(subscription.Provider, AdminTrialProvider, StringComparison.OrdinalIgnoreCase)
+        var isAdminTrial = (string.Equals(subscription.Provider, AdminTrialProvider, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(subscription.Provider, WelcomeTrialProvider, StringComparison.OrdinalIgnoreCase))
             && string.Equals(subscription.Status, CommercialSubscriptionStatuses.Trialing, StringComparison.OrdinalIgnoreCase);
         if (isAdminTrial)
         {

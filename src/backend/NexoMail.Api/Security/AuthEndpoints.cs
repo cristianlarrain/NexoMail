@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using NexoMail.Infrastructure;
 using NexoMail.Infrastructure.Data;
 
 namespace NexoMail.Api.Security;
@@ -122,6 +123,8 @@ public static class AuthEndpoints
         EmailVerificationRequest request,
         HttpContext context,
         NexoMailDbContext database,
+        IConfiguration configuration,
+        ILoggerFactory loggerFactory,
         CancellationToken ct)
     {
         var email = request.Email.Trim().ToLowerInvariant();
@@ -164,6 +167,20 @@ public static class AuthEndpoints
         user.EmailVerificationAttempts = 0;
         user.LastLoginAt = DateTimeOffset.UtcNow;
         await database.SaveChangesAsync(ct);
+
+        if (configuration.GetValue("Commercial:WelcomeTrialEnabled", true))
+        {
+            try
+            {
+                await CommercialSubscriptionMutations.GrantWelcomeTrialAsync(database, user.Id, 30, ct);
+            }
+            catch (Exception exception)
+            {
+                loggerFactory.CreateLogger("NexoMail.WelcomeTrial")
+                    .LogError(exception, "No fue posible otorgar Premium de bienvenida al usuario {UserId}.", user.Id);
+            }
+        }
+
         await SignInAsync(context, user);
         return Results.Ok(ToSession(user));
     }

@@ -5,6 +5,7 @@ import { Bookmark, BookmarkCheck, Clock3, FileText, Inbox, Mail, Paperclip, Sear
 import { mailApi } from '../api/mailApi'
 import { searchApi } from '../api/searchApi'
 import type { ContactAnalyticsItem, DocumentIndexItem, MailSummary } from '../types/mail'
+import { resolveParticipantQuery } from '../utils/nexiParticipantResolver'
 
 const SAVED_SEARCHES_KEY = 'nexomail-saved-searches-v1'
 
@@ -137,6 +138,32 @@ export function SearchPage() {
     retry: false,
   })
 
+  const participantResolution = useMemo(() => resolveParticipantQuery(
+    textQuery,
+    (contactsQuery.data?.contacts ?? []).map(contact => ({ name: contact.name, email: contact.email })),
+  ), [contactsQuery.data?.contacts, textQuery])
+  const expandedGmailQuery = useMemo(() => {
+    if (!participantResolution) return ''
+    return gmailQuery.includes(textQuery)
+      ? gmailQuery.replace(textQuery, participantResolution.query)
+      : participantResolution.query
+  }, [gmailQuery, participantResolution, textQuery])
+  const expandedMessagesQuery = useQuery({
+    queryKey: ['universal-search-mail-expanded', explicitAccount, folder, expandedGmailQuery],
+    queryFn: async () => {
+      const folders: Array<'inbox' | 'sent' | 'archive'> = folder === 'all' ? ['inbox', 'sent', 'archive'] : [folder]
+      const results = await Promise.all(folders.map(value => searchApi.messages(explicitAccount || undefined, value, expandedGmailQuery)))
+      const unique = new Map<string, MailSummary>()
+      for (const result of results) {
+        for (const item of result.items) unique.set(`${item.accountId}:${item.providerMessageId}`, item)
+      }
+      return [...unique.values()].sort((left, right) => new Date(right.receivedAt).getTime() - new Date(left.receivedAt).getTime())
+    },
+    enabled: messagesQuery.isSuccess && messagesQuery.data.length === 0 && Boolean(expandedGmailQuery) && (scope === 'all' || scope === 'mail') && special === 'none',
+    staleTime: 2 * 60_000,
+    retry: false,
+  })
+
   const documentsQuery = useQuery({
     queryKey: ['universal-search-documents', textQuery, documentType],
     queryFn: () => searchApi.documents(textQuery, documentType),
@@ -146,7 +173,7 @@ export function SearchPage() {
   })
 
   const mailItems = useMemo(() => {
-    if (special === 'none') return messagesQuery.data ?? []
+    if (special === 'none') return expandedMessagesQuery.data?.length ? expandedMessagesQuery.data : messagesQuery.data ?? []
     const expectedDirection = special === 'sent_without_response' ? 'sent' : 'received'
     const term = textQuery.toLocaleLowerCase('es')
     return (specialQuery.data?.pendingItems ?? [])
@@ -164,7 +191,7 @@ export function SearchPage() {
         hasAttachments: false,
         folderId: expectedDirection === 'sent' ? 'sent' : 'inbox',
       } satisfies MailSummary))
-  }, [messagesQuery.data, special, specialQuery.data?.pendingItems, textQuery])
+  }, [expandedMessagesQuery.data, messagesQuery.data, special, specialQuery.data?.pendingItems, textQuery])
 
   const contactItems = useMemo(() => {
     const terms = textQuery.toLocaleLowerCase('es').split(/\s+/).filter(term => term.length > 1)
@@ -190,8 +217,8 @@ export function SearchPage() {
   const contactCount = contactItems.length
   const documentCount = documentItems.length
   const totalCount = mailCount + contactCount + documentCount
-  const loading = interpretationQuery.isLoading || messagesQuery.isLoading || specialQuery.isLoading || contactsQuery.isLoading || documentsQuery.isLoading
-  const hasError = messagesQuery.isError || specialQuery.isError || contactsQuery.isError || documentsQuery.isError
+  const loading = interpretationQuery.isLoading || messagesQuery.isLoading || expandedMessagesQuery.isLoading || specialQuery.isLoading || contactsQuery.isLoading || documentsQuery.isLoading
+  const hasError = messagesQuery.isError || expandedMessagesQuery.isError || specialQuery.isError || contactsQuery.isError || documentsQuery.isError
 
   function updateParam(name: string, value: string | null) {
     const next = new URLSearchParams(params)
@@ -284,6 +311,7 @@ export function SearchPage() {
       <Sparkles size={17} />
       <div><strong>Nexi</strong><span>{interpretationQuery.isLoading ? 'Interpretando lo que quieres encontrar…' : interpretation?.explanation ?? 'Búsqueda literal activa.'}</span></div>
       {interpretationQuery.isError && <small>La interpretación inteligente no estuvo disponible; se está usando la consulta tal como la escribiste.</small>}
+      {expandedMessagesQuery.isSuccess && participantResolution && <small>Nexi amplió la búsqueda usando “{participantResolution.matchedName}”.</small>}
     </div>
 
     <div className="universal-search-filters" aria-label="Filtros de búsqueda">

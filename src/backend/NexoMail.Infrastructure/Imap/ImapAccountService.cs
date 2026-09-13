@@ -34,12 +34,16 @@ public sealed class ImapAccountService(
             x => x.UserId == userId && x.EmailAddress == normalized.EmailAddress && x.Provider == MailProviderType.Imap, ct);
         if (account is null)
         {
+            var usedColors = await database.MailAccounts.AsNoTracking()
+                .Where(x => x.UserId == userId && x.IsActive)
+                .Select(x => x.Color)
+                .ToArrayAsync(ct);
             account = new MailAccountEntity
             {
                 Id = Guid.NewGuid(), UserId = userId, Provider = MailProviderType.Imap,
                 EmailAddress = normalized.EmailAddress,
                 DisplayName = normalized.DisplayName,
-                Color = "#496b7a", IsActive = true, CreatedAt = DateTimeOffset.UtcNow
+                Color = AccountColorSelector.Select(usedColors), IsActive = true, CreatedAt = DateTimeOffset.UtcNow
             };
             database.MailAccounts.Add(account);
         }

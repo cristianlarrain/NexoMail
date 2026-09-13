@@ -42,191 +42,67 @@ public sealed class GoogleOAuthService(
         var query = new Dictionary<string, string>
         {
             ["client_id"] = _options.ClientId,
-            ["redirect_uri"] = _options.RedirectUri,
-            ["response_type"] = "code",
-            ["scope"] = "openid email https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.settings.basic https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/contacts.other.readonly",
-            ["access_type"] = "offline",
-            ["prompt"] = "consent",
-            ["state"] = state
-        };
-        return "https://accounts.google.com/o/oauth2/v2/auth?" + string.Join("&", query.Select(x => $"{Uri.EscapeDataString(x.Key)}={Uri.EscapeDataString(x.Value)}"));
-    }
+       #}Ùˆ⁄$z{-ÆÈ‹j◊ùXÿ][€é¬ù\⁄[ô»ô^”XZ[ë€XZ[é¬ù\⁄[ô»ô^”XZ[í[ôúò\›ùX›\ôKë]N¬ù\⁄[ô»ô^”XZ[í[ôúò\›ùX›\ôKë€€Ÿ€N¬Çõò[Y\‹XŸHô^”XZ[í[ôúò\›ùX›\ôKí[X\¬ÇúXõX»ŸX[Y€\‹»[X\Xÿ€›[ùŸ\ùöXŸJàô^”XZ[ê€€ù^]Xò\ŸKàU⁄Ÿ[îõ›X›‹à⁄Ÿ[îõ›X›‹ãàU\Ÿ\ê€€ù^\Ÿ\ê€€ù^
+Bû¬àXõX»\ﬁ[ò»\⁄œXZ[Xÿ€›[ùà€€õôX›\ﬁ[ò [X\€€õôX›[€îô\]Y\›ô\]Y\›ÿ[òŸ[][€ï⁄Ÿ[à›
+Bà¬àò\àõ‹õX[^ôYHô\]Y\›ìõ‹õX[^ôP[ôò[Y]J
+N¬à]ÿZ][ú›\ôTXõX“‹›\ﬁ[ò õ‹õX[^ôYí[X\‹››
+N¬à]ÿZ][ú›\ôTXõX“‹›\ﬁ[ò õ‹õX[^ôYî€]‹››
+N¬à]ÿZ]ò[Y]P€€õôX›[€ú–\ﬁ[ò õ‹õX[^ôY›
+N¬à]ÿZ][ú›\ôPÿ[ê€€õôX›[õ›\êXÿ€›[ù\ﬁ[ò õ‹õX[^ôYë[XZ[Yô\‹À›
+N¬à]ÿZ][X\ÿ⁄[XPõ€››ò\ë[ú›\ôP\ﬁ[ò ]Xò\ŸK›
+N¬Çàò\à\Ÿ\íYH\Ÿ\ê€€ù^ï\Ÿ\íY¬àò\à€€ôõX›[ô»H]ÿZ]]Xò\ŸKìXZ[Xÿ€›[ùÀî⁄[ô€S‹ëYò][\ﬁ[ò àOàï\Ÿ\íYOH\Ÿ\íY	âàë[XZ[Yô\‹»OHõ‹õX[^ôYë[XZ[Yô\‹»	âàîõ›öY\àOHXZ[õ›öY\ï\Kí[X\›
+N¬àYà
+€€ôõX›[ô»\»õ›ù[
+Bàõ›»ô]»[ùò[Y‹\ò][€ë^Ÿ\[€äë\›H\ôXÿ⁄pÏ€àXH\›0ËH€€ôX›YH€€à›õ»\»Hõ›ôYY‹à[àô^”XZ[àäN¬Çàò\àXÿ€›[ùH]ÿZ]]Xò\ŸKìXZ[Xÿ€›[ùÀî⁄[ô€S‹ëYò][\ﬁ[ò àOàï\Ÿ\íYOH\Ÿ\íY	âàë[XZ[Yô\‹»OHõ‹õX[^ôYë[XZ[Yô\‹»	âàîõ›öY\àOHXZ[õ›öY\ï\Kí[X\›
+N¬àYà
+Xÿ€›[ù\»ù[
+Bà¬àò\à\ŸY€€‹ú»H]ÿZ]]Xò\ŸKìXZ[Xÿ€›[ùÀê\”õ’òX⁄⁄[ô 
+Bàï⁄\ôJOàï\Ÿ\íYOH\Ÿ\íY	âàí\–X›]ôJBàîŸ[X›
+Oàê€€‹äBàï–\úò^P\ﬁ[ò ›
+N¬àXÿ€›[ùHô]»XZ[Xÿ€›[ù[ù]Bà¬àYH›ZYìô]—›ZY
 
-    public async Task CompleteAuthorizationAsync(string code, string state, CancellationToken cancellationToken)
-    {
-        EnsureConfigured();
-        var stateData = ReadState(state);
-        if (stateData.UserId != userContext.UserId)
-            throw new InvalidOperationException("La autorizaci√≥n de Google no corresponde al usuario que inici√≥ sesi√≥n.");
-        if (DateTimeOffset.UtcNow - stateData.IssuedAt > TimeSpan.FromMinutes(10))
-            throw new InvalidOperationException("La solicitud de conexi√≥n a Google expir√≥. In√≠ciala nuevamente.");
+K\Ÿ\íYH\Ÿ\íYõ›öY\àHXZ[õ›öY\ï\Kí[X\à[XZ[Yô\‹»Hõ‹õX[^ôYë[XZ[Yô\‹Àà\‹^Sò[YHHõ‹õX[^ôYë\‹^Sò[YKà€€‹àHXÿ€›[ù€€‹îŸ[X›‹ãîŸ[X›
+\ŸY€€‹ú K\–X›]ôHHùYK‹ôX]Y]H]U[YSŸôúŸ]ï]”õ›¬àN¬à]Xò\ŸKìXZ[Xÿ€›[ùÀêY
+Xÿ€›[ù
+N¬àBà[ŸBà¬àXÿ€›[ùí\–X›]ôHHùYN¬àXÿ€›[ùë\‹^Sò[YHHõ‹õX[^ôYë\‹^Sò[YN¬àBÇàò\à‹ôY[ùX[H]ÿZ]]Xò\ŸKí[X\‹ôY[ùX[Àî⁄[ô€S‹ëYò][\ﬁ[ò OàìXZ[Xÿ€›[ùYOHXÿ€›[ùíY›
+N¬àYà
+‹ôY[ùX[\»ù[
+Bà¬à‹ôY[ùX[Hô]»[X\‹ôY[ùX[[ù]H»YH›ZYìô]—›ZY
 
-        var tokenClient = httpClientFactory.CreateClient();
-        HttpResponseMessage response;
-        try
-        {
-            response = await tokenClient.PostAsync("https://oauth2.googleapis.com/token", new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["code"] = code, ["client_id"] = _options.ClientId, ["client_secret"] = _options.ClientSecret,
-                ["redirect_uri"] = _options.RedirectUri, ["grant_type"] = "authorization_code"
-            }), cancellationToken);
-        }
-        catch (TaskCanceledException exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            throw new InvalidOperationException("Google OAuth: tiempo de espera agotado al conectar con oauth2.googleapis.com:443.", exception);
-        }
-        catch (HttpRequestException exception)
-        {
-            throw new InvalidOperationException($"Google OAuth: fallo de red al conectar con oauth2.googleapis.com:443 ({DescribeNetworkFailure(exception)}).", exception);
-        }
-        using var tokenResponse = response;
-        if (!response.IsSuccessStatusCode)
-        {
-            var providerError = await ReadProviderErrorAsync(response, cancellationToken);
-            throw new InvalidOperationException($"Google rechaz√≥ el intercambio OAuth: HTTP {(int)response.StatusCode} ({providerError}).");
-        }
-        var token = await response.Content.ReadFromJsonAsync<GoogleTokenResponse>(cancellationToken: cancellationToken)
-            ?? throw new InvalidOperationException("Google no entreg√≥ un token v√°lido.");
-        if (string.IsNullOrWhiteSpace(token.RefreshToken)) throw new InvalidOperationException("Google no entreg√≥ un refresh token. Revoca el acceso anterior e int√©ntalo otra vez.");
+KXZ[Xÿ€›[ùYHXÿ€›[ùíYN¬à]Xò\ŸKí[X\‹ôY[ùX[ÀêY
+‹ôY[ùX[
+N¬àBà‹ôY[ùX[ï\Ÿ\õò[YHHõ‹õX[^ôYï\Ÿ\õò[YN¬à‹ôY[ùX[ë[ò‹û\Y\‹›€‹ôH⁄Ÿ[îõ›X›‹ãîõ›X›
+õ‹õX[^ôYî\‹›€‹ô
+N¬à‹ôY[ùX[í[X\‹›Hõ‹õX[^ôYí[X\‹›¬à‹ôY[ùX[í[X\‹ùHõ‹õX[^ôYí[X\‹ù¬à‹ôY[ùX[í[X\ŸX›\ö]HHõ‹õX[^ôYí[X\ŸX›\ö]N¬à‹ôY[ùX[î€]‹›Hõ‹õX[^ôYî€]‹›¬à‹ôY[ùX[î€]‹ùHõ‹õX[^ôYî€]‹ù¬à‹ôY[ùX[î€]ŸX›\ö]HHõ‹õX[^ôYî€]ŸX›\ö]N¬à‹ôY[ùX[ï\]Y]H]U[YSŸôúŸ]ï]”õ›Œ¬à]ÿZ]]Xò\ŸKîÿ]ôP⁄[ôŸ\–\ﬁ[ò ›
+N¬Çàô]\õàô]»XZ[Xÿ€›[ù
+Xÿ€›[ùíYXÿ€›[ùîõ›öY\ãXÿ€›[ùë[XZ[Yô\‹ÀXÿ€›[ùë\‹^Sò[YKXÿ€›[ùê€€‹ãXÿ€›[ùí\–X›]ôJN¬àBÇàö]ò]H\ﬁ[ò»\⁄»[ú›\ôPÿ[ê€€õôX›[õ›\êXÿ€›[ù\ﬁ[ò ›ö[ô»[XZ[Yô\‹Àÿ[òŸ[][€ï⁄Ÿ[à›
+Bà¬àò\à\Ÿ\íYH\Ÿ\ê€€ù^ï\Ÿ\íY¬àò\à[ôXYQ^\›»H]ÿZ]]Xò\ŸKìXZ[Xÿ€›[ùÀê\”õ’òX⁄⁄[ô 
+Bàê[ûP\ﬁ[ò Oàï\Ÿ\íYOH\Ÿ\íY	âàë[XZ[Yô\‹»OH[XZ[Yô\‹À›
+N¬àYà
+[ôXYQ^\› Hô]\õé¬Çàò\àXÿŸ\‹»H]ÿZ]€€[Y\ò⁄X[XÿŸ\‹‘›‹ôKëŸ]\ﬁ[ò ]Xò\ŸK\Ÿ\íY›
+Bàœ»õ›»ô]»[ùò[Y‹\ò][€ë^Ÿ\[€äìõ»ùYH‹⁄XõH]\õZ[ò\à[[àHH›Y[ùKàäN¬àYà
+XXÿŸ\‹ÀëYôôX›]ôT[ãìX^Xÿ€›[ùÀí\’ò[YJHô]\õé¬àò\à€€õôX›YH]ÿZ]]Xò\ŸKìXZ[Xÿ€›[ùÀê\”õ’òX⁄⁄[ô 
+Kê€›[ù\ﬁ[ò Oàï\Ÿ\íYOH\Ÿ\íY	âàí\–X›]ôK›
+N¬àYà
+€€õôX›YèHXÿŸ\‹ÀëYôôX›]ôT[ãìX^Xÿ€›[ùÀïò[YJBàõ›»ô]»[ùò[Y‹\ò][€ë^Ÿ\[€ä	î›H[àYôX›]õ»ÿXÿŸ\‹ÀëYôôX›]ôT[ãìò[Y_H\õZ]H\›HÿXÿŸ\‹ÀëYôôX›]ôT[ãìX^Xÿ€›[ùÀïò[Y_H›Y[ù\»H€‹úô[ÀàäN¬àBÇàö]ò]H›]X»\ﬁ[ò»\⁄»ò[Y]P€€õôX›[€ú–\ﬁ[ò [X\€€õôX›[€îô\]Y\›ô\]Y\›ÿ[òŸ[][€ï⁄Ÿ[à›
+Bà¬à\⁄[ô»
+ò\à[X\Hô]»[X\€Y[ù
 
-        var profileClient = httpClientFactory.CreateClient("Gmail");
-        profileClient.DefaultRequestHeaders.Authorization = new("Bearer", token.AccessToken);
-        HttpResponseMessage profileResponse;
-        try
-        {
-            profileResponse = await profileClient.GetAsync("users/me/profile", cancellationToken);
-        }
-        catch (TaskCanceledException exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            throw new InvalidOperationException("Gmail API: tiempo de espera agotado al conectar con gmail.googleapis.com:443.", exception);
-        }
-        catch (HttpRequestException exception)
-        {
-            throw new InvalidOperationException($"Gmail API: fallo de red ({DescribeNetworkFailure(exception)}).", exception);
-        }
-        using var gmailProfileResponse = profileResponse;
-        if (!profileResponse.IsSuccessStatusCode)
-        {
-            var providerError = await ReadProviderErrorAsync(profileResponse, cancellationToken);
-            throw new InvalidOperationException($"Gmail API rechaz√≥ la consulta del perfil: HTTP {(int)profileResponse.StatusCode} ({providerError}).");
-        }
-        using var profileDocument = JsonDocument.Parse(await profileResponse.Content.ReadAsStreamAsync(cancellationToken));
-        var email = profileDocument.RootElement.GetProperty("emailAddress").GetString()
-            ?? throw new InvalidOperationException("No fue posible determinar la direcci√≥n Gmail.");
+JBà¬à[X\ï[Y[›]HLÃ¬à]ÿZ][X\ê€€õôX›\ﬁ[ò ô\]Y\›í[X\‹›ô\]Y\›í[X\‹ù€ÿ⁄Ÿ]‹[€ú ô\]Y\›í[X\ŸX›\ö]JK›
+N¬à[X\ê]][ùXÿ][€ìYX⁄[ö\€\Àîô[[›ôJñ–UUàäN¬à]ÿZ][X\ê]][ùXÿ]P\ﬁ[ò ô\]Y\›ï\Ÿ\õò[YKô\]Y\›î\‹›€‹ô›
+N¬à]ÿZ][X\ë\ÿ€€õôX›\ﬁ[ò ùYK›
+N¬àBÇà\⁄[ô»ò\à€]Hô]»€]€Y[ù
 
-        var userId = userContext.UserId;
-        var account = await database.MailAccounts.SingleOrDefaultAsync(
-            x => x.UserId == userId && x.EmailAddress == email && x.Provider == MailProviderType.Gmail,
-            cancellationToken);
-        if (account is null)
-        {
-            await EnsureCanConnectAnotherAccountAsync(cancellationToken);
-            account = new MailAccountEntity
-            {
-                Id = Guid.NewGuid(),
-                UserId = userId,
-                Provider = MailProviderType.Gmail,
-                EmailAddress = email,
-                DisplayName = "Gmail",
-                Color = "#c6524b",
-                CreatedAt = DateTimeOffset.UtcNow,
-                IsActive = true
-            };
-            database.MailAccounts.Add(account);
-        }
-        else
-        {
-            account.IsActive = true;
-        }
-
-        var credential = await database.OAuthCredentials.SingleOrDefaultAsync(x => x.MailAccountId == account.Id, cancellationToken);
-        if (credential is null)
-        {
-            credential = new OAuthCredentialEntity { Id = Guid.NewGuid(), MailAccountId = account.Id };
-            database.OAuthCredentials.Add(credential);
-        }
-        credential.EncryptedRefreshToken = tokenProtector.Protect(token.RefreshToken);
-        credential.ExpiresAt = DateTimeOffset.UtcNow.AddSeconds(token.ExpiresIn);
-        credential.UpdatedAt = DateTimeOffset.UtcNow;
-        await database.SaveChangesAsync(cancellationToken);
-    }
-
-    public string SuccessRedirect() => _options.FrontendUrl + "?connected=google";
-    public string FailureRedirect(string reason) => _options.FrontendUrl + "?error=" + Uri.EscapeDataString(reason);
-
-    private string CreateState(Guid userId)
-    {
-        var payload = new GoogleOAuthState(userId, DateTimeOffset.UtcNow, Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16)));
-        return _stateProtector.Protect(JsonSerializer.Serialize(payload));
-    }
-
-    private GoogleOAuthState ReadState(string state)
-    {
-        try
-        {
-            return JsonSerializer.Deserialize<GoogleOAuthState>(_stateProtector.Unprotect(state))
-                ?? throw new InvalidOperationException();
-        }
-        catch
-        {
-            throw new InvalidOperationException("La solicitud de conexi√≥n a Google no es v√°lida o ya expir√≥.");
-        }
-    }
-
-    private static string DescribeNetworkFailure(Exception exception)
-    {
-        var root = exception.GetBaseException();
-        return root switch
-        {
-            System.Net.Sockets.SocketException socketException => $"SocketError={socketException.SocketErrorCode}",
-            System.Security.Authentication.AuthenticationException => "TLS",
-            _ => root.GetType().Name
-        };
-    }
-
-    private static async Task<string> ReadProviderErrorAsync(HttpResponseMessage response, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var payload = await response.Content.ReadAsStringAsync(cancellationToken);
-            using var document = JsonDocument.Parse(payload);
-            var root = document.RootElement;
-            if (root.TryGetProperty("error", out var error))
-            {
-                if (error.ValueKind == JsonValueKind.String)
-                    return NormalizeProviderText(error.GetString());
-                if (error.ValueKind == JsonValueKind.Object)
-                {
-                    if (error.TryGetProperty("status", out var status) && status.ValueKind == JsonValueKind.String)
-                        return NormalizeProviderText(status.GetString());
-                    if (error.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String)
-                        return NormalizeProviderText(message.GetString());
-                }
-            }
-        }
-        catch (JsonException)
-        {
-        }
-
-        return response.ReasonPhrase ?? "respuesta sin detalle";
-    }
-
-    private static string NormalizeProviderText(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return "respuesta sin detalle";
-        var normalized = string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-        return normalized.Length <= 180 ? normalized : normalized[..180];
-    }
-
-    private void EnsureConfigured()
-    {
-        if (string.IsNullOrWhiteSpace(_options.ClientId) || string.IsNullOrWhiteSpace(_options.ClientSecret))
-            throw new InvalidOperationException("Faltan las credenciales Google en la configuraci√≥n segura del servidor.");
-    }
-
-    private sealed record GoogleOAuthState(Guid UserId, DateTimeOffset IssuedAt, string Nonce);
-    private sealed record GoogleTokenResponse(
-        [property: JsonPropertyName("access_token")] string AccessToken,
-        [property: JsonPropertyName("refresh_token")] string? RefreshToken,
-        [property: JsonPropertyName("expires_in")] int ExpiresIn);
-}
+N¬à€]ï[Y[›]HLÃ¬à]ÿZ]€]ê€€õôX›\ﬁ[ò ô\]Y\›î€]‹›ô\]Y\›î€]‹ù€ÿ⁄Ÿ]‹[€ú ô\]Y\›î€]ŸX›\ö]JK›
+N¬à€]ê]][ùXÿ][€ìYX⁄[ö\€\Àîô[[›ôJñ–UUàäN¬à]ÿZ]€]ê]][ùXÿ]P\ﬁ[ò ô\]Y\›ï\Ÿ\õò[YKô\]Y\›î\‹›€‹ô›
+N¬à]ÿZ]€]ë\ÿ€€õôX›\ﬁ[ò ùYK›
+N¬àBÇà[ù\õò[›]X»ŸX›\ôT€ÿ⁄Ÿ]‹[€ú»€ÿ⁄Ÿ]‹[€ú ›ö[ô»ŸX›\ö]JHOàŸX›\ö]H›⁄]⁄à¬àú‹€àOàŸX›\ôT€ÿ⁄Ÿ]‹[€úÀî‹€€ê€€õôX›àú›\ù»àOàŸX›\ôT€ÿ⁄Ÿ]‹[€úÀî›\ùÀà»Oàõ›»ô]»[ùò[Y‹\ò][€ë^Ÿ\[€äì[Ÿ»HŸY›\öYYõ»YZ]YÀàäBàN¬Çàö]ò]H›]X»\ﬁ[ò»\⁄»[ú›\ôTXõX“‹›\ﬁ[ò ›ö[ô»‹›ÿ[òŸ[][€ï⁄Ÿ[à›
+Bà¬àTYô\‹÷◊HYô\‹Ÿ\Œ¬àûH»Yô\‹Ÿ\»H]ÿZ]úÀëŸ]‹›Yô\‹Ÿ\–\ﬁ[ò ‹››
+N»Bàÿ]⁄»õ›»ô]»[ùò[Y‹\ò][€ë^Ÿ\[€ä	ìõ»ùYH‹⁄XõHô\€€ô\à[Ÿ\ùöY‹à⁄‹›KàäN»BàYà
+Yô\‹Ÿ\Àì[ô›OHYô\‹Ÿ\Àê[ûJ\‘ö]ò]S‹ìÿÿ[
+JBàõ›»ô]»[ùò[Y‹\ò][€ë^Ÿ\[€äî‹àŸY›\öYY[Ÿ\ùöY‹àH€‹úô[»XôHô\€€ô\à0ÓõöXÿ[Y[ùHH\ôXÿ⁄[€ô\»0ÓòõXÿ\ÀàäN¬àBÇàö]ò]H›]X»õ€€\‘ö]ò]S‹ìÿÿ[
+TYô\‹»Yô\‹ Bà¬àYà
+TYô\‹Àí\”€‹òX⁄ Yô\‹ HYô\‹Àí\“Tçì[ö”ÿÿ[Yô\‹Àí\“Tçî⁄]Sÿÿ[
+Hô]\õàùYN¬àYà
+Yô\‹ÀêYô\‹—ò[Z[HOHﬁ\›[Kìô]î€ÿ⁄Ÿ]ÀêYô\‹—ò[Z[Kí[ù\ìô]€‹ö’çäBàô]\õàYô\‹Àë\]X[ TYô\‹ÀíTçê[ûJHYô\‹Àë\]X[ TYô\‹ÀíTçìõ€ôJN¬àò\àû]\»HYô\‹ÀëŸ]Yô\‹–û]\ 
+N¬àô]\õàû]\÷ÃHOHLàû]\÷ÃHOHLç¬àû]\÷ÃHOHàû]\÷ÃHOHMéH	âàû]\÷ÃWHOHçMàû]\÷ÃHOHMÃà	âàû]\÷ÃWH\»èHMà[ôHÃBàû]\÷ÃHOHNLà	âàû]\÷ÃWHOHMéàû]\÷ÃHOHL	âàû]\÷ÃWH\»èHç[ôHLçŒ¬àBüB

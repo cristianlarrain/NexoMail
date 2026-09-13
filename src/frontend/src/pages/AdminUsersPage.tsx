@@ -29,6 +29,7 @@ function subscriptionLabel(status?: string) {
 function providerLabel(provider?: string | null) {
   if (provider === 'admin') return 'Asignación manual'
   if (provider === 'admin_trial') return 'Prueba administrada'
+  if (provider === 'welcome_trial') return 'Premium de bienvenida'
   if (provider === 'mercadopago') return 'Mercado Pago'
   return provider || 'NexoMail'
 }

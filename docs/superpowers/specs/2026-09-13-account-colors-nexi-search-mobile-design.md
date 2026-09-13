@@ -5,11 +5,12 @@ Rama: `feature/ionos-production`
 
 ## Objetivo
 
-Mejorar tres aspectos relacionados de NexoMail:
+Mejorar cuatro aspectos relacionados de NexoMail:
 
 1. distinguir visualmente las cuentas conectadas sin que todas usen el mismo color;
 2. hacer que Nexi entienda búsquedas naturales e imprecisas sin perder control ni privacidad;
 3. permitir el uso completo de la aplicación desde teléfonos de 360 px de ancho en adelante.
+4. otorgar Premium automáticamente durante 30 días a cada usuario nuevo mientras la campaña de pruebas esté activa.
 
 ## Alcance y decisiones
 
@@ -49,6 +50,12 @@ Las tablas con información esencial se representarán como tarjetas cuando cada
 
 Los puntos de adaptación vivirán en primitivas y estilos compartidos. Se permitirán ajustes específicos de pantalla solo cuando cambie la jerarquía de información, evitando parches aislados por página.
 
+### 4. Premium automático de bienvenida
+
+La prueba Premium se otorgará una sola vez al completar correctamente la verificación del correo. Durará 30 días, no exigirá tarjeta y conservará Freemium como plan base. Al vencer, el acceso efectivo volverá automáticamente a Freemium, salvo que exista una suscripción pagada vigente.
+
+La campaña se controlará mediante configuración del servidor y estará activa por defecto durante el período de pruebas. Desactivarla impedirá nuevas concesiones sin cancelar pruebas ya iniciadas. No se aplicará retroactivamente a usuarios existentes y una verificación repetida no renovará ni extenderá la prueba. El proveedor comercial se identificará como `welcome_trial`, separado de las pruebas manuales `admin_trial`.
+
 ## Arquitectura
 
 Se crearán tres unidades independientes:
@@ -56,6 +63,7 @@ Se crearán tres unidades independientes:
 - un selector de color de cuenta en el dominio/servicio de cuentas, consumido por todos los conectores;
 - un resolutor de términos personales y una estrategia de reintento dentro del flujo de búsqueda de Nexi;
 - primitivas responsivas compartidas para navegación, cabecera, contenedores, formularios, diálogos y tablas.
+- un servicio idempotente de bienvenida invocado después de verificar el correo y gobernado por configuración.
 
 Las API públicas existentes se conservarán siempre que sea posible. El editor de cuenta seguirá enviando nombre y color mediante el método compatible con IONOS ya desplegado. Las respuestas de búsqueda podrán añadir metadatos opcionales sobre interpretación y ampliación sin romper clientes anteriores.
 
@@ -94,6 +102,16 @@ Se verificarán al menos 360, 390, 430, 768 y 1024 px, además de escritorio amp
 - los objetivos táctiles y textos principales siguen siendo legibles.
 
 También se ejecutarán las pruebas actuales de backend y frontend, compilación de producción y una revisión manual en temas claro y oscuro.
+
+### Premium de bienvenida
+
+- se concede Premium por 30 días después de verificar el correo cuando la campaña está activa;
+- no se concede durante el registro pendiente de verificación;
+- una segunda verificación o llamada repetida no extiende la fecha final;
+- una campaña desactivada no concede nuevas pruebas;
+- usuarios existentes no reciben la prueba retroactivamente;
+- una suscripción pagada vigente nunca es reemplazada;
+- al vencer, el plan efectivo vuelve a Freemium.
 
 ## Entrega
 

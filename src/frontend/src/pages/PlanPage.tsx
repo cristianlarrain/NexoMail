@@ -84,7 +84,8 @@ export function PlanPage() {
   const renewalDate = formatDate(data.subscription.currentPeriodEnd)
   const trialEnd = formatDate(data.subscription.trialEndsAt)
   const isAdminTrial = !isOwner && data.subscription.provider === 'admin_trial'
-  const activeAdminTrial = isAdminTrial && data.subscription.status === 'trialing' && Boolean(trialEnd)
+  const isWelcomeTrial = !isOwner && data.subscription.provider === 'welcome_trial'
+  const activeTemporaryTrial = (isAdminTrial || isWelcomeTrial) && data.subscription.status === 'trialing' && Boolean(trialEnd)
   const trialName = data.effectivePlanCode === 'premium' ? 'Premium' : 'Nexi'
   const statusNeedsAttention = !isOwner && !data.paidAccessActive
   const paymentReady = billing.data?.configured === true && billing.data?.webhookConfigured === true
@@ -97,7 +98,7 @@ export function PlanPage() {
 
     {!isOwner && returnedFromBilling && <div className="commercial-billing-return"><Sparkles size={17} /><div><strong>Estamos verificando su suscripción</strong><span>La activación se refleja automáticamente cuando Mercado Pago confirma el estado del cobro.</span></div></div>}
     {!isOwner && checkout.isError && <div className="notice">{checkout.error instanceof Error ? checkout.error.message : 'No fue posible iniciar la contratación.'}</div>}
-    {activeAdminTrial && <div className="commercial-billing-return"><Sparkles size={17} /><div><strong>Prueba gratuita de {trialName}</strong><span>Acceso temporal habilitado hasta el {trialEnd}. Al finalizar, su cuenta volverá automáticamente a las funciones del plan Freemium.</span></div></div>}
+    {activeTemporaryTrial && <div className="commercial-billing-return"><Sparkles size={17} /><div><strong>{isWelcomeTrial ? 'Premium de bienvenida' : `Prueba gratuita de ${trialName}`}</strong><span>Acceso temporal habilitado hasta el {trialEnd}. Al finalizar, su cuenta volverá automáticamente a las funciones del plan Freemium.</span></div></div>}
 
     <section className={`commercial-current-plan tone-${currentTone}`}>
       <div className="commercial-current-heading">
@@ -124,6 +125,7 @@ export function PlanPage() {
               {data.subscription.provider === 'mercadopago' && <small>Pago recurrente mediante Mercado Pago.</small>}
               {data.subscription.provider === 'admin' && <small>Plan asignado manualmente por administración.</small>}
               {data.subscription.provider === 'admin_trial' && <small>{data.subscription.status === 'trialing' ? `Prueba gratuita de ${trialName} otorgada por administración.` : 'La prueba gratuita ya finalizó.'}</small>}
+              {data.subscription.provider === 'welcome_trial' && <small>{data.subscription.status === 'trialing' ? 'Premium de bienvenida por 30 días.' : 'El período Premium de bienvenida ya finalizó.'}</small>}
             </>}
       </div>
       {!isOwner && !data.paidAccessActive && <div className="commercial-limit-notice warning">El estado de la suscripción no habilita actualmente las funciones pagadas. Mientras se regulariza, NexoMail aplica las capacidades del plan Freemium.</div>}
@@ -156,7 +158,7 @@ export function PlanPage() {
               : pendingSamePlan
                 ? <button type="button" className="secondary-button" disabled>Confirmación de pago pendiente</button>
                 : isCurrent && !regularize
-                  ? <button type="button" className="secondary-button" disabled>{activeAdminTrial ? 'Plan base Freemium' : 'Plan activo'}</button>
+                  ? <button type="button" className="secondary-button" disabled>{activeTemporaryTrial ? 'Plan base Freemium' : 'Plan activo'}</button>
                   : plan.code === 'freemium'
                     ? <button type="button" className="secondary-button" disabled>Plan gratuito</button>
                     : plan.isCorporate || plan.isWhiteLabel

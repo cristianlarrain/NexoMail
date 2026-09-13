@@ -1,0 +1,169 @@
+html,
+body,
+#root,
+.app-shell,
+.main-content {
+  max-width: 100%;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+.main-content,
+.main-content > *,
+.view-header > *,
+.settings-card,
+.account-modal,
+.modal-card {
+  min-width: 0;
+}
+
+.commercial-admin-table-wrap,
+.ai-usage-table-wrap,
+.table-scroll,
+[class$="-table-wrap"] {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 767px) {
+  .topbar {
+    width: 100%;
+    min-height: 62px;
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) 34px;
+    gap: 8px;
+    padding: 7px 10px !important;
+  }
+
+  .topbar .menu-button,
+  .topbar .avatar {
+    margin: 0;
+  }
+
+  .topbar .top-search {
+    display: flex !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+
+  .topbar .operations-clock,
+  .topbar .weather-control {
+    display: none;
+  }
+
+  .top-search-placeholder > span:first-child,
+  .top-search-submit span {
+    display: none;
+  }
+
+  .top-search {
+    padding-inline: 9px 5px;
+    gap: 5px;
+  }
+
+  .top-search-icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  .top-search-action,
+  .top-search-submit,
+  .top-search-done {
+    flex-basis: 30px;
+    width: 30px;
+    min-width: 30px;
+  }
+
+  .mail-view,
+  .settings-page,
+  .compose-page,
+  .control-center-page {
+    width: 100%;
+    max-width: 100%;
+    padding-inline: 12px !important;
+  }
+
+  .view-header,
+  .settings-card-header,
+  .commercial-admin-header,
+  .commercial-plan-title-row {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .view-header > div:last-child,
+  .message-actions,
+  .reply-bar,
+  .account-modal footer,
+  .modal-card footer {
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .account-modal,
+  .modal-card,
+  .avatar-editor,
+  .imap-connect-modal,
+  .mail-provider-modal {
+    width: calc(100vw - 20px) !important;
+    max-width: calc(100vw - 20px) !important;
+    max-height: calc(100dvh - 20px);
+    overflow: auto;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    max-width: 100%;
+  }
+
+  .universal-search-heading > div:last-child {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .universal-search-filters,
+  .universal-result-tabs,
+  .universal-saved-row {
+    width: 100%;
+    max-width: calc(100vw - 24px);
+  }
+
+  .commercial-users-table,
+  .commercial-admin-table,
+  .ai-usage-table {
+    width: max-content;
+    max-width: none;
+  }
+}
+
+@media (max-width: 390px) {
+  .topbar {
+    grid-template-columns: 34px minmax(0, 1fr) 32px;
+    gap: 5px;
+    padding-inline: 7px !important;
+  }
+
+  .top-search-icon,
+  .top-search-action.clear {
+    display: none;
+  }
+
+  .mail-view,
+  .settings-page,
+  .compose-page,
+  .control-center-page {
+    padding-inline: 10px !important;
+  }
+
+  .universal-search-heading > div:last-child {
+    grid-template-columns: 1fr;
+  }
+}

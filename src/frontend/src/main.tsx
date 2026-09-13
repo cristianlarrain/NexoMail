@@ -77,6 +77,7 @@ import './styles/collapsed-account-dots.css'
 import './styles/sidebar-tooltips.css'
 import './styles/account-providers.css'
 import './styles/sidebar-modern.css'
+import './styles/mobile-foundation.css'
 
 const client = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, retry: 1 } } })
 createRoot(document.getElementById('root')!).render(
