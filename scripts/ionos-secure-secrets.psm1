@@ -1,5 +1,24 @@
 Set-StrictMode -Version Latest
 
+function Protect-NexoMailProductionSecretsFile {
+    param([Parameter(Mandatory)] [string]$Path)
+
+    if ($env:OS -ne 'Windows_NT') {
+        return
+    }
+
+    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    $acl = Get-Acl $Path
+    $acl.SetAccessRuleProtection($true, $false)
+    $rule = [System.Security.AccessControl.FileSystemAccessRule]::new(
+        $identity,
+        [System.Security.AccessControl.FileSystemRights]::FullControl,
+        [System.Security.AccessControl.AccessControlType]::Allow
+    )
+    $acl.SetAccessRule($rule)
+    Set-Acl -Path $Path -AclObject $acl
+}
+
 function Get-NexoMailProductionSecretsPath {
     $localAppData = [Environment]::GetFolderPath('LocalApplicationData')
     if ([string]::IsNullOrWhiteSpace($localAppData)) {
@@ -31,19 +50,7 @@ function Save-NexoMailProductionSecrets {
     }
 
     $stored | Export-Clixml -Path $Path -Force
-
-    if ($env:OS -eq 'Windows_NT') {
-        $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-        $acl = Get-Acl $Path
-        $acl.SetAccessRuleProtection($true, $false)
-        $rule = [System.Security.AccessControl.FileSystemAccessRule]::new(
-            $identity,
-            [System.Security.AccessControl.FileSystemRights]::FullControl,
-            [System.Security.AccessControl.AccessControlType]::Allow
-        )
-        $acl.SetAccessRule($rule)
-        Set-Acl -Path $Path -AclObject $acl
-    }
+    Protect-NexoMailProductionSecretsFile -Path $Path
 }
 
 function Get-NexoMailProductionSecrets {
@@ -53,6 +60,8 @@ function Get-NexoMailProductionSecrets {
     if (-not (Test-Path $Path)) {
         throw "No existe el archivo cifrado: $Path"
     }
+
+    Protect-NexoMailProductionSecretsFile -Path $Path
 
     $stored = Import-Clixml -Path $Path
     if ($stored.Version -ne 1) {
