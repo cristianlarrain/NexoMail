@@ -1,0 +1,46 @@
+name: IONOS production package
+
+on:
+  push:
+    branches:
+      - feature/account-colors-nexi-mobile-premium
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Enable pnpm
+        shell: pwsh
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.25.0 --activate
+
+      - name: Build and test production package
+        shell: pwsh
+        run: .\scripts\publish-ionos.ps1
+
+      - name: Create upload archive
+        shell: pwsh
+        run: Compress-Archive -Path .\artifacts\ionos\* -DestinationPath .\artifacts\NexoMail-IONOS-production.zip -Force
+
+      - name: Upload IONOS package
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexoMail-IONOS-production
+          path: artifacts/NexoMail-IONOS-production.zip
+          if-no-files-found: error
+          retention-days: 7
