@@ -3,6 +3,7 @@ using MailKit.Net.Imap;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using NexoMail.Application;
 using NexoMail.Domain;
 using NexoMail.Infrastructure.Data;
