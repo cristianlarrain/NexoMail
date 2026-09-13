@@ -33,14 +33,10 @@ jobs:
         shell: pwsh
         run: .\scripts\publish-ionos.ps1
 
-      - name: Create upload archive
-        shell: pwsh
-        run: Compress-Archive -Path .\artifacts\ionos\* -DestinationPath .\artifacts\NexoMail-IONOS-production.zip -Force
-
       - name: Upload IONOS package
         uses: actions/upload-artifact@v4
         with:
           name: NexoMail-IONOS-production
-          path: artifacts/NexoMail-IONOS-production.zip
+          path: artifacts/ionos/
           if-no-files-found: error
           retention-days: 7
