@@ -1,43 +1,62 @@
 [CmdletBinding()]
-param()
+param([switch]$SaveSecrets)
 
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $artifactsPath = Join-Path $repositoryRoot 'artifacts'
 $publishPath = Join-Path $artifactsPath 'ionos'
 $webConfigPath = Join-Path $publishPath 'web.config'
+$secretsModulePath = Join-Path $PSScriptRoot 'ionos-secure-secrets.psm1'
+
+Import-Module $secretsModulePath -Force
+$secretsPath = Get-NexoMailProductionSecretsPath
 
 if (-not (Test-Path $webConfigPath)) {
     throw 'No existe artifacts\ionos\web.config. Ejecute primero scripts\publish-ionos.ps1.'
 }
 
-Write-Host ''
-Write-Host 'CUENTAS DE PRODUCCION' -ForegroundColor Cyan
-$smtpAddress = Read-Host '1. Cuenta IONOS que enviara codigos (ejemplo: contacto@eidosdigital.cl)'
-if ([string]::IsNullOrWhiteSpace($smtpAddress)) {
-    throw 'La cuenta IONOS remitente no puede estar vacia.'
+if ($SaveSecrets) {
+    Write-Host ''
+    Write-Host 'GUARDAR CREDENCIALES CIFRADAS DE PRODUCCION' -ForegroundColor Cyan
+    $smtpAddress = Read-Host '1. Cuenta IONOS que enviara codigos (ejemplo: contacto@eidosdigital.cl)'
+    $ownerEmail = Read-Host '2. Cuenta de usuario NexoMail con acceso total (NO ingrese la cuenta remitente)'
+    $securePassword = Read-Host '3. Contrasena MSSQL del usuario dbo1111108584' -AsSecureString
+    $secureSmtpPassword = Read-Host "4. Contrasena del correo IONOS $smtpAddress" -AsSecureString
+    $googleClientId = Read-Host '5. Google OAuth Client ID'
+    $secureGoogleClientSecret = Read-Host '6. Google OAuth Client Secret' -AsSecureString
+    $secureOpenAiApiKey = Read-Host '7. OpenAI API Key' -AsSecureString
+
+    if ([string]::IsNullOrWhiteSpace($smtpAddress)) { throw 'La cuenta IONOS remitente no puede estar vacia.' }
+    if ([string]::IsNullOrWhiteSpace($ownerEmail)) { throw 'La cuenta propietaria de NexoMail no puede estar vacia.' }
+    if ([string]::IsNullOrWhiteSpace($googleClientId)) { throw 'El Google OAuth Client ID no puede estar vacio.' }
+
+    $productionSecrets = [pscustomobject]@{
+        SmtpAddress        = $smtpAddress.Trim().ToLowerInvariant()
+        OwnerEmail         = $ownerEmail.Trim().ToLowerInvariant()
+        MssqlPassword      = $securePassword
+        SmtpPassword       = $secureSmtpPassword
+        GoogleClientId     = $googleClientId.Trim()
+        GoogleClientSecret = $secureGoogleClientSecret
+        OpenAiApiKey       = $secureOpenAiApiKey
+    }
+    Save-NexoMailProductionSecrets -Path $secretsPath -Secrets $productionSecrets
+    Write-Host "Credenciales cifradas guardadas en: $secretsPath" -ForegroundColor Green
 }
-$ownerEmail = Read-Host '2. Cuenta de usuario NexoMail con acceso total (NO ingrese la cuenta remitente)'
-if ([string]::IsNullOrWhiteSpace($ownerEmail)) {
-    throw 'La cuenta propietaria de NexoMail no puede estar vacia.'
+elseif (-not (Test-Path $secretsPath)) {
+    throw "No existen credenciales cifradas. Ejecute primero: .\scripts\configure-ionos-package.ps1 -SaveSecrets"
 }
 
-Write-Host ''
-Write-Host 'CONTRASENAS DE PRODUCCION' -ForegroundColor Cyan
-$securePassword = Read-Host '3. Contrasena MSSQL del usuario dbo1111108584' -AsSecureString
-$secureSmtpPassword = Read-Host "4. Contrasena del correo IONOS $smtpAddress" -AsSecureString
+$productionSecrets = Get-NexoMailProductionSecrets -Path $secretsPath
+$smtpAddress = $productionSecrets.SmtpAddress
+$ownerEmail = $productionSecrets.OwnerEmail
+$securePassword = $productionSecrets.MssqlPassword
+$secureSmtpPassword = $productionSecrets.SmtpPassword
+$googleClientId = $productionSecrets.GoogleClientId
+$secureGoogleClientSecret = $productionSecrets.GoogleClientSecret
+$secureOpenAiApiKey = $productionSecrets.OpenAiApiKey
 
 Write-Host ''
-Write-Host 'GOOGLE OAUTH DE PRODUCCION' -ForegroundColor Cyan
-$googleClientId = Read-Host '5. Google OAuth Client ID'
-if ([string]::IsNullOrWhiteSpace($googleClientId)) {
-    throw 'El Google OAuth Client ID no puede estar vacio.'
-}
-$secureGoogleClientSecret = Read-Host '6. Google OAuth Client Secret' -AsSecureString
-
-Write-Host ''
-Write-Host 'OPENAI DE PRODUCCION' -ForegroundColor Cyan
-$secureOpenAiApiKey = Read-Host '7. OpenAI API Key' -AsSecureString
+Write-Host "Usando credenciales cifradas de: $secretsPath" -ForegroundColor Cyan
 
 $passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
 $smtpPasswordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureSmtpPassword)
