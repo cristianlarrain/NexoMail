@@ -353,6 +353,16 @@ mail.MapGet("/contacts", async (Guid accountId, string? search, GoogleContactsSe
     catch (InvalidOperationException exception) { return Results.BadRequest(new { error = exception.Message }); }
     catch (HttpRequestException) { return Results.Problem("No se pudo consultar Contactos de Google. Verifica que People API esté habilitada e inténtalo nuevamente.", statusCode: 502); }
 });
+mail.MapPost("/accounts/{accountId:guid}", async (IMailGateway gateway, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid accountId, MailAccountSettings request, CancellationToken ct) =>
+{
+    var displayName = request.DisplayName.Trim();
+    var color = request.Color.Trim();
+    if (displayName.Length is < 1 or > 80) return Results.BadRequest(new { error = "El nombre debe tener entre 1 y 80 caracteres." });
+    if (color.Length != 7 || color[0] != '#' || !color[1..].All(char.IsAsciiHexDigit)) return Results.BadRequest(new { error = "El color debe tener formato hexadecimal, por ejemplo #c6524b." });
+    var account = await gateway.UpdateAccountAsync(accountId, new MailAccountSettings(displayName, color.ToLowerInvariant()), ct);
+    if (account is not null) cache.Invalidate(userContext.UserId.ToString());
+    return account is not null ? Results.Ok(account) : Results.NotFound();
+});
 mail.MapPatch("/accounts/{accountId:guid}", async (IMailGateway gateway, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid accountId, MailAccountSettings request, CancellationToken ct) =>
 {
     var displayName = request.DisplayName.Trim();
