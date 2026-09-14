@@ -4,5 +4,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../NexoMail.Application/NexoMail.Application.csproj" />
+    <ProjectReference Include="../NexoMail.Infrastructure/NexoMail.Infrastructure.csproj" />
   </ItemGroup>
 </Project>
