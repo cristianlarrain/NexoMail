@@ -48,6 +48,18 @@ function managementCopy(view: Exclude<ManagementView, null>) {
   return { title: 'Pendientes de más de 48 horas', description: 'Reúne pendientes recibidos y enviados cuya última actividad ocurrió hace 48 horas o más.' }
 }
 
+function availabilityWarning(data: ControlCenterSnapshot) {
+  const authErrors = data.accounts.filter(account => account.availabilityStatus === 'auth_error').length
+  const stale = data.accounts.filter(account => account.availabilityStatus === 'stale').length
+  const syncErrors = data.accounts.filter(account => account.availabilityStatus === 'sync_error').length
+  const parts: string[] = []
+  if (authErrors > 0) parts.push(`${authErrors} cuenta${authErrors === 1 ? '' : 's'} ${authErrors === 1 ? 'requiere' : 'requieren'} reconexión.`)
+  if (stale > 0) parts.push(`${stale} cuenta${stale === 1 ? '' : 's'} ${stale === 1 ? 'tiene' : 'tienen'} el índice desactualizado.`)
+  if (syncErrors > 0) parts.push(`${syncErrors} cuenta${syncErrors === 1 ? '' : 's'} ${syncErrors === 1 ? 'tuvo' : 'tuvieron'} un error de sincronización.`)
+  if (parts.length === 0) parts.push(`${data.unavailableAccounts} cuenta${data.unavailableAccounts === 1 ? '' : 's'} no ${data.unavailableAccounts === 1 ? 'está' : 'están'} disponible${data.unavailableAccounts === 1 ? '' : 's'}.`)
+  return `${parts.join(' ')} Los indicadores consideran solo las cuentas con índice vigente.`
+}
+
 export function ControlCenter({ accountId, onUpdatedAtChange }: { accountId?: string; accountName?: string; onUpdatedAtChange?: (value: string) => void }) {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
@@ -245,7 +257,7 @@ export function ControlCenter({ accountId, onUpdatedAtChange }: { accountId?: st
   }
 
   return <section className="control-center control-center-cinematic" aria-label="Prioridades">
-    {data.unavailableAccounts > 0 && <div className="notice control-center-warning">No se pudo consultar {data.unavailableAccounts} cuenta{data.unavailableAccounts === 1 ? '' : 's'}. Los indicadores consideran las cuentas disponibles.</div>}
+    {data.unavailableAccounts > 0 && <div className="notice control-center-warning">{availabilityWarning(data)}</div>}
 
     <div className="control-metrics nexi-control-metrics compact">
       <MetricCard tone="urgent" icon={<AlertTriangle size={18} />} value={priorityItems.filter(value => classifyByRules(value).category === 'urgent' && !suppressedUrgency.has(messageKey(value.item))).length} label="Urgentes" active={params.get('priority') === 'urgent'} onClick={openUrgent} />
