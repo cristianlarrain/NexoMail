@@ -35,15 +35,15 @@ internal static class ShadowComparatorBehaviorRegression
 
         IReadOnlyList<CommunicationIntelligenceSnapshot> intelligence =
         [
-            Snapshot(accountA, "intel-received", "conv-received", now.AddHours(-1),
+            Snapshot(accountA, "intel-received", CompositeConversationId(accountA, "conv-received"), now.AddHours(-1),
                 ConversationWorkState.PendingUser, CommunicationActionType.Reply, 80),
-            Snapshot(accountA, "intel-sent", "conv-sent", now.AddHours(-2),
+            Snapshot(accountA, "intel-sent", CompositeConversationId(accountA, "conv-sent"), now.AddHours(-2),
                 ConversationWorkState.WaitingExternal, CommunicationActionType.WaitForExternal, 70),
-            Snapshot(accountA, "intel-mismatch", "conv-mismatch", now.AddHours(-4),
+            Snapshot(accountA, "intel-mismatch", CompositeConversationId(accountA, "conv-mismatch"), now.AddHours(-4),
                 ConversationWorkState.WaitingExternal, CommunicationActionType.WaitForExternal, 60),
-            Snapshot(accountA, "intel-only", "conv-intelligence-only", now.AddMinutes(-30),
+            Snapshot(accountA, "intel-only", CompositeConversationId(accountA, "conv-intelligence-only"), now.AddMinutes(-30),
                 ConversationWorkState.PendingUser, CommunicationActionType.Reply, 90),
-            Snapshot(accountB, "intel-other", "conv-other", now.AddHours(-1),
+            Snapshot(accountB, "intel-other", CompositeConversationId(accountB, "conv-other"), now.AddHours(-1),
                 ConversationWorkState.PendingUser, CommunicationActionType.Reply, 50)
         ];
 
@@ -54,7 +54,7 @@ internal static class ShadowComparatorBehaviorRegression
         Ensure(result.IntelligencePendingCount == 4,
             "La comparación debe contar solo los pendientes Intelligence de la cuenta solicitada.");
         Ensure(result.AgreementPendingCount == 3,
-            "Tres conversaciones deben coincidir en que existe trabajo pendiente.");
+            "Tres conversaciones deben coincidir en que existe trabajo pendiente aunque Intelligence use identidad compuesta cuenta:hilo.");
         Ensure(result.LegacyOnlyCount == 1,
             "Debe detectar una conversación pendiente solo para el motor legacy.");
         Ensure(result.IntelligenceOnlyCount == 1,
@@ -62,7 +62,7 @@ internal static class ShadowComparatorBehaviorRegression
         Ensure(result.DirectionMismatchCount == 1,
             "Debe detectar cuando ambos motores ven pendiente pero discrepan sobre quién debe actuar.");
         Ensure(result.Items.Count == 5,
-            "El detalle debe contener la unión de conversaciones pendientes de ambos motores.");
+            "El detalle debe contener la unión de conversaciones pendientes de ambos motores sin duplicar por identidad compuesta.");
         Ensure(result.Items.Count(item => item.Category == IntelligenceShadowComparisonCategory.Agreement) == 2,
             "Dos conversaciones deben coincidir también en la dirección de la acción.");
         Ensure(result.Items.Count(item => item.Category == IntelligenceShadowComparisonCategory.DirectionMismatch) == 1,
@@ -76,6 +76,9 @@ internal static class ShadowComparatorBehaviorRegression
         Ensure(result.EngineVersion == "nexo-intelligence/test",
             "El diagnóstico debe conservar la versión del motor Intelligence evaluado.");
     }
+
+    private static string CompositeConversationId(Guid accountId, string conversationId) =>
+        $"{accountId:N}:{conversationId}";
 
     private static ControlCenterPendingItem Pending(
         Guid accountId,
