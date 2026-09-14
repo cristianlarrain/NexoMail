@@ -24,6 +24,26 @@ public sealed record IntelligenceShadowComparisonItem(
     IntelligenceShadowComparisonCategory Category,
     IReadOnlyList<string> ReasonCodes);
 
+public sealed record IntelligenceOnlyReceivedDiagnostics(
+    int Count,
+    int UnreadCount,
+    int ReadCount,
+    int DirectRecipientCount,
+    int AutomatedCount,
+    int BulkCount,
+    int ListUnsubscribeCount,
+    int ReplyDiscouragedSenderCount,
+    int PromotionsCategoryCount,
+    int SocialCategoryCount,
+    int ForumsCategoryCount,
+    int UpdatesCategoryCount,
+    int AutoSubmittedCount,
+    int BulkPrecedenceCount,
+    int ListPrecedenceCount,
+    int JunkPrecedenceCount,
+    int SingleMessageThreadCount,
+    int MultiMessageThreadCount);
+
 public sealed record IntelligenceShadowComparisonResult(
     int LegacyPendingCount,
     int IntelligencePendingCount,
@@ -33,7 +53,8 @@ public sealed record IntelligenceShadowComparisonResult(
     int DirectionMismatchCount,
     IReadOnlyList<IntelligenceShadowComparisonItem> Items,
     DateTimeOffset GeneratedAt,
-    string EngineVersion);
+    string EngineVersion,
+    IntelligenceOnlyReceivedDiagnostics? IntelligenceOnlyReceivedDiagnostics = null);
 
 public interface IIntelligenceShadowComparisonService
 {
