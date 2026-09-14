@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using NexoMail.Infrastructure.Intelligence;
 
@@ -14,6 +15,10 @@ internal static class ShadowComparatorContractRegression
 
         Ensure(comparator is not null,
             "Debe existir un comparador shadow puro, separado del acceso a Gmail y base de datos.");
+
+        var method = comparator!.GetMethod("Compare", BindingFlags.Public | BindingFlags.Instance);
+        Ensure(method is not null,
+            "El comparador shadow puro debe exponer Compare sobre snapshots ya calculados.");
     }
 
     private static void Ensure(bool condition, string message)
