@@ -18,15 +18,23 @@ public sealed class IntelligenceShadowComparisonService(
     {
         // These reads are intentionally sequential because both services can share
         // the same scoped EF DbContext in an API request.
-        var legacy = await legacyService.GetSnapshotAsync(accountId, cancellationToken);
+        // The diagnostic legacy snapshot evaluates the cached local Gmail index even
+        // when its freshness status is stale/error, without changing /control-center.
+        var legacy = await legacyService.GetDiagnosticSnapshotAsync(accountId, cancellationToken);
         var intelligence = await intelligenceReader.AnalyzeAsync(evaluatedAt, cancellationToken);
+
+        var legacyAccountIds = legacy.Accounts
+            .Select(account => account.AccountId)
+            .ToHashSet();
 
         // This cutoff exists only to compare both engines on the same operational
         // window used by the current Control Center. It is not a Core Intelligence rule.
+        // Filtering by legacyAccountIds keeps the comparison on the exact Gmail account
+        // universe represented by the diagnostic legacy snapshot.
         var cutoff = evaluatedAt.AddDays(-ComparisonLookbackDays);
         var comparableIntelligence = intelligence
             .Where(item => item.LatestActivityAt >= cutoff)
-            .Where(item => !accountId.HasValue || item.AccountId == accountId.Value)
+            .Where(item => legacyAccountIds.Contains(item.AccountId))
             .ToArray();
 
         return comparator.Compare(
