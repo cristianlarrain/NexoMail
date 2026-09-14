@@ -9,6 +9,7 @@ using NexoMail.Domain;
 using NexoMail.Infrastructure;
 using NexoMail.Infrastructure.Data;
 using NexoMail.Infrastructure.Google;
+using NexoMail.Infrastructure.Intelligence;
 using Serilog;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -155,6 +156,7 @@ builder.Services.AddScoped<IMailRuleProvider>(services => services.GetRequiredSe
 builder.Services.AddScoped<GmailControlCenterService>();
 builder.Services.AddScoped<GmailControlCenterActivityService>();
 MailProviderBetaModule.AddServices(builder.Services, builder.Configuration);
+builder.Services.AddNexoMailIntelligence();
 
 var demoMode = builder.Configuration.GetValue("MailProviders:DemoMode", true);
 if (demoMode)
