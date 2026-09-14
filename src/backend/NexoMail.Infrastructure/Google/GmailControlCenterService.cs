@@ -38,11 +38,14 @@ public sealed class GmailControlCenterService(
                 .ToArrayAsync(cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
-        var freshAccounts = indexStates
-            .Where(x => now - x.LastIndexedAt <= IndexFreshness)
-            .Select(x => x.AccountId)
-            .ToHashSet();
-        var operationalAccountIds = accountIds.Where(freshAccounts.Contains).ToArray();
+        var indexStateLookup = indexStates.ToDictionary(x => x.AccountId);
+        var availabilityByAccount = accounts.ToDictionary(
+            x => x.Id,
+            x => AvailabilityStatus(indexStateLookup.GetValueOrDefault(x.Id), now));
+        var operationalAccountIds = availabilityByAccount
+            .Where(x => string.Equals(x.Value, ControlCenterAvailabilityStatus.Available, StringComparison.Ordinal))
+            .Select(x => x.Key)
+            .ToArray();
 
         var unreadAccountIds = operationalAccountIds.Length == 0
             ? []
@@ -125,14 +128,20 @@ public sealed class GmailControlCenterService(
 
         var priorityItems = orderedPending.Take(6).Select(ToPendingItem).ToArray();
         var pendingItems = orderedPending.Select(ToPendingItem).ToArray();
-        var accountSummaries = accounts.Select(account => new ControlCenterAccountSummary(
-            account.Id,
-            account.DisplayName,
-            account.Color,
-            orderedPending.Count(item => item.AccountId == account.Id && item.Direction == "received"),
-            orderedPending.Count(item => item.AccountId == account.Id && item.Direction == "sent"),
-            unreadAccountIds.Count(id => id == account.Id),
-            freshAccounts.Contains(account.Id))).ToArray();
+        var accountSummaries = accounts.Select(account =>
+        {
+            var availability = availabilityByAccount[account.Id];
+            var isAvailable = string.Equals(availability, ControlCenterAvailabilityStatus.Available, StringComparison.Ordinal);
+            return new ControlCenterAccountSummary(
+                account.Id,
+                account.DisplayName,
+                account.Color,
+                orderedPending.Count(item => item.AccountId == account.Id && item.Direction == "received"),
+                orderedPending.Count(item => item.AccountId == account.Id && item.Direction == "sent"),
+                unreadAccountIds.Count(id => id == account.Id),
+                isAvailable,
+                availability);
+        }).ToArray();
 
         return new ControlCenterSnapshot(
             orderedPending.Count(x => x.Direction == "received"),
@@ -143,7 +152,7 @@ public sealed class GmailControlCenterService(
             priorityItems,
             pendingItems,
             accountSummaries,
-            accounts.Count(x => !freshAccounts.Contains(x.Id)),
+            accountSummaries.Count(x => !x.IsAvailable),
             now);
     }
 
@@ -200,6 +209,18 @@ public sealed class GmailControlCenterService(
 
         await database.SaveChangesAsync(cancellationToken);
         return true;
+    }
+
+    private static string AvailabilityStatus(MailIndexStateEntity? state, DateTimeOffset now)
+    {
+        if (state is null) return ControlCenterAvailabilityStatus.Stale;
+        if (string.Equals(state.LastSyncErrorCode, ControlCenterAvailabilityStatus.AuthError, StringComparison.OrdinalIgnoreCase))
+            return ControlCenterAvailabilityStatus.AuthError;
+        if (string.Equals(state.LastSyncErrorCode, ControlCenterAvailabilityStatus.SyncError, StringComparison.OrdinalIgnoreCase))
+            return ControlCenterAvailabilityStatus.SyncError;
+        return now - state.LastIndexedAt <= IndexFreshness
+            ? ControlCenterAvailabilityStatus.Available
+            : ControlCenterAvailabilityStatus.Stale;
     }
 
     private static bool IsSuppressed(PendingRaw item, IReadOnlyDictionary<(Guid AccountId, string ConversationId), ControlCenterStateEntity> states, DateTimeOffset now)
