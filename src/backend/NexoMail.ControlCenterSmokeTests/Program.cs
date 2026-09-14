@@ -173,7 +173,35 @@ database.ChangeTracker.Clear();
 var leaseState = await database.MailIndexStates.AsNoTracking().SingleAsync(x => x.AccountId == accountId, cancellationToken);
 Ensure(leaseState.SyncLeaseOwner is null && leaseState.SyncLeaseUntil is null, "La lease de sincronización no se liberó al finalizar.");
 
-Console.WriteLine("PASS: índice -> clasificación -> métricas -> actividad -> resolver -> posponer -> seguimiento -> urgencia -> contactos -> documentos -> lease sync");
+var brokenAccountId = Guid.Parse("0a0b0c0d-1111-2222-3333-444455556666");
+database.MailAccounts.Add(new MailAccountEntity
+{
+    Id = brokenAccountId,
+    UserId = userId,
+    Provider = MailProviderType.Gmail,
+    EmailAddress = "broken@nexomail.test",
+    DisplayName = "A OAuth roto",
+    Color = "#999999",
+    IsActive = true,
+    CreatedAt = now,
+});
+database.OAuthCredentials.Add(new OAuthCredentialEntity
+{
+    Id = Guid.NewGuid(),
+    MailAccountId = brokenAccountId,
+    EncryptedRefreshToken = "broken-refresh-token",
+    UpdatedAt = now,
+});
+await database.SaveChangesAsync(cancellationToken);
+
+var isolationFactory = new FaultIsolationSyncHttpClientFactory();
+var isolatedSync = new GmailMetadataIndexService(isolationFactory, database, new PassthroughTokenProtector(), Options.Create(new GmailOptions { ClientId = "test", ClientSecret = "test" }), userContext);
+var isolatedResult = await isolatedSync.SyncForUserAsync(userId, 90, 25, cancellationToken);
+Ensure(isolatedResult.Accounts == 2, "Una cuenta OAuth inválida no debe abortar la sincronización de las demás cuentas Gmail.");
+Ensure(isolationFactory.RefreshTokensSeen.Contains("broken-refresh-token"), "La prueba no ejercitó la cuenta OAuth inválida.");
+Ensure(isolationFactory.RefreshTokensSeen.Contains("refresh-token"), "La cuenta Gmail válida no se sincronizó después del fallo de otra cuenta.");
+
+Console.WriteLine("PASS: índice -> clasificación -> métricas -> actividad -> resolver -> posponer -> seguimiento -> urgencia -> contactos -> documentos -> lease sync -> aislamiento por cuenta");
 
 sealed class TestUserContext(Guid userId, string email, string displayName) : IUserContext
 {
@@ -220,6 +248,49 @@ sealed class SyncHttpHandler : HttpMessageHandler
             return Task.FromResult(Json(HttpStatusCode.NotFound, "{}"));
 
         return Task.FromResult(Json(HttpStatusCode.NotFound, "{}"));
+    }
+
+    private static HttpResponseMessage Json(HttpStatusCode status, string content) => new(status)
+    {
+        Content = new StringContent(content, Encoding.UTF8, "application/json")
+    };
+}
+
+sealed class FaultIsolationSyncHttpClientFactory : IHttpClientFactory
+{
+    public List<string> RefreshTokensSeen { get; } = [];
+
+    public HttpClient CreateClient(string name)
+    {
+        var client = new HttpClient(new FaultIsolationSyncHttpHandler(RefreshTokensSeen));
+        if (string.Equals(name, "Gmail", StringComparison.Ordinal))
+            client.BaseAddress = new Uri("https://gmail.googleapis.com/gmail/v1/");
+        return client;
+    }
+}
+
+sealed class FaultIsolationSyncHttpHandler(List<string> refreshTokensSeen) : HttpMessageHandler
+{
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var uri = request.RequestUri?.AbsoluteUri ?? string.Empty;
+        if (uri.Contains("oauth2.googleapis.com/token", StringComparison.OrdinalIgnoreCase))
+        {
+            var form = request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken);
+            var token = form.Contains("broken-refresh-token", StringComparison.Ordinal) ? "broken-refresh-token" : "refresh-token";
+            refreshTokensSeen.Add(token);
+            return token == "broken-refresh-token"
+                ? Json(HttpStatusCode.BadRequest, "{\"error\":\"invalid_grant\"}")
+                : Json(HttpStatusCode.OK, "{\"access_token\":\"test-access-token\",\"expires_in\":3600}");
+        }
+
+        if (uri.Contains("/users/me/messages?", StringComparison.OrdinalIgnoreCase))
+            return Json(HttpStatusCode.OK, "{\"messages\":[]}");
+
+        if (uri.Contains("/users/me/messages/", StringComparison.OrdinalIgnoreCase))
+            return Json(HttpStatusCode.NotFound, "{}");
+
+        return Json(HttpStatusCode.NotFound, "{}");
     }
 
     private static HttpResponseMessage Json(HttpStatusCode status, string content) => new(status)
