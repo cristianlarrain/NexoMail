@@ -16,21 +16,23 @@ public sealed class IntelligenceShadowComparator
 
         var legacyPending = legacy.PendingItems
             .Where(item => !accountId.HasValue || item.AccountId == accountId.Value)
-            .GroupBy(item => (item.AccountId, item.ConversationId))
+            .GroupBy(item => (item.AccountId, ConversationId: NormalizeConversationId(item.AccountId, item.ConversationId)))
             .Select(group => group
                 .OrderByDescending(item => item.Since)
                 .ThenByDescending(item => item.MessageId, StringComparer.Ordinal)
                 .First())
-            .ToDictionary(item => (item.AccountId, item.ConversationId));
+            .ToDictionary(
+                item => (item.AccountId, ConversationId: NormalizeConversationId(item.AccountId, item.ConversationId)));
 
         var intelligenceByConversation = intelligence
             .Where(item => !accountId.HasValue || item.AccountId == accountId.Value)
-            .GroupBy(item => (item.AccountId, item.ConversationId))
+            .GroupBy(item => (item.AccountId, ConversationId: NormalizeConversationId(item.AccountId, item.ConversationId)))
             .Select(group => group
                 .OrderByDescending(item => item.LatestActivityAt)
                 .ThenByDescending(item => item.LatestMessageId, StringComparer.Ordinal)
                 .First())
-            .ToDictionary(item => (item.AccountId, item.ConversationId));
+            .ToDictionary(
+                item => (item.AccountId, ConversationId: NormalizeConversationId(item.AccountId, item.ConversationId)));
 
         var intelligencePending = intelligenceByConversation
             .Where(pair => IsPending(pair.Value.Intelligence))
@@ -140,6 +142,16 @@ public sealed class IntelligenceShadowComparator
             Items: orderedItems,
             GeneratedAt: generatedAt,
             EngineVersion: engineVersion);
+    }
+
+    private static string NormalizeConversationId(Guid accountId, string conversationId)
+    {
+        var value = conversationId?.Trim() ?? string.Empty;
+        var compositePrefix = $"{accountId:N}:";
+
+        return value.StartsWith(compositePrefix, StringComparison.OrdinalIgnoreCase)
+            ? value[compositePrefix.Length..]
+            : value;
     }
 
     private static bool IsPending(CommunicationIntelligenceResult intelligence) =>
