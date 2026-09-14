@@ -14,7 +14,9 @@ public static class IntelligenceServiceCollectionExtensions
         services.AddSingleton<IPriorityScorer, DeterministicPriorityScorer>();
         services.AddSingleton<ICommunicationIntelligenceService, CommunicationIntelligenceService>();
         services.AddSingleton<MailMessageIndexConversationAdapter>();
+        services.AddSingleton<IntelligenceShadowComparator>();
         services.AddScoped<ICommunicationIntelligenceReader, LocalIndexCommunicationIntelligenceReader>();
+        services.AddScoped<IIntelligenceShadowComparisonService, IntelligenceShadowComparisonService>();
 
         return services;
     }
