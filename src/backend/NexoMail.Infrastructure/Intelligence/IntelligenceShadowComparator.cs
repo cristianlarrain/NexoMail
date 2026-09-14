@@ -38,6 +38,10 @@ public sealed class IntelligenceShadowComparator
             .Where(pair => IsPending(pair.Value.Intelligence))
             .ToDictionary(pair => pair.Key, pair => pair.Value);
 
+        var semanticReviewCandidates = intelligenceByConversation.Values
+            .Where(item => item.Intelligence.Actionability.RequiresSemanticReview)
+            .ToArray();
+
         var intelligenceOnlyReceived = intelligencePending
             .Where(pair => !legacyPending.ContainsKey(pair.Key) && IsReceivedPending(pair.Value.Intelligence))
             .Select(pair => pair.Value)
@@ -147,7 +151,9 @@ public sealed class IntelligenceShadowComparator
             Items: orderedItems,
             GeneratedAt: generatedAt,
             EngineVersion: engineVersion,
-            IntelligenceOnlyReceivedDiagnostics: BuildReceivedDiagnostics(intelligenceOnlyReceived));
+            IntelligenceOnlyReceivedDiagnostics: BuildReceivedDiagnostics(intelligenceOnlyReceived),
+            SemanticReviewCandidateCount: semanticReviewCandidates.Length,
+            SemanticReviewCandidateDiagnostics: BuildReceivedDiagnostics(semanticReviewCandidates));
     }
 
     private static IntelligenceOnlyReceivedDiagnostics BuildReceivedDiagnostics(
