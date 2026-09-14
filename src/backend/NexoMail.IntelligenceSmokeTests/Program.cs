@@ -12,11 +12,8 @@ Ensure(applicationAssembly.GetType("NexoMail.Application.Intelligence.IPriorityS
 Ensure(applicationAssembly.GetType("NexoMail.Application.Intelligence.ICommunicationIntelligenceService") is not null,
     "ICommunicationIntelligenceService debe existir como contrato público independiente del proveedor.");
 
-var infrastructureAssembly = typeof(NexoMail.Infrastructure.Data.NexoMailDbContext).Assembly;
-Ensure(infrastructureAssembly.GetType("NexoMail.Infrastructure.Intelligence.DeterministicConversationStateResolver") is not null,
-    "DeterministicConversationStateResolver debe existir como máquina de estados independiente del proveedor.");
-
 var analyzer = new DeterministicActionabilityAnalyzer();
+var resolver = new DeterministicConversationStateResolver();
 var now = new DateTimeOffset(2026, 9, 14, 3, 0, 0, TimeSpan.Zero);
 var ownAddresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
 {
@@ -24,7 +21,7 @@ var ownAddresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     "user.alt@example.test"
 };
 
-var directUnread = analyzer.Analyze(Conversation(
+var directConversation = Conversation(
     now,
     ownAddresses,
     Message(
@@ -34,7 +31,8 @@ var directUnread = analyzer.Analyze(Conversation(
         from: "person@external.test",
         to: ["user@example.test"],
         isRead: false,
-        isDirectRecipient: true)));
+        isDirectRecipient: true));
+var directUnread = analyzer.Analyze(directConversation);
 Ensure(directUnread.IsActionable && directUnread.ActionType == CommunicationActionType.Reply,
     "Un recibido directo y no leído debe ser accionable sin conocer remitente o dominio.");
 Ensure(directUnread.ReasonCodes.Contains(IntelligenceReasonCodes.DirectRecipient)
@@ -71,7 +69,7 @@ var ownOnly = analyzer.Analyze(Conversation(
 Ensure(!ownOnly.IsActionable && ownOnly.ReasonCodes.Contains(IntelligenceReasonCodes.OwnAccountOnly),
     "Un envío exclusivamente a cuentas propias no debe esperar respuesta.");
 
-var external = analyzer.Analyze(Conversation(
+var externalConversation = Conversation(
     now,
     ownAddresses,
     Message(
@@ -80,13 +78,72 @@ var external = analyzer.Analyze(Conversation(
         CommunicationDirection.Sent,
         from: "user@example.test",
         to: ["colleague@external.test"],
-        isRead: true)));
+        isRead: true));
+var external = analyzer.Analyze(externalConversation);
 Ensure(external.IsActionable && external.ActionType == CommunicationActionType.WaitForExternal,
     "Un envío a un tercero sin respuesta debe quedar esperando al externo.");
 Ensure(external.ReasonCodes.Contains(IntelligenceReasonCodes.WaitingExternal),
     "La espera de respuesta externa debe ser explicable.");
 
-Console.WriteLine("Nexo Intelligence actionability smoke tests passed.");
+var pendingState = resolver.Resolve(directConversation, directUnread);
+Ensure(pendingState.State == ConversationWorkState.PendingUser
+       && pendingState.ReasonCodes.Contains(IntelligenceReasonCodes.PendingUser),
+    "El último recibido accionable debe quedar PendingUser.");
+
+var waitingState = resolver.Resolve(externalConversation, external);
+Ensure(waitingState.State == ConversationWorkState.WaitingExternal
+       && waitingState.ReasonCodes.Contains(IntelligenceReasonCodes.WaitingExternal),
+    "El último enviado externo debe quedar WaitingExternal.");
+
+var repliedConversation = Conversation(
+    now,
+    ownAddresses,
+    Message(
+        "sent-before-reply",
+        now.AddHours(-2),
+        CommunicationDirection.Sent,
+        from: "user@example.test",
+        to: ["colleague@external.test"],
+        isRead: true),
+    Message(
+        "received-reply",
+        now.AddMinutes(-30),
+        CommunicationDirection.Received,
+        from: "colleague@external.test",
+        to: ["user@example.test"],
+        isRead: false,
+        isDirectRecipient: true));
+var repliedActionability = analyzer.Analyze(repliedConversation);
+var repliedState = resolver.Resolve(repliedConversation, repliedActionability);
+Ensure(repliedState.State == ConversationWorkState.PendingUser,
+    "Una respuesta externa posterior debe devolver el trabajo al usuario cuando sea accionable.");
+
+var resolvedState = resolver.Resolve(
+    directConversation,
+    directUnread,
+    new ConversationStateEvidence(IsResolved: true));
+Ensure(resolvedState.State == ConversationWorkState.Resolved
+       && resolvedState.ReasonCodes.Contains(IntelligenceReasonCodes.Resolved),
+    "La evidencia explícita de resolución debe cerrar el trabajo.");
+
+var cancelledState = resolver.Resolve(
+    directConversation,
+    directUnread,
+    new ConversationStateEvidence(IsResolved: true, IsCancelled: true));
+Ensure(cancelledState.State == ConversationWorkState.Cancelled
+       && cancelledState.ReasonCodes.Contains(IntelligenceReasonCodes.Cancelled),
+    "Cancelled debe prevalecer sobre Resolved cuando ambas evidencias existen.");
+
+var overdueState = resolver.Resolve(
+    directConversation,
+    directUnread,
+    new ConversationStateEvidence(Deadline: now.AddMinutes(-1)));
+Ensure(overdueState.State == ConversationWorkState.Overdue
+       && overdueState.ReasonCodes.Contains(IntelligenceReasonCodes.Overdue)
+       && overdueState.ReasonCodes.Contains(IntelligenceReasonCodes.DeadlineSignal),
+    "Un trabajo accionable con plazo vencido debe quedar Overdue por evidencia temporal explícita.");
+
+Console.WriteLine("Nexo Intelligence actionability and conversation-state smoke tests passed.");
 
 static CommunicationConversation Conversation(
     DateTimeOffset evaluatedAt,
