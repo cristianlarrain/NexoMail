@@ -153,9 +153,7 @@ internal static class ControlCenterClassificationQualityRegressionTests
             if (uri.Contains("/users/me/messages/m1", StringComparison.OrdinalIgnoreCase))
             {
                 var timestamp = now.AddMinutes(-10).ToUnixTimeMilliseconds();
-                var payload = $$"""
-                {"id":"m1","threadId":"t1","labelIds":["INBOX"],"internalDate":"{{timestamp}}","snippet":"Prueba","payload":{"headers":[{"name":"From","value":"Persona <persona@example.com>"},{"name":"To","value":"encoding@nexomail.test"},{"name":"Subject","value":"Re: ResoluciÃƒÂ³n"}],"filename":"","mimeType":"text/plain","body":{"size":0}}}
-                """;
+                var payload = "{\"id\":\"m1\",\"threadId\":\"t1\",\"labelIds\":[\"INBOX\"],\"internalDate\":\"" + timestamp + "\",\"snippet\":\"Prueba\",\"payload\":{\"headers\":[{\"name\":\"From\",\"value\":\"Persona <persona@example.com>\"},{\"name\":\"To\",\"value\":\"encoding@nexomail.test\"},{\"name\":\"Subject\",\"value\":\"Re: ResoluciÃƒÂ³n\"}],\"filename\":\"\",\"mimeType\":\"text/plain\",\"body\":{\"size\":0}}}";
                 return Task.FromResult(Json(HttpStatusCode.OK, payload));
             }
             if (uri.Contains("/users/me/messages?", StringComparison.OrdinalIgnoreCase))
