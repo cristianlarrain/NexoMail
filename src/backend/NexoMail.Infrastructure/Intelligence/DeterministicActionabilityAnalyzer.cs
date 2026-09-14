@@ -72,12 +72,15 @@ public sealed class DeterministicActionabilityAnalyzer : IActionabilityAnalyzer
         {
             reasons.Add(IntelligenceReasonCodes.DirectRecipient);
             if (!latest.IsRead) reasons.Add(IntelligenceReasonCodes.Unread);
+            reasons.Add(IntelligenceReasonCodes.SemanticReviewRequired);
+
             return new(
-                true,
-                CommunicationActionType.Reply,
-                latest.IsRead ? 0.75d : 0.85d,
+                false,
+                CommunicationActionType.Unknown,
+                0.5d,
                 null,
-                reasons);
+                reasons,
+                RequiresSemanticReview: true);
         }
 
         reasons.Add(IntelligenceReasonCodes.NotActionable);
