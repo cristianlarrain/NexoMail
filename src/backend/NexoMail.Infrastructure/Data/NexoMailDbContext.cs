@@ -101,6 +101,9 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
             entity.Property(x => x.ToAddresses).HasMaxLength(4000);
             entity.Property(x => x.Subject).HasMaxLength(1000);
             entity.Property(x => x.Snippet).HasMaxLength(1200);
+            entity.Property(x => x.GmailLabels).HasMaxLength(2000);
+            entity.Property(x => x.AutoSubmitted).HasMaxLength(256);
+            entity.Property(x => x.Precedence).HasMaxLength(64);
             entity.HasIndex(x => new { x.UserId, x.AccountId, x.ProviderMessageId }).IsUnique();
             entity.HasIndex(x => new { x.UserId, x.OccurredAt });
             entity.HasIndex(x => new { x.UserId, x.ThreadId, x.OccurredAt });
@@ -124,6 +127,8 @@ public sealed class NexoMailDbContext(DbContextOptions<NexoMailDbContext> option
         {
             entity.ToTable("MailIndexStates");
             entity.HasKey(x => x.AccountId);
+            entity.Property(x => x.SyncLeaseOwner).HasMaxLength(128);
+            entity.Property(x => x.LastSyncErrorCode).HasMaxLength(32);
             entity.HasIndex(x => new { x.UserId, x.LastIndexedAt });
             entity.HasOne<UserEntity>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.NoAction);
             entity.HasOne<MailAccountEntity>().WithOne().HasForeignKey<MailIndexStateEntity>(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
@@ -237,6 +242,6 @@ public sealed class MailAccountEntity { public Guid Id { get; set; } public Guid
 public sealed class OAuthCredentialEntity { public Guid Id { get; set; } public Guid MailAccountId { get; set; } public string EncryptedRefreshToken { get; set; } = string.Empty; public DateTimeOffset? ExpiresAt { get; set; } public DateTimeOffset UpdatedAt { get; set; } }
 public sealed class ControlCenterStateEntity { public Guid Id { get; set; } public Guid UserId { get; set; } public Guid AccountId { get; set; } public string ConversationId { get; set; } = string.Empty; public string LastMessageId { get; set; } = string.Empty; public string Status { get; set; } = string.Empty; public DateTimeOffset? SnoozedUntil { get; set; } public DateTimeOffset UpdatedAt { get; set; } }
 public sealed class IgnoredSenderEntity { public Guid Id { get; set; } public Guid UserId { get; set; } public Guid AccountId { get; set; } public string SenderAddress { get; set; } = string.Empty; public DateTimeOffset CreatedAt { get; set; } }
-public sealed class MailMessageIndexEntity { public Guid Id { get; set; } public Guid UserId { get; set; } public Guid AccountId { get; set; } public string ProviderMessageId { get; set; } = string.Empty; public string ThreadId { get; set; } = string.Empty; public string Direction { get; set; } = string.Empty; public string FromName { get; set; } = string.Empty; public string FromAddress { get; set; } = string.Empty; public string ToAddresses { get; set; } = string.Empty; public string Subject { get; set; } = string.Empty; public string Snippet { get; set; } = string.Empty; public DateTimeOffset OccurredAt { get; set; } public bool HasAttachments { get; set; } public DateTimeOffset IndexedAt { get; set; } }
+public sealed class MailMessageIndexEntity { public Guid Id { get; set; } public Guid UserId { get; set; } public Guid AccountId { get; set; } public string ProviderMessageId { get; set; } = string.Empty; public string ThreadId { get; set; } = string.Empty; public string Direction { get; set; } = string.Empty; public string FromName { get; set; } = string.Empty; public string FromAddress { get; set; } = string.Empty; public string ToAddresses { get; set; } = string.Empty; public string Subject { get; set; } = string.Empty; public string Snippet { get; set; } = string.Empty; public DateTimeOffset OccurredAt { get; set; } public bool HasAttachments { get; set; } public DateTimeOffset IndexedAt { get; set; } public string GmailLabels { get; set; } = string.Empty; public bool IsInbox { get; set; } public bool IsUnread { get; set; } public string AutoSubmitted { get; set; } = string.Empty; public string Precedence { get; set; } = string.Empty; public bool HasListUnsubscribe { get; set; } }
 public sealed class MailAttachmentIndexEntity { public Guid Id { get; set; } public Guid UserId { get; set; } public Guid AccountId { get; set; } public string ProviderMessageId { get; set; } = string.Empty; public string AttachmentId { get; set; } = string.Empty; public string FileName { get; set; } = string.Empty; public string ContentType { get; set; } = string.Empty; public long Size { get; set; } public DateTimeOffset IndexedAt { get; set; } }
-public sealed class MailIndexStateEntity { public Guid AccountId { get; set; } public Guid UserId { get; set; } public DateTimeOffset LastIndexedAt { get; set; } public int WindowDays { get; set; } public int IndexedMessageCount { get; set; } }
+public sealed class MailIndexStateEntity { public Guid AccountId { get; set; } public Guid UserId { get; set; } public DateTimeOffset LastIndexedAt { get; set; } public DateTimeOffset? LastSyncAttemptAt { get; set; } public string? LastSyncErrorCode { get; set; } public int WindowDays { get; set; } public int IndexedMessageCount { get; set; } public string? SyncLeaseOwner { get; set; } public DateTimeOffset? SyncLeaseUntil { get; set; } }

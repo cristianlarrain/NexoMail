@@ -2,6 +2,7 @@ using MailKit.Security;
 using NexoMail.Application;
 using NexoMail.Infrastructure;
 using NexoMail.Infrastructure.Data;
+using NexoMail.Infrastructure.Google;
 using NexoMail.Infrastructure.Imap;
 using NexoMail.Infrastructure.Microsoft;
 
@@ -11,6 +12,9 @@ public static class MailProviderBetaModule
 {
     public static void AddServices(IServiceCollection services, IConfiguration configuration)
     {
+        services.Configure<GmailMetadataIndexSyncOptions>(configuration.GetSection(GmailMetadataIndexSyncOptions.SectionName));
+        services.AddHostedService<GmailMetadataIndexHostedService>();
+
         services.Configure<Microsoft365Options>(configuration.GetSection(Microsoft365Options.SectionName));
         services.AddScoped<MicrosoftOAuthService>();
         services.AddScoped<MicrosoftGraphClientFactory>();
@@ -30,12 +34,26 @@ public static class MailProviderBetaModule
             provider.GetRequiredService<IUserContext>()));
     }
 
-    public static Task EnsureSchemaAsync(NexoMailDbContext database, CancellationToken ct = default) =>
-        ImapSchemaBootstrap.EnsureAsync(database, ct);
+    public static async Task EnsureSchemaAsync(NexoMailDbContext database, CancellationToken ct = default)
+    {
+        await ImapSchemaBootstrap.EnsureAsync(database, ct);
+        await ControlCenterIndexSchemaBootstrap.EnsureAsync(database, ct);
+    }
 
     public static void Map(RouteGroupBuilder api)
     {
         var oauth = api.MapGroup("/oauth").RequireAuthorization();
+        oauth.MapGet("/google/reconnect/{accountId:guid}", async (Guid accountId, GoogleOAuthService service, CancellationToken ct) =>
+        {
+            try
+            {
+                return Results.Redirect(await service.BeginReauthorizationAsync(accountId, ct));
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Results.Redirect(service.FailureRedirect(exception.Message));
+            }
+        });
         oauth.MapGet("/microsoft/start", async (MicrosoftOAuthService service, CancellationToken ct) =>
         {
             try
