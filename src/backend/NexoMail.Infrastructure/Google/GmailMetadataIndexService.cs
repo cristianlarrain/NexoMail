@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NexoMail.Application;
 using NexoMail.Domain;
@@ -17,7 +18,8 @@ public sealed class GmailMetadataIndexService(
     NexoMailDbContext database,
     ITokenProtector tokenProtector,
     IOptions<GmailOptions> options,
-    IUserContext userContext)
+    IUserContext userContext,
+    ILogger<GmailMetadataIndexService>? logger = null)
 {
     private const int MaximumConcurrentRequests = 8;
     private const int DefaultSyncLimitPerAccount = 300;
@@ -94,6 +96,18 @@ public sealed class GmailMetadataIndexService(
                     await UpsertAccountIndexAsync(account, userId, indexed, now, days, cancellationToken);
                 else
                     await UpsertStateAsync(account, userId, now, days, existingAccountMessages.Length, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                logger?.LogWarning(
+                    exception,
+                    "No se pudo actualizar el índice Gmail de la cuenta {AccountDisplayName} ({AccountId}); se continuará con las demás cuentas.",
+                    account.DisplayName,
+                    account.Id);
             }
             finally
             {
