@@ -40,6 +40,8 @@ internal static class DependencyInjectionRegression
             "DI debe resolver el state resolver determinístico por su contrato.");
         Ensure(scope.ServiceProvider.GetRequiredService<IPriorityScorer>() is DeterministicPriorityScorer,
             "DI debe resolver el scorer determinístico por su contrato.");
+        Ensure(scope.ServiceProvider.GetRequiredService<MailMessageIndexConversationAdapter>() is not null,
+            "DI debe resolver el adaptador del índice local sin configuración adicional.");
 
         var intelligence = scope.ServiceProvider.GetRequiredService<ICommunicationIntelligenceService>();
         Ensure(intelligence is CommunicationIntelligenceService,
