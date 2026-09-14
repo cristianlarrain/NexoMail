@@ -17,7 +17,16 @@ public sealed class GmailControlCenterService(
     private const string ManualTrackingPrefix = "manual:";
     private static readonly TimeSpan IndexFreshness = TimeSpan.FromMinutes(20);
 
-    public async Task<ControlCenterSnapshot> GetSnapshotAsync(Guid? accountId, CancellationToken cancellationToken)
+    public Task<ControlCenterSnapshot> GetSnapshotAsync(Guid? accountId, CancellationToken cancellationToken) =>
+        GetSnapshotCoreAsync(accountId, includeUnavailableCached: false, cancellationToken);
+
+    public Task<ControlCenterSnapshot> GetDiagnosticSnapshotAsync(Guid? accountId, CancellationToken cancellationToken) =>
+        GetSnapshotCoreAsync(accountId, includeUnavailableCached: true, cancellationToken);
+
+    private async Task<ControlCenterSnapshot> GetSnapshotCoreAsync(
+        Guid? accountId,
+        bool includeUnavailableCached,
+        CancellationToken cancellationToken)
     {
         var userId = userContext.UserId;
         var accountQuery = database.MailAccounts
@@ -51,12 +60,13 @@ public sealed class GmailControlCenterService(
             .Where(x => string.Equals(x.Value, ControlCenterAvailabilityStatus.Available, StringComparison.Ordinal))
             .Select(x => x.Key)
             .ToArray();
+        var dataAccountIds = includeUnavailableCached ? accountIds : operationalAccountIds;
 
-        var unreadAccountIds = operationalAccountIds.Length == 0
+        var unreadAccountIds = dataAccountIds.Length == 0
             ? []
             : await database.MailMessageIndex
                 .AsNoTracking()
-                .Where(x => x.UserId == userId && operationalAccountIds.Contains(x.AccountId) && x.IsInbox && x.IsUnread)
+                .Where(x => x.UserId == userId && dataAccountIds.Contains(x.AccountId) && x.IsInbox && x.IsUnread)
                 .Select(x => x.AccountId)
                 .ToArrayAsync(cancellationToken);
 
@@ -65,11 +75,11 @@ public sealed class GmailControlCenterService(
         var queryStart = new DateTimeOffset(DateTime.SpecifyKind(activityStart, DateTimeKind.Utc));
         if (lookbackStart < queryStart) queryStart = lookbackStart;
 
-        var indexedMessages = operationalAccountIds.Length == 0
+        var indexedMessages = dataAccountIds.Length == 0
             ? []
             : await database.MailMessageIndex
                 .AsNoTracking()
-                .Where(x => x.UserId == userId && operationalAccountIds.Contains(x.AccountId))
+                .Where(x => x.UserId == userId && dataAccountIds.Contains(x.AccountId))
                 .ToArrayAsync(cancellationToken);
         var messages = indexedMessages
             .Where(x => x.OccurredAt >= queryStart)
