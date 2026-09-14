@@ -101,7 +101,16 @@ public static class ControlCenterMessageClassifier
             "capacitacion biblioteca digital",
             "capacitaciones elibro",
             "alivia tu semana",
-            "informacion sobre funcionamiento de los servicios de alimentacion"
+            "informacion sobre funcionamiento de los servicios de alimentacion",
+            "ultimos cupos",
+            "asegura tu reserva",
+            "comunicado fallecimiento familiar",
+            "bienvenida nueva directora de carrera",
+            "informacion direccion de carrera",
+            "pongale nombre a nuestra fonda",
+            "informacion clases remotas",
+            "horario de atencion coordinacion docente",
+            "informacion para toma de conocimiento"
         ];
         if (phrases.Any(value.Contains)) return true;
 
