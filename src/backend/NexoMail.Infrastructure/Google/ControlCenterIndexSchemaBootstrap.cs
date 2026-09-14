@@ -25,6 +25,8 @@ public static class ControlCenterIndexSchemaBootstrap
                 await EnsureSqliteColumnAsync(connection, "MailMessageIndex", "HasListUnsubscribe", "INTEGER NOT NULL DEFAULT 0", ct);
                 await EnsureSqliteColumnAsync(connection, "MailIndexStates", "SyncLeaseOwner", "TEXT NULL", ct);
                 await EnsureSqliteColumnAsync(connection, "MailIndexStates", "SyncLeaseUntil", "TEXT NULL", ct);
+                await EnsureSqliteColumnAsync(connection, "MailIndexStates", "LastSyncAttemptAt", "TEXT NULL", ct);
+                await EnsureSqliteColumnAsync(connection, "MailIndexStates", "LastSyncErrorCode", "TEXT NULL", ct);
                 return;
             }
 
@@ -38,6 +40,8 @@ public static class ControlCenterIndexSchemaBootstrap
                 await ExecuteAsync(connection, "IF COL_LENGTH('MailMessageIndex','HasListUnsubscribe') IS NULL ALTER TABLE MailMessageIndex ADD HasListUnsubscribe bit NOT NULL CONSTRAINT DF_MailMessageIndex_HasListUnsubscribe DEFAULT 0;", ct);
                 await ExecuteAsync(connection, "IF COL_LENGTH('MailIndexStates','SyncLeaseOwner') IS NULL ALTER TABLE MailIndexStates ADD SyncLeaseOwner nvarchar(128) NULL;", ct);
                 await ExecuteAsync(connection, "IF COL_LENGTH('MailIndexStates','SyncLeaseUntil') IS NULL ALTER TABLE MailIndexStates ADD SyncLeaseUntil datetimeoffset NULL;", ct);
+                await ExecuteAsync(connection, "IF COL_LENGTH('MailIndexStates','LastSyncAttemptAt') IS NULL ALTER TABLE MailIndexStates ADD LastSyncAttemptAt datetimeoffset NULL;", ct);
+                await ExecuteAsync(connection, "IF COL_LENGTH('MailIndexStates','LastSyncErrorCode') IS NULL ALTER TABLE MailIndexStates ADD LastSyncErrorCode nvarchar(32) NULL;", ct);
             }
         }
         finally
