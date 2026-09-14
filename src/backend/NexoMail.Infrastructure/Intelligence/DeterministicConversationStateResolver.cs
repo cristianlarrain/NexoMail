@@ -34,6 +34,13 @@ public sealed class DeterministicConversationStateResolver : IConversationStateR
                 [IntelligenceReasonCodes.Overdue, IntelligenceReasonCodes.DeadlineSignal]);
         }
 
+        if (actionability.RequiresSemanticReview)
+        {
+            return new(
+                ConversationWorkState.New,
+                [IntelligenceReasonCodes.SemanticReviewRequired]);
+        }
+
         if (!actionability.IsActionable)
         {
             return new(ConversationWorkState.New, [IntelligenceReasonCodes.NotActionable]);
