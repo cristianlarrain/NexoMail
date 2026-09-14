@@ -45,6 +45,7 @@ export interface AiMailReport {
   actions: string[]
 }
 
+export type ControlCenterAvailabilityStatus = 'available' | 'stale' | 'auth_error' | 'sync_error'
 export interface ControlCenterDay { date: string; received: number; sent: number }
 export interface ControlCenterPendingItem {
   accountId: string
@@ -66,6 +67,7 @@ export interface ControlCenterAccountSummary {
   sentWithoutResponse: number
   unread: number
   isAvailable: boolean
+  availabilityStatus: ControlCenterAvailabilityStatus
 }
 export interface ControlCenterSnapshot {
   receivedWithoutReply: number
