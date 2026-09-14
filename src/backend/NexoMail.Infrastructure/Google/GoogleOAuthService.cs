@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NexoMail.Application;
 using NexoMail.Domain;
@@ -16,7 +17,9 @@ public sealed class GoogleOAuthService(
     NexoMailDbContext database,
     ITokenProtector tokenProtector,
     IDataProtectionProvider dataProtectionProvider,
-    IUserContext userContext)
+    IUserContext userContext,
+    GmailMetadataIndexService? metadataIndexService = null,
+    ILogger<GoogleOAuthService>? logger = null)
 {
     private readonly GmailOptions _options = options.Value;
     private readonly IDataProtector _stateProtector = dataProtectionProvider.CreateProtector("NexoMail.GoogleOAuth.State.v1");
@@ -180,6 +183,25 @@ public sealed class GoogleOAuthService(
         }
 
         await database.SaveChangesAsync(cancellationToken);
+
+        if (metadataIndexService is not null)
+        {
+            try
+            {
+                await metadataIndexService.SyncAsync(null, null, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                logger?.LogWarning(
+                    exception,
+                    "La autorización Google de la cuenta {AccountId} se completó, pero no fue posible actualizar inmediatamente el índice Gmail.",
+                    account.Id);
+            }
+        }
     }
 
     public string SuccessRedirect() => _options.FrontendUrl + "?connected=google";
