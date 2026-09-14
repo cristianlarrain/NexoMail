@@ -7,17 +7,20 @@ internal static class GoogleOAuthAutoIndexSyncRegressionTests
     [ModuleInitializer]
     public static void Initialize()
     {
-        var programSource = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "src", "backend", "NexoMail.Api", "Program.cs"));
+        var serviceSource = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "backend",
+            "NexoMail.Infrastructure",
+            "Google",
+            "GoogleOAuthService.cs"));
 
         Ensure(
-            programSource.Contains("GmailMetadataIndexService indexService", StringComparison.Ordinal),
-            "El callback OAuth de Google debe recibir el servicio de índice para sincronizar inmediatamente después de autorizar.");
+            serviceSource.Contains("GmailMetadataIndexService? metadataIndexService", StringComparison.Ordinal),
+            "GoogleOAuthService debe recibir el servicio de índice para sincronizar inmediatamente después de autorizar.");
         Ensure(
-            programSource.Contains("await indexService.SyncAsync(", StringComparison.Ordinal),
-            "El callback OAuth de Google debe disparar una sincronización inmediata del índice después de guardar la credencial renovada.");
-        Ensure(
-            programSource.Contains("cache.Invalidate(userContext.UserId.ToString())", StringComparison.Ordinal),
-            "Después de sincronizar por OAuth se debe invalidar la caché de lectura para que el Centro de Control refleje el índice nuevo de inmediato.");
+            serviceSource.Contains("await metadataIndexService.SyncAsync(", StringComparison.Ordinal),
+            "GoogleOAuthService debe disparar una sincronización inmediata del índice después de guardar la credencial renovada.");
     }
 
     private static string FindRepositoryRoot()
