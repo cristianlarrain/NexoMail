@@ -103,6 +103,10 @@ public sealed class GmailMetadataIndexService(
             }
             catch (Exception exception)
             {
+                var errorCode = exception is GmailAuthenticationException
+                    ? ControlCenterAvailabilityStatus.AuthError
+                    : ControlCenterAvailabilityStatus.SyncError;
+                await MarkSyncFailureAsync(account.Id, DateTimeOffset.UtcNow, errorCode, cancellationToken);
                 logger?.LogWarning(
                     exception,
                     "No se pudo actualizar el índice Gmail de la cuenta {AccountDisplayName} ({AccountId}); se continuará con las demás cuentas.",
@@ -290,9 +294,20 @@ public sealed class GmailMetadataIndexService(
             database.MailIndexStates.Add(state);
         }
         state.LastIndexedAt = now;
+        state.LastSyncAttemptAt = now;
+        state.LastSyncErrorCode = null;
         state.WindowDays = days;
         state.IndexedMessageCount = count;
         await database.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task MarkSyncFailureAsync(Guid accountId, DateTimeOffset attemptedAt, string errorCode, CancellationToken cancellationToken)
+    {
+        await database.MailIndexStates
+            .Where(x => x.AccountId == accountId)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.LastSyncAttemptAt, attemptedAt)
+                .SetProperty(x => x.LastSyncErrorCode, errorCode), cancellationToken);
     }
 
     private async Task EnsureIndexStateExistsAsync(MailAccountEntity account, Guid userId, int days, CancellationToken cancellationToken)
@@ -482,14 +497,17 @@ public sealed class GmailMetadataIndexService(
 
     private async Task<HttpClient> CreateClientAsync(Guid accountId, CancellationToken cancellationToken)
     {
-        var credential = await database.OAuthCredentials.AsNoTracking().SingleOrDefaultAsync(x => x.MailAccountId == accountId, cancellationToken) ?? throw new InvalidOperationException("No existe una credencial OAuth para esta cuenta.");
+        var credential = await database.OAuthCredentials.AsNoTracking().SingleOrDefaultAsync(x => x.MailAccountId == accountId, cancellationToken)
+            ?? throw new GmailAuthenticationException("No existe una credencial OAuth para esta cuenta.");
         var settings = options.Value;
         var refreshToken = tokenProtector.Unprotect(credential.EncryptedRefreshToken);
         var tokenClient = httpClientFactory.CreateClient();
         using var response = await tokenClient.PostAsync("https://oauth2.googleapis.com/token", new FormUrlEncodedContent(new Dictionary<string, string> { ["client_id"] = settings.ClientId, ["client_secret"] = settings.ClientSecret, ["refresh_token"] = refreshToken, ["grant_type"] = "refresh_token" }), cancellationToken);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+            throw new GmailAuthenticationException($"Google OAuth rechazó la renovación del acceso ({(int)response.StatusCode}).");
         using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
-        var accessToken = document.RootElement.GetProperty("access_token").GetString() ?? throw new InvalidOperationException("Google no entregó un token de acceso válido.");
+        var accessToken = document.RootElement.GetProperty("access_token").GetString()
+            ?? throw new GmailAuthenticationException("Google no entregó un token de acceso válido.");
         var client = httpClientFactory.CreateClient("Gmail");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         return client;
@@ -527,6 +545,7 @@ public sealed class GmailMetadataIndexService(
         return contentType.Split('/').LastOrDefault()?.ToUpperInvariant() ?? "Archivo";
     }
 
+    private sealed class GmailAuthenticationException(string message) : Exception(message);
     private sealed record IndexedAddress(string Name, string Address);
     private sealed record IndexedAttachment(string AttachmentId, string FileName, string ContentType, long Size);
     private sealed record IndexedMessage(
