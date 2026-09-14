@@ -18,5 +18,6 @@ public static class IntelligenceReasonCodes
     public const string Overdue = "OVERDUE";
     public const string AgeSignal = "AGE_SIGNAL";
     public const string DeadlineSignal = "DEADLINE_SIGNAL";
+    public const string SemanticReviewRequired = "SEMANTIC_REVIEW_REQUIRED";
     public const string NotActionable = "NOT_ACTIONABLE";
 }
