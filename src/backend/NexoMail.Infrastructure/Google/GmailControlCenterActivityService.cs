@@ -30,33 +30,35 @@ public sealed class GmailControlCenterActivityService(
         var accounts = await accountQuery.OrderBy(x => x.DisplayName).ToArrayAsync(cancellationToken);
         var accountIds = accounts.Select(x => x.Id).ToArray();
 
-        var indexedMessages = accountIds.Length == 0
-            ? []
-            : await database.MailMessageIndex
-                .AsNoTracking()
-                .Where(x => x.UserId == userId && accountIds.Contains(x.AccountId))
-                .ToArrayAsync(cancellationToken);
-        var messages = indexedMessages
-            .Where(x => x.OccurredAt >= startAt && x.OccurredAt < endExclusive)
-            .ToArray();
-
         var indexStates = accountIds.Length == 0
             ? []
             : await database.MailIndexStates
                 .AsNoTracking()
                 .Where(x => x.UserId == userId && accountIds.Contains(x.AccountId))
                 .ToArrayAsync(cancellationToken);
-        var freshAccounts = indexStates
-            .Where(x => now - x.LastIndexedAt <= IndexFreshness)
-            .Select(x => x.AccountId)
+        var stateLookup = indexStates.ToDictionary(x => x.AccountId);
+        var availableAccounts = accounts
+            .Where(account => IsAvailable(stateLookup.GetValueOrDefault(account.Id), now))
+            .Select(x => x.Id)
             .ToHashSet();
+        var operationalAccountIds = accountIds.Where(availableAccounts.Contains).ToArray();
+
+        var indexedMessages = operationalAccountIds.Length == 0
+            ? []
+            : await database.MailMessageIndex
+                .AsNoTracking()
+                .Where(x => x.UserId == userId && operationalAccountIds.Contains(x.AccountId))
+                .ToArrayAsync(cancellationToken);
+        var messages = indexedMessages
+            .Where(x => x.OccurredAt >= startAt && x.OccurredAt < endExclusive)
+            .ToArray();
 
         var totals = BuildDays(messages, startDay, days);
         var accountActivities = accounts.Select(account => new ControlCenterAccountActivity(
             account.Id,
             account.DisplayName,
             account.Color,
-            freshAccounts.Contains(account.Id),
+            availableAccounts.Contains(account.Id),
             BuildDays(messages.Where(x => x.AccountId == account.Id), startDay, days))).ToArray();
 
         return new ControlCenterActivitySnapshot(
@@ -66,9 +68,14 @@ public sealed class GmailControlCenterActivityService(
             endDay.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             totals,
             accountActivities,
-            accounts.Count(x => !freshAccounts.Contains(x.Id)),
+            accounts.Count(x => !availableAccounts.Contains(x.Id)),
             now);
     }
+
+    private static bool IsAvailable(MailIndexStateEntity? state, DateTimeOffset now) =>
+        state is not null &&
+        string.IsNullOrWhiteSpace(state.LastSyncErrorCode) &&
+        now - state.LastIndexedAt <= IndexFreshness;
 
     private static ControlCenterDay[] BuildDays(IEnumerable<MailMessageIndexEntity> source, DateTime startDay, int days)
     {
