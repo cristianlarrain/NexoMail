@@ -16,23 +16,23 @@ public sealed class IntelligenceShadowComparator
 
         var legacyPending = legacy.PendingItems
             .Where(item => !accountId.HasValue || item.AccountId == accountId.Value)
-            .GroupBy(item => (item.AccountId, ConversationId: NormalizeConversationId(item.AccountId, item.ConversationId)))
+            .GroupBy(item => (item.AccountId, ConversationId: ConversationIdentity.Normalize(item.AccountId, item.ConversationId)))
             .Select(group => group
                 .OrderByDescending(item => item.Since)
                 .ThenByDescending(item => item.MessageId, StringComparer.Ordinal)
                 .First())
             .ToDictionary(
-                item => (item.AccountId, ConversationId: NormalizeConversationId(item.AccountId, item.ConversationId)));
+                item => (item.AccountId, ConversationId: ConversationIdentity.Normalize(item.AccountId, item.ConversationId)));
 
         var intelligenceByConversation = intelligence
             .Where(item => !accountId.HasValue || item.AccountId == accountId.Value)
-            .GroupBy(item => (item.AccountId, ConversationId: NormalizeConversationId(item.AccountId, item.ConversationId)))
+            .GroupBy(item => (item.AccountId, ConversationId: ConversationIdentity.Normalize(item.AccountId, item.ConversationId)))
             .Select(group => group
                 .OrderByDescending(item => item.LatestActivityAt)
                 .ThenByDescending(item => item.LatestMessageId, StringComparer.Ordinal)
                 .First())
             .ToDictionary(
-                item => (item.AccountId, ConversationId: NormalizeConversationId(item.AccountId, item.ConversationId)));
+                item => (item.AccountId, ConversationId: ConversationIdentity.Normalize(item.AccountId, item.ConversationId)));
 
         var intelligencePending = intelligenceByConversation
             .Where(pair => IsPending(pair.Value.Intelligence))
@@ -192,16 +192,6 @@ public sealed class IntelligenceShadowComparator
 
     private static bool PrecedenceIs(string? value, string expected) =>
         string.Equals(value?.Trim(), expected, StringComparison.OrdinalIgnoreCase);
-
-    private static string NormalizeConversationId(Guid accountId, string conversationId)
-    {
-        var value = conversationId?.Trim() ?? string.Empty;
-        var compositePrefix = $"{accountId:N}:";
-
-        return value.StartsWith(compositePrefix, StringComparison.OrdinalIgnoreCase)
-            ? value[compositePrefix.Length..]
-            : value;
-    }
 
     private static bool IsPending(CommunicationIntelligenceResult intelligence) =>
         intelligence.Actionability.IsActionable
