@@ -43,6 +43,17 @@ public static class MailProviderBetaModule
     public static void Map(RouteGroupBuilder api)
     {
         var oauth = api.MapGroup("/oauth").RequireAuthorization();
+        oauth.MapGet("/google/reconnect/{accountId:guid}", async (Guid accountId, GoogleOAuthService service, CancellationToken ct) =>
+        {
+            try
+            {
+                return Results.Redirect(await service.BeginReauthorizationAsync(accountId, ct));
+            }
+            catch (InvalidOperationException exception)
+            {
+                return Results.Redirect(service.FailureRedirect(exception.Message));
+            }
+        });
         oauth.MapGet("/microsoft/start", async (MicrosoftOAuthService service, CancellationToken ct) =>
         {
             try
