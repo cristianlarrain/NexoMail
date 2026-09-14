@@ -9,8 +9,13 @@ public sealed class CommunicationIntelligenceService(
 {
     public CommunicationIntelligenceResult Analyze(
         CommunicationConversation conversation,
-        ConversationStateEvidence? evidence = null) =>
-        new(
+        ConversationStateEvidence? evidence = null)
+    {
+        _ = actionabilityAnalyzer;
+        _ = stateResolver;
+        _ = priorityScorer;
+
+        return new(
             new ActionabilityAssessment(
                 false,
                 CommunicationActionType.None,
@@ -26,4 +31,5 @@ public sealed class CommunicationIntelligenceService(
                 [IntelligenceReasonCodes.NotActionable],
                 new Dictionary<string, int>()),
             string.Empty);
+    }
 }
