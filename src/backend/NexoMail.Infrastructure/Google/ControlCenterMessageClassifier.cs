@@ -43,6 +43,7 @@ public static class ControlCenterMessageClassifier
     {
         var from = message.FromAddress.ToLowerInvariant();
         if (from.Contains("no-reply") || from.Contains("noreply") || from.Contains("do-not-reply") || from.Contains("donotreply") || from.Contains("mailer-daemon")) return true;
+        if (HasNotificationSenderSignal(message.FromAddress)) return true;
         if (message.HasListUnsubscribe) return true;
         if (!string.IsNullOrWhiteSpace(message.AutoSubmitted) && !string.Equals(message.AutoSubmitted, "no", StringComparison.OrdinalIgnoreCase)) return true;
         return message.Precedence.Equals("bulk", StringComparison.OrdinalIgnoreCase) ||
@@ -76,7 +77,12 @@ public static class ControlCenterMessageClassifier
             "recibo de pago", "estado de cuenta", "cartola bancaria", "movimiento en tu cuenta", "movimiento en su cuenta",
             "pedido confirmado", "orden confirmada", "despacho confirmado", "envio confirmado", "entrega confirmada",
             "codigo de verificacion", "clave temporal", "inicio de sesion", "alerta de seguridad",
-            "cargo realizado", "abono recibido", "suscripcion renovada"
+            "cargo realizado", "abono recibido", "suscripcion renovada",
+            "order confirmation", "payment confirmation", "login code", "verification code", "security code",
+            "verify your email", "email verification", "verifica tu correo", "confirma tu correo",
+            "payment details have been changed", "successfully set up", "change dns entries",
+            "add credits", "running low", "actualiza tu app", "nueva encomienda recibida", "encomienda retirada",
+            "encuesta de satisfaccion"
         ];
         return phrases.Any(value.Contains);
     }
@@ -88,7 +94,9 @@ public static class ControlCenterMessageClassifier
         [
             "comprobante", "factura", "boleta", "recibo", "pago", "compra", "pedido", "orden",
             "despacho", "envio", "entrega", "transferencia", "transaccion", "movimiento", "estado de cuenta",
-            "cartola", "codigo", "verificacion", "seguridad", "alerta", "suscripcion", "resumen de actividad"
+            "cartola", "codigo", "verificacion", "seguridad", "alerta", "suscripcion", "resumen de actividad",
+            "confirmation", "receipt", "payment", "order", "shipping", "delivery", "verification", "security",
+            "subscription", "login code"
         ];
         return terms.Any(value.Contains);
     }
