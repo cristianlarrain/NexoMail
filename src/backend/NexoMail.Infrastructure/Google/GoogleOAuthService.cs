@@ -38,18 +38,20 @@ public sealed class GoogleOAuthService(
     public string BeginAuthorization()
     {
         EnsureConfigured();
-        var state = CreateState(userContext.UserId);
-        var query = new Dictionary<string, string>
-        {
-            ["client_id"] = _options.ClientId,
-            ["redirect_uri"] = _options.RedirectUri,
-            ["response_type"] = "code",
-            ["scope"] = "openid email https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.settings.basic https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/contacts.other.readonly",
-            ["access_type"] = "offline",
-            ["prompt"] = "consent",
-            ["state"] = state
-        };
-        return "https://accounts.google.com/o/oauth2/v2/auth?" + string.Join("&", query.Select(x => $"{Uri.EscapeDataString(x.Key)}={Uri.EscapeDataString(x.Value)}"));
+        return BuildAuthorizationUrl(CreateState(userContext.UserId, null));
+    }
+
+    public async Task<string> BeginReauthorizationAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+        EnsureConfigured();
+        var userId = userContext.UserId;
+        var accountExists = await database.MailAccounts.AsNoTracking().AnyAsync(
+            x => x.Id == accountId && x.UserId == userId && x.Provider == MailProviderType.Gmail,
+            cancellationToken);
+        if (!accountExists)
+            throw new InvalidOperationException("La cuenta Gmail que deseas reconectar no existe o no corresponde al usuario actual.");
+
+        return BuildAuthorizationUrl(CreateState(userId, accountId));
     }
 
     public async Task CompleteAuthorizationAsync(string code, string state, CancellationToken cancellationToken)
@@ -115,32 +117,49 @@ public sealed class GoogleOAuthService(
             ?? throw new InvalidOperationException("No fue posible determinar la dirección Gmail.");
 
         var userId = userContext.UserId;
-        var account = await database.MailAccounts.SingleOrDefaultAsync(
-            x => x.UserId == userId && x.EmailAddress == email && x.Provider == MailProviderType.Gmail,
-            cancellationToken);
-        if (account is null)
+        MailAccountEntity account;
+        if (stateData.AccountId is Guid reconnectAccountId)
         {
-            await EnsureCanConnectAnotherAccountAsync(cancellationToken);
-            var usedColors = await database.MailAccounts.AsNoTracking()
-                .Where(x => x.UserId == userId && x.IsActive)
-                .Select(x => x.Color)
-                .ToArrayAsync(cancellationToken);
-            account = new MailAccountEntity
-            {
-                Id = Guid.NewGuid(),
-                UserId = userId,
-                Provider = MailProviderType.Gmail,
-                EmailAddress = email,
-                DisplayName = "Gmail",
-                Color = AccountColorSelector.Select(usedColors),
-                CreatedAt = DateTimeOffset.UtcNow,
-                IsActive = true
-            };
-            database.MailAccounts.Add(account);
+            account = await database.MailAccounts.SingleOrDefaultAsync(
+                x => x.Id == reconnectAccountId && x.UserId == userId && x.Provider == MailProviderType.Gmail,
+                cancellationToken)
+                ?? throw new InvalidOperationException("La cuenta Gmail que deseas reconectar ya no existe o no corresponde al usuario actual.");
+
+            if (!string.Equals(account.EmailAddress, email, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException($"Google autorizó {email}, pero debes seleccionar la misma cuenta que estás reconectando ({account.EmailAddress}).");
+
+            account.IsActive = true;
         }
         else
         {
-            account.IsActive = true;
+            var existingAccount = await database.MailAccounts.SingleOrDefaultAsync(
+                x => x.UserId == userId && x.EmailAddress == email && x.Provider == MailProviderType.Gmail,
+                cancellationToken);
+            if (existingAccount is null)
+            {
+                await EnsureCanConnectAnotherAccountAsync(cancellationToken);
+                var usedColors = await database.MailAccounts.AsNoTracking()
+                    .Where(x => x.UserId == userId && x.IsActive)
+                    .Select(x => x.Color)
+                    .ToArrayAsync(cancellationToken);
+                account = new MailAccountEntity
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    Provider = MailProviderType.Gmail,
+                    EmailAddress = email,
+                    DisplayName = "Gmail",
+                    Color = AccountColorSelector.Select(usedColors),
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    IsActive = true
+                };
+                database.MailAccounts.Add(account);
+            }
+            else
+            {
+                account = existingAccount;
+                account.IsActive = true;
+            }
         }
 
         var credential = await database.OAuthCredentials.SingleOrDefaultAsync(x => x.MailAccountId == account.Id, cancellationToken);
@@ -152,15 +171,38 @@ public sealed class GoogleOAuthService(
         credential.EncryptedRefreshToken = tokenProtector.Protect(token.RefreshToken);
         credential.ExpiresAt = DateTimeOffset.UtcNow.AddSeconds(token.ExpiresIn);
         credential.UpdatedAt = DateTimeOffset.UtcNow;
+
+        var indexState = await database.MailIndexStates.SingleOrDefaultAsync(x => x.AccountId == account.Id, cancellationToken);
+        if (indexState is not null)
+        {
+            indexState.LastSyncErrorCode = null;
+            indexState.LastSyncAttemptAt = DateTimeOffset.UtcNow;
+        }
+
         await database.SaveChangesAsync(cancellationToken);
     }
 
     public string SuccessRedirect() => _options.FrontendUrl + "?connected=google";
     public string FailureRedirect(string reason) => _options.FrontendUrl + "?error=" + Uri.EscapeDataString(reason);
 
-    private string CreateState(Guid userId)
+    private string BuildAuthorizationUrl(string state)
     {
-        var payload = new GoogleOAuthState(userId, DateTimeOffset.UtcNow, Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16)));
+        var query = new Dictionary<string, string>
+        {
+            ["client_id"] = _options.ClientId,
+            ["redirect_uri"] = _options.RedirectUri,
+            ["response_type"] = "code",
+            ["scope"] = "openid email https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.settings.basic https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/contacts.other.readonly",
+            ["access_type"] = "offline",
+            ["prompt"] = "consent",
+            ["state"] = state
+        };
+        return "https://accounts.google.com/o/oauth2/v2/auth?" + string.Join("&", query.Select(x => $"{Uri.EscapeDataString(x.Key)}={Uri.EscapeDataString(x.Value)}"));
+    }
+
+    private string CreateState(Guid userId, Guid? accountId)
+    {
+        var payload = new GoogleOAuthState(userId, DateTimeOffset.UtcNow, Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16)), accountId);
         return _stateProtector.Protect(JsonSerializer.Serialize(payload));
     }
 
@@ -228,7 +270,7 @@ public sealed class GoogleOAuthService(
             throw new InvalidOperationException("Faltan las credenciales Google en la configuración segura del servidor.");
     }
 
-    private sealed record GoogleOAuthState(Guid UserId, DateTimeOffset IssuedAt, string Nonce);
+    private sealed record GoogleOAuthState(Guid UserId, DateTimeOffset IssuedAt, string Nonce, Guid? AccountId = null);
     private sealed record GoogleTokenResponse(
         [property: JsonPropertyName("access_token")] string AccessToken,
         [property: JsonPropertyName("refresh_token")] string? RefreshToken,
