@@ -1,5 +1,13 @@
 namespace NexoMail.Domain;
 
+public static class ControlCenterAvailabilityStatus
+{
+    public const string Available = "available";
+    public const string Stale = "stale";
+    public const string AuthError = "auth_error";
+    public const string SyncError = "sync_error";
+}
+
 public sealed record ControlCenterDay(
     string Date,
     int Received,
@@ -24,7 +32,8 @@ public sealed record ControlCenterAccountSummary(
     int ReceivedWithoutReply,
     int SentWithoutResponse,
     int Unread,
-    bool IsAvailable);
+    bool IsAvailable,
+    string AvailabilityStatus);
 
 public sealed record ControlCenterSnapshot(
     int ReceivedWithoutReply,
