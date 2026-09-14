@@ -81,7 +81,8 @@ internal static class GoogleOAuthReconnectRegressionTests
         Ensure(reconnectMethod is not null, "GoogleOAuthService debe exponer una reconexión explícita por accountId.");
 
         var repoRoot = FindRepositoryRoot();
-        var apiSource = await File.ReadAllTextAsync(Path.Combine(repoRoot, "src", "backend", "NexoMail.Api", "Program.cs"));
+        var apiDirectory = Path.Combine(repoRoot, "src", "backend", "NexoMail.Api");
+        var apiSource = string.Join("\n", Directory.EnumerateFiles(apiDirectory, "*.cs", SearchOption.AllDirectories).Select(File.ReadAllText));
         Ensure(apiSource.Contains("/google/reconnect/{accountId:guid}", StringComparison.Ordinal), "La API debe exponer un endpoint de reconexión Gmail por accountId.");
         var accountsSource = await File.ReadAllTextAsync(Path.Combine(repoRoot, "src", "frontend", "src", "pages", "AccountsPage.tsx"));
         Ensure(accountsSource.Contains("Reconectar", StringComparison.Ordinal) && accountsSource.Contains("/api/oauth/google/reconnect/", StringComparison.Ordinal), "La pantalla de cuentas debe ofrecer una acción visible Reconectar para Gmail.");
