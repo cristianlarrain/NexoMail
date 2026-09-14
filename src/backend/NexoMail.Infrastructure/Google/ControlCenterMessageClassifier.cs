@@ -29,6 +29,7 @@ public static class ControlCenterMessageClassifier
         if (labels.Contains("CATEGORY_PROMOTIONS") || labels.Contains("CATEGORY_SOCIAL") || labels.Contains("CATEGORY_FORUMS")) return true;
         if (IsLikelyAutomated(message)) return true;
         if (IsHighConfidenceTransactionalSubject(message.Subject)) return true;
+        if (IsInstitutionalInformationalSubject(message.Subject)) return true;
 
         var updateCategory = labels.Contains("CATEGORY_UPDATES");
         var notificationSender = HasNotificationSenderSignal(message.FromAddress);
@@ -60,7 +61,8 @@ public static class ControlCenterMessageClassifier
             "alertas@", "alerta@", "alerts@", "alert@",
             "facturacion@", "facturas@", "billing@", "invoice@", "invoices@",
             "comprobantes@", "recibos@", "receipts@", "pedidos@", "orders@",
-            "despachos@", "shipping@", "seguridad@", "security@", "avisos@", "updates@"
+            "despachos@", "shipping@", "seguridad@", "security@", "avisos@", "updates@",
+            "newsletter@"
         ];
         return signals.Any(value.Contains);
     }
@@ -85,6 +87,26 @@ public static class ControlCenterMessageClassifier
             "encuesta de satisfaccion"
         ];
         return phrases.Any(value.Contains);
+    }
+
+    private static bool IsInstitutionalInformationalSubject(string subject)
+    {
+        var value = NormalizeForMatch(subject);
+        string[] phrases =
+        [
+            "encuesta cultura institucional",
+            "agenda semanal",
+            "feliz cumpleanos",
+            "celebracion fiestas patrias",
+            "capacitacion biblioteca digital",
+            "capacitaciones elibro",
+            "alivia tu semana",
+            "informacion sobre funcionamiento de los servicios de alimentacion"
+        ];
+        if (phrases.Any(value.Contains)) return true;
+
+        return value.Contains("solicitud de crear proceso disponibilidad docente", StringComparison.Ordinal) &&
+               value.Contains("ha sido aprobada", StringComparison.Ordinal);
     }
 
     private static bool IsInformationalTransactionalSubject(string subject)
