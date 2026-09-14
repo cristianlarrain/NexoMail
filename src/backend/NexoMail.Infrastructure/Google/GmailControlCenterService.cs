@@ -25,6 +25,10 @@ public sealed class GmailControlCenterService(
         if (accountId.HasValue) accountQuery = accountQuery.Where(x => x.Id == accountId.Value);
         var accounts = await accountQuery.OrderBy(x => x.DisplayName).ToArrayAsync(cancellationToken);
         var accountIds = accounts.Select(x => x.Id).ToArray();
+        var ownAddresses = accounts
+            .Select(x => NormalizeEmail(x.EmailAddress))
+            .Where(x => x.Contains('@'))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var stateQuery = database.ControlCenterStates.AsNoTracking().Where(x => x.UserId == userId);
         if (accountId.HasValue) stateQuery = stateQuery.Where(x => x.AccountId == accountId.Value);
@@ -85,6 +89,7 @@ public sealed class GmailControlCenterService(
             PendingRaw? item = null;
             if (string.Equals(latest.Direction, "sent", StringComparison.OrdinalIgnoreCase))
             {
+                if (!HasExternalRecipient(latest.ToAddresses, ownAddresses)) continue;
                 item = new PendingRaw(
                     account.Id,
                     account.DisplayName,
@@ -230,6 +235,20 @@ public sealed class GmailControlCenterService(
         if (string.Equals(state.Status, "resolved", StringComparison.OrdinalIgnoreCase)) return true;
         return string.Equals(state.Status, "snoozed", StringComparison.OrdinalIgnoreCase) && state.SnoozedUntil is { } until && until > now;
     }
+
+    private static bool HasExternalRecipient(string serializedAddresses, IReadOnlySet<string> ownAddresses)
+    {
+        if (string.IsNullOrWhiteSpace(serializedAddresses)) return true;
+        var recipients = serializedAddresses
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(line => line.Split('\t', 2))
+            .Select(fields => NormalizeEmail(fields.Length == 2 ? fields[1] : fields[0]))
+            .Where(address => address.Contains('@'))
+            .ToArray();
+        return recipients.Length == 0 || recipients.Any(address => !ownAddresses.Contains(address));
+    }
+
+    private static string NormalizeEmail(string value) => value.Trim().ToLowerInvariant();
 
     private static ControlCenterPendingItem ToPendingItem(PendingRaw item) => new(
         item.AccountId,
