@@ -47,6 +47,15 @@ public sealed class LocalIndexCommunicationIntelligenceReader(
             var accountMessages = indexedMessages
                 .Where(x => x.AccountId == account.Id)
                 .ToArray();
+            var sourceByMessageId = accountMessages
+                .GroupBy(x => x.ProviderMessageId, StringComparer.Ordinal)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.OrderByDescending(x => x.OccurredAt).First(),
+                    StringComparer.Ordinal);
+            var threadCounts = accountMessages
+                .GroupBy(x => x.ThreadId, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
             var conversations = adapter.Adapt(accountMessages, ownAddresses, evaluatedAt);
 
             foreach (var conversation in conversations)
@@ -55,12 +64,16 @@ public sealed class LocalIndexCommunicationIntelligenceReader(
                 if (conversation.Messages.Count == 0) continue;
 
                 var latest = conversation.Messages[^1];
+                sourceByMessageId.TryGetValue(latest.MessageId, out var source);
+                var signals = BuildSignals(latest, source, threadCounts);
+
                 snapshots.Add(new CommunicationIntelligenceSnapshot(
                     account.Id,
                     conversation.ConversationId,
                     latest.MessageId,
                     latest.OccurredAt,
-                    intelligence.Analyze(conversation)));
+                    intelligence.Analyze(conversation),
+                    signals));
             }
         }
 
@@ -69,5 +82,50 @@ public sealed class LocalIndexCommunicationIntelligenceReader(
             .ThenByDescending(x => x.LatestActivityAt)
             .ThenBy(x => x.ConversationId, StringComparer.Ordinal)
             .ToArray();
+    }
+
+    private static CommunicationSnapshotSignals BuildSignals(
+        CommunicationMessage latest,
+        MailMessageIndexEntity? source,
+        IReadOnlyDictionary<string, int> threadCounts)
+    {
+        var labels = ParseLabels(source?.GmailLabels);
+        var messageCount = source is not null && threadCounts.TryGetValue(source.ThreadId, out var count)
+            ? count
+            : 1;
+
+        return new CommunicationSnapshotSignals(
+            IsUnread: !latest.IsRead,
+            IsDirectRecipient: latest.IsDirectRecipient,
+            IsAutomated: latest.IsAutomated,
+            IsBulk: latest.IsBulk,
+            HasListUnsubscribe: latest.HasListUnsubscribe,
+            IsReplyDiscouragedSender: IsReplyDiscouragedSender(latest.FromAddress),
+            IsPromotionsCategory: labels.Contains("CATEGORY_PROMOTIONS"),
+            IsSocialCategory: labels.Contains("CATEGORY_SOCIAL"),
+            IsForumsCategory: labels.Contains("CATEGORY_FORUMS"),
+            IsUpdatesCategory: labels.Contains("CATEGORY_UPDATES"),
+            AutoSubmitted: latest.AutoSubmitted,
+            Precedence: latest.Precedence,
+            MessageCount: Math.Max(1, messageCount));
+    }
+
+    private static HashSet<string> ParseLabels(string? value) =>
+        (value ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    private static bool IsReplyDiscouragedSender(string fromAddress)
+    {
+        if (string.IsNullOrWhiteSpace(fromAddress)) return false;
+        var normalized = fromAddress.Trim().ToLowerInvariant();
+        var at = normalized.IndexOf('@');
+        var localPart = at > 0 ? normalized[..at] : normalized;
+
+        return localPart.Contains("no-reply", StringComparison.Ordinal)
+               || localPart.Contains("noreply", StringComparison.Ordinal)
+               || localPart.Contains("do-not-reply", StringComparison.Ordinal)
+               || localPart.Contains("donotreply", StringComparison.Ordinal)
+               || localPart.Contains("mailer-daemon", StringComparison.Ordinal);
     }
 }
