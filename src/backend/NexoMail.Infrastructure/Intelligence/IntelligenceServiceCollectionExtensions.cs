@@ -13,6 +13,7 @@ public static class IntelligenceServiceCollectionExtensions
         services.AddSingleton<IConversationStateResolver, DeterministicConversationStateResolver>();
         services.AddSingleton<IPriorityScorer, DeterministicPriorityScorer>();
         services.AddSingleton<ICommunicationIntelligenceService, CommunicationIntelligenceService>();
+        services.AddSingleton<MailMessageIndexConversationAdapter>();
 
         return services;
     }
