@@ -80,6 +80,12 @@ internal static class GoogleOAuthReconnectRegressionTests
             [typeof(Guid), typeof(CancellationToken)]);
         Ensure(reconnectMethod is not null, "GoogleOAuthService debe exponer una reconexión explícita por accountId.");
 
+        var repoRoot = FindRepositoryRoot();
+        var apiSource = await File.ReadAllTextAsync(Path.Combine(repoRoot, "src", "backend", "NexoMail.Api", "Program.cs"));
+        Ensure(apiSource.Contains("/google/reconnect/{accountId:guid}", StringComparison.Ordinal), "La API debe exponer un endpoint de reconexión Gmail por accountId.");
+        var accountsSource = await File.ReadAllTextAsync(Path.Combine(repoRoot, "src", "frontend", "src", "pages", "AccountsPage.tsx"));
+        Ensure(accountsSource.Contains("Reconectar", StringComparison.Ordinal) && accountsSource.Contains("/api/oauth/google/reconnect/", StringComparison.Ordinal), "La pantalla de cuentas debe ofrecer una acción visible Reconectar para Gmail.");
+
         factory.ProfileEmail = "otra@nexomail.test";
         var mismatchUrl = await InvokeReconnectStartAsync(reconnectMethod!, service, accountId);
         var mismatchState = QueryValue(mismatchUrl, "state");
@@ -109,6 +115,18 @@ internal static class GoogleOAuthReconnectRegressionTests
         var credentialAfterReconnect = await database.OAuthCredentials.AsNoTracking().SingleAsync(x => x.MailAccountId == accountId);
         Ensure(credentialAfterReconnect.EncryptedRefreshToken == "new-refresh-token", "La reconexión válida debe reemplazar el refresh token de la cuenta existente.");
         Ensure(await database.MailAccounts.AsNoTracking().CountAsync(x => x.UserId == userId) == 1, "La reconexión válida debe conservar una sola cuenta.");
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "src", "backend", "NexoMail.Api", "Program.cs")))
+                return directory.FullName;
+            directory = directory.Parent;
+        }
+        throw new InvalidOperationException("No fue posible localizar la raíz del repositorio para validar el cableado de reconexión.");
     }
 
     private static async Task<string> InvokeReconnectStartAsync(System.Reflection.MethodInfo method, GoogleOAuthService service, Guid accountId)
