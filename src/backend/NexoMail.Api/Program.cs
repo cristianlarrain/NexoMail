@@ -315,6 +315,11 @@ mail.MapGet("/intelligence/shadow", async (ICommunicationIntelligenceReader read
     var snapshot = await reader.AnalyzeAsync(DateTimeOffset.UtcNow, ct);
     return Results.Ok(snapshot);
 });
+mail.MapGet("/intelligence/compare", async (IIntelligenceShadowComparisonService service, Guid? accountId, CancellationToken ct) =>
+{
+    var result = await service.CompareAsync(accountId, DateTimeOffset.UtcNow, ct);
+    return Results.Ok(result);
+});
 mail.MapGet("/control-center", async (GmailControlCenterService service, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid? accountId, CancellationToken ct) =>
 {
     var scope = accountId?.ToString("N") ?? "all";
