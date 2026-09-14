@@ -12,6 +12,10 @@ Ensure(applicationAssembly.GetType("NexoMail.Application.Intelligence.IPriorityS
 Ensure(applicationAssembly.GetType("NexoMail.Application.Intelligence.ICommunicationIntelligenceService") is not null,
     "ICommunicationIntelligenceService debe existir como contrato público independiente del proveedor.");
 
+var infrastructureAssembly = typeof(NexoMail.Infrastructure.Data.NexoMailDbContext).Assembly;
+Ensure(infrastructureAssembly.GetType("NexoMail.Infrastructure.Intelligence.DeterministicConversationStateResolver") is not null,
+    "DeterministicConversationStateResolver debe existir como máquina de estados independiente del proveedor.");
+
 var analyzer = new DeterministicActionabilityAnalyzer();
 var now = new DateTimeOffset(2026, 9, 14, 3, 0, 0, TimeSpan.Zero);
 var ownAddresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
