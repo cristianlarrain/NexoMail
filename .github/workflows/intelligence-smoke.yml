@@ -1,0 +1,32 @@
+name: Nexo Intelligence smoke test
+
+on:
+  push:
+    paths:
+      - 'src/backend/NexoMail.Application/**'
+      - 'src/backend/NexoMail.Infrastructure/**'
+      - 'src/backend/NexoMail.IntelligenceSmokeTests/**'
+      - '.github/workflows/intelligence-smoke.yml'
+  pull_request:
+    paths:
+      - 'src/backend/NexoMail.Application/**'
+      - 'src/backend/NexoMail.Infrastructure/**'
+      - 'src/backend/NexoMail.IntelligenceSmokeTests/**'
+      - '.github/workflows/intelligence-smoke.yml'
+  workflow_dispatch:
+
+jobs:
+  intelligence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore
+        run: dotnet restore src/backend/NexoMail.IntelligenceSmokeTests/NexoMail.IntelligenceSmokeTests.csproj
+      - name: Build
+        run: dotnet build src/backend/NexoMail.IntelligenceSmokeTests/NexoMail.IntelligenceSmokeTests.csproj --configuration Release --no-restore
+      - name: Run intelligence smoke test
+        run: dotnet run --project src/backend/NexoMail.IntelligenceSmokeTests/NexoMail.IntelligenceSmokeTests.csproj --configuration Release --no-build
