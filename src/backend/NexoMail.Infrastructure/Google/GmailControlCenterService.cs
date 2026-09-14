@@ -37,25 +37,31 @@ public sealed class GmailControlCenterService(
                 .Where(x => x.UserId == userId && accountIds.Contains(x.AccountId))
                 .ToArrayAsync(cancellationToken);
 
-        var unreadAccountIds = accountIds.Length == 0
+        var now = DateTimeOffset.UtcNow;
+        var freshAccounts = indexStates
+            .Where(x => now - x.LastIndexedAt <= IndexFreshness)
+            .Select(x => x.AccountId)
+            .ToHashSet();
+        var operationalAccountIds = accountIds.Where(freshAccounts.Contains).ToArray();
+
+        var unreadAccountIds = operationalAccountIds.Length == 0
             ? []
             : await database.MailMessageIndex
                 .AsNoTracking()
-                .Where(x => x.UserId == userId && accountIds.Contains(x.AccountId) && x.IsInbox && x.IsUnread)
+                .Where(x => x.UserId == userId && operationalAccountIds.Contains(x.AccountId) && x.IsInbox && x.IsUnread)
                 .Select(x => x.AccountId)
                 .ToArrayAsync(cancellationToken);
 
-        var now = DateTimeOffset.UtcNow;
         var lookbackStart = now.AddDays(-LookbackDays);
         var activityStart = now.UtcDateTime.Date.AddDays(-(ActivityDays - 1));
         var queryStart = new DateTimeOffset(DateTime.SpecifyKind(activityStart, DateTimeKind.Utc));
         if (lookbackStart < queryStart) queryStart = lookbackStart;
 
-        var indexedMessages = accountIds.Length == 0
+        var indexedMessages = operationalAccountIds.Length == 0
             ? []
             : await database.MailMessageIndex
                 .AsNoTracking()
-                .Where(x => x.UserId == userId && accountIds.Contains(x.AccountId))
+                .Where(x => x.UserId == userId && operationalAccountIds.Contains(x.AccountId))
                 .ToArrayAsync(cancellationToken);
         var messages = indexedMessages
             .Where(x => x.OccurredAt >= queryStart)
@@ -116,11 +122,6 @@ public sealed class GmailControlCenterService(
                 return new ControlCenterDay(day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), received, sent);
             })
             .ToArray();
-
-        var freshAccounts = indexStates
-            .Where(x => now - x.LastIndexedAt <= IndexFreshness)
-            .Select(x => x.AccountId)
-            .ToHashSet();
 
         var priorityItems = orderedPending.Take(6).Select(ToPendingItem).ToArray();
         var pendingItems = orderedPending.Select(ToPendingItem).ToArray();
