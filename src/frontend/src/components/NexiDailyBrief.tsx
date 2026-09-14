@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, CalendarDays, ChevronRight, Clock3, Sparkles, Users } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { mailApi } from '../api/mailApi'
-import type { ControlCenterPendingItem } from '../types/mail'
+import type { ControlCenterPendingItem, ControlCenterSnapshot } from '../types/mail'
 import { NexiEmptyState } from './nexi/NexiEmptyState'
 
 function normalizeSubject(value: string) {
@@ -48,6 +48,17 @@ function focusPath(kind: 'overdue' | 'received' | 'sent' | 'person' | 'topic', v
   const params = new URLSearchParams({ focus: kind })
   if (value) params.set('value', value)
   return `/control-center?${params.toString()}`
+}
+
+function availabilityFootnote(data: ControlCenterSnapshot) {
+  const authErrors = data.accounts.filter(account => account.availabilityStatus === 'auth_error').length
+  const stale = data.accounts.filter(account => account.availabilityStatus === 'stale').length
+  const syncErrors = data.accounts.filter(account => account.availabilityStatus === 'sync_error').length
+  const parts: string[] = []
+  if (authErrors > 0) parts.push(`${authErrors} ${authErrors === 1 ? 'cuenta requiere' : 'cuentas requieren'} reconexión`)
+  if (stale > 0) parts.push(`${stale} ${stale === 1 ? 'cuenta tiene' : 'cuentas tienen'} el índice desactualizado`)
+  if (syncErrors > 0) parts.push(`${syncErrors} ${syncErrors === 1 ? 'cuenta tuvo' : 'cuentas tuvieron'} un error de sincronización`)
+  return `La lectura considera solo cuentas con índice vigente${parts.length > 0 ? `; ${parts.join('; ')}` : ''}.`
 }
 
 export function NexiDailyBrief() {
@@ -123,6 +134,6 @@ export function NexiDailyBrief() {
       </article>
     </div>
 
-    {brief.data.unavailableAccounts > 0 && <small className="nexi-daily-brief-footnote">Se consideran sólo las cuentas disponibles; {brief.data.unavailableAccounts === 1 ? '1 cuenta no pudo consultarse.' : `${brief.data.unavailableAccounts} cuentas no pudieron consultarse.`}</small>}
+    {brief.data.unavailableAccounts > 0 && <small className="nexi-daily-brief-footnote">{availabilityFootnote(brief.data)}</small>}
   </section>
 }
