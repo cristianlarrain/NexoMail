@@ -11,10 +11,14 @@ public sealed class DeterministicPriorityScorer : IPriorityScorer
     {
         if (!actionability.IsActionable)
         {
+            var reason = actionability.RequiresSemanticReview
+                ? IntelligenceReasonCodes.SemanticReviewRequired
+                : IntelligenceReasonCodes.NotActionable;
+
             return new(
                 0,
                 PriorityBand.Low,
-                [IntelligenceReasonCodes.NotActionable],
+                [reason],
                 new Dictionary<string, int>());
         }
 
