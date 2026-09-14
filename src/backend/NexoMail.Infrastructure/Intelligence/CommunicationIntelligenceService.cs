@@ -2,7 +2,10 @@ using NexoMail.Application.Intelligence;
 
 namespace NexoMail.Infrastructure.Intelligence;
 
-public sealed class CommunicationIntelligenceService : ICommunicationIntelligenceService
+public sealed class CommunicationIntelligenceService(
+    IActionabilityAnalyzer actionabilityAnalyzer,
+    IConversationStateResolver stateResolver,
+    IPriorityScorer priorityScorer) : ICommunicationIntelligenceService
 {
     public CommunicationIntelligenceResult Analyze(
         CommunicationConversation conversation,
