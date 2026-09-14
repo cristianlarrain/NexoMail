@@ -31,6 +31,15 @@ internal static class DependencyInjectionRegression
 
         addMethod!.Invoke(null, [services]);
 
+        var readerDescriptor = services.SingleOrDefault(x =>
+            x.ServiceType == typeof(ICommunicationIntelligenceReader));
+        Ensure(readerDescriptor is not null,
+            "DI debe registrar el lector shadow por su contrato provider-agnostic.");
+        Ensure(readerDescriptor!.Lifetime == ServiceLifetime.Scoped,
+            "El lector shadow debe ser Scoped porque depende de DbContext e IUserContext.");
+        Ensure(readerDescriptor.ImplementationType == typeof(LocalIndexCommunicationIntelligenceReader),
+            "El contrato del lector debe apuntar al lector del índice local.");
+
         using var provider = services.BuildServiceProvider(validateScopes: true);
         using var scope = provider.CreateScope();
 
