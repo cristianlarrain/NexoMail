@@ -34,11 +34,14 @@ var directConversation = Conversation(
         isRead: false,
         isDirectRecipient: true));
 var directUnread = analyzer.Analyze(directConversation);
-Ensure(directUnread.IsActionable && directUnread.ActionType == CommunicationActionType.Reply,
-    "Un recibido directo y no leído debe ser accionable sin conocer remitente o dominio.");
+Ensure(!directUnread.IsActionable
+       && directUnread.ActionType == CommunicationActionType.Unknown
+       && directUnread.RequiresSemanticReview,
+    "Un recibido directo sin evidencia semántica debe abstenerse en vez de asumir Reply.");
 Ensure(directUnread.ReasonCodes.Contains(IntelligenceReasonCodes.DirectRecipient)
-       && directUnread.ReasonCodes.Contains(IntelligenceReasonCodes.Unread),
-    "Un recibido directo/no leído debe explicar sus señales generales.");
+       && directUnread.ReasonCodes.Contains(IntelligenceReasonCodes.Unread)
+       && directUnread.ReasonCodes.Contains(IntelligenceReasonCodes.SemanticReviewRequired),
+    "Un recibido directo ambiguo debe explicar sus señales y la necesidad de revisión semántica.");
 
 var bulkConversation = Conversation(
     now,
@@ -88,9 +91,9 @@ Ensure(external.ReasonCodes.Contains(IntelligenceReasonCodes.WaitingExternal),
     "La espera de respuesta externa debe ser explicable.");
 
 var pendingState = resolver.Resolve(directConversation, directUnread);
-Ensure(pendingState.State == ConversationWorkState.PendingUser
-       && pendingState.ReasonCodes.Contains(IntelligenceReasonCodes.PendingUser),
-    "El último recibido accionable debe quedar PendingUser.");
+Ensure(pendingState.State == ConversationWorkState.New
+       && pendingState.ReasonCodes.Contains(IntelligenceReasonCodes.SemanticReviewRequired),
+    "Un recibido ambiguo debe permanecer fuera de PendingUser hasta una decisión semántica.");
 
 var waitingState = resolver.Resolve(externalConversation, external);
 Ensure(waitingState.State == ConversationWorkState.WaitingExternal
@@ -117,8 +120,9 @@ var repliedConversation = Conversation(
         isDirectRecipient: true));
 var repliedActionability = analyzer.Analyze(repliedConversation);
 var repliedState = resolver.Resolve(repliedConversation, repliedActionability);
-Ensure(repliedState.State == ConversationWorkState.PendingUser,
-    "Una respuesta externa posterior debe devolver el trabajo al usuario cuando sea accionable.");
+Ensure(repliedState.State == ConversationWorkState.New
+       && repliedActionability.RequiresSemanticReview,
+    "Una respuesta externa posterior debe pasar a revisión semántica antes de asignar trabajo al usuario.");
 
 var resolvedState = resolver.Resolve(
     directConversation,
@@ -137,8 +141,8 @@ Ensure(cancelledState.State == ConversationWorkState.Cancelled
     "Cancelled debe prevalecer sobre Resolved cuando ambas evidencias existen.");
 
 var overdueState = resolver.Resolve(
-    directConversation,
-    directUnread,
+    externalConversation,
+    external,
     new ConversationStateEvidence(Deadline: now.AddMinutes(-1)));
 Ensure(overdueState.State == ConversationWorkState.Overdue
        && overdueState.ReasonCodes.Contains(IntelligenceReasonCodes.Overdue)
@@ -150,26 +154,15 @@ var nonActionablePriority = scorer.Score(bulkConversation, bulk, bulkState);
 Ensure(nonActionablePriority.Score == 0 && nonActionablePriority.Band == PriorityBand.Low,
     "Lo no accionable no debe consumir prioridad de trabajo.");
 
-var recentDirectUnreadPriority = scorer.Score(directConversation, directUnread, pendingState);
-var oldReadConversation = Conversation(
-    now,
-    ownAddresses,
-    Message(
-        "old-read",
-        now.AddDays(-7),
-        CommunicationDirection.Received,
-        from: "another-person@external.test",
-        to: ["user@example.test"],
-        isRead: true,
-        isDirectRecipient: true));
-var oldReadActionability = analyzer.Analyze(oldReadConversation);
-var oldReadState = resolver.Resolve(oldReadConversation, oldReadActionability);
-var oldReadPriority = scorer.Score(oldReadConversation, oldReadActionability, oldReadState);
-Ensure(recentDirectUnreadPriority.Score > oldReadPriority.Score,
-    "La prioridad no puede depender exclusivamente de la antigüedad.");
-Ensure(recentDirectUnreadPriority.Signals.ContainsKey(IntelligenceReasonCodes.Unread)
-       && recentDirectUnreadPriority.Signals.ContainsKey(IntelligenceReasonCodes.DirectRecipient),
-    "El score debe exponer el desglose de señales que explica la prioridad.");
+var semanticReviewPriority = scorer.Score(directConversation, directUnread, pendingState);
+Ensure(semanticReviewPriority.Score == 0
+       && semanticReviewPriority.ReasonCodes.Contains(IntelligenceReasonCodes.SemanticReviewRequired),
+    "Un candidato semántico no debe recibir prioridad determinista antes de ser clasificado.");
+
+var waitingPriority = scorer.Score(externalConversation, external, waitingState);
+Ensure(waitingPriority.Score > semanticReviewPriority.Score
+       && waitingPriority.Signals.ContainsKey(IntelligenceReasonCodes.WaitingExternal),
+    "WaitingExternal debe conservar prioridad determinista mientras los recibidos ambiguos se abstienen.");
 
 Console.WriteLine("Nexo Intelligence actionability, state and priority smoke tests passed.");
 
