@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using NexoMail.Api.Security;
 using NexoMail.Application;
+using NexoMail.Application.Intelligence;
 using NexoMail.Domain;
 using NexoMail.Infrastructure;
 using NexoMail.Infrastructure.Data;
@@ -308,6 +309,11 @@ mail.MapPost("/refresh", (NexoMail.Api.MailReadCache cache, IUserContext userCon
 {
     cache.Invalidate(userContext.UserId.ToString());
     return Results.NoContent();
+});
+mail.MapGet("/intelligence/shadow", async (ICommunicationIntelligenceReader reader, CancellationToken ct) =>
+{
+    var snapshot = await reader.AnalyzeAsync(DateTimeOffset.UtcNow, ct);
+    return Results.Ok(snapshot);
 });
 mail.MapGet("/control-center", async (GmailControlCenterService service, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid? accountId, CancellationToken ct) =>
 {
