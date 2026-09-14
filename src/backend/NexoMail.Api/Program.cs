@@ -158,6 +158,8 @@ builder.Services.AddScoped<GmailControlCenterService>();
 builder.Services.AddScoped<GmailControlCenterActivityService>();
 MailProviderBetaModule.AddServices(builder.Services, builder.Configuration);
 builder.Services.AddNexoMailIntelligence();
+builder.Services.Configure<SemanticIntelligenceOptions>(
+    builder.Configuration.GetSection(SemanticIntelligenceOptions.SectionName));
 
 var demoMode = builder.Configuration.GetValue("MailProviders:DemoMode", true);
 if (demoMode)
@@ -318,6 +320,18 @@ mail.MapGet("/intelligence/shadow", async (ICommunicationIntelligenceReader read
 mail.MapGet("/intelligence/compare", async (IIntelligenceShadowComparisonService service, Guid? accountId, CancellationToken ct) =>
 {
     var result = await service.CompareAsync(accountId, DateTimeOffset.UtcNow, ct);
+    return Results.Ok(result);
+});
+mail.MapPost("/intelligence/semantic-shadow", async (
+    SemanticShadowRequest request,
+    ISemanticIntelligenceShadowService semantic,
+    CancellationToken ct) =>
+{
+    var result = await semantic.AnalyzeAsync(
+        request.AccountId,
+        request.Limit,
+        DateTimeOffset.UtcNow,
+        ct);
     return Results.Ok(result);
 });
 mail.MapGet("/control-center", async (GmailControlCenterService service, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid? accountId, CancellationToken ct) =>
@@ -578,3 +592,4 @@ public sealed record MoveRequest(string FolderId);
 public sealed record IgnoreSenderRequest(string SenderAddress);
 public sealed record ReplyRequest(ComposeMessage Message, bool ReplyAll);
 public sealed record ControlCenterStateRequest(string MessageId, string Action, int? SnoozeHours);
+public sealed record SemanticShadowRequest(Guid? AccountId, int? Limit);
