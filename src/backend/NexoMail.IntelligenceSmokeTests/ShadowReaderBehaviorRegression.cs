@@ -100,10 +100,12 @@ internal static class ShadowReaderBehaviorRegression
 
         var direct = snapshots.Single(x => x.LatestMessageId == "direct-received");
         Ensure(direct.AccountId == activeOne
-               && direct.Intelligence.Actionability.IsActionable
-               && direct.Intelligence.State.State == ConversationWorkState.PendingUser
-               && direct.Intelligence.Priority.Score > 0,
-            "Un recibido directo/no leído debe aparecer como pendiente del usuario con prioridad positiva.");
+               && !direct.Intelligence.Actionability.IsActionable
+               && direct.Intelligence.Actionability.RequiresSemanticReview
+               && direct.Intelligence.Actionability.ActionType == CommunicationActionType.Unknown
+               && direct.Intelligence.State.State == ConversationWorkState.New
+               && direct.Intelligence.Priority.Score == 0,
+            "Un recibido directo ambiguo debe quedar como candidato semántico, no como PendingUser determinista.");
 
         var ownOnly = snapshots.Single(x => x.LatestMessageId == "own-only-sent");
         Ensure(!ownOnly.Intelligence.Actionability.IsActionable
