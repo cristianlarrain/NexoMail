@@ -7,29 +7,16 @@ public sealed class CommunicationIntelligenceService(
     IConversationStateResolver stateResolver,
     IPriorityScorer priorityScorer) : ICommunicationIntelligenceService
 {
+    public const string Version = "nexo-intelligence/0.1-deterministic";
+
     public CommunicationIntelligenceResult Analyze(
         CommunicationConversation conversation,
         ConversationStateEvidence? evidence = null)
     {
-        _ = actionabilityAnalyzer;
-        _ = stateResolver;
-        _ = priorityScorer;
+        var actionability = actionabilityAnalyzer.Analyze(conversation);
+        var state = stateResolver.Resolve(conversation, actionability, evidence);
+        var priority = priorityScorer.Score(conversation, actionability, state);
 
-        return new(
-            new ActionabilityAssessment(
-                false,
-                CommunicationActionType.None,
-                0d,
-                null,
-                [IntelligenceReasonCodes.NotActionable]),
-            new ConversationStateAssessment(
-                ConversationWorkState.New,
-                [IntelligenceReasonCodes.NotActionable]),
-            new PriorityAssessment(
-                0,
-                PriorityBand.Low,
-                [IntelligenceReasonCodes.NotActionable],
-                new Dictionary<string, int>()),
-            string.Empty);
+        return new(actionability, state, priority, Version);
     }
 }
