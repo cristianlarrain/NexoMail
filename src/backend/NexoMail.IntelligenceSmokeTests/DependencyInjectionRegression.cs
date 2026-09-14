@@ -40,6 +40,22 @@ internal static class DependencyInjectionRegression
         Ensure(readerDescriptor.ImplementationType == typeof(LocalIndexCommunicationIntelligenceReader),
             "El contrato del lector debe apuntar al lector del índice local.");
 
+        var comparatorDescriptor = services.SingleOrDefault(x =>
+            x.ServiceType == typeof(IntelligenceShadowComparator));
+        Ensure(comparatorDescriptor is not null,
+            "DI debe registrar el comparador shadow puro.");
+        Ensure(comparatorDescriptor!.Lifetime == ServiceLifetime.Singleton,
+            "El comparador shadow puro debe ser Singleton porque no mantiene estado ni usa DbContext.");
+
+        var comparisonServiceDescriptor = services.SingleOrDefault(x =>
+            x.ServiceType == typeof(IIntelligenceShadowComparisonService));
+        Ensure(comparisonServiceDescriptor is not null,
+            "DI debe registrar el servicio de comparación shadow por su contrato.");
+        Ensure(comparisonServiceDescriptor!.Lifetime == ServiceLifetime.Scoped,
+            "El servicio de comparación shadow debe ser Scoped porque compone lectores con DbContext.");
+        Ensure(comparisonServiceDescriptor.ImplementationType == typeof(IntelligenceShadowComparisonService),
+            "El contrato de comparación debe apuntar al orquestador shadow local.");
+
         using var provider = services.BuildServiceProvider(validateScopes: true);
         using var scope = provider.CreateScope();
 
