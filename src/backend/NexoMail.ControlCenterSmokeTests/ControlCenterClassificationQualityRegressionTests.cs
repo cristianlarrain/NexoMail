@@ -148,7 +148,7 @@ internal static class ControlCenterClassificationQualityRegressionTests
         var snapshot = await new GmailControlCenterService(database, new QualityUserContext(userId)).GetSnapshotAsync(null, CancellationToken.None);
         var priorityIds = snapshot.PriorityItems.Select(x => x.MessageId).ToArray();
 
-        Ensure(snapshot.PendingItems.Length == 8, "La priorización no debe eliminar elementos de la cola pendiente.");
+        Ensure(snapshot.PendingItems.Count == 8, "La priorización no debe eliminar elementos de la cola pendiente.");
         Ensure(priorityIds.Length == 6, "La vista de prioridad debe seguir mostrando seis elementos como máximo.");
         Ensure(priorityIds[0] == "expiry", "Un vencimiento no leído y accionable debe quedar por encima de pendientes antiguos genéricos.");
         Ensure(priorityIds.Contains("problem") && priorityIds.Contains("coord"), "Los problemas y coordinaciones directas de trabajo deben quedar dentro de las prioridades.");
