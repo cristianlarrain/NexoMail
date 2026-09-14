@@ -132,7 +132,13 @@ public sealed class GmailControlCenterService(
             })
             .ToArray();
 
-        var priorityItems = orderedPending.Take(6).Select(ToPendingItem).ToArray();
+        var priorityItems = orderedPending
+            .OrderByDescending(item => PriorityScore(item, now))
+            .ThenBy(item => item.Since)
+            .ThenBy(item => item.Subject, StringComparer.CurrentCultureIgnoreCase)
+            .Take(6)
+            .Select(ToPendingItem)
+            .ToArray();
         var pendingItems = orderedPending.Select(ToPendingItem).ToArray();
         var accountSummaries = accounts.Select(account =>
         {
@@ -247,6 +253,51 @@ public sealed class GmailControlCenterService(
             .Where(address => address.Contains('@'))
             .ToArray();
         return recipients.Length == 0 || recipients.Any(address => !ownAddresses.Contains(address));
+    }
+
+    private static int PriorityScore(PendingRaw item, DateTimeOffset now)
+    {
+        var score = string.Equals(item.Direction, "received", StringComparison.OrdinalIgnoreCase) ? 25 : 15;
+        if (string.Equals(item.Direction, "received", StringComparison.OrdinalIgnoreCase) && !item.IsRead) score += 45;
+
+        var subject = NormalizePriorityText(item.Subject);
+        string[] strongSignals =
+        [
+            "urgente", "importante", "problema", "requiere", "requerida", "requerido",
+            "vence", "vencimiento", "expirar", "eliminacion", "confirmacion", "solicitud"
+        ];
+        if (strongSignals.Any(subject.Contains)) score += 35;
+
+        string[] workSignals =
+        [
+            "coordinacion", "licencia", "propuesta", "antecedentes", "asistencia", "dominio"
+        ];
+        if (workSignals.Any(subject.Contains)) score += 20;
+
+        var ageDays = Math.Clamp((int)Math.Floor(Math.Max(0, (now - item.Since).TotalDays)), 0, LookbackDays);
+        score += ageDays;
+
+        if (string.IsNullOrWhiteSpace(item.Subject) || string.Equals(item.Subject, "(sin asunto)", StringComparison.OrdinalIgnoreCase)) score -= 40;
+        if (IsGenericPrioritySubject(subject)) score -= 25;
+        return score;
+    }
+
+    private static bool IsGenericPrioritySubject(string subject) =>
+        string.Equals(subject.Trim(), "nexomail", StringComparison.Ordinal) ||
+        subject.Contains("mensaje de prueba", StringComparison.Ordinal) ||
+        string.Equals(subject.Trim(), "test", StringComparison.Ordinal);
+
+    private static string NormalizePriorityText(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+        var normalized = value.Normalize(NormalizationForm.FormD);
+        var builder = new StringBuilder(normalized.Length);
+        foreach (var character in normalized)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark)
+                builder.Append(char.ToLowerInvariant(character));
+        }
+        return builder.ToString().Normalize(NormalizationForm.FormC);
     }
 
     private static string NormalizeEmail(string value) => value.Trim().ToLowerInvariant();
