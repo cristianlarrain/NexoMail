@@ -1,12 +1,8 @@
-using System.Net;
 using System.Runtime.CompilerServices;
-using System.Text;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using NexoMail.Application;
 using NexoMail.Domain;
-using NexoMail.Infrastructure;
 using NexoMail.Infrastructure.Data;
 using NexoMail.Infrastructure.Google;
 
@@ -21,7 +17,7 @@ internal static class ControlCenterClassificationQualityRegressionTests
     {
         RunRealMessageClassificationCases();
         await RunOwnAccountSentRegressionAsync();
-        await RunMojibakeIndexRegressionAsync();
+        await RunMojibakeDisplayRegressionAsync();
     }
 
     private static void RunRealMessageClassificationCases()
@@ -83,7 +79,7 @@ internal static class ControlCenterClassificationQualityRegressionTests
         Ensure(snapshot.PendingItems.Count(x => x.Direction == "sent") == 1 && snapshot.PendingItems.Single(x => x.Direction == "sent").Subject == "Propuesta pendiente", "La cola enviada debe conservar el pendiente externo y excluir el envío entre cuentas propias.");
     }
 
-    private static async Task RunMojibakeIndexRegressionAsync()
+    private static async Task RunMojibakeDisplayRegressionAsync()
     {
         var now = DateTimeOffset.UtcNow;
         var userId = Guid.NewGuid();
@@ -97,20 +93,18 @@ internal static class ControlCenterClassificationQualityRegressionTests
 
         database.Users.Add(new UserEntity { Id = userId, DisplayName = "Encoding", Email = "owner@nexomail.test", CreatedAt = now, IsActive = true, IsEmailVerified = true });
         database.MailAccounts.Add(new MailAccountEntity { Id = accountId, UserId = userId, Provider = MailProviderType.Gmail, EmailAddress = "encoding@nexomail.test", DisplayName = "Encoding", Color = "#333333", IsActive = true, CreatedAt = now });
-        database.OAuthCredentials.Add(new OAuthCredentialEntity { Id = Guid.NewGuid(), MailAccountId = accountId, EncryptedRefreshToken = "valid-refresh-token", UpdatedAt = now });
+        database.MailIndexStates.Add(new MailIndexStateEntity { AccountId = accountId, UserId = userId, LastIndexedAt = now, WindowDays = 90, IndexedMessageCount = 1 });
+        database.MailMessageIndex.Add(new MailMessageIndexEntity
+        {
+            Id = Guid.NewGuid(), UserId = userId, AccountId = accountId, ProviderMessageId = "m1", ThreadId = "t1",
+            Direction = "received", FromName = "Persona", FromAddress = "persona@example.com", ToAddresses = "Encoding\tencoding@nexomail.test",
+            Subject = "Re: ResoluciÃƒÂ³n", OccurredAt = now.AddMinutes(-10), IndexedAt = now, GmailLabels = "INBOX", IsInbox = true
+        });
         await database.SaveChangesAsync();
 
-        var service = new GmailMetadataIndexService(
-            new MojibakeHttpClientFactory(now),
-            database,
-            new QualityTokenProtector(),
-            Options.Create(new GmailOptions { ClientId = "test-client", ClientSecret = "test-secret" }),
-            new QualityUserContext(userId));
-
-        await service.SyncForUserAsync(userId, 90, 25, CancellationToken.None);
-        database.ChangeTracker.Clear();
-        var indexed = await database.MailMessageIndex.AsNoTracking().SingleAsync(x => x.AccountId == accountId && x.ProviderMessageId == "m1");
-        Ensure(indexed.Subject == "Re: Resolución", $"El índice debe reparar mojibake UTF-8 en asuntos. Valor obtenido: {indexed.Subject}");
+        var snapshot = await new GmailControlCenterService(database, new QualityUserContext(userId)).GetSnapshotAsync(null, CancellationToken.None);
+        var item = snapshot.PendingItems.Single(x => x.MessageId == "m1");
+        Ensure(item.Subject == "Re: Resolución", $"El Centro de Control debe reparar mojibake UTF-8 al mostrar asuntos. Valor obtenido: {item.Subject}");
     }
 
     private static void Ensure(bool condition, string message)
@@ -124,46 +118,5 @@ internal static class ControlCenterClassificationQualityRegressionTests
         public Guid UserId { get; } = userId;
         public string Email => "owner@nexomail.test";
         public string DisplayName => "Quality";
-    }
-
-    private sealed class QualityTokenProtector : ITokenProtector
-    {
-        public string Protect(string value) => value;
-        public string Unprotect(string protectedValue) => protectedValue;
-    }
-
-    private sealed class MojibakeHttpClientFactory(DateTimeOffset now) : IHttpClientFactory
-    {
-        public HttpClient CreateClient(string name)
-        {
-            var client = new HttpClient(new MojibakeHttpHandler(now));
-            if (string.Equals(name, "Gmail", StringComparison.Ordinal))
-                client.BaseAddress = new Uri("https://gmail.googleapis.com/gmail/v1/");
-            return client;
-        }
-    }
-
-    private sealed class MojibakeHttpHandler(DateTimeOffset now) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            var uri = request.RequestUri?.AbsoluteUri ?? string.Empty;
-            if (uri.Contains("oauth2.googleapis.com/token", StringComparison.OrdinalIgnoreCase))
-                return Task.FromResult(Json(HttpStatusCode.OK, "{\"access_token\":\"access-token\",\"expires_in\":3600}"));
-            if (uri.Contains("/users/me/messages/m1", StringComparison.OrdinalIgnoreCase))
-            {
-                var timestamp = now.AddMinutes(-10).ToUnixTimeMilliseconds();
-                var payload = "{\"id\":\"m1\",\"threadId\":\"t1\",\"labelIds\":[\"INBOX\"],\"internalDate\":\"" + timestamp + "\",\"snippet\":\"Prueba\",\"payload\":{\"headers\":[{\"name\":\"From\",\"value\":\"Persona <persona@example.com>\"},{\"name\":\"To\",\"value\":\"encoding@nexomail.test\"},{\"name\":\"Subject\",\"value\":\"Re: ResoluciÃƒÂ³n\"}],\"filename\":\"\",\"mimeType\":\"text/plain\",\"body\":{\"size\":0}}}";
-                return Task.FromResult(Json(HttpStatusCode.OK, payload));
-            }
-            if (uri.Contains("/users/me/messages?", StringComparison.OrdinalIgnoreCase))
-                return Task.FromResult(Json(HttpStatusCode.OK, "{\"messages\":[{\"id\":\"m1\"}]}"));
-            return Task.FromResult(Json(HttpStatusCode.NotFound, "{}"));
-        }
-
-        private static HttpResponseMessage Json(HttpStatusCode status, string content) => new(status)
-        {
-            Content = new StringContent(content, Encoding.UTF8, "application/json")
-        };
     }
 }
