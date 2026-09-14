@@ -97,11 +97,13 @@ internal static class DependencyInjectionRegression
             now);
 
         var result = intelligence.Analyze(conversation);
-        Ensure(result.Actionability.IsActionable
-               && result.State.State == ConversationWorkState.PendingUser
-               && result.Priority.Score > 0
+        Ensure(!result.Actionability.IsActionable
+               && result.Actionability.RequiresSemanticReview
+               && result.Actionability.ActionType == CommunicationActionType.Unknown
+               && result.State.State == ConversationWorkState.New
+               && result.Priority.Score == 0
                && result.EngineVersion == "nexo-intelligence/0.1-deterministic",
-            "El motor resuelto por DI debe ejecutar el pipeline determinístico completo.");
+            "El motor resuelto por DI debe ejecutar el pipeline determinístico con abstención semántica.");
     }
 
     private static void Ensure(bool condition, string message)
