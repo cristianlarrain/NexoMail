@@ -114,29 +114,37 @@ internal static class ShadowStructuralDiagnosticsRegression
 
         Ensure(comparison.LegacyPendingCount == 1,
             "Legacy debe conservar solo el recibido humano genérico en este escenario ficticio.");
-        Ensure(comparison.IntelligencePendingCount == 3,
-            "El baseline actual de Intelligence debe evidenciar los dos falsos positivos estructurales del escenario.");
-        Ensure(comparison.AgreementPendingCount == 1 && comparison.IntelligenceOnlyCount == 2,
-            "La regresión necesita un acuerdo y dos casos Intelligence-only para medir señales estructurales.");
+        Ensure(comparison.IntelligencePendingCount == 0,
+            "El núcleo determinista no debe declarar pendientes los recibidos directos ambiguos.");
+        Ensure(comparison.AgreementPendingCount == 0
+               && comparison.LegacyOnlyCount == 1
+               && comparison.IntelligenceOnlyCount == 0,
+            "Los recibidos ambiguos deben salir de la comparación de pendientes hasta tener decisión semántica.");
+        Ensure(comparison.SemanticReviewCandidateCount == 3,
+            "Los tres recibidos directos del escenario deben quedar explícitamente como candidatos semánticos.");
+
+        var pendingDiagnostics = comparison.IntelligenceOnlyReceivedDiagnostics;
+        Ensure(pendingDiagnostics is not null && pendingDiagnostics.Count == 0,
+            "No deben quedar falsos positivos recibidos en IntelligenceOnly tras la abstención determinista.");
 
         var property = comparison.GetType().GetProperty(
-            "IntelligenceOnlyReceivedDiagnostics",
+            "SemanticReviewCandidateDiagnostics",
             BindingFlags.Instance | BindingFlags.Public);
         Ensure(property is not null,
-            "El resultado del comparador debe exponer diagnósticos estructurales agregados para recibidos Intelligence-only.");
+            "El resultado del comparador debe exponer diagnósticos agregados de candidatos semánticos.");
 
         var diagnostics = property!.GetValue(comparison);
         Ensure(diagnostics is not null,
-            "El diagnóstico estructural agregado no debe ser nulo.");
-        Ensure(ReadInt(diagnostics!, "Count") == 2,
-            "El diagnóstico debe contar los dos recibidos Intelligence-only.");
-        Ensure(ReadInt(diagnostics!, "UnreadCount") == 1 && ReadInt(diagnostics!, "ReadCount") == 1,
+            "El diagnóstico de candidatos semánticos no debe ser nulo.");
+        Ensure(ReadInt(diagnostics!, "Count") == 3,
+            "El diagnóstico debe contar los tres recibidos enviados a revisión semántica.");
+        Ensure(ReadInt(diagnostics!, "UnreadCount") == 1 && ReadInt(diagnostics!, "ReadCount") == 2,
             "El diagnóstico debe separar leídos y no leídos sin exponer contenido.");
         Ensure(ReadInt(diagnostics!, "PromotionsCategoryCount") == 1,
-            "El diagnóstico debe contar la categoría promocional como señal estructural.");
+            "El diagnóstico debe conservar la categoría promocional como señal estructural.");
         Ensure(ReadInt(diagnostics!, "ReplyDiscouragedSenderCount") == 1,
-            "El diagnóstico debe contar remitentes técnicos no-reply como señal estructural.");
-        Ensure(ReadInt(diagnostics!, "SingleMessageThreadCount") == 2,
+            "El diagnóstico debe conservar remitentes técnicos no-reply como señal estructural.");
+        Ensure(ReadInt(diagnostics!, "SingleMessageThreadCount") == 3,
             "El diagnóstico debe distinguir hilos de un solo mensaje.");
     }
 
