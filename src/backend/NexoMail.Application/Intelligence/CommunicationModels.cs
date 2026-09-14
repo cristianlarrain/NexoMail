@@ -68,7 +68,8 @@ public sealed record ActionabilityAssessment(
     CommunicationActionType ActionType,
     double Confidence,
     DateTimeOffset? Deadline,
-    IReadOnlyList<string> ReasonCodes);
+    IReadOnlyList<string> ReasonCodes,
+    bool RequiresSemanticReview = false);
 
 public sealed record ConversationStateAssessment(
     ConversationWorkState State,
