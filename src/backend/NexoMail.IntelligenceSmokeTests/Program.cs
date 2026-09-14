@@ -12,12 +12,9 @@ Ensure(applicationAssembly.GetType("NexoMail.Application.Intelligence.IPriorityS
 Ensure(applicationAssembly.GetType("NexoMail.Application.Intelligence.ICommunicationIntelligenceService") is not null,
     "ICommunicationIntelligenceService debe existir como contrato público independiente del proveedor.");
 
-var infrastructureAssembly = typeof(NexoMail.Infrastructure.Data.NexoMailDbContext).Assembly;
-Ensure(infrastructureAssembly.GetType("NexoMail.Infrastructure.Intelligence.DeterministicPriorityScorer") is not null,
-    "DeterministicPriorityScorer debe existir como cálculo explicable e independiente del proveedor.");
-
 var analyzer = new DeterministicActionabilityAnalyzer();
 var resolver = new DeterministicConversationStateResolver();
+var scorer = new DeterministicPriorityScorer();
 var now = new DateTimeOffset(2026, 9, 14, 3, 0, 0, TimeSpan.Zero);
 var ownAddresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
 {
@@ -43,7 +40,7 @@ Ensure(directUnread.ReasonCodes.Contains(IntelligenceReasonCodes.DirectRecipient
        && directUnread.ReasonCodes.Contains(IntelligenceReasonCodes.Unread),
     "Un recibido directo/no leído debe explicar sus señales generales.");
 
-var bulk = analyzer.Analyze(Conversation(
+var bulkConversation = Conversation(
     now,
     ownAddresses,
     Message(
@@ -56,7 +53,8 @@ var bulk = analyzer.Analyze(Conversation(
         isDirectRecipient: true,
         isBulk: true,
         hasListUnsubscribe: true,
-        precedence: "bulk")));
+        precedence: "bulk"));
+var bulk = analyzer.Analyze(bulkConversation);
 Ensure(!bulk.IsActionable && bulk.ReasonCodes.Contains(IntelligenceReasonCodes.Bulk),
     "Una comunicación bulk debe descartarse mediante metadatos generales.");
 
@@ -147,7 +145,33 @@ Ensure(overdueState.State == ConversationWorkState.Overdue
        && overdueState.ReasonCodes.Contains(IntelligenceReasonCodes.DeadlineSignal),
     "Un trabajo accionable con plazo vencido debe quedar Overdue por evidencia temporal explícita.");
 
-Console.WriteLine("Nexo Intelligence actionability and conversation-state smoke tests passed.");
+var bulkState = resolver.Resolve(bulkConversation, bulk);
+var nonActionablePriority = scorer.Score(bulkConversation, bulk, bulkState);
+Ensure(nonActionablePriority.Score == 0 && nonActionablePriority.Band == PriorityBand.Low,
+    "Lo no accionable no debe consumir prioridad de trabajo.");
+
+var recentDirectUnreadPriority = scorer.Score(directConversation, directUnread, pendingState);
+var oldReadConversation = Conversation(
+    now,
+    ownAddresses,
+    Message(
+        "old-read",
+        now.AddDays(-7),
+        CommunicationDirection.Received,
+        from: "another-person@external.test",
+        to: ["user@example.test"],
+        isRead: true,
+        isDirectRecipient: true));
+var oldReadActionability = analyzer.Analyze(oldReadConversation);
+var oldReadState = resolver.Resolve(oldReadConversation, oldReadActionability);
+var oldReadPriority = scorer.Score(oldReadConversation, oldReadActionability, oldReadState);
+Ensure(recentDirectUnreadPriority.Score > oldReadPriority.Score,
+    "La prioridad no puede depender exclusivamente de la antigüedad.");
+Ensure(recentDirectUnreadPriority.Signals.ContainsKey(IntelligenceReasonCodes.Unread)
+       && recentDirectUnreadPriority.Signals.ContainsKey(IntelligenceReasonCodes.DirectRecipient),
+    "El score debe exponer el desglose de señales que explica la prioridad.");
+
+Console.WriteLine("Nexo Intelligence actionability, state and priority smoke tests passed.");
 
 static CommunicationConversation Conversation(
     DateTimeOffset evaluatedAt,
