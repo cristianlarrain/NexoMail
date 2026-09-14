@@ -6,12 +6,14 @@ on:
       - 'src/backend/NexoMail.Application/**'
       - 'src/backend/NexoMail.Infrastructure/**'
       - 'src/backend/NexoMail.IntelligenceSmokeTests/**'
+      - 'src/backend/NexoMail.Api/Program.cs'
       - '.github/workflows/intelligence-smoke.yml'
   pull_request:
     paths:
       - 'src/backend/NexoMail.Application/**'
       - 'src/backend/NexoMail.Infrastructure/**'
       - 'src/backend/NexoMail.IntelligenceSmokeTests/**'
+      - 'src/backend/NexoMail.Api/Program.cs'
       - '.github/workflows/intelligence-smoke.yml'
   workflow_dispatch:
 
