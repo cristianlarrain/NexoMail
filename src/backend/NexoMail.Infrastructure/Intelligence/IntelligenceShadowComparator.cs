@@ -38,6 +38,11 @@ public sealed class IntelligenceShadowComparator
             .Where(pair => IsPending(pair.Value.Intelligence))
             .ToDictionary(pair => pair.Key, pair => pair.Value);
 
+        var intelligenceOnlyReceived = intelligencePending
+            .Where(pair => !legacyPending.ContainsKey(pair.Key) && IsReceivedPending(pair.Value.Intelligence))
+            .Select(pair => pair.Value)
+            .ToArray();
+
         var keys = legacyPending.Keys
             .Union(intelligencePending.Keys)
             .ToArray();
@@ -141,8 +146,46 @@ public sealed class IntelligenceShadowComparator
             DirectionMismatchCount: directionMismatchCount,
             Items: orderedItems,
             GeneratedAt: generatedAt,
-            EngineVersion: engineVersion);
+            EngineVersion: engineVersion,
+            IntelligenceOnlyReceivedDiagnostics: BuildReceivedDiagnostics(intelligenceOnlyReceived));
     }
+
+    private static IntelligenceOnlyReceivedDiagnostics BuildReceivedDiagnostics(
+        IReadOnlyList<CommunicationIntelligenceSnapshot> snapshots)
+    {
+        var signals = snapshots
+            .Select(snapshot => snapshot.Signals)
+            .Where(signal => signal is not null)
+            .Cast<CommunicationSnapshotSignals>()
+            .ToArray();
+
+        return new IntelligenceOnlyReceivedDiagnostics(
+            Count: snapshots.Count,
+            UnreadCount: signals.Count(signal => signal.IsUnread),
+            ReadCount: signals.Count(signal => !signal.IsUnread),
+            DirectRecipientCount: signals.Count(signal => signal.IsDirectRecipient),
+            AutomatedCount: signals.Count(signal => signal.IsAutomated),
+            BulkCount: signals.Count(signal => signal.IsBulk),
+            ListUnsubscribeCount: signals.Count(signal => signal.HasListUnsubscribe),
+            ReplyDiscouragedSenderCount: signals.Count(signal => signal.IsReplyDiscouragedSender),
+            PromotionsCategoryCount: signals.Count(signal => signal.IsPromotionsCategory),
+            SocialCategoryCount: signals.Count(signal => signal.IsSocialCategory),
+            ForumsCategoryCount: signals.Count(signal => signal.IsForumsCategory),
+            UpdatesCategoryCount: signals.Count(signal => signal.IsUpdatesCategory),
+            AutoSubmittedCount: signals.Count(signal => HasNonDefaultAutoSubmitted(signal.AutoSubmitted)),
+            BulkPrecedenceCount: signals.Count(signal => PrecedenceIs(signal.Precedence, "bulk")),
+            ListPrecedenceCount: signals.Count(signal => PrecedenceIs(signal.Precedence, "list")),
+            JunkPrecedenceCount: signals.Count(signal => PrecedenceIs(signal.Precedence, "junk")),
+            SingleMessageThreadCount: signals.Count(signal => signal.MessageCount == 1),
+            MultiMessageThreadCount: signals.Count(signal => signal.MessageCount > 1));
+    }
+
+    private static bool HasNonDefaultAutoSubmitted(string? value) =>
+        !string.IsNullOrWhiteSpace(value)
+        && !string.Equals(value.Trim(), "no", StringComparison.OrdinalIgnoreCase);
+
+    private static bool PrecedenceIs(string? value, string expected) =>
+        string.Equals(value?.Trim(), expected, StringComparison.OrdinalIgnoreCase);
 
     private static string NormalizeConversationId(Guid accountId, string conversationId)
     {
@@ -159,6 +202,11 @@ public sealed class IntelligenceShadowComparator
         && intelligence.State.State is ConversationWorkState.PendingUser
             or ConversationWorkState.WaitingExternal
             or ConversationWorkState.Overdue;
+
+    private static bool IsReceivedPending(CommunicationIntelligenceResult intelligence) =>
+        intelligence.State.State == ConversationWorkState.PendingUser
+        || (intelligence.State.State == ConversationWorkState.Overdue
+            && intelligence.Actionability.ActionType != CommunicationActionType.WaitForExternal);
 
     private static bool DirectionAgrees(
         string legacyDirection,
