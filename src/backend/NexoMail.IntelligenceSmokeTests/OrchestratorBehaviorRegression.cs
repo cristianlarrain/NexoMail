@@ -39,12 +39,16 @@ internal static class OrchestratorBehaviorRegression
             now);
 
         var result = service.Analyze(conversation);
-        Ensure(result.Actionability.IsActionable,
-            "El orquestador debe conservar la accionabilidad calculada por el analizador.");
-        Ensure(result.State.State == ConversationWorkState.PendingUser,
-            "El orquestador debe resolver el estado de la conversación.");
-        Ensure(result.Priority.Score > 0,
-            "El orquestador debe calcular prioridad para trabajo accionable.");
+        Ensure(!result.Actionability.IsActionable
+               && result.Actionability.RequiresSemanticReview
+               && result.Actionability.ActionType == CommunicationActionType.Unknown,
+            "El orquestador debe conservar la abstención semántica calculada por el analizador.");
+        Ensure(result.State.State == ConversationWorkState.New
+               && result.State.ReasonCodes.Contains(IntelligenceReasonCodes.SemanticReviewRequired),
+            "El orquestador debe mantener fuera de PendingUser un recibido ambiguo.");
+        Ensure(result.Priority.Score == 0
+               && result.Priority.ReasonCodes.Contains(IntelligenceReasonCodes.SemanticReviewRequired),
+            "El orquestador no debe asignar prioridad determinista antes de la revisión semántica.");
         Ensure(!string.IsNullOrWhiteSpace(result.EngineVersion),
             "Todo resultado debe identificar la versión del motor.");
 
