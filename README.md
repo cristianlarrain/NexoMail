@@ -2,6 +2,16 @@
 
 Cliente web para consultar varias cuentas de correo desde una bandeja unificada. NexoMail no es un servidor de correo y no guarda cuerpos completos de mensajes ni bytes de adjuntos; consulta el contenido desde cada proveedor cuando el usuario lo necesita y mantiene sólo la información operativa o índices de metadatos requeridos por sus funciones.
 
+## Documentación funcional y ayuda de Nexi
+
+Revisión de código: 12 de septiembre de 2026, base `d13e87af7480980741814f18e6f49d713d3d2233`. No acredita el funcionamiento del entorno de producción.
+
+- [Inventario de funciones, habilidades, planes y límites por proveedor](docs/help/feature-inventory.md).
+- [Guía de uso y preguntas frecuentes por pantalla](docs/help/user-guide.md).
+- [Contrato de la futura ayuda contextual de Nexi](docs/help/nexi-help-policy.md).
+
+La conversación de ayuda basada en estos archivos todavía no está conectada al asistente. Los flujos actuales de análisis y acciones sobre correos conservan su funcionamiento. La presencia de una prestación en el catálogo comercial no demuestra que su flujo esté implementado; el inventario separa ambos casos.
+
 ## Marcha blanca
 
 La versión actual está preparada para una marcha blanca de 30 días con tres formas de conexión:
