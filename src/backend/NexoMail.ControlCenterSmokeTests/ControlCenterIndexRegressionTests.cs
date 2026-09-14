@@ -1,7 +1,11 @@
+using System.Net;
+using System.Text;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using NexoMail.Application;
 using NexoMail.Domain;
+using NexoMail.Infrastructure;
 using NexoMail.Infrastructure.Data;
 using NexoMail.Infrastructure.Google;
 
@@ -31,6 +35,7 @@ internal static class ControlCenterIndexRegressionTests
         Ensure(!ControlCenterMessageClassifier.IsNonActionableReceived(Message("info@nic.cl", "Dominio dlarrain.cl a punto de expirar")), "Un vencimiento de dominio debe mantenerse visible como potencialmente accionable.");
 
         RunAvailabilityRegressionTests().GetAwaiter().GetResult();
+        RunSyncStatusRegressionTests().GetAwaiter().GetResult();
     }
 
     public static void RunEntityMetadataContractTests()
@@ -88,7 +93,60 @@ internal static class ControlCenterIndexRegressionTests
         Ensure(snapshot.PendingItems.Count == 1 && snapshot.PendingItems.Single().AccountId == freshAccountId, "La cola operativa debe excluir cuentas con índice vencido.");
         Ensure(snapshot.Activity.Sum(x => x.Sent) == 1, "La actividad agregada debe excluir cuentas con índice vencido.");
         Ensure(snapshot.Accounts.Single(x => x.AccountId == staleAccountId).SentWithoutResponse == 0, "Una cuenta vencida no debe aportar métricas al resumen operativo.");
+        Ensure(snapshot.Accounts.Single(x => x.AccountId == staleAccountId).AvailabilityStatus == ControlCenterAvailabilityStatus.Stale, "Una cuenta con índice antiguo debe distinguirse como stale.");
         Ensure(snapshot.UnavailableAccounts == 1, "El resumen debe reportar exactamente la cuenta con índice vencido.");
+
+        var activity = await new GmailControlCenterActivityService(database, context).GetActivityAsync(null, 7, 0, CancellationToken.None);
+        Ensure(activity.Activity.Sum(x => x.Sent) == 1, "La actividad detallada debe excluir cuentas con índice vencido.");
+        Ensure(activity.Accounts.Single(x => x.AccountId == staleAccountId).Activity.Sum(x => x.Sent) == 0, "La cuenta vencida debe quedar con actividad operativa en cero.");
+    }
+
+    private static async Task RunSyncStatusRegressionTests()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var userId = Guid.NewGuid();
+        var brokenAccountId = Guid.NewGuid();
+        var validAccountId = Guid.NewGuid();
+        var context = new RegressionUserContext(userId);
+
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<NexoMailDbContext>().UseSqlite(connection).Options;
+        await using var database = new NexoMailDbContext(options);
+        await database.Database.EnsureCreatedAsync();
+
+        database.Users.Add(new UserEntity { Id = userId, DisplayName = "Regression", Email = "regression-sync@nexomail.test", CreatedAt = now, IsActive = true, IsEmailVerified = true });
+        database.MailAccounts.AddRange(
+            new MailAccountEntity { Id = brokenAccountId, UserId = userId, Provider = MailProviderType.Gmail, EmailAddress = "broken@nexomail.test", DisplayName = "A Broken", Color = "#333333", IsActive = true, CreatedAt = now },
+            new MailAccountEntity { Id = validAccountId, UserId = userId, Provider = MailProviderType.Gmail, EmailAddress = "valid@nexomail.test", DisplayName = "B Valid", Color = "#444444", IsActive = true, CreatedAt = now });
+        database.OAuthCredentials.AddRange(
+            new OAuthCredentialEntity { Id = Guid.NewGuid(), MailAccountId = brokenAccountId, EncryptedRefreshToken = "broken-refresh-token", UpdatedAt = now },
+            new OAuthCredentialEntity { Id = Guid.NewGuid(), MailAccountId = validAccountId, EncryptedRefreshToken = "valid-refresh-token", UpdatedAt = now });
+        await database.SaveChangesAsync();
+
+        var factory = new SyncStatusHttpClientFactory();
+        var service = new GmailMetadataIndexService(
+            factory,
+            database,
+            new RegressionTokenProtector(),
+            Options.Create(new GmailOptions { ClientId = "test", ClientSecret = "test" }),
+            context);
+
+        var result = await service.SyncForUserAsync(userId, 90, 25, CancellationToken.None);
+        Ensure(result.Accounts == 2, "El fallo OAuth de una cuenta no debe impedir procesar la siguiente.");
+        Ensure(factory.RefreshTokensSeen.Contains("broken-refresh-token"), "La regresión no ejercitó la credencial OAuth inválida.");
+        Ensure(factory.RefreshTokensSeen.Contains("valid-refresh-token"), "La cuenta válida no se intentó sincronizar después del fallo OAuth.");
+
+        database.ChangeTracker.Clear();
+        var states = await database.MailIndexStates.AsNoTracking().ToDictionaryAsync(x => x.AccountId);
+        Ensure(states[brokenAccountId].LastSyncAttemptAt.HasValue, "El fallo OAuth debe registrar el momento del intento.");
+        Ensure(states[brokenAccountId].LastSyncErrorCode == ControlCenterAvailabilityStatus.AuthError, "Un rechazo OAuth debe persistirse como auth_error.");
+        Ensure(states[validAccountId].LastSyncAttemptAt.HasValue, "La cuenta válida debe registrar su sincronización.");
+        Ensure(states[validAccountId].LastSyncErrorCode is null, "Una sincronización exitosa debe limpiar el error persistido.");
+
+        var snapshot = await new GmailControlCenterService(database, context).GetSnapshotAsync(null, CancellationToken.None);
+        Ensure(snapshot.Accounts.Single(x => x.AccountId == brokenAccountId).AvailabilityStatus == ControlCenterAvailabilityStatus.AuthError, "El Centro de Control debe exponer auth_error para la cuenta OAuth inválida.");
+        Ensure(snapshot.Accounts.Single(x => x.AccountId == validAccountId).AvailabilityStatus == ControlCenterAvailabilityStatus.Available, "La cuenta sincronizada debe quedar disponible.");
     }
 
     private static ControlCenterMessageMetadata Message(
@@ -111,5 +169,54 @@ internal static class ControlCenterIndexRegressionTests
         public Guid UserId { get; } = userId;
         public string Email => "regression@nexomail.test";
         public string DisplayName => "Regression";
+    }
+
+    private sealed class RegressionTokenProtector : ITokenProtector
+    {
+        public string Protect(string value) => value;
+        public string Unprotect(string protectedValue) => protectedValue;
+    }
+
+    private sealed class SyncStatusHttpClientFactory : IHttpClientFactory
+    {
+        public List<string> RefreshTokensSeen { get; } = [];
+
+        public HttpClient CreateClient(string name)
+        {
+            var client = new HttpClient(new SyncStatusHttpHandler(RefreshTokensSeen));
+            if (string.Equals(name, "Gmail", StringComparison.Ordinal))
+                client.BaseAddress = new Uri("https://gmail.googleapis.com/gmail/v1/");
+            return client;
+        }
+    }
+
+    private sealed class SyncStatusHttpHandler(List<string> refreshTokensSeen) : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var uri = request.RequestUri?.AbsoluteUri ?? string.Empty;
+            if (uri.Contains("oauth2.googleapis.com/token", StringComparison.OrdinalIgnoreCase))
+            {
+                var form = request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken);
+                var token = form.Contains("broken-refresh-token", StringComparison.Ordinal) ? "broken-refresh-token" : "valid-refresh-token";
+                refreshTokensSeen.Add(token);
+                return token == "broken-refresh-token"
+                    ? Json(HttpStatusCode.BadRequest, "{\"error\":\"invalid_grant\"}")
+                    : Json(HttpStatusCode.OK, "{\"access_token\":\"test-access-token\",\"expires_in\":3600}");
+            }
+
+            if (uri.Contains("/users/me/messages?", StringComparison.OrdinalIgnoreCase))
+                return Json(HttpStatusCode.OK, "{\"messages\":[]}");
+
+            if (uri.Contains("/users/me/messages/", StringComparison.OrdinalIgnoreCase))
+                return Json(HttpStatusCode.NotFound, "{}");
+
+            return Json(HttpStatusCode.NotFound, "{}");
+        }
+
+        private static HttpResponseMessage Json(HttpStatusCode status, string content) => new(status)
+        {
+            Content = new StringContent(content, Encoding.UTF8, "application/json")
+        };
     }
 }
