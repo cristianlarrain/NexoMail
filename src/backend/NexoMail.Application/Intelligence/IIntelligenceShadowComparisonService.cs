@@ -54,7 +54,9 @@ public sealed record IntelligenceShadowComparisonResult(
     IReadOnlyList<IntelligenceShadowComparisonItem> Items,
     DateTimeOffset GeneratedAt,
     string EngineVersion,
-    IntelligenceOnlyReceivedDiagnostics? IntelligenceOnlyReceivedDiagnostics = null);
+    IntelligenceOnlyReceivedDiagnostics? IntelligenceOnlyReceivedDiagnostics = null,
+    int SemanticReviewCandidateCount = 0,
+    IntelligenceOnlyReceivedDiagnostics? SemanticReviewCandidateDiagnostics = null);
 
 public interface IIntelligenceShadowComparisonService
 {
