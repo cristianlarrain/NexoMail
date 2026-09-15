@@ -132,7 +132,9 @@ var resolved = await service.ResolveAsync([
 Ensure(resolved.Count == 2, "Resolver referencias debe devolver sólo filas reales del usuario autenticado.");
 Ensure(resolved.Any(x => x.ProviderMessageId == "a-inbox-1") && resolved.Any(x => x.ProviderMessageId == "b-inbox-1"), "Resolver referencias perdió mensajes existentes.");
 
-Console.WriteLine("PASS: unified inbox query -> order -> pagination -> folders -> ignored -> search -> unread -> resolve -> tenant isolation");
+await GmailBackfillSmoke.RunAsync(ct);
+
+Console.WriteLine("PASS: unified inbox query + complete gmail backfill contract");
 
 sealed class TestUserContext(Guid userId) : IUserContext
 {
