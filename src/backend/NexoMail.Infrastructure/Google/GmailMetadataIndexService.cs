@@ -271,6 +271,10 @@ public sealed class GmailMetadataIndexService(
             entity.IndexedAt = now;
             entity.GmailLabels = string.Join(',', message.Labels.OrderBy(x => x, StringComparer.OrdinalIgnoreCase));
             entity.IsInbox = message.Labels.Contains("INBOX");
+            entity.IsSent = message.Labels.Contains("SENT");
+            entity.IsDraft = message.Labels.Contains("DRAFT");
+            entity.IsSpam = message.Labels.Contains("SPAM");
+            entity.IsTrash = message.Labels.Contains("TRASH");
             entity.IsUnread = message.Labels.Contains("UNREAD");
             entity.AutoSubmitted = message.AutoSubmitted;
             entity.Precedence = message.Precedence;

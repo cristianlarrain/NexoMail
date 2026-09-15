@@ -19,6 +19,10 @@ public static class ControlCenterIndexSchemaBootstrap
             {
                 await EnsureSqliteColumnAsync(connection, "MailMessageIndex", "GmailLabels", "TEXT NOT NULL DEFAULT ''", ct);
                 await EnsureSqliteColumnAsync(connection, "MailMessageIndex", "IsInbox", "INTEGER NOT NULL DEFAULT 0", ct);
+                await EnsureSqliteColumnAsync(connection, "MailMessageIndex", "IsSent", "INTEGER NOT NULL DEFAULT 0", ct);
+                await EnsureSqliteColumnAsync(connection, "MailMessageIndex", "IsDraft", "INTEGER NOT NULL DEFAULT 0", ct);
+                await EnsureSqliteColumnAsync(connection, "MailMessageIndex", "IsSpam", "INTEGER NOT NULL DEFAULT 0", ct);
+                await EnsureSqliteColumnAsync(connection, "MailMessageIndex", "IsTrash", "INTEGER NOT NULL DEFAULT 0", ct);
                 await EnsureSqliteColumnAsync(connection, "MailMessageIndex", "IsUnread", "INTEGER NOT NULL DEFAULT 0", ct);
                 await EnsureSqliteColumnAsync(connection, "MailMessageIndex", "AutoSubmitted", "TEXT NOT NULL DEFAULT ''", ct);
                 await EnsureSqliteColumnAsync(connection, "MailMessageIndex", "Precedence", "TEXT NOT NULL DEFAULT ''", ct);
@@ -34,6 +38,10 @@ public static class ControlCenterIndexSchemaBootstrap
             {
                 await ExecuteAsync(connection, "IF COL_LENGTH('MailMessageIndex','GmailLabels') IS NULL ALTER TABLE MailMessageIndex ADD GmailLabels nvarchar(2000) NOT NULL CONSTRAINT DF_MailMessageIndex_GmailLabels DEFAULT '';", ct);
                 await ExecuteAsync(connection, "IF COL_LENGTH('MailMessageIndex','IsInbox') IS NULL ALTER TABLE MailMessageIndex ADD IsInbox bit NOT NULL CONSTRAINT DF_MailMessageIndex_IsInbox DEFAULT 0;", ct);
+                await ExecuteAsync(connection, "IF COL_LENGTH('MailMessageIndex','IsSent') IS NULL ALTER TABLE MailMessageIndex ADD IsSent bit NOT NULL CONSTRAINT DF_MailMessageIndex_IsSent DEFAULT 0;", ct);
+                await ExecuteAsync(connection, "IF COL_LENGTH('MailMessageIndex','IsDraft') IS NULL ALTER TABLE MailMessageIndex ADD IsDraft bit NOT NULL CONSTRAINT DF_MailMessageIndex_IsDraft DEFAULT 0;", ct);
+                await ExecuteAsync(connection, "IF COL_LENGTH('MailMessageIndex','IsSpam') IS NULL ALTER TABLE MailMessageIndex ADD IsSpam bit NOT NULL CONSTRAINT DF_MailMessageIndex_IsSpam DEFAULT 0;", ct);
+                await ExecuteAsync(connection, "IF COL_LENGTH('MailMessageIndex','IsTrash') IS NULL ALTER TABLE MailMessageIndex ADD IsTrash bit NOT NULL CONSTRAINT DF_MailMessageIndex_IsTrash DEFAULT 0;", ct);
                 await ExecuteAsync(connection, "IF COL_LENGTH('MailMessageIndex','IsUnread') IS NULL ALTER TABLE MailMessageIndex ADD IsUnread bit NOT NULL CONSTRAINT DF_MailMessageIndex_IsUnread DEFAULT 0;", ct);
                 await ExecuteAsync(connection, "IF COL_LENGTH('MailMessageIndex','AutoSubmitted') IS NULL ALTER TABLE MailMessageIndex ADD AutoSubmitted nvarchar(256) NOT NULL CONSTRAINT DF_MailMessageIndex_AutoSubmitted DEFAULT '';", ct);
                 await ExecuteAsync(connection, "IF COL_LENGTH('MailMessageIndex','Precedence') IS NULL ALTER TABLE MailMessageIndex ADD Precedence nvarchar(64) NOT NULL CONSTRAINT DF_MailMessageIndex_Precedence DEFAULT '';", ct);
