@@ -1,0 +1,38 @@
+name: Unified Inbox source-of-truth smoke
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+    paths:
+      - 'src/backend/NexoMail.Domain/**'
+      - 'src/backend/NexoMail.Application/**'
+      - 'src/backend/NexoMail.Infrastructure/**'
+      - 'src/backend/NexoMail.Api/**'
+      - 'src/backend/NexoMail.UnifiedInboxSmokeTests/**'
+      - '.github/workflows/unified-inbox-smoke.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/backend/**'
+      - '.github/workflows/unified-inbox-smoke.yml'
+  workflow_dispatch:
+
+jobs:
+  unified-inbox:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore
+        run: dotnet restore src/backend/NexoMail.UnifiedInboxSmokeTests/NexoMail.UnifiedInboxSmokeTests.csproj
+      - name: Build
+        run: dotnet build src/backend/NexoMail.UnifiedInboxSmokeTests/NexoMail.UnifiedInboxSmokeTests.csproj --configuration Release --no-restore
+      - name: Run
+        run: dotnet run --project src/backend/NexoMail.UnifiedInboxSmokeTests/NexoMail.UnifiedInboxSmokeTests.csproj --configuration Release --no-build
