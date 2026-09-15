@@ -79,9 +79,10 @@ var service = new UnifiedInboxQueryService(db, userContext);
 
 // Global inbox order + ignored sender exclusion + multitenant isolation.
 var firstPage = await service.GetMessagesAsync(new MailQuery(null, "inbox", 2), ct);
-Ensure(firstPage.Items.Count == 2, "La primera página debe respetar take=2.");
-Ensure(firstPage.Items[0].ProviderMessageId == "a-inbox-1" && firstPage.Items[1].ProviderMessageId == "b-inbox-1", "La bandeja unificada debe ordenar globalmente por fecha descendente.");
-Ensure(firstPage.Items.All(x => x.AccountId == accountA || x.AccountId == accountB), "La bandeja no puede exponer cuentas de otro usuario.");
+var firstPageItems = firstPage.Items.ToArray();
+Ensure(firstPageItems.Length == 2, "La primera página debe respetar take=2.");
+Ensure(firstPageItems[0].ProviderMessageId == "a-inbox-1" && firstPageItems[1].ProviderMessageId == "b-inbox-1", "La bandeja unificada debe ordenar globalmente por fecha descendente.");
+Ensure(firstPageItems.All(x => x.AccountId == accountA || x.AccountId == accountB), "La bandeja no puede exponer cuentas de otro usuario.");
 Ensure(firstPage.NextCursor is not null, "La primera página debe entregar cursor cuando quedan mensajes.");
 
 var allInbox = new List<MailSummary>();
