@@ -40,6 +40,9 @@ public sealed record MailSummary(
     bool HasAttachments,
     string FolderId = "inbox");
 
+/// <summary>Exact provider message reference used to resolve an already-indexed mail row.</summary>
+public sealed record MailMessageReference(Guid AccountId, string ProviderMessageId);
+
 public sealed record MailMessage(
     string ProviderMessageId,
     Guid AccountId,
