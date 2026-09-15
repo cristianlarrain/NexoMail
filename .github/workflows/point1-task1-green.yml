@@ -1,0 +1,90 @@
+name: Point1 Task1 GREEN
+
+on:
+  push:
+    branches:
+      - feature/unified-inbox-source-of-truth
+    paths:
+      - '.github/workflows/point1-task1-green.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Apply deterministic Task 1 patch
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one replacement target, found {count}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          replace_once(
+              'src/backend/NexoMail.Infrastructure/Data/NexoMailDbContext.cs',
+              'public bool IsInbox { get; set; } public bool IsUnread { get; set; }',
+              'public bool IsInbox { get; set; } public bool IsSent { get; set; } public bool IsDraft { get; set; } public bool IsSpam { get; set; } public bool IsTrash { get; set; } public bool IsUnread { get; set; }')
+
+          replace_once(
+              'src/backend/NexoMail.Infrastructure/Google/ControlCenterIndexSchemaBootstrap.cs',
+              '                await EnsureSqliteColumnAsync(connection, "MailMessageIndex", "IsInbox", "INTEGER NOT NULL DEFAULT 0", ct);\n                await EnsureSqliteColumnAsync(connection, "MailMessageIndex", "IsUnread", "INTEGER NOT NULL DEFAULT 0", ct);',
+              '                await EnsureSqliteColumnAsync(connection, "MailMessageIndex", "IsInbox", "INTEGER NOT NULL DEFAULT 0", ct);\n                await EnsureSqliteColumnAsync(connection, "MailMessageIndex", "IsSent", "INTEGER NOT NULL DEFAULT 0", ct);\n                await EnsureSqliteColumnAsync(connection, "MailMessageIndex", "IsDraft", "INTEGER NOT NULL DEFAULT 0", ct);\n                await EnsureSqliteColumnAsync(connection, "MailMessageIndex", "IsSpam", "INTEGER NOT NULL DEFAULT 0", ct);\n                await EnsureSqliteColumnAsync(connection, "MailMessageIndex", "IsTrash", "INTEGER NOT NULL DEFAULT 0", ct);\n                await EnsureSqliteColumnAsync(connection, "MailMessageIndex", "IsUnread", "INTEGER NOT NULL DEFAULT 0", ct);')
+
+          replace_once(
+              'src/backend/NexoMail.Infrastructure/Google/ControlCenterIndexSchemaBootstrap.cs',
+              '                await ExecuteAsync(connection, "IF COL_LENGTH(\'MailMessageIndex\',\'IsInbox\') IS NULL ALTER TABLE MailMessageIndex ADD IsInbox bit NOT NULL CONSTRAINT DF_MailMessageIndex_IsInbox DEFAULT 0;", ct);\n                await ExecuteAsync(connection, "IF COL_LENGTH(\'MailMessageIndex\',\'IsUnread\') IS NULL ALTER TABLE MailMessageIndex ADD IsUnread bit NOT NULL CONSTRAINT DF_MailMessageIndex_IsUnread DEFAULT 0;", ct);',
+              '                await ExecuteAsync(connection, "IF COL_LENGTH(\'MailMessageIndex\',\'IsInbox\') IS NULL ALTER TABLE MailMessageIndex ADD IsInbox bit NOT NULL CONSTRAINT DF_MailMessageIndex_IsInbox DEFAULT 0;", ct);\n                await ExecuteAsync(connection, "IF COL_LENGTH(\'MailMessageIndex\',\'IsSent\') IS NULL ALTER TABLE MailMessageIndex ADD IsSent bit NOT NULL CONSTRAINT DF_MailMessageIndex_IsSent DEFAULT 0;", ct);\n                await ExecuteAsync(connection, "IF COL_LENGTH(\'MailMessageIndex\',\'IsDraft\') IS NULL ALTER TABLE MailMessageIndex ADD IsDraft bit NOT NULL CONSTRAINT DF_MailMessageIndex_IsDraft DEFAULT 0;", ct);\n                await ExecuteAsync(connection, "IF COL_LENGTH(\'MailMessageIndex\',\'IsSpam\') IS NULL ALTER TABLE MailMessageIndex ADD IsSpam bit NOT NULL CONSTRAINT DF_MailMessageIndex_IsSpam DEFAULT 0;", ct);\n                await ExecuteAsync(connection, "IF COL_LENGTH(\'MailMessageIndex\',\'IsTrash\') IS NULL ALTER TABLE MailMessageIndex ADD IsTrash bit NOT NULL CONSTRAINT DF_MailMessageIndex_IsTrash DEFAULT 0;", ct);\n                await ExecuteAsync(connection, "IF COL_LENGTH(\'MailMessageIndex\',\'IsUnread\') IS NULL ALTER TABLE MailMessageIndex ADD IsUnread bit NOT NULL CONSTRAINT DF_MailMessageIndex_IsUnread DEFAULT 0;", ct);')
+
+          replace_once(
+              'src/backend/NexoMail.Infrastructure/Google/GmailMetadataIndexService.cs',
+              '            entity.IsInbox = message.Labels.Contains("INBOX");\n            entity.IsUnread = message.Labels.Contains("UNREAD");',
+              '            entity.IsInbox = message.Labels.Contains("INBOX");\n            entity.IsSent = message.Labels.Contains("SENT");\n            entity.IsDraft = message.Labels.Contains("DRAFT");\n            entity.IsSpam = message.Labels.Contains("SPAM");\n            entity.IsTrash = message.Labels.Contains("TRASH");\n            entity.IsUnread = message.Labels.Contains("UNREAD");')
+
+      - name: Verify patch source contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'public bool IsSent' src/backend/NexoMail.Infrastructure/Data/NexoMailDbContext.cs
+          grep -q 'public bool IsDraft' src/backend/NexoMail.Infrastructure/Data/NexoMailDbContext.cs
+          grep -q 'public bool IsSpam' src/backend/NexoMail.Infrastructure/Data/NexoMailDbContext.cs
+          grep -q 'public bool IsTrash' src/backend/NexoMail.Infrastructure/Data/NexoMailDbContext.cs
+          grep -q 'entity.IsSent = message.Labels.Contains("SENT")' src/backend/NexoMail.Infrastructure/Google/GmailMetadataIndexService.cs
+          grep -q 'entity.IsDraft = message.Labels.Contains("DRAFT")' src/backend/NexoMail.Infrastructure/Google/GmailMetadataIndexService.cs
+          grep -q 'entity.IsSpam = message.Labels.Contains("SPAM")' src/backend/NexoMail.Infrastructure/Google/GmailMetadataIndexService.cs
+          grep -q 'entity.IsTrash = message.Labels.Contains("TRASH")' src/backend/NexoMail.Infrastructure/Google/GmailMetadataIndexService.cs
+
+      - name: Build API
+        run: dotnet build src/backend/NexoMail.Api/NexoMail.Api.csproj --configuration Release
+
+      - name: Run Control Center smoke
+        run: dotnet run --project src/backend/NexoMail.ControlCenterSmokeTests/NexoMail.ControlCenterSmokeTests.csproj --configuration Release
+
+      - name: Commit GREEN implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/point1-task1-green.yml
+          git add src/backend/NexoMail.Infrastructure/Data/NexoMailDbContext.cs \
+                  src/backend/NexoMail.Infrastructure/Google/ControlCenterIndexSchemaBootstrap.cs \
+                  src/backend/NexoMail.Infrastructure/Google/GmailMetadataIndexService.cs
+          git commit -m "feat: normalize indexed mailbox membership"
+          git push origin HEAD:feature/unified-inbox-source-of-truth
