@@ -29,15 +29,16 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
           text = Path('NexoMail.sln').read_text(encoding='utf-8-sig')
           projects = []
           for line in text.splitlines():
-              m = re.match(r'^Project\("[^"]+"\) = "([^"]+)", "([^"]+)", "([^"]+)"$', line)
-              if m:
-                  name, path, guid = m.groups()
-                  if path.lower().endswith('.csproj'):
-                      projects.append((name, path.replace('\\', '/').lower(), guid))
+              if not line.startswith('Project(') or '.csproj' not in line.lower():
+                  continue
+              parts = line.split('"')
+              if len(parts) < 8:
+                  raise SystemExit(f'Unexpected project line: {line!r}')
+              name, project_path, guid = parts[3], parts[5], parts[7]
+              projects.append((name, project_path.replace('\\', '/').lower(), guid))
           by_path = {}
           for item in projects:
               by_path.setdefault(item[1], []).append(item)
@@ -93,15 +94,16 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
           text = Path('NexoMail.sln').read_text(encoding='utf-8-sig')
           projects = []
           for line in text.splitlines():
-              m = re.match(r'^Project\("[^"]+"\) = "([^"]+)", "([^"]+)", "([^"]+)"$', line)
-              if m:
-                  name, path, guid = m.groups()
-                  if path.lower().endswith('.csproj'):
-                      projects.append((name, path.replace('\\', '/').lower(), guid))
+              if not line.startswith('Project(') or '.csproj' not in line.lower():
+                  continue
+              parts = line.split('"')
+              if len(parts) < 8:
+                  raise SystemExit(f'Unexpected project line: {line!r}')
+              name, project_path, guid = parts[3], parts[5], parts[7]
+              projects.append((name, project_path.replace('\\', '/').lower(), guid))
           by_path = {}
           for item in projects:
               by_path.setdefault(item[1], []).append(item)
