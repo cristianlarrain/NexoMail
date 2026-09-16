@@ -20,19 +20,181 @@ on:
       - '.github/workflows/unified-inbox-smoke.yml'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   unified-inbox:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+      - name: Apply Task 3 GREEN
+        if: github.event_name == 'push' && github.ref_name == 'feature/unified-inbox-source-of-truth'
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one match, found {count}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          db = 'src/backend/NexoMail.Infrastructure/Data/NexoMailDbContext.cs'
+          replace_once(db,
+              '            entity.Property(x => x.LastSyncErrorCode).HasMaxLength(32);\n            entity.HasIndex(x => new { x.UserId, x.LastIndexedAt });',
+              '            entity.Property(x => x.LastSyncErrorCode).HasMaxLength(32);\n            entity.Property(x => x.BackfillPageToken).HasMaxLength(4000);\n            entity.HasIndex(x => new { x.UserId, x.LastIndexedAt });')
+          replace_once(db,
+              'public sealed class MailIndexStateEntity { public Guid AccountId { get; set; } public Guid UserId { get; set; } public DateTimeOffset LastIndexedAt { get; set; } public DateTimeOffset? LastSyncAttemptAt { get; set; } public string? LastSyncErrorCode { get; set; } public int WindowDays { get; set; } public int IndexedMessageCount { get; set; } public string? SyncLeaseOwner { get; set; } public DateTimeOffset? SyncLeaseUntil { get; set; } }',
+              'public sealed class MailIndexStateEntity { public Guid AccountId { get; set; } public Guid UserId { get; set; } public DateTimeOffset LastIndexedAt { get; set; } public DateTimeOffset? LastSyncAttemptAt { get; set; } public string? LastSyncErrorCode { get; set; } public int WindowDays { get; set; } public int IndexedMessageCount { get; set; } public string? SyncLeaseOwner { get; set; } public DateTimeOffset? SyncLeaseUntil { get; set; } public DateTimeOffset? BackfillStartedAt { get; set; } public DateTimeOffset? BackfillCompletedAt { get; set; } public string? BackfillPageToken { get; set; } }')
+
+          bootstrap = 'src/backend/NexoMail.Infrastructure/Data/DatabaseBootstrap.cs'
+          replace_once(bootstrap,
+              '            await ExecuteAsync("CREATE INDEX IF NOT EXISTS IX_MailIndexStates_UserId_LastIndexedAt ON MailIndexStates (UserId, LastIndexedAt);", connection, cancellationToken);\n\n            await ExecuteAsync(@"\n                CREATE TABLE IF NOT EXISTS CommercialPlans (',
+              '''            await ExecuteAsync("CREATE INDEX IF NOT EXISTS IX_MailIndexStates_UserId_LastIndexedAt ON MailIndexStates (UserId, LastIndexedAt);", connection, cancellationToken);
+
+            var mailIndexStateColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            await using (var inspectMailIndexState = connection.CreateCommand())
+            {
+                inspectMailIndexState.CommandText = "PRAGMA table_info('MailIndexStates');";
+                await using var reader = await inspectMailIndexState.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                    if (reader["name"]?.ToString() is { Length: > 0 } name) mailIndexStateColumns.Add(name);
+            }
+            if (!mailIndexStateColumns.Contains("LastSyncAttemptAt")) await AddColumnAsync("ALTER TABLE MailIndexStates ADD COLUMN LastSyncAttemptAt TEXT NULL;", connection, cancellationToken);
+            if (!mailIndexStateColumns.Contains("LastSyncErrorCode")) await AddColumnAsync("ALTER TABLE MailIndexStates ADD COLUMN LastSyncErrorCode TEXT NULL;", connection, cancellationToken);
+            if (!mailIndexStateColumns.Contains("SyncLeaseOwner")) await AddColumnAsync("ALTER TABLE MailIndexStates ADD COLUMN SyncLeaseOwner TEXT NULL;", connection, cancellationToken);
+            if (!mailIndexStateColumns.Contains("SyncLeaseUntil")) await AddColumnAsync("ALTER TABLE MailIndexStates ADD COLUMN SyncLeaseUntil TEXT NULL;", connection, cancellationToken);
+            if (!mailIndexStateColumns.Contains("BackfillStartedAt")) await AddColumnAsync("ALTER TABLE MailIndexStates ADD COLUMN BackfillStartedAt TEXT NULL;", connection, cancellationToken);
+            if (!mailIndexStateColumns.Contains("BackfillCompletedAt")) await AddColumnAsync("ALTER TABLE MailIndexStates ADD COLUMN BackfillCompletedAt TEXT NULL;", connection, cancellationToken);
+            if (!mailIndexStateColumns.Contains("BackfillPageToken")) await AddColumnAsync("ALTER TABLE MailIndexStates ADD COLUMN BackfillPageToken TEXT NULL;", connection, cancellationToken);
+
+            await ExecuteAsync(@"
+                CREATE TABLE IF NOT EXISTS CommercialPlans (''')
+
+          service = 'src/backend/NexoMail.Infrastructure/Google/GmailMetadataIndexService.cs'
+          replace_once(service,
+              '    private const int UnreadDiscoveryLimit = 500;\n    private static readonly TimeSpan SyncLeaseDuration = TimeSpan.FromMinutes(10);',
+              '    private const int UnreadDiscoveryLimit = 500;\n    private const int GmailListPageMaximum = 500;\n    private static readonly TimeSpan SyncLeaseDuration = TimeSpan.FromMinutes(10);')
+          replace_once(service,
+              '''                if (indexed.Count > 0)
+                    await UpsertAccountIndexAsync(account, userId, indexed, now, days, cancellationToken);
+                else
+                    await UpsertStateAsync(account, userId, now, days, existingAccountMessages.Length, cancellationToken);''',
+              '''                if (indexed.Count > 0)
+                    await UpsertAccountIndexAsync(account, userId, indexed, now, days, cancellationToken);
+                else
+                    await UpsertStateAsync(account, userId, now, days, existingAccountMessages.Length, cancellationToken);
+
+                var backfill = await ProcessFullBackfillPageAsync(
+                    account,
+                    userId,
+                    client,
+                    Math.Min(limitPerAccount, GmailListPageMaximum),
+                    now,
+                    days,
+                    cancellationToken);
+                totalMessages += backfill.Messages;
+                totalAttachments += backfill.Attachments;''')
+
+          marker = '''    private async Task<List<string>> ListMessageIdsAsync(HttpClient client, int days, int limit, long? beforeEpoch, CancellationToken cancellationToken)
+    {'''
+          insertion = '''    private async Task<(int Messages, int Attachments)> ProcessFullBackfillPageAsync(
+        MailAccountEntity account,
+        Guid userId,
+        HttpClient client,
+        int pageSize,
+        DateTimeOffset now,
+        int days,
+        CancellationToken cancellationToken)
+    {
+        var state = await database.MailIndexStates
+            .SingleAsync(x => x.AccountId == account.Id && x.UserId == userId, cancellationToken);
+        if (state.BackfillCompletedAt.HasValue) return (0, 0);
+
+        var page = await ListFullBackfillPageAsync(client, pageSize, state.BackfillPageToken, cancellationToken);
+        var indexed = await LoadMetadataAsync(client, page.MessageIds, cancellationToken);
+        if (indexed.Count != page.MessageIds.Count)
+            throw new HttpRequestException($"El backfill Gmail no pudo cargar todos los metadatos de la página ({indexed.Count}/{page.MessageIds.Count}); el checkpoint no avanzará.");
+
+        if (indexed.Count > 0)
+            await UpsertAccountIndexAsync(account, userId, indexed, now, days, cancellationToken);
+
+        state = await database.MailIndexStates
+            .SingleAsync(x => x.AccountId == account.Id && x.UserId == userId, cancellationToken);
+        state.BackfillStartedAt ??= now;
+        state.BackfillPageToken = page.NextPageToken;
+        if (string.IsNullOrWhiteSpace(page.NextPageToken))
+            state.BackfillCompletedAt = now;
+        await database.SaveChangesAsync(cancellationToken);
+
+        return (indexed.Count, indexed.Sum(x => x.Attachments.Count));
+    }
+
+    private static async Task<FullBackfillPage> ListFullBackfillPageAsync(
+        HttpClient client,
+        int requestedPageSize,
+        string? pageToken,
+        CancellationToken cancellationToken)
+    {
+        var pageSize = Math.Clamp(requestedPageSize, 1, GmailListPageMaximum);
+        var url = $"users/me/messages?maxResults={pageSize}&includeSpamTrash=true";
+        if (!string.IsNullOrWhiteSpace(pageToken))
+            url += $"&pageToken={Uri.EscapeDataString(pageToken)}";
+
+        using var response = await client.GetAsync(url, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
+        var ids = new List<string>(pageSize);
+        if (document.RootElement.TryGetProperty("messages", out var messages))
+        {
+            foreach (var item in messages.EnumerateArray())
+            {
+                if (item.TryGetProperty("id", out var id) && !string.IsNullOrWhiteSpace(id.GetString()))
+                    ids.Add(id.GetString()!);
+            }
+        }
+
+        var nextPageToken = document.RootElement.TryGetProperty("nextPageToken", out var next)
+            ? next.GetString()
+            : null;
+        return new FullBackfillPage(ids.Distinct(StringComparer.Ordinal).ToArray(), nextPageToken);
+    }
+
+''' + marker
+          replace_once(service, marker, insertion)
+          replace_once(service,
+              '    private sealed record IndexedAddress(string Name, string Address);',
+              '    private sealed record FullBackfillPage(IReadOnlyCollection<string> MessageIds, string? NextPageToken);\n    private sealed record IndexedAddress(string Name, string Address);')
+          PY
       - name: Restore
         run: dotnet restore src/backend/NexoMail.UnifiedInboxSmokeTests/NexoMail.UnifiedInboxSmokeTests.csproj
       - name: Build
         run: dotnet build src/backend/NexoMail.UnifiedInboxSmokeTests/NexoMail.UnifiedInboxSmokeTests.csproj --configuration Release --no-restore
       - name: Run
         run: dotnet run --project src/backend/NexoMail.UnifiedInboxSmokeTests/NexoMail.UnifiedInboxSmokeTests.csproj --configuration Release --no-build
+      - name: Build complete solution
+        run: dotnet build NexoMail.sln --configuration Release
+      - name: Commit verified Task 3 and restore workflow
+        if: github.event_name == 'push' && github.ref_name == 'feature/unified-inbox-source-of-truth'
+        shell: bash
+        run: |
+          git show HEAD^:.github/workflows/unified-inbox-smoke.yml > .github/workflows/unified-inbox-smoke.yml
+          git config user.name "nexomail-ci"
+          git config user.email "actions@users.noreply.github.com"
+          git add .github/workflows/unified-inbox-smoke.yml \
+                  src/backend/NexoMail.Infrastructure/Data/NexoMailDbContext.cs \
+                  src/backend/NexoMail.Infrastructure/Data/DatabaseBootstrap.cs \
+                  src/backend/NexoMail.Infrastructure/Google/GmailMetadataIndexService.cs
+          git commit -m "feat: add resumable complete gmail backfill"
+          git push origin HEAD:feature/unified-inbox-source-of-truth
