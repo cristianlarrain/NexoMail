@@ -157,7 +157,6 @@ builder.Services.AddScoped<GmailRuleService>();
 builder.Services.AddScoped<IMailRuleProvider>(services => services.GetRequiredService<GmailRuleService>());
 builder.Services.AddScoped<GmailControlCenterService>();
 builder.Services.AddScoped<GmailControlCenterActivityService>();
-builder.Services.AddScoped<MailIndexMutationService>();
 MailProviderBetaModule.AddServices(builder.Services, builder.Configuration);
 builder.Services.AddNexoMailIntelligence();
 builder.Services.Configure<SemanticIntelligenceOptions>(
@@ -309,8 +308,17 @@ var mail = api.MapGroup("/mail").RequireAuthorization();
 NexoMail.Api.AiEndpoints.MapNexoMailAi(mail);
 NexoMail.Api.MailRuleEndpoints.Map(mail);
 mail.MapGet("/accounts", async (IMailGateway gateway, CancellationToken ct) => Results.Ok(await gateway.GetAccountsAsync(ct)));
-mail.MapPost("/refresh", (NexoMail.Api.MailReadCache cache, IUserContext userContext) =>
+mail.MapPost("/refresh", async (NexoMailDbContext database, MailIndexMutationService indexMutation, NexoMail.Api.MailReadCache cache, IUserContext userContext, CancellationToken ct) =>
 {
+    var gmailAccountIds = await database.MailAccounts
+        .AsNoTracking()
+        .Where(x => x.UserId == userContext.UserId && x.IsActive && x.Provider == MailProviderType.Gmail)
+        .Select(x => x.Id)
+        .ToArrayAsync(ct);
+    foreach (var gmailAccountId in gmailAccountIds)
+    {
+        await indexMutation.MarkAccountForImmediateSyncAsync(gmailAccountId, ct);
+    }
     cache.Invalidate(userContext.UserId.ToString());
     return Results.NoContent();
 });
@@ -429,12 +437,31 @@ mail.MapDelete("/accounts/{accountId:guid}", async (NexoMailDbContext database, 
     cache.Invalidate(userContext.UserId.ToString());
     return Results.NoContent();
 });
-mail.MapGet("/messages", async (IMailGateway gateway, NexoMailDbContext database, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid? accountId, string? folder, int? take, string? cursor, string? search, CancellationToken ct) =>
+mail.MapGet("/messages", async (IMailGateway gateway, NexoMailDbContext database, UnifiedInboxQueryService inbox, UnifiedInboxReadinessService readiness, Microsoft.Extensions.Options.IOptions<UnifiedInboxOptions> unifiedInboxOptions, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid? accountId, string? folder, int? take, string? cursor, string? search, CancellationToken ct) =>
 {
     var normalizedFolder = (folder ?? "inbox").Trim().ToLowerInvariant();
-    var providerFolder = normalizedFolder == "ignored" ? "inbox" : normalizedFolder;
     var normalizedTake = take ?? 50;
     var normalizedSearch = search?.Trim() ?? string.Empty;
+
+    if (unifiedInboxOptions.Value.IndexReadEnabled)
+    {
+        var gate = await readiness.GetAsync(ct);
+        if (!gate.IsReady)
+        {
+            return Results.Conflict(new
+            {
+                error = "La Bandeja Unificada aún no está lista para leer desde el índice. Completa la sincronización de Gmail y revisa las cuentas de proveedores todavía no incorporados al índice.",
+                incompleteAccountIds = gate.IncompleteAccountIds,
+                unsupportedProviderAccountIds = gate.UnsupportedProviderAccountIds
+            });
+        }
+
+        return Results.Ok(await inbox.GetMessagesAsync(
+            new MailQuery(accountId, normalizedFolder, normalizedTake, cursor, normalizedSearch),
+            ct));
+    }
+
+    var providerFolder = normalizedFolder == "ignored" ? "inbox" : normalizedFolder;
     var normalizedCursor = cursor ?? string.Empty;
     var scope = $"{accountId?.ToString("N") ?? "all"}:{providerFolder}:{normalizedTake}:{normalizedCursor}:{normalizedSearch}";
     var value = await cache.GetOrCreateAsync(
@@ -456,6 +483,8 @@ mail.MapGet("/messages", async (IMailGateway gateway, NexoMailDbContext database
     var filtered = normalizedFolder == "ignored" ? value.Items.Where(IsIgnored).ToArray() : value.Items.Where(item => !IsIgnored(item)).ToArray();
     return Results.Ok(new PagedResult<MailSummary>(filtered, value.NextCursor));
 });
+mail.MapPost("/messages/resolve", async (MailMessageReference[] references, UnifiedInboxQueryService inbox, CancellationToken ct) =>
+    Results.Ok(await inbox.ResolveAsync(references, ct)));
 mail.MapGet("/messages/{accountId:guid}/{messageId}", async (IMailGateway gateway, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid accountId, string messageId, CancellationToken ct) =>
 {
     var message = await cache.GetOrCreateAsync(
