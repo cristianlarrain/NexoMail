@@ -1,5 +1,6 @@
 using NexoMail.Application;
 using NexoMail.Domain;
+using NexoMail.Infrastructure.Mail;
 
 namespace NexoMail.Api;
 
@@ -77,6 +78,7 @@ public static class DraftEndpoints
 
         mail.MapPost("/drafts/{accountId:guid}/{draftMessageId}/send", async (
             IMailGateway gateway,
+            MailIndexMutationService indexMutation,
             MailReadCache cache,
             IUserContext userContext,
             Guid accountId,
@@ -90,6 +92,7 @@ public static class DraftEndpoints
             try
             {
                 await gateway.SendDraftAsync(accountId, draftMessageId, request, ct);
+                await indexMutation.MarkAccountForImmediateSyncAsync(accountId, ct);
                 cache.InvalidateAreas(userContext.UserId.ToString(), "messages", "message-detail", "message-thread", "control-center", "control-center-activity");
                 return Results.Accepted();
             }

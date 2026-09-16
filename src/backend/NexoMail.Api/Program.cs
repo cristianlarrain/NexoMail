@@ -11,6 +11,7 @@ using NexoMail.Infrastructure;
 using NexoMail.Infrastructure.Data;
 using NexoMail.Infrastructure.Google;
 using NexoMail.Infrastructure.Intelligence;
+using NexoMail.Infrastructure.Mail;
 using Serilog;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -156,6 +157,7 @@ builder.Services.AddScoped<GmailRuleService>();
 builder.Services.AddScoped<IMailRuleProvider>(services => services.GetRequiredService<GmailRuleService>());
 builder.Services.AddScoped<GmailControlCenterService>();
 builder.Services.AddScoped<GmailControlCenterActivityService>();
+builder.Services.AddScoped<MailIndexMutationService>();
 MailProviderBetaModule.AddServices(builder.Services, builder.Configuration);
 builder.Services.AddNexoMailIntelligence();
 builder.Services.Configure<SemanticIntelligenceOptions>(
@@ -505,23 +507,27 @@ mail.MapGet("/messages/{accountId:guid}/{messageId}/attachments/{attachmentId}",
     catch (InvalidOperationException exception) { return Results.BadRequest(new { error = exception.Message }); }
     catch (HttpRequestException exception) { return Results.Problem($"El proveedor no pudo entregar el adjunto ({exception.StatusCode?.ToString() ?? "sin código"}).", statusCode: 502); }
 });
-mail.MapPatch("/messages/{accountId:guid}/{messageId}/read", async (IMailGateway gateway, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid accountId, string messageId, ReadState request, CancellationToken ct) =>
+mail.MapPatch("/messages/{accountId:guid}/{messageId}/read", async (IMailGateway gateway, MailIndexMutationService indexMutation, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid accountId, string messageId, ReadState request, CancellationToken ct) =>
 {
     await gateway.MarkReadAsync(accountId, messageId, request.Read, ct);
+    await indexMutation.MarkReadAsync(accountId, messageId, request.Read, ct);
     cache.InvalidateAreas(userContext.UserId.ToString(), "messages", "control-center", "control-center-activity", "message-detail");
     return Results.NoContent();
 });
-mail.MapPost("/messages/{accountId:guid}/{messageId}/trash", async (IMailGateway gateway, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid accountId, string messageId, CancellationToken ct) =>
+mail.MapPost("/messages/{accountId:guid}/{messageId}/trash", async (IMailGateway gateway, MailIndexMutationService indexMutation, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid accountId, string messageId, CancellationToken ct) =>
 {
     await gateway.MoveToTrashAsync(accountId, messageId, ct);
+    await indexMutation.MoveAsync(accountId, messageId, "trash", ct);
     cache.InvalidateAreas(userContext.UserId.ToString(), "messages", "control-center", "control-center-activity", "message-detail");
     return Results.NoContent();
 });
-mail.MapPost("/messages/{accountId:guid}/{messageId}/move", async (IMailGateway gateway, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid accountId, string messageId, MoveRequest request, CancellationToken ct) =>
+mail.MapPost("/messages/{accountId:guid}/{messageId}/move", async (IMailGateway gateway, MailIndexMutationService indexMutation, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid accountId, string messageId, MoveRequest request, CancellationToken ct) =>
 {
     try
     {
-        await gateway.MoveToFolderAsync(accountId, messageId, request.FolderId.Trim().ToLowerInvariant(), ct);
+        var folderId = request.FolderId.Trim().ToLowerInvariant();
+        await gateway.MoveToFolderAsync(accountId, messageId, folderId, ct);
+        await indexMutation.MoveAsync(accountId, messageId, folderId, ct);
         cache.InvalidateAreas(userContext.UserId.ToString(), "messages", "control-center", "control-center-activity", "message-detail");
         return Results.NoContent();
     }
@@ -564,15 +570,17 @@ mail.MapPost("/folders/{folderId}/empty", async (IMailGateway gateway, NexoMail.
     catch (HttpRequestException exception) { return Results.Problem($"El proveedor rechazó el vaciado de la carpeta ({exception.StatusCode?.ToString() ?? "sin código"}).", statusCode: 502); }
     catch (InvalidOperationException exception) { return Results.Problem(exception.Message, statusCode: 400); }
 });
-mail.MapPost("/send", async (IMailGateway gateway, NexoMail.Api.MailReadCache cache, IUserContext userContext, ComposeMessage request, CancellationToken ct) =>
+mail.MapPost("/send", async (IMailGateway gateway, MailIndexMutationService indexMutation, NexoMail.Api.MailReadCache cache, IUserContext userContext, ComposeMessage request, CancellationToken ct) =>
 {
     await gateway.SendAsync(request, ct);
+    await indexMutation.MarkAccountForImmediateSyncAsync(request.FromAccountId, ct);
     cache.InvalidateAreas(userContext.UserId.ToString(), "messages", "control-center", "control-center-activity");
     return Results.Accepted();
 });
-mail.MapPost("/messages/{accountId:guid}/{messageId}/reply", async (IMailGateway gateway, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid accountId, string messageId, ReplyRequest request, CancellationToken ct) =>
+mail.MapPost("/messages/{accountId:guid}/{messageId}/reply", async (IMailGateway gateway, MailIndexMutationService indexMutation, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid accountId, string messageId, ReplyRequest request, CancellationToken ct) =>
 {
     await gateway.ReplyAsync(accountId, messageId, request.Message, request.ReplyAll, ct);
+    await indexMutation.MarkAccountForImmediateSyncAsync(accountId, ct);
     cache.InvalidateAreas(userContext.UserId.ToString(), "messages", "control-center", "control-center-activity", "message-thread");
     return Results.Accepted();
 });
