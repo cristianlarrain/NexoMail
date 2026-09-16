@@ -2,37 +2,63 @@ name: Unified Inbox source-of-truth smoke
 
 on:
   push:
-    branches:
-      - main
-      - 'feature/**'
-    paths:
-      - 'src/backend/NexoMail.Domain/**'
-      - 'src/backend/NexoMail.Application/**'
-      - 'src/backend/NexoMail.Infrastructure/**'
-      - 'src/backend/NexoMail.Api/**'
-      - 'src/backend/NexoMail.UnifiedInboxSmokeTests/**'
-      - '.github/workflows/unified-inbox-smoke.yml'
+    branches: [main, 'feature/**']
   pull_request:
-    branches:
-      - main
-    paths:
-      - 'src/backend/**'
-      - '.github/workflows/unified-inbox-smoke.yml'
+    branches: [main]
   workflow_dispatch:
 
 jobs:
-  unified-inbox:
+  verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup .NET 10
-        uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
-      - name: Restore
-        run: dotnet restore src/backend/NexoMail.UnifiedInboxSmokeTests/NexoMail.UnifiedInboxSmokeTests.csproj
-      - name: Build
-        run: dotnet build src/backend/NexoMail.UnifiedInboxSmokeTests/NexoMail.UnifiedInboxSmokeTests.csproj --configuration Release --no-restore
-      - name: Run
-        run: dotnet run --project src/backend/NexoMail.UnifiedInboxSmokeTests/NexoMail.UnifiedInboxSmokeTests.csproj --configuration Release --no-build
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: src/frontend/pnpm-lock.yaml
+
+      - name: Unified Inbox smoke
+        run: dotnet run --project src/backend/NexoMail.UnifiedInboxSmokeTests/NexoMail.UnifiedInboxSmokeTests.csproj --configuration Release
+
+      - name: Control Center smoke
+        run: dotnet run --project src/backend/NexoMail.ControlCenterSmokeTests/NexoMail.ControlCenterSmokeTests.csproj --configuration Release
+
+      - name: Intelligence smoke
+        run: dotnet run --project src/backend/NexoMail.IntelligenceSmokeTests/NexoMail.IntelligenceSmokeTests.csproj --configuration Release
+
+      - name: Commercial smoke
+        run: dotnet run --project src/backend/NexoMail.CommercialSmokeTests/NexoMail.CommercialSmokeTests.csproj --configuration Release
+
+      - name: General backend smoke
+        run: dotnet run --project src/backend/NexoMail.SmokeTests/NexoMail.SmokeTests.csproj --configuration Release
+
+      - name: Unified Inbox source smoke
+        run: node src/frontend/scripts/unified-inbox-source-smoke.mjs
+
+      - name: Unified Inbox readiness smoke
+        run: node src/frontend/scripts/unified-inbox-readiness-smoke.mjs
+
+      - name: Install frontend
+        working-directory: src/frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Frontend build
+        working-directory: src/frontend
+        run: pnpm build
+
+      - name: Verify indexed read boundaries
+        shell: bash
+        run: |
+          grep -q "UnifiedInboxQueryService" src/backend/NexoMail.Api/Program.cs
+          grep -q "MailMessageIndex" src/backend/NexoMail.Infrastructure/Google/GmailControlCenterService.cs
+          grep -q "MailMessageIndex" src/backend/NexoMail.Infrastructure/Intelligence/LocalIndexCommunicationIntelligenceReader.cs
