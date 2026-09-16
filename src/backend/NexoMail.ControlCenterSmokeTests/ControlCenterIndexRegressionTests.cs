@@ -205,6 +205,12 @@ internal static class ControlCenterIndexRegressionTests
                     : Json(HttpStatusCode.OK, "{\"access_token\":\"test-access-token\",\"expires_in\":3600}");
             }
 
+            if (uri.Contains("/users/me/profile", StringComparison.OrdinalIgnoreCase))
+                return Json(HttpStatusCode.OK, "{\"emailAddress\":\"valid@nexomail.test\",\"messagesTotal\":0,\"threadsTotal\":0,\"historyId\":\"500\"}");
+
+            if (uri.Contains("/users/me/history?", StringComparison.OrdinalIgnoreCase))
+                return Json(HttpStatusCode.OK, "{\"history\":[],\"historyId\":\"500\"}");
+
             if (uri.Contains("/users/me/messages?", StringComparison.OrdinalIgnoreCase))
                 return Json(HttpStatusCode.OK, "{\"messages\":[]}");
 
