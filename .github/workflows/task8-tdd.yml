@@ -31,73 +31,42 @@ jobs:
 
           mail_api_path = Path('src/frontend/src/api/mailApi.ts')
           mail_api = mail_api_path.read_text(encoding='utf-8')
-          old = """  messages: (accountId?: string, folder = 'inbox', search = '', cursor?: string) => {
-            const take = cursor ? 25 : accountId ? 20 : 12
-            return api<PagedResult<MailSummary>>(`/mail/messages?folder=${encodeURIComponent(folder)}&take=${take}${accountId ? `&accountId=${encodeURIComponent(accountId)}` : ''}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ''}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
-          },
-          message: async (accountId: string, messageId: string) => {
-          """
-          new = """  messages: (accountId?: string, folder = 'inbox', search = '', cursor?: string) => {
-            const take = cursor ? 25 : accountId ? 20 : 12
-            return api<PagedResult<MailSummary>>(`/mail/messages?folder=${encodeURIComponent(folder)}&take=${take}${accountId ? `&accountId=${encodeURIComponent(accountId)}` : ''}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ''}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
-          },
-          resolveMessages: (references: Array<{ accountId: string; providerMessageId: string }>) =>
+          if '  resolveMessages:' not in mail_api:
+              marker = "  message: async (accountId: string, messageId: string) => {"
+              if marker not in mail_api:
+                  raise SystemExit('No se encontró el punto de inserción de resolveMessages en mailApi.ts')
+              resolve_block = """  resolveMessages: (references: Array<{ accountId: string; providerMessageId: string }>) =>
             api<MailSummary[]>('/mail/messages/resolve', {
               method: 'POST',
               body: JSON.stringify(references),
             }),
-          message: async (accountId: string, messageId: string) => {
           """
-          if old not in mail_api:
-              raise SystemExit('No se encontró el bloque messages esperado en mailApi.ts')
-          mail_api_path.write_text(mail_api.replace(old, new, 1), encoding='utf-8')
+              mail_api = mail_api.replace(marker, resolve_block + marker, 1)
+              mail_api_path.write_text(mail_api, encoding='utf-8')
 
           inbox_path = Path('src/frontend/src/pages/InboxPage.tsx')
           inbox = inbox_path.read_text(encoding='utf-8')
-
-          old_refresh = """    onSuccess: async () => {
-              if (priorityOnly) await Promise.all([prioritySnapshot.refetch(), trackedItemsQuery.refetch()])
-              else await messagesQuery.refetch()
-            },
-          """
-          new_refresh = """    onSuccess: async () => {
-              if (priorityOnly) {
-                await Promise.all([
+          if 'mailApi.resolveMessages' not in inbox:
+              old_refresh = "if (priorityOnly) await Promise.all([prioritySnapshot.refetch(), trackedItemsQuery.refetch()])"
+              new_refresh = """if (priorityOnly) await Promise.all([
                   prioritySnapshot.refetch(),
                   trackedItemsQuery.refetch(),
                   queryClient.invalidateQueries({ queryKey: ['priority-messages', accountId], refetchType: 'active' }),
-                ])
-              } else await messagesQuery.refetch()
-            },
-          """
-          if old_refresh not in inbox:
-              raise SystemExit('No se encontró el bloque refresh esperado en InboxPage.tsx')
-          inbox = inbox.replace(old_refresh, new_refresh, 1)
+                ])"""
+              if old_refresh not in inbox:
+                  raise SystemExit('No se encontró el refresco prioritario esperado en InboxPage.tsx')
+              inbox = inbox.replace(old_refresh, new_refresh, 1)
 
-          old_priority = """  const priorityReferenceByKey = useMemo(() => new Map(priorityReferences.map(item => [pendingKey(item), item])), [priorityReferences])
-
-            const displayItems = useMemo(() => {
-              if (!priorityOnly) return items
-              const loaded = new Map(items.map(item => [itemKey(item), item]))
-              const normalizedSearch = search.trim().toLowerCase()
-              return priorityReferences
-                .filter(reference => !priorityHidden.has(pendingKey(reference)))
-                .map(reference => loaded.get(pendingKey(reference)) ?? ({
-                  providerMessageId: reference.messageId,
-                  accountId: reference.accountId,
-                  senderName: reference.counterpart || 'Remitente',
-                  senderAddress: '',
-                  subject: reference.subject,
-                  preview: reference.conversationId.startsWith('manual:') ? 'Marcado manualmente para seguimiento' : 'Pendiente de respuesta',
-                  receivedAt: reference.since,
-                  isRead: reference.isRead,
-                  hasAttachments: false,
-                  folderId: 'inbox',
-                } satisfies MailSummary))
-                .filter(item => !normalizedSearch || normalizedSearch === 'is:unread' || `${item.senderName} ${item.senderAddress} ${item.subject} ${item.preview}`.toLowerCase().includes(normalizedSearch))
-            }, [items, priorityHidden, priorityOnly, priorityReferences, search])
-          """
-          new_priority = """  const priorityReferenceByKey = useMemo(() => new Map(priorityReferences.map(item => [pendingKey(item), item])), [priorityReferences])
+              start_marker = "  const priorityReferenceByKey = useMemo(() => new Map(priorityReferences.map(item => [pendingKey(item), item])), [priorityReferences])"
+              end_marker = "  }, [items, priorityHidden, priorityOnly, priorityReferences, search])"
+              start = inbox.find(start_marker)
+              if start < 0:
+                  raise SystemExit('No se encontró el inicio del bloque prioritario en InboxPage.tsx')
+              end = inbox.find(end_marker, start)
+              if end < 0:
+                  raise SystemExit('No se encontró el final del bloque prioritario en InboxPage.tsx')
+              end += len(end_marker)
+              priority_block = """  const priorityReferenceByKey = useMemo(() => new Map(priorityReferences.map(item => [pendingKey(item), item])), [priorityReferences])
 
             const priorityMessageReferences = useMemo(() => priorityReferences.map(reference => ({
               accountId: reference.accountId,
@@ -119,25 +88,21 @@ jobs:
               return (priorityMessagesQuery.data ?? [])
                 .filter(item => !priorityHidden.has(itemKey(item)))
                 .filter(item => !normalizedSearch || normalizedSearch === 'is:unread' || `${item.senderName} ${item.senderAddress} ${item.subject} ${item.preview}`.toLowerCase().includes(normalizedSearch))
-            }, [items, priorityHidden, priorityMessagesQuery.data, priorityOnly, search])
-          """
-          if old_priority not in inbox:
-              raise SystemExit('No se encontró el bloque prioritario esperado en InboxPage.tsx')
-          inbox = inbox.replace(old_priority, new_priority, 1)
+            }, [items, priorityHidden, priorityMessagesQuery.data, priorityOnly, search])"""
+              inbox = inbox[:start] + priority_block + inbox[end:]
 
-          old_state = """  const priorityLoading = priorityOnly && (prioritySnapshot.isLoading || trackedItemsQuery.isLoading)
-            const priorityError = priorityOnly && (prioritySnapshot.isError || trackedItemsQuery.isError)
-          """
-          new_state = """  const priorityLoading = priorityOnly && (
+              old_loading = "  const priorityLoading = priorityOnly && (prioritySnapshot.isLoading || trackedItemsQuery.isLoading)"
+              new_loading = """  const priorityLoading = priorityOnly && (
               prioritySnapshot.isLoading ||
               trackedItemsQuery.isLoading ||
               (priorityReferences.length > 0 && priorityMessagesQuery.isLoading)
-            )
-            const priorityError = priorityOnly && (prioritySnapshot.isError || trackedItemsQuery.isError || priorityMessagesQuery.isError)
-          """
-          if old_state not in inbox:
-              raise SystemExit('No se encontró el estado prioritario esperado en InboxPage.tsx')
-          inbox_path.write_text(inbox.replace(old_state, new_state, 1), encoding='utf-8')
+            )"""
+              old_error = "  const priorityError = priorityOnly && (prioritySnapshot.isError || trackedItemsQuery.isError)"
+              new_error = "  const priorityError = priorityOnly && (prioritySnapshot.isError || trackedItemsQuery.isError || priorityMessagesQuery.isError)"
+              if old_loading not in inbox or old_error not in inbox:
+                  raise SystemExit('No se encontró el estado de carga/error prioritario esperado en InboxPage.tsx')
+              inbox = inbox.replace(old_loading, new_loading, 1).replace(old_error, new_error, 1)
+              inbox_path.write_text(inbox, encoding='utf-8')
           PY
 
       - name: Unified inbox source smoke
