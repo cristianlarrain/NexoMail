@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
-import { Archive, BookMarked, ChevronDown, ChevronLeft, Clock3, CreditCard, EyeOff, FileText, Inbox, LogOut, Menu, Moon, PenLine, Send, Settings, ShieldAlert, Sun, Trash2, UserRound } from 'lucide-react'
+import { Archive, BookMarked, ChevronDown, ChevronLeft, CreditCard, EyeOff, FileText, Inbox, LogOut, Menu, Moon, PenLine, Send, Settings, ShieldAlert, Sun, Trash2, UserRound } from 'lucide-react'
 import { authApi } from '../api/authApi'
 import { commercialApi } from '../api/commercialApi'
 import { mailApi } from '../api/mailApi'
@@ -12,7 +12,6 @@ import { NexoPerspective } from '../components/NexoPerspective'
 import { TopSearchBox } from '../components/TopSearchBox'
 import { NexoMailLogo } from '../components/brand/NexoMailLogo'
 import { NexiVisual } from '../components/nexi/NexiVisual'
-import { WeatherWidget } from '../components/WeatherWidget'
 import { commercialEntitlements } from '../utils/commercialEntitlements'
 import { detectNexiMailAction } from '../utils/nexiSearchIntent'
 import { detectNexiTrashRuleIntent } from '../utils/nexiRuleIntent'
@@ -23,7 +22,6 @@ const navClass = ({ isActive }: { isActive: boolean }) => `nav-item ${isActive ?
 const controlCenterNavClass = ({ isActive }: { isActive: boolean }) => `nav-item sidebar-primary-link control-center-nav ${isActive ? 'active' : ''}`
 const inboxNavClass = ({ isActive }: { isActive: boolean }) => `nav-item sidebar-primary-link inbox-primary-nav ${isActive ? 'active' : ''}`
 function initials(value: string) { return value.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || 'NM' }
-function capitalize(value: string) { return value.charAt(0).toUpperCase() + value.slice(1) }
 function accountIdFromPath(pathname: string) {
   const accountMatch = pathname.match(/^\/account\/([^/]+)/)
   if (accountMatch) return decodeURIComponent(accountMatch[1])
@@ -47,7 +45,6 @@ export function AppLayout() {
   const [theme, setTheme] = useState(() => localStorage.getItem('nexomail-theme') ?? 'dark')
   const [profileOpen, setProfileOpen] = useState(false)
   const [search, setSearch] = useState('')
-  const [now, setNow] = useState(() => new Date())
   const queryClient = useQueryClient()
   const { data: session } = useQuery({ queryKey: ['session'], queryFn: authApi.me, retry: false, staleTime: 60_000 })
   const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: mailApi.accounts })
@@ -63,7 +60,6 @@ export function AppLayout() {
   useEffect(() => { document.documentElement.dataset.theme = theme; localStorage.setItem('nexomail-theme', theme) }, [theme])
   useEffect(() => { setSearch(new URLSearchParams(location.search).get('q') ?? '') }, [location.search])
   useEffect(() => { setOpen(false); setProfileOpen(false) }, [location.pathname, location.search])
-  useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 1000); return () => window.clearInterval(timer) }, [])
   useEffect(() => {
     if (!accounts.length || !(location.pathname === '/inbox' || location.pathname.startsWith('/account/'))) return
     let cancelled = false
@@ -93,8 +89,6 @@ export function AppLayout() {
     return () => { cancelled = true; window.clearTimeout(timer) }
   }, [accounts, location.pathname, queryClient])
 
-  const dateLabel = capitalize(now.toLocaleDateString('es-CL', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, ''))
-  const timeLabel = now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
   const activeAccountId = accountIdFromPath(location.pathname)
   const contextualQueryAccount = ['/search', '/search-action', '/rules/new', '/control-center'].includes(location.pathname)
     ? new URLSearchParams(location.search).get('account') ?? undefined
@@ -217,8 +211,6 @@ export function AppLayout() {
       <header className="topbar">
         <button className="icon-button menu-button" onClick={() => setOpen(true)} aria-label="Abrir menú"><Menu size={20} /></button>
         <TopSearchBox value={search} onChange={setSearch} onSubmit={runSearch} />
-        <div className="operations-clock" aria-label={`${dateLabel}, ${timeLabel}`} title="Hora local"><Clock3 size={16} /><span className="operations-date">{dateLabel}</span><strong>{timeLabel}</strong></div>
-        <WeatherWidget />
         <button className={`avatar ${session?.avatarDataUrl ? 'has-image' : ''}`} aria-label="Menú de perfil" aria-expanded={profileOpen} onClick={() => setProfileOpen(!profileOpen)}>{session?.avatarDataUrl ? <img src={session.avatarDataUrl} alt="" /> : initials(session?.displayName ?? session?.email ?? '')}</button>
         {profileOpen && <div className="profile-menu"><p><strong>{session?.displayName}</strong><br />{session?.email}</p><button onClick={() => { setProfileOpen(false); navigate('/settings/profile') }}><UserRound size={16} /> Mi perfil</button><button onClick={() => { setProfileOpen(false); navigate(isOwner ? '/admin/users' : '/settings/plan') }}><CreditCard size={16} /> {isOwner ? 'Panel de Administración' : 'Plan y uso'}</button><button onClick={() => { setProfileOpen(false); navigate('/settings/accounts') }}><Settings size={16} /> Configurar cuentas</button><button onClick={() => { setTheme(theme === 'dark' ? 'light' : 'dark'); setProfileOpen(false) }}>{theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}{theme === 'dark' ? 'Usar tema claro' : 'Usar tema oscuro'}</button><button disabled={logout.isPending} onClick={() => logout.mutate()}><LogOut size={16} /> {logout.isPending ? 'Saliendo…' : 'Cerrar sesión'}</button></div>}
       </header>

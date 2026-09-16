@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
-import { AlertTriangle, BellOff, Check, CheckCircle2, ChevronRight, CircleHelp, Clock3, Eye, Info, MailOpen, MessageSquareReply, MoreHorizontal, Sparkles, TimerReset, Trash2, X } from 'lucide-react'
+import { AlertTriangle, BellOff, Check, CheckCircle2, ChevronRight, Clock3, Eye, Info, MessageSquareReply, MoreHorizontal, Sparkles, TimerReset, Trash2, X } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { nexiApi } from '../api/nexiApi'
 import type { AiMessageInsight, ControlCenterPendingItem } from '../types/mail'
@@ -8,11 +7,9 @@ import { NexiEmptyState } from './nexi/NexiEmptyState'
 import { NexiVisual } from './nexi/NexiVisual'
 import {
   classifyByRules,
-  classifyFromInsight,
   PRIORITY_ORDER,
   priorityKey,
   type NexiPriorityCategory,
-  type NexiPriorityClassification,
   type PriorityDisplayItem,
 } from './nexi/priorityEngine'
 
@@ -99,7 +96,6 @@ export function NexiPriorityQueue({
   const priorityParam = params.get('priority')
   const [filter, setFilter] = useState<PriorityFilter>(() => validPriorityFilter(priorityParam))
   const [visible, setVisible] = useState(10)
-  const [semantic, setSemantic] = useState<Record<string, NexiPriorityClassification>>({})
   const [rowInsights, setRowInsights] = useState<Record<string, AiMessageInsight>>({})
   const [summarizingTarget, setSummarizingTarget] = useState<string | null>(null)
   const [semanticError, setSemanticError] = useState('')
@@ -109,7 +105,7 @@ export function NexiPriorityQueue({
 
   const classified = useMemo(() => items.map(entry => {
     const key = priorityKey(entry.item)
-    const original = semantic[key] ?? classifyByRules(entry)
+    const original = classifyByRules(entry)
     const classification = suppressedUrgency.has(key) && original.category === 'urgent'
       ? { ...original, category: entry.item.direction === 'received' ? 'response' as const : 'follow_up' as const, reason: 'Urgencia retirada por usted', source: 'rules' as const }
       : original
@@ -118,7 +114,7 @@ export function NexiPriorityQueue({
     const priority = PRIORITY_ORDER[left.classification.category] - PRIORITY_ORDER[right.classification.category]
     if (priority !== 0) return priority
     return new Date(left.entry.item.since).getTime() - new Date(right.entry.item.since).getTime()
-  }), [items, semantic, suppressedUrgency])
+  }), [items, suppressedUrgency])
 
   const focused = useMemo(() => {
     if (!focus) return classified
@@ -143,45 +139,10 @@ export function NexiPriorityQueue({
 
   useEffect(() => { setFilter(validPriorityFilter(priorityParam)) }, [priorityParam])
 
-  const counts = useMemo(() => focused.reduce((result, value) => {
-    result[value.classification.category] += 1
-    return result
-  }, { urgent: 0, response: 0, follow_up: 0, informative: 0, probably_resolved: 0 } as Record<NexiPriorityCategory, number>), [focused])
 
   const filtered = filter === 'all' ? focused : filter === 'unread' ? focused.filter(value => !value.entry.item.isRead) : focused.filter(value => value.classification.category === filter)
   const shown = filtered.slice(0, visible)
 
-  const candidates = useMemo(() => focused
-    .filter(value => !semantic[priorityKey(value.entry.item)])
-    .slice(0, 5), [focused, semantic])
-
-  const refine = useMutation({
-    mutationFn: async () => {
-      const results: Array<{ key: string; classification: NexiPriorityClassification }> = []
-      let failed = 0
-      for (const candidate of candidates) {
-        const { entry } = candidate
-        try {
-          const insight = await nexiApi.summarizeMessage(entry.item.accountId, entry.item.messageId, false)
-          results.push({ key: priorityKey(entry.item), classification: classifyFromInsight(entry, insight) })
-        } catch {
-          failed += 1
-        }
-      }
-      if (results.length === 0 && failed > 0) throw new Error('Nexi no pudo revisar el contenido de estos correos.')
-      return { results, failed }
-    },
-    onMutate: () => setSemanticError(''),
-    onSuccess: value => {
-      setSemantic(current => {
-        const next = { ...current }
-        value.results.forEach(result => { next[result.key] = result.classification })
-        return next
-      })
-      if (value.failed > 0) setSemanticError(`${value.failed} correo${value.failed === 1 ? '' : 's'} no pudo${value.failed === 1 ? '' : 'ieron'} analizarse; se mantiene su clasificación por reglas.`)
-    },
-    onError: error => setSemanticError(error instanceof Error ? error.message : 'Nexi no pudo afinar la priorización.'),
-  })
 
   async function summarizeRow(item: ControlCenterPendingItem) {
     const key = priorityKey(item)
@@ -208,14 +169,6 @@ export function NexiPriorityQueue({
     setVisible(10)
   }
 
-  function selectPriorityFilter(nextFilter: PriorityFilter) {
-    const next = new URLSearchParams(params)
-    if (nextFilter === 'all') next.delete('priority')
-    else next.set('priority', nextFilter)
-    setFilter(nextFilter)
-    setVisible(10)
-    setParams(next, { replace: true })
-  }
 
   return <article ref={panelRef} className="control-panel nexi-priority-panel nexi-priority-featured" aria-label="Priorización inteligente">
     <header className="nexi-priority-header">
@@ -223,10 +176,6 @@ export function NexiPriorityQueue({
         <span className="nexi-priority-kicker"><Sparkles size={14} /> Priorización inteligente</span>
         <strong>Qué atender primero</strong>
       </div>
-      {items.length > 0 && <button type="button" className="secondary-button nexi-priority-refine nexi-glow-action" disabled={refine.isPending || candidates.length === 0} onClick={() => refine.mutate()}>
-        {refine.isPending ? <NexiVisual size="small" className="nexi-inline-processing" /> : candidates.length === 0 ? <CheckCircle2 size={14} /> : <Sparkles size={14} />}
-        {refine.isPending ? 'Analizando…' : candidates.length === 0 ? 'Analizado con Nexi' : 'Analizar con Nexi'}
-      </button>}
     </header>
 
     {focus && <div className="nexi-priority-context-filter">
@@ -234,16 +183,6 @@ export function NexiPriorityQueue({
       <button type="button" onClick={clearContextFocus}><X size={13} /> Quitar filtro</button>
     </div>}
 
-    <div className="nexi-priority-summary" aria-label="Filtros de priorización">
-      <button type="button" className={filter === 'all' ? 'active all' : 'all'} onClick={() => selectPriorityFilter('all')}><CircleHelp size={14} /><span>Todos</span><b>{focused.length}</b></button>
-      {(['urgent', 'response', 'follow_up'] as NexiPriorityCategory[]).map(category => {
-        const Icon = CATEGORY_META[category].icon
-        return <button type="button" key={category} className={`${filter === category ? 'active ' : ''}${category}`} onClick={() => selectPriorityFilter(category)}>
-          <Icon size={14} /><span>{CATEGORY_META[category].short}</span><b>{counts[category]}</b>
-        </button>
-      })}
-      <button type="button" className={filter === 'unread' ? 'active unread' : 'unread'} onClick={() => selectPriorityFilter('unread')}><MailOpen size={14} /><span>Sin leer</span><b>{focused.filter(value => !value.entry.item.isRead).length}</b></button>
-    </div>
 
     {semanticError && <div className="notice nexi-priority-notice">{semanticError}</div>}
 
@@ -291,9 +230,8 @@ export function NexiPriorityQueue({
     </div>
 
     <footer className="nexi-priority-footer">
-      <span>Mostrando {Math.min(visible, filtered.length)} de {filtered.length}{Object.keys(semantic).length > 0 ? ` · ${Object.keys(semantic).length} revisados por Nexi` : ''}</span>
+      <span>Mostrando {Math.min(visible, filtered.length)} de {filtered.length}</span>
       {visible < filtered.length && <button type="button" className="secondary-button" onClick={() => setVisible(current => current + 10)}>Cargar más</button>}
-      {candidates.length > 0 && !refine.isPending && <small>Nexi revisa hasta 5 correos por tanda.</small>}
     </footer>
   </article>
 }

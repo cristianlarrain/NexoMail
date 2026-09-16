@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { BarChart3, Files, Gauge, Inbox, LockKeyhole, Sparkles, Users } from 'lucide-react'
+import { BarChart3, Files, Gauge, LockKeyhole, Sparkles, Users } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { commercialApi } from '../api/commercialApi'
 import { ControlCenter } from '../components/ControlCenter'
@@ -84,7 +84,6 @@ export function ControlCenterPage() {
         <button type="button" disabled={!hasFullControlCenter} title={!hasFullControlCenter ? 'No incluido en su plan' : undefined} className={tab === 'contacts' ? 'active' : ''} onClick={() => selectTab('contacts')}><Users size={16} /> Contactos {!hasFullControlCenter && <LockKeyhole size={12} />}</button>
         <button type="button" disabled={!hasFullControlCenter} title={!hasFullControlCenter ? 'No incluido en su plan' : undefined} className={tab === 'documents' ? 'active' : ''} onClick={() => selectTab('documents')}><Files size={16} /> Documentos {!hasFullControlCenter && <LockKeyhole size={12} />}</button>
       </nav>
-      <Link to={accountId ? `/account/${encodeURIComponent(accountId)}` : '/inbox'} className="secondary-button control-classic-link"><Inbox size={15} /> Vista clásica</Link>
     </div>
 
     {featureLocked
