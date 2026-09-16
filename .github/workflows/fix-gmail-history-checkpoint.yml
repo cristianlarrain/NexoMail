@@ -26,8 +26,9 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Add regression expectations
-        shell: python
+        shell: bash
         run: |
+          python - <<'PY'
           from pathlib import Path
           path = Path('src/backend/NexoMail.UnifiedInboxSmokeTests/GmailBackfillSmoke.cs')
           text = path.read_text(encoding='utf-8')
@@ -46,6 +47,7 @@ jobs:
                   raise SystemExit(f'No se encontró patrón esperado: {old}')
               text = text.replace(old, new)
           path.write_text(text, encoding='utf-8')
+          PY
 
       - name: Restore unified inbox smoke
         run: dotnet restore src/backend/NexoMail.UnifiedInboxSmokeTests/NexoMail.UnifiedInboxSmokeTests.csproj
@@ -68,55 +70,57 @@ jobs:
           echo "RED confirmado: el código actual persiste GmailHistoryId antes de completar el backfill."
 
       - name: Apply minimal production fix
-        shell: python
+        shell: bash
         run: |
+          python - <<'PY'
           from pathlib import Path
           path = Path('src/backend/NexoMail.Infrastructure/Google/GmailMetadataIndexService.cs')
           text = path.read_text(encoding='utf-8')
           old_start = '''        if (string.IsNullOrWhiteSpace(state.GmailHistoryId))
-        {
-            state.GmailHistoryId = await GetProfileHistoryIdAsync(client, cancellationToken);
-            state.BackfillStartedAt ??= now;
-            await database.SaveChangesAsync(cancellationToken);
-        }
-'''
+          {
+              state.GmailHistoryId = await GetProfileHistoryIdAsync(client, cancellationToken);
+              state.BackfillStartedAt ??= now;
+              await database.SaveChangesAsync(cancellationToken);
+          }
+          '''
           new_start = '''        if (!state.BackfillStartedAt.HasValue)
-        {
-            state.BackfillStartedAt = now;
-            state.GmailHistoryId = null;
-            await database.SaveChangesAsync(cancellationToken);
-        }
-        else if (!string.IsNullOrWhiteSpace(state.GmailHistoryId))
-        {
-            // Older builds persisted a History checkpoint at backfill start. It is not safe
-            // to reuse after a multi-cycle backfill because Gmail may expire it meanwhile.
-            state.GmailHistoryId = null;
-            await database.SaveChangesAsync(cancellationToken);
-        }
-'''
+          {
+              state.BackfillStartedAt = now;
+              state.GmailHistoryId = null;
+              await database.SaveChangesAsync(cancellationToken);
+          }
+          else if (!string.IsNullOrWhiteSpace(state.GmailHistoryId))
+          {
+              // Older builds persisted a History checkpoint at backfill start. It is not safe
+              // to reuse after a multi-cycle backfill because Gmail may expire it meanwhile.
+              state.GmailHistoryId = null;
+              await database.SaveChangesAsync(cancellationToken);
+          }
+          '''
           old_finish = '''        state.BackfillStartedAt ??= now;
-        state.BackfillPageToken = page.NextPageToken;
-        if (string.IsNullOrWhiteSpace(page.NextPageToken))
-            state.BackfillCompletedAt = now;
-        await database.SaveChangesAsync(cancellationToken);
-'''
+          state.BackfillPageToken = page.NextPageToken;
+          if (string.IsNullOrWhiteSpace(page.NextPageToken))
+              state.BackfillCompletedAt = now;
+          await database.SaveChangesAsync(cancellationToken);
+          '''
           new_finish = '''        state.BackfillStartedAt ??= now;
-        state.BackfillPageToken = page.NextPageToken;
-        if (string.IsNullOrWhiteSpace(page.NextPageToken))
-        {
-            // Capture a fresh checkpoint only when the complete provider-visible mailbox
-            // has been indexed, so the incremental History phase cannot start from a stale id.
-            state.GmailHistoryId = await GetProfileHistoryIdAsync(client, cancellationToken);
-            state.BackfillCompletedAt = now;
-        }
-        await database.SaveChangesAsync(cancellationToken);
-'''
+          state.BackfillPageToken = page.NextPageToken;
+          if (string.IsNullOrWhiteSpace(page.NextPageToken))
+          {
+              // Capture a fresh checkpoint only when the complete provider-visible mailbox
+              // has been indexed, so the incremental History phase cannot start from a stale id.
+              state.GmailHistoryId = await GetProfileHistoryIdAsync(client, cancellationToken);
+              state.BackfillCompletedAt = now;
+          }
+          await database.SaveChangesAsync(cancellationToken);
+          '''
           if old_start not in text:
               raise SystemExit('No se encontró el bloque inicial de History esperado.')
           if old_finish not in text:
               raise SystemExit('No se encontró el bloque final de backfill esperado.')
           text = text.replace(old_start, new_start).replace(old_finish, new_finish)
           path.write_text(text, encoding='utf-8')
+          PY
 
       - name: Verify GREEN unified inbox smoke
         run: dotnet run --project src/backend/NexoMail.UnifiedInboxSmokeTests/NexoMail.UnifiedInboxSmokeTests.csproj --configuration Release
