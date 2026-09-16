@@ -76,49 +76,56 @@ jobs:
           from pathlib import Path
           path = Path('src/backend/NexoMail.Infrastructure/Google/GmailMetadataIndexService.cs')
           text = path.read_text(encoding='utf-8')
-          old_start = '''        if (string.IsNullOrWhiteSpace(state.GmailHistoryId))
-          {
-              state.GmailHistoryId = await GetProfileHistoryIdAsync(client, cancellationToken);
-              state.BackfillStartedAt ??= now;
-              await database.SaveChangesAsync(cancellationToken);
-          }
-          '''
-          new_start = '''        if (!state.BackfillStartedAt.HasValue)
-          {
-              state.BackfillStartedAt = now;
-              state.GmailHistoryId = null;
-              await database.SaveChangesAsync(cancellationToken);
-          }
-          else if (!string.IsNullOrWhiteSpace(state.GmailHistoryId))
-          {
-              // Older builds persisted a History checkpoint at backfill start. It is not safe
-              // to reuse after a multi-cycle backfill because Gmail may expire it meanwhile.
-              state.GmailHistoryId = null;
-              await database.SaveChangesAsync(cancellationToken);
-          }
-          '''
-          old_finish = '''        state.BackfillStartedAt ??= now;
-          state.BackfillPageToken = page.NextPageToken;
-          if (string.IsNullOrWhiteSpace(page.NextPageToken))
-              state.BackfillCompletedAt = now;
-          await database.SaveChangesAsync(cancellationToken);
-          '''
-          new_finish = '''        state.BackfillStartedAt ??= now;
-          state.BackfillPageToken = page.NextPageToken;
-          if (string.IsNullOrWhiteSpace(page.NextPageToken))
-          {
-              // Capture a fresh checkpoint only when the complete provider-visible mailbox
-              // has been indexed, so the incremental History phase cannot start from a stale id.
-              state.GmailHistoryId = await GetProfileHistoryIdAsync(client, cancellationToken);
-              state.BackfillCompletedAt = now;
-          }
-          await database.SaveChangesAsync(cancellationToken);
-          '''
+
+          old_start = "\n".join([
+              "        if (string.IsNullOrWhiteSpace(state.GmailHistoryId))",
+              "        {",
+              "            state.GmailHistoryId = await GetProfileHistoryIdAsync(client, cancellationToken);",
+              "            state.BackfillStartedAt ??= now;",
+              "            await database.SaveChangesAsync(cancellationToken);",
+              "        }",
+          ]) + "\n"
+          new_start = "\n".join([
+              "        if (!state.BackfillStartedAt.HasValue)",
+              "        {",
+              "            state.BackfillStartedAt = now;",
+              "            state.GmailHistoryId = null;",
+              "            await database.SaveChangesAsync(cancellationToken);",
+              "        }",
+              "        else if (!string.IsNullOrWhiteSpace(state.GmailHistoryId))",
+              "        {",
+              "            // Older builds persisted a History checkpoint at backfill start. It is not safe",
+              "            // to reuse after a multi-cycle backfill because Gmail may expire it meanwhile.",
+              "            state.GmailHistoryId = null;",
+              "            await database.SaveChangesAsync(cancellationToken);",
+              "        }",
+          ]) + "\n"
+
+          old_finish = "\n".join([
+              "        state.BackfillStartedAt ??= now;",
+              "        state.BackfillPageToken = page.NextPageToken;",
+              "        if (string.IsNullOrWhiteSpace(page.NextPageToken))",
+              "            state.BackfillCompletedAt = now;",
+              "        await database.SaveChangesAsync(cancellationToken);",
+          ]) + "\n"
+          new_finish = "\n".join([
+              "        state.BackfillStartedAt ??= now;",
+              "        state.BackfillPageToken = page.NextPageToken;",
+              "        if (string.IsNullOrWhiteSpace(page.NextPageToken))",
+              "        {",
+              "            // Capture a fresh checkpoint only when the complete provider-visible mailbox",
+              "            // has been indexed, so the incremental History phase cannot start from a stale id.",
+              "            state.GmailHistoryId = await GetProfileHistoryIdAsync(client, cancellationToken);",
+              "            state.BackfillCompletedAt = now;",
+              "        }",
+              "        await database.SaveChangesAsync(cancellationToken);",
+          ]) + "\n"
+
           if old_start not in text:
               raise SystemExit('No se encontró el bloque inicial de History esperado.')
           if old_finish not in text:
               raise SystemExit('No se encontró el bloque final de backfill esperado.')
-          text = text.replace(old_start, new_start).replace(old_finish, new_finish)
+          text = text.replace(old_start, new_start, 1).replace(old_finish, new_finish, 1)
           path.write_text(text, encoding='utf-8')
           PY
 
