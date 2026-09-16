@@ -1,3 +1,7 @@
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using NexoMail.Domain;
+using NexoMail.Infrastructure.Data;
 using NexoMail.Application;
 using NexoMail.Application.Intelligence;
 using NexoMail.Infrastructure.Intelligence;
@@ -164,6 +168,57 @@ Ensure(waitingPriority.Score > semanticReviewPriority.Score
        && waitingPriority.Signals.ContainsKey(IntelligenceReasonCodes.WaitingExternal),
     "WaitingExternal debe conservar prioridad determinista mientras los recibidos ambiguos se abstienen.");
 
+var indexedUserId = Guid.NewGuid();
+var indexedAccountId = Guid.NewGuid();
+await using var indexedConnection = new SqliteConnection("Data Source=:memory:");
+await indexedConnection.OpenAsync();
+var indexedOptions = new DbContextOptionsBuilder<NexoMailDbContext>().UseSqlite(indexedConnection).Options;
+await using var indexedDatabase = new NexoMailDbContext(indexedOptions);
+await indexedDatabase.Database.EnsureCreatedAsync();
+indexedDatabase.Users.Add(new UserEntity
+{
+    Id = indexedUserId, DisplayName = "Indexed Intelligence", Email = "user@example.test", CreatedAt = now, IsActive = true, IsEmailVerified = true,
+});
+indexedDatabase.MailAccounts.Add(new MailAccountEntity
+{
+    Id = indexedAccountId, UserId = indexedUserId, Provider = MailProviderType.Gmail, EmailAddress = "user@example.test",
+    DisplayName = "Indexed Gmail", IsActive = true, CreatedAt = now,
+});
+indexedDatabase.MailMessageIndex.AddRange(
+    new MailMessageIndexEntity
+    {
+        Id = Guid.NewGuid(), UserId = indexedUserId, AccountId = indexedAccountId, ProviderMessageId = "intel-received-1", ThreadId = "intel-thread",
+        Direction = "received", FromName = "External", FromAddress = "external@example.test", ToAddresses = "User\tuser@example.test",
+        Subject = "Indexed conversation", Snippet = "Need review", OccurredAt = now.AddMinutes(-20), IndexedAt = now, IsInbox = true, IsUnread = true,
+    },
+    new MailMessageIndexEntity
+    {
+        Id = Guid.NewGuid(), UserId = indexedUserId, AccountId = indexedAccountId, ProviderMessageId = "intel-sent-1", ThreadId = "intel-thread",
+        Direction = "sent", FromName = "User", FromAddress = "user@example.test", ToAddresses = "External\texternal@example.test",
+        Subject = "Re: Indexed conversation", Snippet = "Following up", OccurredAt = now.AddMinutes(-5), IndexedAt = now, IsSent = true,
+    });
+await indexedDatabase.SaveChangesAsync();
+
+var indexedIntelligence = new CommunicationIntelligenceService(analyzer, resolver, scorer);
+var indexedReader = new LocalIndexCommunicationIntelligenceReader(
+    indexedDatabase,
+    new IndexedTestUserContext(indexedUserId),
+    new MailMessageIndexConversationAdapter(),
+    indexedIntelligence);
+var indexedSnapshots = await indexedReader.AnalyzeAsync(now);
+Ensure(indexedSnapshots.Count == 1, "La lectura Intelligence debe producir exactamente la conversación indexada de prueba.");
+foreach (var snapshot in indexedSnapshots)
+{
+    var source = await indexedDatabase.MailMessageIndex.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.UserId == indexedUserId &&
+        x.AccountId == snapshot.AccountId &&
+        x.ProviderMessageId == snapshot.LatestMessageId);
+    Ensure(source is not null,
+        $"Nexo Intelligence produjo una conversación sin respaldo en MailMessageIndex: {snapshot.AccountId}/{snapshot.LatestMessageId}");
+    Ensure(snapshot.ConversationId == $"{snapshot.AccountId:N}:{source!.ThreadId}",
+        "La identidad de conversación Intelligence debe derivar del mismo AccountId/ThreadId indexado.");
+}
+
 Console.WriteLine("Nexo Intelligence actionability, state and priority smoke tests passed.");
 
 static CommunicationConversation Conversation(
@@ -205,4 +260,13 @@ static CommunicationMessage Message(
 static void Ensure(bool condition, string message)
 {
     if (!condition) throw new InvalidOperationException(message);
+}
+
+
+sealed class IndexedTestUserContext(Guid userId) : IUserContext
+{
+    public bool IsAuthenticated => true;
+    public Guid UserId { get; } = userId;
+    public string Email => "user@example.test";
+    public string DisplayName => "Indexed Intelligence";
 }

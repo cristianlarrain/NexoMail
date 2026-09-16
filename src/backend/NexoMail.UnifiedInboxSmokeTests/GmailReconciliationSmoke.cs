@@ -94,6 +94,16 @@ internal static class GmailReconciliationSmoke
         Ensure(await database.MailMessageIndex.AsNoTracking().AnyAsync(x => x.AccountId == accountId && x.ProviderMessageId == "C", ct), "C debe quedar persistido en el índice.");
         Ensure(await database.MailMessageIndex.AsNoTracking().AnyAsync(x => x.AccountId == accountId && x.ProviderMessageId == "ORPHAN", ct), "ORPHAN debe conservarse hasta una eliminación confirmada por el proveedor.");
 
+        var confirmedDeletedOrphan = await database.MailMessageIndex.SingleAsync(
+            x => x.AccountId == accountId && x.ProviderMessageId == "ORPHAN", ct);
+        database.MailMessageIndex.Remove(confirmedDeletedOrphan);
+        await database.SaveChangesAsync(ct);
+        var healthy = await service.ReconcileAsync(accountId, repairMissing: false, ct);
+        Ensure(healthy.MissingProviderIds.Count == 0, "La paridad final no puede dejar mensajes faltantes.");
+        Ensure(healthy.DuplicateIndexedIds == 0, "La paridad final no puede contener duplicados.");
+        Ensure(healthy.OrphanIndexedIds.Count == 0, "La paridad final no puede contener huérfanos no explicados.");
+        Ensure(healthy.IsHealthy, "La paridad final proveedor/índice debe quedar saludable.");
+
         database.ChangeTracker.Clear();
         var state = await database.MailIndexStates.AsNoTracking().SingleAsync(x => x.AccountId == accountId, ct);
         Ensure(state.LastReconciledAt is not null, "Una reconciliación completada debe persistir LastReconciledAt.");

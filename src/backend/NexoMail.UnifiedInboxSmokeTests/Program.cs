@@ -132,6 +132,22 @@ var resolved = await service.ResolveAsync([
 Ensure(resolved.Count == 2, "Resolver referencias debe devolver sólo filas reales del usuario autenticado.");
 Ensure(resolved.Any(x => x.ProviderMessageId == "a-inbox-1") && resolved.Any(x => x.ProviderMessageId == "b-inbox-1"), "Resolver referencias perdió mensajes existentes.");
 
+// provider outage state must not hide indexed mail from the ordinary indexed read path.
+db.MailIndexStates.Add(new MailIndexStateEntity
+{
+    AccountId = accountA,
+    UserId = userId,
+    LastIndexedAt = now,
+    LastSyncAttemptAt = now,
+    LastSyncErrorCode = "sync_error",
+    WindowDays = 90,
+    IndexedMessageCount = await db.MailMessageIndex.CountAsync(x => x.UserId == userId && x.AccountId == accountA, ct),
+});
+await db.SaveChangesAsync(ct);
+var outagePage = await service.GetMessagesAsync(new MailQuery(null, "inbox", 20), ct);
+Ensure(outagePage.Items.Any(x => x.AccountId == accountA && x.ProviderMessageId == "a-inbox-1"),
+    "Un fallo del proveedor no puede ocultar correo ya indexado de la Bandeja Unificada.");
+
 await GmailBackfillSmoke.RunAsync(ct);
 await GmailHistorySmoke.RunAsync(ct);
 await GmailHistoryExpirySmoke.RunAsync(ct);

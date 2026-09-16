@@ -9,6 +9,7 @@ using NexoMail.Domain;
 using NexoMail.Infrastructure;
 using NexoMail.Infrastructure.Data;
 using NexoMail.Infrastructure.Google;
+using NexoMail.Infrastructure.Mail;
 
 static void Ensure(bool condition, string message)
 {
@@ -100,6 +101,14 @@ Ensure(initialSnapshot.SentWithoutResponse == 1, "La métrica Enviados sin respu
 Ensure(initialSnapshot.Unread == 3, "La métrica de correos sin leer debe incluir no leídos indexados fuera de la ventana operativa de 14 días.");
 Ensure(initialSnapshot.Overdue == 1, "La métrica de pendientes de más de 48 horas no coincide.");
 Ensure(initialSnapshot.PendingItems.Count == 2, "Los avisos transaccionales y los no leídos antiguos no deben entrar como pendientes operacionales.");
+foreach (var item in initialSnapshot.PendingItems)
+{
+    Ensure(await database.MailMessageIndex.AsNoTracking().AnyAsync(x =>
+            x.UserId == userId &&
+            x.AccountId == item.AccountId &&
+            x.ProviderMessageId == item.MessageId, cancellationToken),
+        $"Control Center referencia un mensaje inexistente en el índice: {item.AccountId}/{item.MessageId}");
+}
 Ensure(initialSnapshot.UnavailableAccounts == 0, "Una cuenta con índice recién actualizado no debe figurar como no disponible.");
 
 var receivedPending = initialSnapshot.PendingItems.Single(item => item.Direction == "received");
@@ -194,12 +203,50 @@ database.OAuthCredentials.Add(new OAuthCredentialEntity
 });
 await database.SaveChangesAsync(cancellationToken);
 
+database.MailIndexStates.Add(new MailIndexStateEntity
+{
+    AccountId = brokenAccountId,
+    UserId = userId,
+    LastIndexedAt = now,
+    LastSyncAttemptAt = now.AddMinutes(-10),
+    WindowDays = 90,
+    IndexedMessageCount = 1,
+    BackfillStartedAt = now.AddMinutes(-20),
+    BackfillCompletedAt = now.AddMinutes(-15),
+    GmailHistoryId = "broken-history",
+});
+database.MailMessageIndex.Add(new MailMessageIndexEntity
+{
+    Id = Guid.NewGuid(), UserId = userId, AccountId = brokenAccountId, ProviderMessageId = "broken-kept-1", ThreadId = "broken-thread-1",
+    Direction = "received", FromName = "Persisted", FromAddress = "persisted@nexomail.test", ToAddresses = $"Cristian\t{ownAddress}",
+    Subject = "Debe sobrevivir al fallo OAuth", Snippet = "indexed before outage", OccurredAt = now.AddMinutes(-3), IndexedAt = now,
+    GmailLabels = "INBOX,UNREAD", IsInbox = true, IsUnread = true,
+});
+await database.SaveChangesAsync(cancellationToken);
+
+var indexedInbox = new UnifiedInboxQueryService(database, userContext);
+var beforeIsolationFailure = await indexedInbox.GetMessagesAsync(new MailQuery(null, "inbox", 100), cancellationToken);
+Ensure(beforeIsolationFailure.Items.Any(x => x.AccountId == brokenAccountId && x.ProviderMessageId == "broken-kept-1"),
+    "La prueba de aislamiento debe comenzar con correo previamente indexado en la cuenta que fallará.");
+
 var isolationFactory = new FaultIsolationSyncHttpClientFactory();
 var isolatedSync = new GmailMetadataIndexService(isolationFactory, database, new PassthroughTokenProtector(), Options.Create(new GmailOptions { ClientId = "test", ClientSecret = "test" }), userContext);
 var isolatedResult = await isolatedSync.SyncForUserAsync(userId, 90, 25, cancellationToken);
 Ensure(isolatedResult.Accounts == 2, "Una cuenta OAuth inválida no debe abortar la sincronización de las demás cuentas Gmail.");
 Ensure(isolationFactory.RefreshTokensSeen.Contains("broken-refresh-token"), "La prueba no ejercitó la cuenta OAuth inválida.");
 Ensure(isolationFactory.RefreshTokensSeen.Contains("refresh-token"), "La cuenta Gmail válida no se sincronizó después del fallo de otra cuenta.");
+database.ChangeTracker.Clear();
+var afterIsolationFailure = await indexedInbox.GetMessagesAsync(new MailQuery(null, "inbox", 100), cancellationToken);
+Ensure(afterIsolationFailure.Items.Any(x => x.AccountId == brokenAccountId && x.ProviderMessageId == "broken-kept-1"),
+    "La cuenta con fallo OAuth perdió correo previamente indexado.");
+var brokenState = await database.MailIndexStates.AsNoTracking().SingleAsync(x => x.AccountId == brokenAccountId, cancellationToken);
+var healthyState = await database.MailIndexStates.AsNoTracking().SingleAsync(x => x.AccountId == accountId, cancellationToken);
+Ensure(!string.IsNullOrWhiteSpace(brokenState.LastSyncErrorCode),
+    "El fallo OAuth debe quedar expuesto en LastSyncErrorCode sin borrar el índice.");
+Ensure(string.IsNullOrWhiteSpace(healthyState.LastSyncErrorCode),
+    "El fallo de una cuenta no puede contaminar el estado de sincronización de la cuenta sana.");
+Ensure(healthyState.LastSyncAttemptAt is not null && healthyState.LastSyncAttemptAt >= leaseState.LastSyncAttemptAt,
+    "La cuenta sana debe seguir avanzando su estado de sincronización aunque otra cuenta falle.");
 
 Console.WriteLine("PASS: índice -> clasificación -> métricas -> actividad -> resolver -> posponer -> seguimiento -> urgencia -> contactos -> documentos -> lease sync -> aislamiento por cuenta");
 
@@ -283,6 +330,12 @@ sealed class FaultIsolationSyncHttpHandler(List<string> refreshTokensSeen) : Htt
                 ? Json(HttpStatusCode.BadRequest, "{\"error\":\"invalid_grant\"}")
                 : Json(HttpStatusCode.OK, "{\"access_token\":\"test-access-token\",\"expires_in\":3600}");
         }
+
+        if (uri.Contains("/users/me/profile", StringComparison.OrdinalIgnoreCase))
+            return Json(HttpStatusCode.OK, "{\"historyId\":\"fixture-history-900\"}");
+
+        if (uri.Contains("/users/me/history?", StringComparison.OrdinalIgnoreCase))
+            return Json(HttpStatusCode.OK, "{\"history\":[],\"historyId\":\"fixture-history-901\"}");
 
         if (uri.Contains("/users/me/messages?", StringComparison.OrdinalIgnoreCase))
             return Json(HttpStatusCode.OK, "{\"messages\":[]}");
