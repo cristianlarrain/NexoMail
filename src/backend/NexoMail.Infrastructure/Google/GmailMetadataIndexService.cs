@@ -27,6 +27,7 @@ public sealed class GmailMetadataIndexService(
     private const int DefaultWindowDays = 90;
     private const int RefreshNewestCount = 100;
     private const int UnreadDiscoveryLimit = 500;
+    private const int GmailListPageMaximum = 500;
     private static readonly TimeSpan SyncLeaseDuration = TimeSpan.FromMinutes(10);
 
     public Task<MailMetadataSyncResult> SyncAsync(int? requestedDays, int? requestedLimitPerAccount, CancellationToken cancellationToken) =>
@@ -96,6 +97,17 @@ public sealed class GmailMetadataIndexService(
                     await UpsertAccountIndexAsync(account, userId, indexed, now, days, cancellationToken);
                 else
                     await UpsertStateAsync(account, userId, now, days, existingAccountMessages.Length, cancellationToken);
+
+                var backfill = await ProcessFullBackfillPageAsync(
+                    account,
+                    userId,
+                    client,
+                    Math.Min(limitPerAccount, GmailListPageMaximum),
+                    now,
+                    days,
+                    cancellationToken);
+                totalMessages += backfill.Messages;
+                totalAttachments += backfill.Attachments;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -364,6 +376,68 @@ public sealed class GmailMetadataIndexService(
                 .SetProperty(x => x.SyncLeaseUntil, (DateTimeOffset?)null), cancellationToken);
     }
 
+    private async Task<(int Messages, int Attachments)> ProcessFullBackfillPageAsync(
+        MailAccountEntity account,
+        Guid userId,
+        HttpClient client,
+        int pageSize,
+        DateTimeOffset now,
+        int days,
+        CancellationToken cancellationToken)
+    {
+        var state = await database.MailIndexStates
+            .SingleAsync(x => x.AccountId == account.Id && x.UserId == userId, cancellationToken);
+        if (state.BackfillCompletedAt.HasValue) return (0, 0);
+
+        var page = await ListFullBackfillPageAsync(client, pageSize, state.BackfillPageToken, cancellationToken);
+        var indexed = await LoadMetadataAsync(client, page.MessageIds, cancellationToken);
+        if (indexed.Count != page.MessageIds.Count)
+            throw new HttpRequestException($"El backfill Gmail no pudo cargar todos los metadatos de la página ({indexed.Count}/{page.MessageIds.Count}); el checkpoint no avanzará.");
+
+        if (indexed.Count > 0)
+            await UpsertAccountIndexAsync(account, userId, indexed, now, days, cancellationToken);
+
+        state = await database.MailIndexStates
+            .SingleAsync(x => x.AccountId == account.Id && x.UserId == userId, cancellationToken);
+        state.BackfillStartedAt ??= now;
+        state.BackfillPageToken = page.NextPageToken;
+        if (string.IsNullOrWhiteSpace(page.NextPageToken))
+            state.BackfillCompletedAt = now;
+        await database.SaveChangesAsync(cancellationToken);
+
+        return (indexed.Count, indexed.Sum(x => x.Attachments.Count));
+    }
+
+    private static async Task<FullBackfillPage> ListFullBackfillPageAsync(
+        HttpClient client,
+        int requestedPageSize,
+        string? pageToken,
+        CancellationToken cancellationToken)
+    {
+        var pageSize = Math.Clamp(requestedPageSize, 1, GmailListPageMaximum);
+        var url = $"users/me/messages?maxResults={pageSize}&includeSpamTrash=true";
+        if (!string.IsNullOrWhiteSpace(pageToken))
+            url += $"&pageToken={Uri.EscapeDataString(pageToken)}";
+
+        using var response = await client.GetAsync(url, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
+        var ids = new List<string>(pageSize);
+        if (document.RootElement.TryGetProperty("messages", out var messages))
+        {
+            foreach (var item in messages.EnumerateArray())
+            {
+                if (item.TryGetProperty("id", out var id) && !string.IsNullOrWhiteSpace(id.GetString()))
+                    ids.Add(id.GetString()!);
+            }
+        }
+
+        var nextPageToken = document.RootElement.TryGetProperty("nextPageToken", out var next)
+            ? next.GetString()
+            : null;
+        return new FullBackfillPage(ids.Distinct(StringComparer.Ordinal).ToArray(), nextPageToken);
+    }
+
     private async Task<List<string>> ListMessageIdsAsync(HttpClient client, int days, int limit, long? beforeEpoch, CancellationToken cancellationToken)
     {
         var ids = new List<string>(limit);
@@ -550,6 +624,7 @@ public sealed class GmailMetadataIndexService(
     }
 
     private sealed class GmailAuthenticationException(string message) : Exception(message);
+    private sealed record FullBackfillPage(IReadOnlyCollection<string> MessageIds, string? NextPageToken);
     private sealed record IndexedAddress(string Name, string Address);
     private sealed record IndexedAttachment(string AttachmentId, string FileName, string ContentType, long Size);
     private sealed record IndexedMessage(

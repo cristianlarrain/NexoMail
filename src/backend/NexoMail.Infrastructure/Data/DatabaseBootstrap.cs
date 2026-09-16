@@ -100,6 +100,22 @@ public static class DatabaseBootstrap
                 );", connection, cancellationToken);
             await ExecuteAsync("CREATE INDEX IF NOT EXISTS IX_MailIndexStates_UserId_LastIndexedAt ON MailIndexStates (UserId, LastIndexedAt);", connection, cancellationToken);
 
+            var mailIndexStateColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            await using (var inspectMailIndexState = connection.CreateCommand())
+            {
+                inspectMailIndexState.CommandText = "PRAGMA table_info('MailIndexStates');";
+                await using var reader = await inspectMailIndexState.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                    if (reader["name"]?.ToString() is { Length: > 0 } name) mailIndexStateColumns.Add(name);
+            }
+            if (!mailIndexStateColumns.Contains("LastSyncAttemptAt")) await AddColumnAsync("ALTER TABLE MailIndexStates ADD COLUMN LastSyncAttemptAt TEXT NULL;", connection, cancellationToken);
+            if (!mailIndexStateColumns.Contains("LastSyncErrorCode")) await AddColumnAsync("ALTER TABLE MailIndexStates ADD COLUMN LastSyncErrorCode TEXT NULL;", connection, cancellationToken);
+            if (!mailIndexStateColumns.Contains("SyncLeaseOwner")) await AddColumnAsync("ALTER TABLE MailIndexStates ADD COLUMN SyncLeaseOwner TEXT NULL;", connection, cancellationToken);
+            if (!mailIndexStateColumns.Contains("SyncLeaseUntil")) await AddColumnAsync("ALTER TABLE MailIndexStates ADD COLUMN SyncLeaseUntil TEXT NULL;", connection, cancellationToken);
+            if (!mailIndexStateColumns.Contains("BackfillStartedAt")) await AddColumnAsync("ALTER TABLE MailIndexStates ADD COLUMN BackfillStartedAt TEXT NULL;", connection, cancellationToken);
+            if (!mailIndexStateColumns.Contains("BackfillCompletedAt")) await AddColumnAsync("ALTER TABLE MailIndexStates ADD COLUMN BackfillCompletedAt TEXT NULL;", connection, cancellationToken);
+            if (!mailIndexStateColumns.Contains("BackfillPageToken")) await AddColumnAsync("ALTER TABLE MailIndexStates ADD COLUMN BackfillPageToken TEXT NULL;", connection, cancellationToken);
+
             await ExecuteAsync(@"
                 CREATE TABLE IF NOT EXISTS CommercialPlans (
                     Code TEXT NOT NULL CONSTRAINT PK_CommercialPlans PRIMARY KEY,
