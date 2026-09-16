@@ -47,6 +47,9 @@ internal static class UnifiedInboxReadinessSmoke
         EnsureReadiness(initial.UnsupportedProviderAccountIds.SequenceEqual(new[] { microsoftId }), "Microsoft Graph activo debe bloquear el cutover Gmail-only.");
         EnsureReadiness(!initial.UnsupportedProviderAccountIds.Contains(foreignMicrosoftId), "Readiness no puede inspeccionar cuentas de otro usuario.");
         EnsureReadiness(!initial.UnsupportedProviderAccountIds.Contains(imapId), "Una cuenta IMAP inactiva no debe bloquear el cutover.");
+        var initialGmailState = initial.GmailAccountStates.Single(x => x.AccountId == gmailId);
+        EnsureReadiness(initialGmailState.BackfillCompletedAt is null && initialGmailState.IndexedMessageCount == 0,
+            "Readiness debe exponer el estado diagnóstico de Gmail sin inventar progreso inexistente.");
 
         database.MailIndexStates.Add(new MailIndexStateEntity
         {
@@ -64,6 +67,9 @@ internal static class UnifiedInboxReadinessSmoke
         EnsureReadiness(!gmailComplete.IsReady, "Completar Gmail no puede ocultar un proveedor todavía no soportado por el índice.");
         EnsureReadiness(gmailComplete.IncompleteAccountIds.Count == 0, "Gmail completo ya no debe figurar como incompleto.");
         EnsureReadiness(gmailComplete.UnsupportedProviderAccountIds.SequenceEqual(new[] { microsoftId }), "Microsoft Graph debe seguir bloqueando el cutover.");
+        var completedGmailState = gmailComplete.GmailAccountStates.Single(x => x.AccountId == gmailId);
+        EnsureReadiness(completedGmailState.BackfillCompletedAt.HasValue && completedGmailState.IndexedMessageCount == 10,
+            "Readiness debe exponer progreso y finalización del backfill para diagnóstico.");
 
         var microsoft = await database.MailAccounts.SingleAsync(x => x.Id == microsoftId, ct);
         microsoft.IsActive = false;

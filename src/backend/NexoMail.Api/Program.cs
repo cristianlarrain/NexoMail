@@ -452,7 +452,8 @@ mail.MapGet("/messages", async (IMailGateway gateway, NexoMailDbContext database
             {
                 error = "La Bandeja Unificada aún no está lista para leer desde el índice. Completa la sincronización de Gmail y revisa las cuentas de proveedores todavía no incorporados al índice.",
                 incompleteAccountIds = gate.IncompleteAccountIds,
-                unsupportedProviderAccountIds = gate.UnsupportedProviderAccountIds
+                unsupportedProviderAccountIds = gate.UnsupportedProviderAccountIds,
+                gmailAccountStates = gate.GmailAccountStates
             });
         }
 
