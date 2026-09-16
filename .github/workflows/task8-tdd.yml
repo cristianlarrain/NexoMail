@@ -6,13 +6,163 @@ on:
       - feature/task8-unified-priority
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  smoke:
+  implement-and-verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Apply Task 8 implementation
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          mail_api_path = Path('src/frontend/src/api/mailApi.ts')
+          mail_api = mail_api_path.read_text(encoding='utf-8')
+          old = """  messages: (accountId?: string, folder = 'inbox', search = '', cursor?: string) => {
+            const take = cursor ? 25 : accountId ? 20 : 12
+            return api<PagedResult<MailSummary>>(`/mail/messages?folder=${encodeURIComponent(folder)}&take=${take}${accountId ? `&accountId=${encodeURIComponent(accountId)}` : ''}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ''}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
+          },
+          message: async (accountId: string, messageId: string) => {
+          """
+          new = """  messages: (accountId?: string, folder = 'inbox', search = '', cursor?: string) => {
+            const take = cursor ? 25 : accountId ? 20 : 12
+            return api<PagedResult<MailSummary>>(`/mail/messages?folder=${encodeURIComponent(folder)}&take=${take}${accountId ? `&accountId=${encodeURIComponent(accountId)}` : ''}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ''}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
+          },
+          resolveMessages: (references: Array<{ accountId: string; providerMessageId: string }>) =>
+            api<MailSummary[]>('/mail/messages/resolve', {
+              method: 'POST',
+              body: JSON.stringify(references),
+            }),
+          message: async (accountId: string, messageId: string) => {
+          """
+          if old not in mail_api:
+              raise SystemExit('No se encontró el bloque messages esperado en mailApi.ts')
+          mail_api_path.write_text(mail_api.replace(old, new, 1), encoding='utf-8')
+
+          inbox_path = Path('src/frontend/src/pages/InboxPage.tsx')
+          inbox = inbox_path.read_text(encoding='utf-8')
+
+          old_refresh = """    onSuccess: async () => {
+              if (priorityOnly) await Promise.all([prioritySnapshot.refetch(), trackedItemsQuery.refetch()])
+              else await messagesQuery.refetch()
+            },
+          """
+          new_refresh = """    onSuccess: async () => {
+              if (priorityOnly) {
+                await Promise.all([
+                  prioritySnapshot.refetch(),
+                  trackedItemsQuery.refetch(),
+                  queryClient.invalidateQueries({ queryKey: ['priority-messages', accountId], refetchType: 'active' }),
+                ])
+              } else await messagesQuery.refetch()
+            },
+          """
+          if old_refresh not in inbox:
+              raise SystemExit('No se encontró el bloque refresh esperado en InboxPage.tsx')
+          inbox = inbox.replace(old_refresh, new_refresh, 1)
+
+          old_priority = """  const priorityReferenceByKey = useMemo(() => new Map(priorityReferences.map(item => [pendingKey(item), item])), [priorityReferences])
+
+            const displayItems = useMemo(() => {
+              if (!priorityOnly) return items
+              const loaded = new Map(items.map(item => [itemKey(item), item]))
+              const normalizedSearch = search.trim().toLowerCase()
+              return priorityReferences
+                .filter(reference => !priorityHidden.has(pendingKey(reference)))
+                .map(reference => loaded.get(pendingKey(reference)) ?? ({
+                  providerMessageId: reference.messageId,
+                  accountId: reference.accountId,
+                  senderName: reference.counterpart || 'Remitente',
+                  senderAddress: '',
+                  subject: reference.subject,
+                  preview: reference.conversationId.startsWith('manual:') ? 'Marcado manualmente para seguimiento' : 'Pendiente de respuesta',
+                  receivedAt: reference.since,
+                  isRead: reference.isRead,
+                  hasAttachments: false,
+                  folderId: 'inbox',
+                } satisfies MailSummary))
+                .filter(item => !normalizedSearch || normalizedSearch === 'is:unread' || `${item.senderName} ${item.senderAddress} ${item.subject} ${item.preview}`.toLowerCase().includes(normalizedSearch))
+            }, [items, priorityHidden, priorityOnly, priorityReferences, search])
+          """
+          new_priority = """  const priorityReferenceByKey = useMemo(() => new Map(priorityReferences.map(item => [pendingKey(item), item])), [priorityReferences])
+
+            const priorityMessageReferences = useMemo(() => priorityReferences.map(reference => ({
+              accountId: reference.accountId,
+              providerMessageId: reference.messageId,
+            })), [priorityReferences])
+
+            const priorityMessagesQuery = useQuery({
+              queryKey: ['priority-messages', accountId, priorityMessageReferences],
+              queryFn: () => mailApi.resolveMessages(priorityMessageReferences),
+              enabled: priorityOnly && priorityMessageReferences.length > 0,
+              staleTime: 30_000,
+              refetchOnMount: 'always',
+              refetchOnWindowFocus: false,
+            })
+
+            const displayItems = useMemo(() => {
+              if (!priorityOnly) return items
+              const normalizedSearch = search.trim().toLowerCase()
+              return (priorityMessagesQuery.data ?? [])
+                .filter(item => !priorityHidden.has(itemKey(item)))
+                .filter(item => !normalizedSearch || normalizedSearch === 'is:unread' || `${item.senderName} ${item.senderAddress} ${item.subject} ${item.preview}`.toLowerCase().includes(normalizedSearch))
+            }, [items, priorityHidden, priorityMessagesQuery.data, priorityOnly, search])
+          """
+          if old_priority not in inbox:
+              raise SystemExit('No se encontró el bloque prioritario esperado en InboxPage.tsx')
+          inbox = inbox.replace(old_priority, new_priority, 1)
+
+          old_state = """  const priorityLoading = priorityOnly && (prioritySnapshot.isLoading || trackedItemsQuery.isLoading)
+            const priorityError = priorityOnly && (prioritySnapshot.isError || trackedItemsQuery.isError)
+          """
+          new_state = """  const priorityLoading = priorityOnly && (
+              prioritySnapshot.isLoading ||
+              trackedItemsQuery.isLoading ||
+              (priorityReferences.length > 0 && priorityMessagesQuery.isLoading)
+            )
+            const priorityError = priorityOnly && (prioritySnapshot.isError || trackedItemsQuery.isError || priorityMessagesQuery.isError)
+          """
+          if old_state not in inbox:
+              raise SystemExit('No se encontró el estado prioritario esperado en InboxPage.tsx')
+          inbox_path.write_text(inbox.replace(old_state, new_state, 1), encoding='utf-8')
+          PY
+
       - name: Unified inbox source smoke
         run: node src/frontend/scripts/unified-inbox-source-smoke.mjs
+
+      - name: Unified inbox readiness smoke
+        run: node src/frontend/scripts/unified-inbox-readiness-smoke.mjs
+
+      - name: Install frontend
+        working-directory: src/frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        working-directory: src/frontend
+        run: pnpm build
+
+      - name: Commit Task 8
+        shell: bash
+        run: |
+          if git diff --quiet -- src/frontend/src/api/mailApi.ts src/frontend/src/pages/InboxPage.tsx; then
+            echo "No product changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/frontend/src/api/mailApi.ts src/frontend/src/pages/InboxPage.tsx
+          git commit -m "refactor: resolve priority mail from unified index"
+          git push origin HEAD:feature/task8-unified-priority
