@@ -133,8 +133,9 @@ Ensure(resolved.Count == 2, "Resolver referencias debe devolver sólo filas real
 Ensure(resolved.Any(x => x.ProviderMessageId == "a-inbox-1") && resolved.Any(x => x.ProviderMessageId == "b-inbox-1"), "Resolver referencias perdió mensajes existentes.");
 
 await GmailBackfillSmoke.RunAsync(ct);
+await GmailHistorySmoke.RunAsync(ct);
 
-Console.WriteLine("PASS: unified inbox query + complete gmail backfill contract");
+Console.WriteLine("PASS: unified inbox query + complete gmail backfill + incremental history contract");
 
 sealed class TestUserContext(Guid userId) : IUserContext
 {
