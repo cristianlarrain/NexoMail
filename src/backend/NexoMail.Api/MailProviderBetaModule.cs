@@ -4,6 +4,7 @@ using NexoMail.Infrastructure;
 using NexoMail.Infrastructure.Data;
 using NexoMail.Infrastructure.Google;
 using NexoMail.Infrastructure.Imap;
+using NexoMail.Infrastructure.Mail;
 using NexoMail.Infrastructure.Microsoft;
 
 namespace NexoMail.Api;
@@ -16,6 +17,11 @@ public static class MailProviderBetaModule
         services.AddHostedService<GmailMetadataIndexHostedService>();
         services.AddScoped<GmailMetadataIndexService>();
         services.AddScoped<GmailIndexReconciliationService>();
+
+        services.Configure<UnifiedInboxOptions>(configuration.GetSection(UnifiedInboxOptions.SectionName));
+        services.AddScoped<UnifiedInboxQueryService>();
+        services.AddScoped<UnifiedInboxReadinessService>();
+        services.AddScoped<MailIndexMutationService>();
 
         services.Configure<Microsoft365Options>(configuration.GetSection(Microsoft365Options.SectionName));
         services.AddScoped<MicrosoftOAuthService>();
