@@ -85,6 +85,20 @@ internal static class MailIndexMutationSmoke
         EnsureMutation(await database.MailMessageIndex.AsNoTracking().CountAsync(x => x.UserId == userId && x.AccountId == accountId, ct) == countBeforeSyncIntent,
             "La intención de sync no puede fabricar un mensaje enviado.");
 
+        var trackedState = await database.MailIndexStates.SingleAsync(x => x.AccountId == accountId, ct);
+        trackedState.LastIndexedAt = now;
+        await database.SaveChangesAsync(ct);
+        database.ChangeTracker.Clear();
+
+        await mutation.MarkReadAsync(accountId, "missing-indexed-message", true, ct);
+        database.ChangeTracker.Clear();
+        state = await database.MailIndexStates.AsNoTracking().SingleAsync(x => x.AccountId == accountId, ct);
+        EnsureMutation(state.LastIndexedAt == DateTimeOffset.UnixEpoch,
+            "Si la fila local falta tras una mutación del proveedor, debe solicitarse sincronización inmediata.");
+        EnsureMutation(!await database.MailMessageIndex.AsNoTracking().AnyAsync(
+                x => x.UserId == userId && x.AccountId == accountId && x.ProviderMessageId == "missing-indexed-message", ct),
+            "Una fila faltante nunca debe fabricarse sin metadata confirmada del proveedor.");
+
         await mutation.MarkReadAsync(foreignAccountId, "foreign-message", true, ct);
         database.ChangeTracker.Clear();
         var foreignRow = await Row(database, otherUserId, foreignAccountId, "foreign-message", ct);
