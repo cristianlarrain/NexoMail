@@ -39,7 +39,7 @@ ensure(layout.includes('hasMailActions') && layout.includes('hasControlCenter'),
   'El menú debe ocultar acciones no incluidas en el plan efectivo.')
 ensure(controlCenter.includes('hasFullControlCenter') && controlCenter.includes('disabled={!hasAdvancedAnalytics}') && controlCenter.includes('disabled={!hasFullControlCenter}'),
   'El Centro de Control debe respetar estadísticas avanzadas y el nivel completo.')
-ensure(messageRoute.includes('hasNexi') && messageRoute.includes('MessageNexiReaderTools'),
+ensure(messagePage.includes('hasNexi') && messagePage.includes('MessageNexiReaderTools') && messagePage.includes('hasNexi && <MessageNexiReaderTools'),
   'Las herramientas Nexi del lector deben mostrarse sólo cuando Nexi esté habilitado.')
 ensure(messagePage.includes('hasMailActions') && messagePage.includes('commercialEntitlements.mailActions'),
   'El lector debe ocultar responder, reenviar y organizar cuando el plan no incluye acciones de correo.')
