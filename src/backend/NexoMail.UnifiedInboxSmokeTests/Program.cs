@@ -136,8 +136,9 @@ await GmailBackfillSmoke.RunAsync(ct);
 await GmailHistorySmoke.RunAsync(ct);
 await GmailHistoryExpirySmoke.RunAsync(ct);
 await GmailReconciliationSmoke.RunAsync(ct);
+await MailIndexMutationSmoke.RunAsync(ct);
 
-Console.WriteLine("PASS: unified inbox query + complete gmail backfill + incremental history + expired checkpoint safety + reconciliation contract");
+Console.WriteLine("PASS: unified inbox query + complete gmail backfill + incremental history + expired checkpoint safety + reconciliation + mutation convergence");
 
 sealed class TestUserContext(Guid userId) : IUserContext
 {
