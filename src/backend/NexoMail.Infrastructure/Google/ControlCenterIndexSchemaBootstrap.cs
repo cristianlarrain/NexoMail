@@ -35,6 +35,8 @@ public static class ControlCenterIndexSchemaBootstrap
                 await EnsureSqliteColumnAsync(connection, "MailIndexStates", "BackfillCompletedAt", "TEXT NULL", ct);
                 await EnsureSqliteColumnAsync(connection, "MailIndexStates", "BackfillPageToken", "TEXT NULL", ct);
                 await EnsureSqliteColumnAsync(connection, "MailIndexStates", "GmailHistoryId", "TEXT NULL", ct);
+                await EnsureSqliteColumnAsync(connection, "MailIndexStates", "LastReconciledAt", "TEXT NULL", ct);
+                await EnsureSqliteColumnAsync(connection, "MailIndexStates", "LastReconciliationErrorCode", "TEXT NULL", ct);
                 return;
             }
 
@@ -58,6 +60,8 @@ public static class ControlCenterIndexSchemaBootstrap
                 await ExecuteAsync(connection, "IF COL_LENGTH('MailIndexStates','BackfillCompletedAt') IS NULL ALTER TABLE MailIndexStates ADD BackfillCompletedAt datetimeoffset NULL;", ct);
                 await ExecuteAsync(connection, "IF COL_LENGTH('MailIndexStates','BackfillPageToken') IS NULL ALTER TABLE MailIndexStates ADD BackfillPageToken nvarchar(4000) NULL;", ct);
                 await ExecuteAsync(connection, "IF COL_LENGTH('MailIndexStates','GmailHistoryId') IS NULL ALTER TABLE MailIndexStates ADD GmailHistoryId nvarchar(128) NULL;", ct);
+                await ExecuteAsync(connection, "IF COL_LENGTH('MailIndexStates','LastReconciledAt') IS NULL ALTER TABLE MailIndexStates ADD LastReconciledAt datetimeoffset NULL;", ct);
+                await ExecuteAsync(connection, "IF COL_LENGTH('MailIndexStates','LastReconciliationErrorCode') IS NULL ALTER TABLE MailIndexStates ADD LastReconciliationErrorCode nvarchar(32) NULL;", ct);
             }
         }
         finally
