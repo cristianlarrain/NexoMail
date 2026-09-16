@@ -134,8 +134,9 @@ Ensure(resolved.Any(x => x.ProviderMessageId == "a-inbox-1") && resolved.Any(x =
 
 await GmailBackfillSmoke.RunAsync(ct);
 await GmailHistorySmoke.RunAsync(ct);
+await GmailHistoryExpirySmoke.RunAsync(ct);
 
-Console.WriteLine("PASS: unified inbox query + complete gmail backfill + incremental history contract");
+Console.WriteLine("PASS: unified inbox query + complete gmail backfill + incremental history + expired checkpoint safety");
 
 sealed class TestUserContext(Guid userId) : IUserContext
 {
