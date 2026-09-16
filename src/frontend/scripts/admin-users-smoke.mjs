@@ -30,7 +30,7 @@ ensure(usersPage.includes('assignUserPlan'), 'La pantalla debe permitir asignar 
 ensure(usersPage.includes('grantUserTrial'), 'La pantalla debe permitir otorgar pruebas temporales desde la API.')
 ensure(usersPage.includes('trialDays'), 'La prueba temporal debe permitir definir su duración.')
 ensure(usersPage.includes("'premium' | 'nexi'"), 'La pantalla debe permitir elegir entre prueba Premium y prueba sólo de Nexi.')
-ensure(usersPage.includes('connectedAccounts'), 'La tabla debe mostrar las cuentas conectadas del usuario.')
+ensure(usersPage.includes('connectedMailAccounts'), 'La tabla debe mostrar las cuentas conectadas del usuario.')
 ensure(usersPage.includes('effectivePlanCode'), 'La tabla debe distinguir el plan efectivo del asignado.')
 ensure(usersPage.includes("effectivePlanCode === 'owner'"), 'La pantalla debe reconocer el acceso interno Owner por separado del plan comercial.')
 ensure(usersPage.includes('Owner / Administrador general'), 'La pantalla debe identificar visualmente al Owner / Administrador general.')
