@@ -1,0 +1,174 @@
+name: Add Unified Inbox readiness diagnostics
+
+on:
+  push:
+    branches:
+      - feature/unified-inbox-source-of-truth
+    paths:
+      - .github/workflows/add-unified-inbox-readiness-diagnostics.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diagnostics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/unified-inbox-source-of-truth
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Add readiness diagnostics
+        shell: bash
+        run: |
+          cat > src/backend/NexoMail.Infrastructure/Mail/UnifiedInboxReadinessService.cs <<'EOF'
+          using Microsoft.EntityFrameworkCore;
+          using Microsoft.Extensions.Options;
+          using NexoMail.Application;
+          using NexoMail.Domain;
+          using NexoMail.Infrastructure.Data;
+
+          namespace NexoMail.Infrastructure.Mail;
+
+          public sealed class UnifiedInboxOptions
+          {
+              public const string SectionName = "UnifiedInbox";
+              public bool IndexReadEnabled { get; set; }
+              public bool RequireCompleteBackfill { get; set; } = true;
+          }
+
+          public sealed record UnifiedInboxAccountReadiness(
+              Guid AccountId,
+              string DisplayName,
+              string EmailAddress,
+              DateTimeOffset? BackfillStartedAt,
+              DateTimeOffset? BackfillCompletedAt,
+              bool HasBackfillPageToken,
+              bool HasGmailHistoryId,
+              DateTimeOffset? LastSyncAttemptAt,
+              string? LastSyncErrorCode,
+              int IndexedMessageCount,
+              DateTimeOffset? SyncLeaseUntil);
+
+          public sealed record UnifiedInboxReadiness(
+              bool IsReady,
+              IReadOnlyCollection<Guid> IncompleteAccountIds,
+              IReadOnlyCollection<Guid> UnsupportedProviderAccountIds,
+              IReadOnlyCollection<UnifiedInboxAccountReadiness> GmailAccountStates);
+
+          public sealed class UnifiedInboxReadinessService(
+              NexoMailDbContext database,
+              IUserContext userContext,
+              IOptions<UnifiedInboxOptions> options)
+          {
+              public async Task<UnifiedInboxReadiness> GetAsync(CancellationToken cancellationToken)
+              {
+                  var userId = userContext.UserId;
+                  var accounts = await database.MailAccounts
+                      .AsNoTracking()
+                      .Where(x => x.UserId == userId && x.IsActive)
+                      .Select(x => new { x.Id, x.Provider, x.DisplayName, x.EmailAddress })
+                      .ToArrayAsync(cancellationToken);
+
+                  var unsupported = accounts
+                      .Where(x => x.Provider != MailProviderType.Gmail)
+                      .Select(x => x.Id)
+                      .OrderBy(x => x)
+                      .ToArray();
+
+                  var gmailAccounts = accounts
+                      .Where(x => x.Provider == MailProviderType.Gmail)
+                      .OrderBy(x => x.Id)
+                      .ToArray();
+                  var gmailAccountIds = gmailAccounts.Select(x => x.Id).ToArray();
+
+                  var states = gmailAccountIds.Length == 0
+                      ? []
+                      : await database.MailIndexStates
+                          .AsNoTracking()
+                          .Where(x => x.UserId == userId && gmailAccountIds.Contains(x.AccountId))
+                          .ToArrayAsync(cancellationToken);
+                  var stateByAccountId = states.ToDictionary(x => x.AccountId);
+
+                  var gmailAccountStates = gmailAccounts.Select(account =>
+                  {
+                      stateByAccountId.TryGetValue(account.Id, out var state);
+                      return new UnifiedInboxAccountReadiness(
+                          account.Id,
+                          account.DisplayName,
+                          account.EmailAddress,
+                          state?.BackfillStartedAt,
+                          state?.BackfillCompletedAt,
+                          !string.IsNullOrWhiteSpace(state?.BackfillPageToken),
+                          !string.IsNullOrWhiteSpace(state?.GmailHistoryId),
+                          state?.LastSyncAttemptAt,
+                          state?.LastSyncErrorCode,
+                          state?.IndexedMessageCount ?? 0,
+                          state?.SyncLeaseUntil);
+                  }).ToArray();
+
+                  Guid[] incomplete = [];
+                  if (options.Value.RequireCompleteBackfill)
+                  {
+                      incomplete = gmailAccountStates
+                          .Where(x => !x.BackfillCompletedAt.HasValue)
+                          .Select(x => x.AccountId)
+                          .ToArray();
+                  }
+
+                  return new UnifiedInboxReadiness(
+                      incomplete.Length == 0 && unsupported.Length == 0,
+                      incomplete,
+                      unsupported,
+                      gmailAccountStates);
+              }
+          }
+          EOF
+
+          python - <<'PY'
+          from pathlib import Path
+
+          test = Path('src/backend/NexoMail.UnifiedInboxSmokeTests/UnifiedInboxReadinessSmoke.cs')
+          text = test.read_text(encoding='utf-8')
+          marker = '        EnsureReadiness(!initial.UnsupportedProviderAccountIds.Contains(imapId), "Una cuenta IMAP inactiva no debe bloquear el cutover.");\n'
+          addition = marker + '''        var initialGmailState = initial.GmailAccountStates.Single(x => x.AccountId == gmailId);\n        EnsureReadiness(initialGmailState.BackfillCompletedAt is null && initialGmailState.IndexedMessageCount == 0,\n            "Readiness debe exponer el estado diagnóstico de Gmail sin inventar progreso inexistente.");\n'''
+          if marker not in text:
+              raise SystemExit('No se encontró marcador inicial readiness.')
+          text = text.replace(marker, addition, 1)
+
+          marker2 = '        EnsureReadiness(gmailComplete.UnsupportedProviderAccountIds.SequenceEqual(new[] { microsoftId }), "Microsoft Graph debe seguir bloqueando el cutover.");\n'
+          addition2 = marker2 + '''        var completedGmailState = gmailComplete.GmailAccountStates.Single(x => x.AccountId == gmailId);\n        EnsureReadiness(completedGmailState.BackfillCompletedAt.HasValue && completedGmailState.IndexedMessageCount == 10,\n            "Readiness debe exponer progreso y finalización del backfill para diagnóstico.");\n'''
+          if marker2 not in text:
+              raise SystemExit('No se encontró marcador Gmail complete.')
+          text = text.replace(marker2, addition2, 1)
+          test.write_text(text, encoding='utf-8')
+
+          program = Path('src/backend/NexoMail.Api/Program.cs')
+          p = program.read_text(encoding='utf-8')
+          old = '''                incompleteAccountIds = gate.IncompleteAccountIds,\n                unsupportedProviderAccountIds = gate.UnsupportedProviderAccountIds\n'''
+          new = '''                incompleteAccountIds = gate.IncompleteAccountIds,\n                unsupportedProviderAccountIds = gate.UnsupportedProviderAccountIds,\n                gmailAccountStates = gate.GmailAccountStates\n'''
+          if old not in p:
+              raise SystemExit('No se encontró el bloque 409 de Unified Inbox.')
+          p = p.replace(old, new, 1)
+          program.write_text(p, encoding='utf-8')
+          PY
+
+      - name: Restore Unified Inbox smoke
+        run: dotnet restore src/backend/NexoMail.UnifiedInboxSmokeTests/NexoMail.UnifiedInboxSmokeTests.csproj
+      - name: Run Unified Inbox smoke
+        run: dotnet run --project src/backend/NexoMail.UnifiedInboxSmokeTests/NexoMail.UnifiedInboxSmokeTests.csproj --configuration Release
+      - name: Restore solution
+        run: dotnet restore NexoMail.sln
+      - name: Build solution
+        run: dotnet build NexoMail.sln --configuration Release --no-restore
+      - name: Commit diagnostics
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/backend/NexoMail.Infrastructure/Mail/UnifiedInboxReadinessService.cs src/backend/NexoMail.UnifiedInboxSmokeTests/UnifiedInboxReadinessSmoke.cs src/backend/NexoMail.Api/Program.cs
+          git commit -m "diagnostics: expose unified inbox readiness state"
+          git push origin HEAD:feature/unified-inbox-source-of-truth
