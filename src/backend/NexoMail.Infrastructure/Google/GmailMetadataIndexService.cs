@@ -35,6 +35,56 @@ public sealed class GmailMetadataIndexService(
     public Task<MailMetadataSyncResult> SyncAsync(int? requestedDays, int? requestedLimitPerAccount, CancellationToken cancellationToken) =>
         SyncForUserAsync(userContext.UserId, requestedDays, requestedLimitPerAccount, cancellationToken);
 
+    internal async Task<IReadOnlyCollection<string>> ListAllProviderMessageIdsAsync(Guid accountId, CancellationToken cancellationToken)
+    {
+        var client = await CreateClientAsync(accountId, cancellationToken);
+        var ids = new List<string>();
+        string? pageToken = null;
+        do
+        {
+            var page = await ListFullBackfillPageAsync(client, GmailListPageMaximum, pageToken, cancellationToken);
+            ids.AddRange(page.MessageIds);
+            pageToken = page.NextPageToken;
+        }
+        while (!string.IsNullOrWhiteSpace(pageToken));
+
+        return ids.Distinct(StringComparer.Ordinal).ToArray();
+    }
+
+    internal async Task<int> RepairMissingMessageIdsAsync(
+        Guid userId,
+        Guid accountId,
+        IReadOnlyCollection<string> ids,
+        CancellationToken cancellationToken)
+    {
+        var requestedIds = ids
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (requestedIds.Length == 0) return 0;
+
+        var account = await database.MailAccounts
+            .SingleOrDefaultAsync(
+                x => x.Id == accountId &&
+                     x.UserId == userId &&
+                     x.IsActive &&
+                     x.Provider == MailProviderType.Gmail,
+                cancellationToken)
+            ?? throw new InvalidOperationException("La cuenta Gmail no existe, no está activa o no pertenece al usuario.");
+
+        var client = await CreateClientAsync(accountId, cancellationToken);
+        var indexed = await LoadMetadataAsync(client, requestedIds, cancellationToken);
+        if (indexed.Count != requestedIds.Length)
+            throw new HttpRequestException($"La reconciliación Gmail no pudo cargar todos los metadatos faltantes ({indexed.Count}/{requestedIds.Length}).");
+
+        var state = await database.MailIndexStates
+            .AsNoTracking()
+            .SingleOrDefaultAsync(x => x.AccountId == accountId && x.UserId == userId, cancellationToken);
+        var days = state?.WindowDays > 0 ? state.WindowDays : DefaultWindowDays;
+        await UpsertAccountIndexAsync(account, userId, indexed, DateTimeOffset.UtcNow, days, cancellationToken);
+        return indexed.Count;
+    }
+
     public async Task<MailMetadataSyncResult> SyncForUserAsync(Guid userId, int? requestedDays, int? requestedLimitPerAccount, CancellationToken cancellationToken)
     {
         var days = Math.Clamp(requestedDays ?? DefaultWindowDays, 7, 365);
