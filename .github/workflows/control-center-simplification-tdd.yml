@@ -75,6 +75,8 @@ jobs:
           text = re.sub(r"\n  function selectPriorityFilter\([\s\S]*?\n  \}\n", "\n", text, count=1)
           text = re.sub(r"\n      \{items\.length > 0 && <button type=\"button\" className=\"secondary-button nexi-priority-refine nexi-glow-action\"[\s\S]*?</button>\}", "", text, count=1)
           text = re.sub(r"\n    <div className=\"nexi-priority-summary\" aria-label=\"Filtros de priorización\">[\s\S]*?</div>\n", "\n", text, count=1)
+          text = re.sub(r"<span>Mostrando \{Math\.min\(visible, filtered\.length\)\} de \{filtered\.length\}\{Object\.keys\(semantic\)\.length > 0 \? ` · \$\{Object\.keys\(semantic\)\.length\} revisados por Nexi` : ''\}</span>", '<span>Mostrando {Math.min(visible, filtered.length)} de {filtered.length}</span>', text)
+          text = re.sub(r"\n      \{candidates\.length > 0 && !refine\.isPending && <small>Nexi revisa hasta 5 correos por tanda\.</small>\}", "", text)
           queue.write_text(text, encoding='utf-8')
 
       - name: GREEN simplification smoke
