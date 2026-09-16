@@ -61,26 +61,21 @@ internal static class GmailBackfillSmoke
         await service.SyncForUserAsync(userId, 90, 25, ct);
         database.ChangeTracker.Clear();
         var state1 = await database.MailIndexStates.AsNoTracking().SingleAsync(x => x.AccountId == accountId, ct);
-        EnsureBackfill(state1.BackfillStartedAt is not null, "El primer ciclo debe registrar el inicio del backfill completo.");
-        EnsureBackfill(state1.BackfillCompletedAt is null, "El backfill no puede declararse completo tras consumir sólo la primera página.");
-        EnsureBackfill(state1.BackfillPageToken == "p2", "El primer ciclo debe persistir el token de la segunda página.");
-        EnsureBackfill(state1.GmailHistoryId is null, "Durante un backfill incompleto no debe persistirse un checkpoint History que pueda expirar antes de completar el barrido.");
-        EnsureBackfill(await IndexedCount(database, userId, accountId, ct) == 25, "El primer ciclo debe indexar exactamente la primera página de 25 mensajes.");
+        EnsureBackfill(state1.BackfillStartedAt is not null, "El ciclo debe registrar el inicio del backfill completo.");
+        EnsureBackfill(state1.BackfillCompletedAt is null, "El primer ciclo debe respetar el tope de páginas y conservar el backfill incompleto cuando aún queda historial.");
+        EnsureBackfill(state1.BackfillPageToken == "p6", "Un solo ciclo debe consumir cinco páginas y persistir el token de la sexta.");
+        EnsureBackfill(state1.GmailHistoryId is null, "No debe capturarse History mientras queden páginas pendientes.");
+        EnsureBackfill(await IndexedCount(database, userId, accountId, ct) == 125, "El primer ciclo debe indexar cinco páginas de 25 mensajes.");
+        EnsureBackfill(factory.FullBackfillListCalls == 5, "El primer ciclo debe consumir exactamente cinco páginas de backfill.");
+        EnsureBackfill(factory.ProfileCalls == 0, "No debe capturarse el perfil antes de terminar el backfill.");
+        EnsureBackfill(factory.HistoryListCalls == 0, "History no debe ejecutarse mientras el backfill siga incompleto.");
 
         await service.SyncForUserAsync(userId, 90, 25, ct);
         database.ChangeTracker.Clear();
         var state2 = await database.MailIndexStates.AsNoTracking().SingleAsync(x => x.AccountId == accountId, ct);
-        EnsureBackfill(state2.BackfillCompletedAt is null, "El segundo ciclo todavía no debe declarar completitud.");
-        EnsureBackfill(state2.BackfillPageToken == "p3", "El segundo ciclo debe persistir el token de la tercera página.");
-        EnsureBackfill(state2.GmailHistoryId is null, "El checkpoint History debe seguir vacío hasta completar la última página del backfill.");
-        EnsureBackfill(await IndexedCount(database, userId, accountId, ct) == 50, "El segundo ciclo debe acumular 50 mensajes sin duplicarlos.");
-
-        await service.SyncForUserAsync(userId, 90, 25, ct);
-        database.ChangeTracker.Clear();
-        var state3 = await database.MailIndexStates.AsNoTracking().SingleAsync(x => x.AccountId == accountId, ct);
-        EnsureBackfill(state3.BackfillCompletedAt is not null, "El tercer ciclo debe declarar la finalización del backfill.");
-        EnsureBackfill(state3.BackfillPageToken is null, "Al completar el backfill no debe quedar page token pendiente.");
-        EnsureBackfill(state3.GmailHistoryId == "500", "Al completar el backfill debe persistirse un checkpoint History fresco.");
+        EnsureBackfill(state2.BackfillCompletedAt is not null, "El segundo ciclo debe completar las páginas restantes.");
+        EnsureBackfill(state2.BackfillPageToken is null, "Al completar el backfill no debe quedar page token pendiente.");
+        EnsureBackfill(state2.GmailHistoryId == "500", "Al completar el backfill debe persistirse un checkpoint History fresco.");
 
         var indexedIds = (await database.MailMessageIndex
                 .AsNoTracking()
@@ -89,9 +84,10 @@ internal static class GmailBackfillSmoke
                 .ToArrayAsync(ct))
             .ToHashSet(StringComparer.Ordinal);
         EnsureBackfill(indexedIds.SetEquals(factory.AllProviderIds), "El backfill completo debe contener exactamente todos los IDs del proveedor.");
-        EnsureBackfill(factory.FullBackfillListCalls == 3, "El escenario debe consumir exactamente tres páginas completas del proveedor.");
-        EnsureBackfill(factory.ProfileCalls == 1, "El checkpoint History debe capturarse una sola vez y únicamente al completar el backfill.");
-        EnsureBackfill(factory.HistoryListCalls == 1, "History debe reproducirse al completar el backfill sin reescanearlo.");
+        EnsureBackfill(await IndexedCount(database, userId, accountId, ct) == 175, "Los dos ciclos deben acumular los 175 mensajes sin duplicados.");
+        EnsureBackfill(factory.FullBackfillListCalls == 7, "El escenario debe consumir exactamente siete páginas del proveedor.");
+        EnsureBackfill(factory.ProfileCalls == 1, "El checkpoint History debe capturarse una sola vez al completar el backfill.");
+        EnsureBackfill(factory.HistoryListCalls == 1, "History debe reproducirse una sola vez tras completar el backfill.");
     }
 
     private static Task<int> IndexedCount(NexoMailDbContext db, Guid userId, Guid accountId, CancellationToken ct) =>
@@ -128,7 +124,7 @@ sealed class PagedBackfillHttpClientFactory : IHttpClientFactory
 
 sealed class PagedBackfillHttpHandler : HttpMessageHandler
 {
-    private readonly string[] _allProviderIds = Enumerable.Range(1, 60).Select(i => $"bf-{i:00}").ToArray();
+    private readonly string[] _allProviderIds = Enumerable.Range(1, 175).Select(i => $"bf-{i:000}").ToArray();
     public IReadOnlySet<string> AllProviderIds => _allProviderIds.ToHashSet(StringComparer.Ordinal);
     public int FullBackfillListCalls { get; private set; }
     public int ProfileCalls { get; private set; }
@@ -162,13 +158,15 @@ sealed class PagedBackfillHttpHandler : HttpMessageHandler
 
             FullBackfillListCalls++;
             var token = QueryValue(request.RequestUri!, "pageToken");
-            return Task.FromResult(token switch
-            {
-                null => MessagePage(_allProviderIds[..25], "p2"),
-                "p2" => MessagePage(_allProviderIds[25..50], "p3"),
-                "p3" => MessagePage(_allProviderIds[50..], null),
-                _ => Json(HttpStatusCode.BadRequest, "{\"error\":\"unexpected_page_token\"}"),
-            });
+            var pageNumber = token is null ? 1 : int.TryParse(token.TrimStart('p'), out var parsed) ? parsed : -1;
+            if (pageNumber < 1)
+                return Task.FromResult(Json(HttpStatusCode.BadRequest, "{\"error\":\"unexpected_page_token\"}"));
+            var start = (pageNumber - 1) * 25;
+            if (start >= _allProviderIds.Length)
+                return Task.FromResult(Json(HttpStatusCode.BadRequest, "{\"error\":\"page_out_of_range\"}"));
+            var ids = _allProviderIds.Skip(start).Take(25).ToArray();
+            var next = start + ids.Length < _allProviderIds.Length ? $"p{pageNumber + 1}" : null;
+            return Task.FromResult(MessagePage(ids, next));
         }
 
         if (uri.Contains("/users/me/messages/", StringComparison.OrdinalIgnoreCase))

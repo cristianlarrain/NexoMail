@@ -4,7 +4,7 @@ import { useLocation, useParams, useNavigate, useSearchParams } from 'react-rout
 import { Archive, ChevronDown, ChevronUp, Clock3, EyeOff, MailOpen, MoreHorizontal, Paperclip, RefreshCw, ShieldAlert, Trash2, Undo2, X } from 'lucide-react'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { NexiEmptyState } from '../components/nexi/NexiEmptyState'
-import { mailApi } from '../api/mailApi'
+import { mailApi, unifiedInboxReadiness } from '../api/mailApi'
 import type { ControlCenterPendingItem, MailSummary, PagedResult } from '../types/mail'
 
 type SortKey = 'sender' | 'subject' | 'date'
@@ -70,7 +70,8 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
     enabled: !priorityOnly,
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
-    refetchInterval: 10 * 60_000,
+    retry: (failureCount, error) => !unifiedInboxReadiness(error) && failureCount < 2,
+    refetchInterval: query => unifiedInboxReadiness(query.state.error) ? 30_000 : 10 * 60_000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
@@ -293,8 +294,14 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
   const returnTo = `${location.pathname}${location.search}`
   const priorityLoading = priorityOnly && (prioritySnapshot.isLoading || trackedItemsQuery.isLoading)
   const priorityError = priorityOnly && (prioritySnapshot.isError || trackedItemsQuery.isError)
+  const readinessProblem = priorityOnly ? null : unifiedInboxReadiness(messagesQuery.error)
+  const readinessAccounts = readinessProblem?.gmailAccountStates
+    .filter(state => readinessProblem.incompleteAccountIds.includes(state.accountId)) ?? []
+  const readinessSummary = readinessAccounts
+    .map(state => `${state.displayName} (${state.indexedMessageCount.toLocaleString('es-CL')} indexados)`)
+    .join(', ')
   const listLoading = priorityOnly ? priorityLoading : messagesQuery.isLoading
-  const listError = priorityOnly ? priorityError : messagesQuery.isError
+  const listError = priorityOnly ? priorityError : messagesQuery.isError && !readinessProblem
   const confirmDetails = confirmation?.kind === 'emptyTrash'
     ? { title: 'Vaciar Papelera', message: 'Esta acción eliminará permanentemente todos los correos de la Papelera.', label: 'Vaciar Papelera', tone: 'danger' as const }
     : folder === 'drafts'
@@ -427,8 +434,9 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
     {isUnreadView && selected.size === 0 && displayItems.length > 0 && <div className="unread-management-hint"><MailOpen size={16} /><span>Seleccione varios correos o use el checkbox superior para marcarlos como leídos en una sola acción.</span></div>}
 
     {listLoading && <section className="inbox-mail-loading" aria-label="Cargando correos"><div className="inbox-loading-heading"><strong>{priorityOnly ? 'Recuperando seguimiento' : 'Cargando correos'}</strong><span>{priorityOnly ? 'Consultando pendientes y seguimientos manuales.' : 'Actualizando la bandeja.'}</span></div><MailSkeleton /></section>}
+    {readinessProblem && <div className="notice" role="status"><span><strong>Sincronizando historial.</strong> {readinessSummary ? `${readinessSummary}. ` : ''}La Bandeja Unificada se habilitará automáticamente al completar el índice.</span> <button disabled={messagesQuery.isFetching} onClick={() => void messagesQuery.refetch()}>{messagesQuery.isFetching ? 'Comprobando…' : 'Comprobar estado'}</button></div>}
     {listError && <div className="notice">{priorityOnly ? 'No fue posible recuperar el seguimiento prioritario.' : 'No se pudo actualizar una de sus cuentas.'} <button onClick={() => priorityOnly ? void Promise.all([prioritySnapshot.refetch(), trackedItemsQuery.refetch()]) : void messagesQuery.refetch()}>Reintentar</button></div>}
-    {!listLoading && !listError && displayItems.length === 0 && <NexiEmptyState title={emptyTitle} description={emptyDescription} action={emptyAction} />}
+    {!listLoading && !listError && !readinessProblem && displayItems.length === 0 && <NexiEmptyState title={emptyTitle} description={emptyDescription} action={emptyAction} />}
 
     {displayItems.length > 0 && <div className="message-list" aria-label="Lista de mensajes">
       <div className="message-list-header">

@@ -29,6 +29,7 @@ public sealed class GmailMetadataIndexService(
     private const int UnreadDiscoveryLimit = 500;
     private const int GmailListPageMaximum = 500;
     private const int GmailHistoryPageMaximum = 500;
+    private const int MaximumFullBackfillPagesPerSync = 5;
     private const string GmailHistoryExpiredErrorCode = "history_expired";
     private static readonly TimeSpan SyncLeaseDuration = TimeSpan.FromMinutes(10);
 
@@ -150,11 +151,12 @@ public sealed class GmailMetadataIndexService(
                 else
                     await UpsertStateAsync(account, userId, now, days, existingAccountMessages.Length, cancellationToken);
 
-                var backfill = await ProcessFullBackfillPageAsync(
+                var backfill = await ProcessFullBackfillPagesAsync(
                     account,
                     userId,
                     client,
                     Math.Min(limitPerAccount, GmailListPageMaximum),
+                    leaseOwner,
                     now,
                     days,
                     cancellationToken);
@@ -426,6 +428,16 @@ public sealed class GmailMetadataIndexService(
         return affected == 1;
     }
 
+    private async Task<bool> RenewLeaseAsync(Guid accountId, string owner, CancellationToken cancellationToken)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var affected = await database.MailIndexStates
+            .Where(x => x.AccountId == accountId && x.SyncLeaseOwner == owner)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.SyncLeaseUntil, now.Add(SyncLeaseDuration)), cancellationToken);
+        return affected == 1;
+    }
+
     private async Task ReleaseLeaseAsync(Guid accountId, string owner, CancellationToken cancellationToken)
     {
         await database.MailIndexStates
@@ -435,11 +447,12 @@ public sealed class GmailMetadataIndexService(
                 .SetProperty(x => x.SyncLeaseUntil, (DateTimeOffset?)null), cancellationToken);
     }
 
-    private async Task<(int Messages, int Attachments)> ProcessFullBackfillPageAsync(
+    private async Task<(int Messages, int Attachments)> ProcessFullBackfillPagesAsync(
         MailAccountEntity account,
         Guid userId,
         HttpClient client,
         int pageSize,
+        string leaseOwner,
         DateTimeOffset now,
         int days,
         CancellationToken cancellationToken)
@@ -456,34 +469,43 @@ public sealed class GmailMetadataIndexService(
         }
         else if (!string.IsNullOrWhiteSpace(state.GmailHistoryId))
         {
-            // Older builds persisted a History checkpoint at backfill start. It is not safe
-            // to reuse after a multi-cycle backfill because Gmail may expire it meanwhile.
             state.GmailHistoryId = null;
             await database.SaveChangesAsync(cancellationToken);
         }
 
-        var page = await ListFullBackfillPageAsync(client, pageSize, state.BackfillPageToken, cancellationToken);
-        var indexed = await LoadMetadataAsync(client, page.MessageIds, cancellationToken);
-        if (indexed.Count != page.MessageIds.Count)
-            throw new HttpRequestException($"El backfill Gmail no pudo cargar todos los metadatos de la página ({indexed.Count}/{page.MessageIds.Count}); el checkpoint no avanzará.");
-
-        if (indexed.Count > 0)
-            await UpsertAccountIndexAsync(account, userId, indexed, now, days, cancellationToken);
-
-        state = await database.MailIndexStates
-            .SingleAsync(x => x.AccountId == account.Id && x.UserId == userId, cancellationToken);
-        state.BackfillStartedAt ??= now;
-        state.BackfillPageToken = page.NextPageToken;
-        if (string.IsNullOrWhiteSpace(page.NextPageToken))
+        var totalMessages = 0;
+        var totalAttachments = 0;
+        for (var pageNumber = 0; pageNumber < MaximumFullBackfillPagesPerSync; pageNumber++)
         {
-            // Capture a fresh checkpoint only when the complete provider-visible mailbox
-            // has been indexed, so the incremental History phase cannot start from a stale id.
-            state.GmailHistoryId = await GetProfileHistoryIdAsync(client, cancellationToken);
-            state.BackfillCompletedAt = now;
-        }
-        await database.SaveChangesAsync(cancellationToken);
+            state = await database.MailIndexStates
+                .SingleAsync(x => x.AccountId == account.Id && x.UserId == userId, cancellationToken);
+            if (state.BackfillCompletedAt.HasValue) break;
 
-        return (indexed.Count, indexed.Sum(x => x.Attachments.Count));
+            var page = await ListFullBackfillPageAsync(client, pageSize, state.BackfillPageToken, cancellationToken);
+            var indexed = await LoadMetadataAsync(client, page.MessageIds, cancellationToken);
+            if (indexed.Count != page.MessageIds.Count)
+                throw new HttpRequestException($"El backfill Gmail no pudo cargar todos los metadatos de la página ({indexed.Count}/{page.MessageIds.Count}); el checkpoint no avanzará.");
+            if (indexed.Count > 0)
+                await UpsertAccountIndexAsync(account, userId, indexed, now, days, cancellationToken);
+
+            state = await database.MailIndexStates
+                .SingleAsync(x => x.AccountId == account.Id && x.UserId == userId, cancellationToken);
+            state.BackfillStartedAt ??= now;
+            state.BackfillPageToken = page.NextPageToken;
+            if (string.IsNullOrWhiteSpace(page.NextPageToken))
+            {
+                state.GmailHistoryId = await GetProfileHistoryIdAsync(client, cancellationToken);
+                state.BackfillCompletedAt = DateTimeOffset.UtcNow;
+            }
+            await database.SaveChangesAsync(cancellationToken);
+
+            totalMessages += indexed.Count;
+            totalAttachments += indexed.Sum(x => x.Attachments.Count);
+            if (string.IsNullOrWhiteSpace(page.NextPageToken)) break;
+            if (!await RenewLeaseAsync(account.Id, leaseOwner, cancellationToken))
+                throw new InvalidOperationException("Se perdió el lease de sincronización Gmail durante el backfill; el ciclo se detendrá para evitar procesamiento concurrente.");
+        }
+        return (totalMessages, totalAttachments);
     }
 
     private async Task<(int Messages, int Attachments)> ProcessHistoryChangesAsync(

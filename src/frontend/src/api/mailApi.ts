@@ -2,6 +2,41 @@ import { csrfFetch } from './csrfFetch'
 import type { AiTone, AiWritingSuggestion, ComposeMessage, ContactAnalyticsSnapshot, ContactSuggestion, ControlCenterActivitySnapshot, ControlCenterPendingItem, ControlCenterSnapshot, DocumentIndexSnapshot, MailAccount, MailAttachment, MailMessage, MailMetadataSyncResult, MailSummary, MailThreadMessage, OutgoingAttachment, PagedResult } from '../types/mail'
 import { buildAttachmentUrl } from '../utils/attachmentUrl'
 
+export type UnifiedInboxAccountReadiness = {
+  accountId: string
+  displayName: string
+  emailAddress: string
+  backfillStartedAt?: string | null
+  backfillCompletedAt?: string | null
+  hasBackfillPageToken: boolean
+  hasGmailHistoryId: boolean
+  lastSyncAttemptAt?: string | null
+  lastSyncErrorCode?: string | null
+  indexedMessageCount: number
+  syncLeaseUntil?: string | null
+}
+
+export type UnifiedInboxReadinessProblem = {
+  error?: string
+  incompleteAccountIds: string[]
+  unsupportedProviderAccountIds: string[]
+  gmailAccountStates: UnifiedInboxAccountReadiness[]
+}
+
+export class MailApiError extends Error {
+  constructor(message: string, public readonly status: number, public readonly problem: unknown) {
+    super(message)
+    this.name = 'MailApiError'
+  }
+}
+
+export function unifiedInboxReadiness(error: unknown): UnifiedInboxReadinessProblem | null {
+  if (!(error instanceof MailApiError) || error.status !== 409) return null
+  const problem = error.problem as UnifiedInboxReadinessProblem | null
+  if (!problem || !Array.isArray(problem.incompleteAccountIds) || !Array.isArray(problem.gmailAccountStates)) return null
+  return problem
+}
+
 const messageAttachmentCache = new Map<string, MailAttachment[]>()
 
 function attachmentCacheKey(accountId: string, messageId: string) {
@@ -63,8 +98,8 @@ function forwardedMessageHtml(message: MailMessage) {
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await csrfFetch(`/api${path}`, { headers: { 'Content-Type': 'application/json', ...init?.headers }, ...init })
   if (!response.ok) {
-    const problem = await response.json().catch(() => null) as { detail?: string; error?: string } | null
-    throw new Error(problem?.detail ?? problem?.error ?? 'No fue posible completar la operación.')
+    const problem = await response.json().catch(() => null) as ({ detail?: string; error?: string } & Record<string, unknown>) | null
+    throw new MailApiError(problem?.detail ?? problem?.error ?? 'No fue posible completar la operación.', response.status, problem)
   }
   return response.status === 204 || response.status === 202 || response.headers.get('content-length') === '0' ? undefined as T : response.json() as Promise<T>
 }
