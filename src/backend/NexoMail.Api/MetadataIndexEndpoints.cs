@@ -15,6 +15,17 @@ public static class MetadataIndexEndpoints
             catch (HttpRequestException) { return Results.Problem("No fue posible actualizar el índice de metadatos desde Gmail.", statusCode: 502); }
         });
 
+        mail.MapPost("/index/reconcile/{accountId:guid}", async (
+            Guid accountId,
+            bool? repair,
+            GmailIndexReconciliationService service,
+            CancellationToken ct) =>
+        {
+            try { return Results.Ok(await service.ReconcileAsync(accountId, repair ?? true, ct)); }
+            catch (InvalidOperationException exception) { return Results.BadRequest(new { error = exception.Message }); }
+            catch (HttpRequestException) { return Results.Problem("No fue posible reconciliar el índice con Gmail.", statusCode: 502); }
+        });
+
         mail.MapGet("/control-center/contacts", async (GmailMetadataIndexService service, int? days, CancellationToken ct) =>
             Results.Ok(await service.GetContactsAsync(days, ct)));
 
