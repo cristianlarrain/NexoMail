@@ -14,6 +14,8 @@ public static class MailProviderBetaModule
     {
         services.Configure<GmailMetadataIndexSyncOptions>(configuration.GetSection(GmailMetadataIndexSyncOptions.SectionName));
         services.AddHostedService<GmailMetadataIndexHostedService>();
+        services.AddScoped<GmailMetadataIndexService>();
+        services.AddScoped<GmailIndexReconciliationService>();
 
         services.Configure<Microsoft365Options>(configuration.GetSection(Microsoft365Options.SectionName));
         services.AddScoped<MicrosoftOAuthService>();
