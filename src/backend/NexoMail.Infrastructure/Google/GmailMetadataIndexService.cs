@@ -448,10 +448,17 @@ public sealed class GmailMetadataIndexService(
             .SingleAsync(x => x.AccountId == account.Id && x.UserId == userId, cancellationToken);
         if (state.BackfillCompletedAt.HasValue) return (0, 0);
 
-        if (string.IsNullOrWhiteSpace(state.GmailHistoryId))
+        if (!state.BackfillStartedAt.HasValue)
         {
-            state.GmailHistoryId = await GetProfileHistoryIdAsync(client, cancellationToken);
-            state.BackfillStartedAt ??= now;
+            state.BackfillStartedAt = now;
+            state.GmailHistoryId = null;
+            await database.SaveChangesAsync(cancellationToken);
+        }
+        else if (!string.IsNullOrWhiteSpace(state.GmailHistoryId))
+        {
+            // Older builds persisted a History checkpoint at backfill start. It is not safe
+            // to reuse after a multi-cycle backfill because Gmail may expire it meanwhile.
+            state.GmailHistoryId = null;
             await database.SaveChangesAsync(cancellationToken);
         }
 
@@ -468,7 +475,12 @@ public sealed class GmailMetadataIndexService(
         state.BackfillStartedAt ??= now;
         state.BackfillPageToken = page.NextPageToken;
         if (string.IsNullOrWhiteSpace(page.NextPageToken))
+        {
+            // Capture a fresh checkpoint only when the complete provider-visible mailbox
+            // has been indexed, so the incremental History phase cannot start from a stale id.
+            state.GmailHistoryId = await GetProfileHistoryIdAsync(client, cancellationToken);
             state.BackfillCompletedAt = now;
+        }
         await database.SaveChangesAsync(cancellationToken);
 
         return (indexed.Count, indexed.Sum(x => x.Attachments.Count));

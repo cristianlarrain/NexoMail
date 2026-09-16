@@ -64,7 +64,7 @@ internal static class GmailBackfillSmoke
         EnsureBackfill(state1.BackfillStartedAt is not null, "El primer ciclo debe registrar el inicio del backfill completo.");
         EnsureBackfill(state1.BackfillCompletedAt is null, "El backfill no puede declararse completo tras consumir sólo la primera página.");
         EnsureBackfill(state1.BackfillPageToken == "p2", "El primer ciclo debe persistir el token de la segunda página.");
-        EnsureBackfill(state1.GmailHistoryId == "500", "El primer ciclo debe capturar History antes de avanzar el backfill para cerrar la ventana de carrera.");
+        EnsureBackfill(state1.GmailHistoryId is null, "Durante un backfill incompleto no debe persistirse un checkpoint History que pueda expirar antes de completar el barrido.");
         EnsureBackfill(await IndexedCount(database, userId, accountId, ct) == 25, "El primer ciclo debe indexar exactamente la primera página de 25 mensajes.");
 
         await service.SyncForUserAsync(userId, 90, 25, ct);
@@ -72,7 +72,7 @@ internal static class GmailBackfillSmoke
         var state2 = await database.MailIndexStates.AsNoTracking().SingleAsync(x => x.AccountId == accountId, ct);
         EnsureBackfill(state2.BackfillCompletedAt is null, "El segundo ciclo todavía no debe declarar completitud.");
         EnsureBackfill(state2.BackfillPageToken == "p3", "El segundo ciclo debe persistir el token de la tercera página.");
-        EnsureBackfill(state2.GmailHistoryId == "500", "El checkpoint History inicial debe conservarse durante todo el backfill.");
+        EnsureBackfill(state2.GmailHistoryId is null, "El checkpoint History debe seguir vacío hasta completar la última página del backfill.");
         EnsureBackfill(await IndexedCount(database, userId, accountId, ct) == 50, "El segundo ciclo debe acumular 50 mensajes sin duplicarlos.");
 
         await service.SyncForUserAsync(userId, 90, 25, ct);
@@ -80,7 +80,7 @@ internal static class GmailBackfillSmoke
         var state3 = await database.MailIndexStates.AsNoTracking().SingleAsync(x => x.AccountId == accountId, ct);
         EnsureBackfill(state3.BackfillCompletedAt is not null, "El tercer ciclo debe declarar la finalización del backfill.");
         EnsureBackfill(state3.BackfillPageToken is null, "Al completar el backfill no debe quedar page token pendiente.");
-        EnsureBackfill(state3.GmailHistoryId == "500", "Un History vacío debe mantener el checkpoint capturado al inicio.");
+        EnsureBackfill(state3.GmailHistoryId == "500", "Al completar el backfill debe persistirse un checkpoint History fresco.");
 
         var indexedIds = (await database.MailMessageIndex
                 .AsNoTracking()
@@ -90,7 +90,7 @@ internal static class GmailBackfillSmoke
             .ToHashSet(StringComparer.Ordinal);
         EnsureBackfill(indexedIds.SetEquals(factory.AllProviderIds), "El backfill completo debe contener exactamente todos los IDs del proveedor.");
         EnsureBackfill(factory.FullBackfillListCalls == 3, "El escenario debe consumir exactamente tres páginas completas del proveedor.");
-        EnsureBackfill(factory.ProfileCalls == 1, "El checkpoint History inicial debe capturarse una sola vez.");
+        EnsureBackfill(factory.ProfileCalls == 1, "El checkpoint History debe capturarse una sola vez y únicamente al completar el backfill.");
         EnsureBackfill(factory.HistoryListCalls == 1, "History debe reproducirse al completar el backfill sin reescanearlo.");
     }
 
