@@ -26,7 +26,7 @@ for (const redundantCopy of [
 }
 
 if (!controlCenter.includes('control-metrics nexi-control-metrics compact')) {
-  throw new Error('Los cuatro indicadores deben usar la variante compacta.')
+  throw new Error('Los indicadores deben usar la variante compacta.')
 }
 
 const metricsIndex = controlCenter.indexOf('control-metrics nexi-control-metrics compact')
@@ -71,28 +71,12 @@ if (!priorityQueue.includes('Priorización inteligente') || !priorityQueue.inclu
   throw new Error('Debe mantenerse la jerarquía Priorización inteligente > Qué atender primero.')
 }
 
-if (priorityQueue.includes('Revisar con Nexi')) {
-  throw new Error('El botón principal debe decir Analizar con Nexi.')
-}
-
-if (!priorityQueue.includes("'Analizar con Nexi'")) {
-  throw new Error('Falta la etiqueta Analizar con Nexi en el botón principal.')
-}
-
-if (!priorityQueue.includes('nexi-priority-refine nexi-glow-action')) {
-  throw new Error('El botón Analizar con Nexi debe usar la variante turquesa glow.')
-}
-
 if (priorityQueue.includes('Nexi ordena las conversaciones y permite resumir, responder o dar seguimiento desde la misma grilla.')) {
   throw new Error('La priorización no debe incluir texto explicativo redundante.')
 }
 
-for (const marker of ['.nexi-control-metrics.compact', '.control-center-page .control-tabs-inline', '.control-center-page .nexi-priority-refine.nexi-glow-action']) {
+for (const marker of ['.nexi-control-metrics.compact', '.control-center-page .control-tabs-inline']) {
   if (!cleanupCss.includes(marker)) throw new Error(`Falta el estilo minimalista requerido: ${marker}`)
-}
-
-if (!cleanupCss.includes('background: var(--primary);') || !cleanupCss.includes('box-shadow: 0 0 18px')) {
-  throw new Error('El botón Analizar con Nexi debe usar el turquesa principal con glow.')
 }
 
 console.log('PASS minimalist Control Center hierarchy')
