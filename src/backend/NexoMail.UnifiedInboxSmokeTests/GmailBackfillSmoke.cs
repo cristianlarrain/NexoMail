@@ -64,6 +64,7 @@ internal static class GmailBackfillSmoke
         EnsureBackfill(state1.BackfillStartedAt is not null, "El primer ciclo debe registrar el inicio del backfill completo.");
         EnsureBackfill(state1.BackfillCompletedAt is null, "El backfill no puede declararse completo tras consumir sólo la primera página.");
         EnsureBackfill(state1.BackfillPageToken == "p2", "El primer ciclo debe persistir el token de la segunda página.");
+        EnsureBackfill(state1.GmailHistoryId == "500", "El primer ciclo debe capturar History antes de avanzar el backfill para cerrar la ventana de carrera.");
         EnsureBackfill(await IndexedCount(database, userId, accountId, ct) == 25, "El primer ciclo debe indexar exactamente la primera página de 25 mensajes.");
 
         await service.SyncForUserAsync(userId, 90, 25, ct);
@@ -71,6 +72,7 @@ internal static class GmailBackfillSmoke
         var state2 = await database.MailIndexStates.AsNoTracking().SingleAsync(x => x.AccountId == accountId, ct);
         EnsureBackfill(state2.BackfillCompletedAt is null, "El segundo ciclo todavía no debe declarar completitud.");
         EnsureBackfill(state2.BackfillPageToken == "p3", "El segundo ciclo debe persistir el token de la tercera página.");
+        EnsureBackfill(state2.GmailHistoryId == "500", "El checkpoint History inicial debe conservarse durante todo el backfill.");
         EnsureBackfill(await IndexedCount(database, userId, accountId, ct) == 50, "El segundo ciclo debe acumular 50 mensajes sin duplicarlos.");
 
         await service.SyncForUserAsync(userId, 90, 25, ct);
@@ -78,6 +80,7 @@ internal static class GmailBackfillSmoke
         var state3 = await database.MailIndexStates.AsNoTracking().SingleAsync(x => x.AccountId == accountId, ct);
         EnsureBackfill(state3.BackfillCompletedAt is not null, "El tercer ciclo debe declarar la finalización del backfill.");
         EnsureBackfill(state3.BackfillPageToken is null, "Al completar el backfill no debe quedar page token pendiente.");
+        EnsureBackfill(state3.GmailHistoryId == "500", "Un History vacío debe mantener el checkpoint capturado al inicio.");
 
         var indexedIds = (await database.MailMessageIndex
                 .AsNoTracking()
@@ -87,6 +90,8 @@ internal static class GmailBackfillSmoke
             .ToHashSet(StringComparer.Ordinal);
         EnsureBackfill(indexedIds.SetEquals(factory.AllProviderIds), "El backfill completo debe contener exactamente todos los IDs del proveedor.");
         EnsureBackfill(factory.FullBackfillListCalls == 3, "El escenario debe consumir exactamente tres páginas completas del proveedor.");
+        EnsureBackfill(factory.ProfileCalls == 1, "El checkpoint History inicial debe capturarse una sola vez.");
+        EnsureBackfill(factory.HistoryListCalls == 1, "History debe reproducirse al completar el backfill sin reescanearlo.");
     }
 
     private static Task<int> IndexedCount(NexoMailDbContext db, Guid userId, Guid accountId, CancellationToken ct) =>
@@ -109,6 +114,8 @@ sealed class PagedBackfillHttpClientFactory : IHttpClientFactory
     private readonly PagedBackfillHttpHandler _handler = new();
     public IReadOnlySet<string> AllProviderIds => _handler.AllProviderIds;
     public int FullBackfillListCalls => _handler.FullBackfillListCalls;
+    public int ProfileCalls => _handler.ProfileCalls;
+    public int HistoryListCalls => _handler.HistoryListCalls;
 
     public HttpClient CreateClient(string name)
     {
@@ -124,6 +131,8 @@ sealed class PagedBackfillHttpHandler : HttpMessageHandler
     private readonly string[] _allProviderIds = Enumerable.Range(1, 60).Select(i => $"bf-{i:00}").ToArray();
     public IReadOnlySet<string> AllProviderIds => _allProviderIds.ToHashSet(StringComparer.Ordinal);
     public int FullBackfillListCalls { get; private set; }
+    public int ProfileCalls { get; private set; }
+    public int HistoryListCalls { get; private set; }
 
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
@@ -131,6 +140,18 @@ sealed class PagedBackfillHttpHandler : HttpMessageHandler
 
         if (uri.Contains("oauth2.googleapis.com/token", StringComparison.OrdinalIgnoreCase))
             return Task.FromResult(Json(HttpStatusCode.OK, "{\"access_token\":\"backfill-access-token\",\"expires_in\":3600}"));
+
+        if (uri.Contains("/users/me/profile", StringComparison.OrdinalIgnoreCase))
+        {
+            ProfileCalls++;
+            return Task.FromResult(Json(HttpStatusCode.OK, "{\"emailAddress\":\"backfill@nexomail.test\",\"messagesTotal\":60,\"threadsTotal\":60,\"historyId\":\"500\"}"));
+        }
+
+        if (uri.Contains("/users/me/history?", StringComparison.OrdinalIgnoreCase))
+        {
+            HistoryListCalls++;
+            return Task.FromResult(Json(HttpStatusCode.OK, "{\"history\":[],\"historyId\":\"500\"}"));
+        }
 
         if (uri.Contains("/users/me/messages?", StringComparison.OrdinalIgnoreCase))
         {
