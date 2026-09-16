@@ -127,6 +127,11 @@ export const mailApi = {
     const take = cursor ? 25 : accountId ? 20 : 12
     return api<PagedResult<MailSummary>>(`/mail/messages?folder=${encodeURIComponent(folder)}&take=${take}${accountId ? `&accountId=${encodeURIComponent(accountId)}` : ''}${search.trim() ? `&search=${encodeURIComponent(search.trim())}` : ''}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
   },
+  resolveMessages: (references: Array<{ accountId: string; providerMessageId: string }>) =>
+  api<MailSummary[]>('/mail/messages/resolve', {
+    method: 'POST',
+    body: JSON.stringify(references),
+  }),
   message: async (accountId: string, messageId: string) => {
     const value = await api<MailMessage>(`/mail/messages/${accountId}/${messageId}`)
     messageAttachmentCache.set(attachmentCacheKey(accountId, messageId), [...value.attachments])

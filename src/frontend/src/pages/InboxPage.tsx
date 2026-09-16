@@ -124,7 +124,11 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
   const refreshMailbox = useMutation({
     mutationFn: mailApi.refreshMail,
     onSuccess: async () => {
-      if (priorityOnly) await Promise.all([prioritySnapshot.refetch(), trackedItemsQuery.refetch()])
+      if (priorityOnly) await Promise.all([
+        prioritySnapshot.refetch(),
+        trackedItemsQuery.refetch(),
+        queryClient.invalidateQueries({ queryKey: ['priority-messages', accountId], refetchType: 'active' }),
+      ])
       else await messagesQuery.refetch()
     },
   })
@@ -238,26 +242,27 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
 
   const priorityReferenceByKey = useMemo(() => new Map(priorityReferences.map(item => [pendingKey(item), item])), [priorityReferences])
 
+  const priorityMessageReferences = useMemo(() => priorityReferences.map(reference => ({
+    accountId: reference.accountId,
+    providerMessageId: reference.messageId,
+  })), [priorityReferences])
+
+  const priorityMessagesQuery = useQuery({
+    queryKey: ['priority-messages', accountId, priorityMessageReferences],
+    queryFn: () => mailApi.resolveMessages(priorityMessageReferences),
+    enabled: priorityOnly && priorityMessageReferences.length > 0,
+    staleTime: 30_000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
+  })
+
   const displayItems = useMemo(() => {
     if (!priorityOnly) return items
-    const loaded = new Map(items.map(item => [itemKey(item), item]))
     const normalizedSearch = search.trim().toLowerCase()
-    return priorityReferences
-      .filter(reference => !priorityHidden.has(pendingKey(reference)))
-      .map(reference => loaded.get(pendingKey(reference)) ?? ({
-        providerMessageId: reference.messageId,
-        accountId: reference.accountId,
-        senderName: reference.counterpart || 'Remitente',
-        senderAddress: '',
-        subject: reference.subject,
-        preview: reference.conversationId.startsWith('manual:') ? 'Marcado manualmente para seguimiento' : 'Pendiente de respuesta',
-        receivedAt: reference.since,
-        isRead: reference.isRead,
-        hasAttachments: false,
-        folderId: 'inbox',
-      } satisfies MailSummary))
+    return (priorityMessagesQuery.data ?? [])
+      .filter(item => !priorityHidden.has(itemKey(item)))
       .filter(item => !normalizedSearch || normalizedSearch === 'is:unread' || `${item.senderName} ${item.senderAddress} ${item.subject} ${item.preview}`.toLowerCase().includes(normalizedSearch))
-  }, [items, priorityHidden, priorityOnly, priorityReferences, search])
+  }, [items, priorityHidden, priorityMessagesQuery.data, priorityOnly, search])
 
   const sortedItems = useMemo(() => [...displayItems].sort((left, right) => {
     let comparison = 0
@@ -292,8 +297,12 @@ export function InboxPage({ folder = 'inbox' }: { folder?: string }) {
   const contextLabel = priorityOnly ? `${baseContextLabel} · Seguimiento prioritario` : baseContextLabel
   const navigationItems = sortedItems.map(item => ({ accountId: item.accountId, messageId: item.providerMessageId }))
   const returnTo = `${location.pathname}${location.search}`
-  const priorityLoading = priorityOnly && (prioritySnapshot.isLoading || trackedItemsQuery.isLoading)
-  const priorityError = priorityOnly && (prioritySnapshot.isError || trackedItemsQuery.isError)
+  const priorityLoading = priorityOnly && (
+    prioritySnapshot.isLoading ||
+    trackedItemsQuery.isLoading ||
+    (priorityReferences.length > 0 && priorityMessagesQuery.isLoading)
+  )
+  const priorityError = priorityOnly && (prioritySnapshot.isError || trackedItemsQuery.isError || priorityMessagesQuery.isError)
   const readinessProblem = priorityOnly ? null : unifiedInboxReadiness(messagesQuery.error)
   const readinessAccounts = readinessProblem?.gmailAccountStates
     .filter(state => readinessProblem.incompleteAccountIds.includes(state.accountId)) ?? []
