@@ -123,3 +123,14 @@ public sealed record MailMetadataSyncResult(
     int MessagesIndexed,
     int AttachmentsIndexed,
     DateTimeOffset IndexedAt);
+
+public sealed record MailIndexReconciliationResult(
+    Guid AccountId,
+    int ProviderCount,
+    int IndexedCount,
+    IReadOnlyCollection<string> MissingProviderIds,
+    IReadOnlyCollection<string> OrphanIndexedIds,
+    int DuplicateIndexedIds,
+    int Repaired,
+    DateTimeOffset ReconciledAt,
+    bool IsHealthy);
