@@ -28,6 +28,7 @@ public sealed class GmailMetadataIndexService(
     private const int RefreshNewestCount = 100;
     private const int UnreadDiscoveryLimit = 500;
     private const int GmailListPageMaximum = 500;
+    private const int GmailHistoryPageMaximum = 500;
     private static readonly TimeSpan SyncLeaseDuration = TimeSpan.FromMinutes(10);
 
     public Task<MailMetadataSyncResult> SyncAsync(int? requestedDays, int? requestedLimitPerAccount, CancellationToken cancellationToken) =>
@@ -108,6 +109,10 @@ public sealed class GmailMetadataIndexService(
                     cancellationToken);
                 totalMessages += backfill.Messages;
                 totalAttachments += backfill.Attachments;
+
+                var history = await ProcessHistoryChangesAsync(account, userId, client, now, days, cancellationToken);
+                totalMessages += history.Messages;
+                totalAttachments += history.Attachments;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -389,6 +394,13 @@ public sealed class GmailMetadataIndexService(
             .SingleAsync(x => x.AccountId == account.Id && x.UserId == userId, cancellationToken);
         if (state.BackfillCompletedAt.HasValue) return (0, 0);
 
+        if (string.IsNullOrWhiteSpace(state.GmailHistoryId))
+        {
+            state.GmailHistoryId = await GetProfileHistoryIdAsync(client, cancellationToken);
+            state.BackfillStartedAt ??= now;
+            await database.SaveChangesAsync(cancellationToken);
+        }
+
         var page = await ListFullBackfillPageAsync(client, pageSize, state.BackfillPageToken, cancellationToken);
         var indexed = await LoadMetadataAsync(client, page.MessageIds, cancellationToken);
         if (indexed.Count != page.MessageIds.Count)
@@ -406,6 +418,157 @@ public sealed class GmailMetadataIndexService(
         await database.SaveChangesAsync(cancellationToken);
 
         return (indexed.Count, indexed.Sum(x => x.Attachments.Count));
+    }
+
+    private async Task<(int Messages, int Attachments)> ProcessHistoryChangesAsync(
+        MailAccountEntity account,
+        Guid userId,
+        HttpClient client,
+        DateTimeOffset now,
+        int days,
+        CancellationToken cancellationToken)
+    {
+        var state = await database.MailIndexStates
+            .SingleAsync(x => x.AccountId == account.Id && x.UserId == userId, cancellationToken);
+        if (!state.BackfillCompletedAt.HasValue || string.IsNullOrWhiteSpace(state.GmailHistoryId))
+            return (0, 0);
+
+        var startHistoryId = state.GmailHistoryId;
+        var latestHistoryId = startHistoryId;
+        string? pageToken = null;
+        var totalMessages = 0;
+        var totalAttachments = 0;
+
+        do
+        {
+            var page = await ListHistoryPageAsync(client, startHistoryId, pageToken, cancellationToken);
+            var deletedIds = page.DeletedMessageIds.ToHashSet(StringComparer.Ordinal);
+            var changedIds = page.ChangedMessageIds
+                .Where(id => !deletedIds.Contains(id))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+            var indexed = await LoadMetadataAsync(client, changedIds, cancellationToken);
+            if (indexed.Count != changedIds.Length)
+                throw new HttpRequestException($"Gmail History no pudo cargar todos los metadatos modificados ({indexed.Count}/{changedIds.Length}); el checkpoint no avanzará.");
+
+            if (indexed.Count > 0)
+                await UpsertAccountIndexAsync(account, userId, indexed, now, days, cancellationToken);
+
+            if (deletedIds.Count > 0)
+                await DeleteConfirmedMessagesAsync(account.Id, userId, deletedIds, cancellationToken);
+
+            totalMessages += indexed.Count;
+            totalAttachments += indexed.Sum(x => x.Attachments.Count);
+            if (!string.IsNullOrWhiteSpace(page.HistoryId))
+                latestHistoryId = page.HistoryId;
+            pageToken = page.NextPageToken;
+        }
+        while (!string.IsNullOrWhiteSpace(pageToken));
+
+        var count = await database.MailMessageIndex
+            .AsNoTracking()
+            .CountAsync(x => x.UserId == userId && x.AccountId == account.Id, cancellationToken);
+        state = await database.MailIndexStates
+            .SingleAsync(x => x.AccountId == account.Id && x.UserId == userId, cancellationToken);
+        state.GmailHistoryId = latestHistoryId;
+        state.LastIndexedAt = now;
+        state.LastSyncAttemptAt = now;
+        state.LastSyncErrorCode = null;
+        state.WindowDays = days;
+        state.IndexedMessageCount = count;
+        await database.SaveChangesAsync(cancellationToken);
+
+        return (totalMessages, totalAttachments);
+    }
+
+    private async Task DeleteConfirmedMessagesAsync(
+        Guid accountId,
+        Guid userId,
+        IReadOnlyCollection<string> messageIds,
+        CancellationToken cancellationToken)
+    {
+        if (messageIds.Count == 0) return;
+        var ids = messageIds.Distinct(StringComparer.Ordinal).ToArray();
+
+        var attachments = await database.MailAttachmentIndex
+            .Where(x => x.UserId == userId && x.AccountId == accountId && ids.Contains(x.ProviderMessageId))
+            .ToArrayAsync(cancellationToken);
+        if (attachments.Length > 0)
+            database.MailAttachmentIndex.RemoveRange(attachments);
+
+        var messages = await database.MailMessageIndex
+            .Where(x => x.UserId == userId && x.AccountId == accountId && ids.Contains(x.ProviderMessageId))
+            .ToArrayAsync(cancellationToken);
+        if (messages.Length > 0)
+            database.MailMessageIndex.RemoveRange(messages);
+
+        await database.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task<string> GetProfileHistoryIdAsync(HttpClient client, CancellationToken cancellationToken)
+    {
+        using var response = await client.GetAsync("users/me/profile", cancellationToken);
+        response.EnsureSuccessStatusCode();
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
+        if (!document.RootElement.TryGetProperty("historyId", out var historyId) || string.IsNullOrWhiteSpace(historyId.GetString()))
+            throw new JsonException("Gmail no entregó un historyId válido para iniciar la sincronización incremental.");
+        return historyId.GetString()!;
+    }
+
+    private static async Task<GmailHistoryPage> ListHistoryPageAsync(
+        HttpClient client,
+        string startHistoryId,
+        string? pageToken,
+        CancellationToken cancellationToken)
+    {
+        var url = $"users/me/history?startHistoryId={Uri.EscapeDataString(startHistoryId)}&maxResults={GmailHistoryPageMaximum}";
+        if (!string.IsNullOrWhiteSpace(pageToken))
+            url += $"&pageToken={Uri.EscapeDataString(pageToken)}";
+
+        using var response = await client.GetAsync(url, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
+
+        var changed = new HashSet<string>(StringComparer.Ordinal);
+        var deleted = new HashSet<string>(StringComparer.Ordinal);
+        string? latestEventHistoryId = null;
+
+        if (document.RootElement.TryGetProperty("history", out var history))
+        {
+            foreach (var entry in history.EnumerateArray())
+            {
+                if (entry.TryGetProperty("id", out var eventId) && !string.IsNullOrWhiteSpace(eventId.GetString()))
+                    latestEventHistoryId = eventId.GetString();
+
+                CollectHistoryMessageIds(entry, "messagesAdded", changed);
+                CollectHistoryMessageIds(entry, "labelsAdded", changed);
+                CollectHistoryMessageIds(entry, "labelsRemoved", changed);
+                CollectHistoryMessageIds(entry, "messagesDeleted", deleted);
+            }
+        }
+
+        var nextPageToken = document.RootElement.TryGetProperty("nextPageToken", out var next)
+            ? next.GetString()
+            : null;
+        var historyId = document.RootElement.TryGetProperty("historyId", out var rootHistoryId) && !string.IsNullOrWhiteSpace(rootHistoryId.GetString())
+            ? rootHistoryId.GetString()
+            : latestEventHistoryId;
+
+        return new GmailHistoryPage(changed.ToArray(), deleted.ToArray(), nextPageToken, historyId);
+    }
+
+    private static void CollectHistoryMessageIds(JsonElement historyEntry, string propertyName, HashSet<string> target)
+    {
+        if (!historyEntry.TryGetProperty(propertyName, out var changes)) return;
+        foreach (var change in changes.EnumerateArray())
+        {
+            if (!change.TryGetProperty("message", out var message) ||
+                !message.TryGetProperty("id", out var id) ||
+                string.IsNullOrWhiteSpace(id.GetString()))
+                continue;
+            target.Add(id.GetString()!);
+        }
     }
 
     private static async Task<FullBackfillPage> ListFullBackfillPageAsync(
@@ -625,6 +788,7 @@ public sealed class GmailMetadataIndexService(
 
     private sealed class GmailAuthenticationException(string message) : Exception(message);
     private sealed record FullBackfillPage(IReadOnlyCollection<string> MessageIds, string? NextPageToken);
+    private sealed record GmailHistoryPage(IReadOnlyCollection<string> ChangedMessageIds, IReadOnlyCollection<string> DeletedMessageIds, string? NextPageToken, string? HistoryId);
     private sealed record IndexedAddress(string Name, string Address);
     private sealed record IndexedAttachment(string AttachmentId, string FileName, string ContentType, long Size);
     private sealed record IndexedMessage(

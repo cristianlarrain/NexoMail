@@ -31,6 +31,10 @@ public static class ControlCenterIndexSchemaBootstrap
                 await EnsureSqliteColumnAsync(connection, "MailIndexStates", "SyncLeaseUntil", "TEXT NULL", ct);
                 await EnsureSqliteColumnAsync(connection, "MailIndexStates", "LastSyncAttemptAt", "TEXT NULL", ct);
                 await EnsureSqliteColumnAsync(connection, "MailIndexStates", "LastSyncErrorCode", "TEXT NULL", ct);
+                await EnsureSqliteColumnAsync(connection, "MailIndexStates", "BackfillStartedAt", "TEXT NULL", ct);
+                await EnsureSqliteColumnAsync(connection, "MailIndexStates", "BackfillCompletedAt", "TEXT NULL", ct);
+                await EnsureSqliteColumnAsync(connection, "MailIndexStates", "BackfillPageToken", "TEXT NULL", ct);
+                await EnsureSqliteColumnAsync(connection, "MailIndexStates", "GmailHistoryId", "TEXT NULL", ct);
                 return;
             }
 
@@ -50,6 +54,10 @@ public static class ControlCenterIndexSchemaBootstrap
                 await ExecuteAsync(connection, "IF COL_LENGTH('MailIndexStates','SyncLeaseUntil') IS NULL ALTER TABLE MailIndexStates ADD SyncLeaseUntil datetimeoffset NULL;", ct);
                 await ExecuteAsync(connection, "IF COL_LENGTH('MailIndexStates','LastSyncAttemptAt') IS NULL ALTER TABLE MailIndexStates ADD LastSyncAttemptAt datetimeoffset NULL;", ct);
                 await ExecuteAsync(connection, "IF COL_LENGTH('MailIndexStates','LastSyncErrorCode') IS NULL ALTER TABLE MailIndexStates ADD LastSyncErrorCode nvarchar(32) NULL;", ct);
+                await ExecuteAsync(connection, "IF COL_LENGTH('MailIndexStates','BackfillStartedAt') IS NULL ALTER TABLE MailIndexStates ADD BackfillStartedAt datetimeoffset NULL;", ct);
+                await ExecuteAsync(connection, "IF COL_LENGTH('MailIndexStates','BackfillCompletedAt') IS NULL ALTER TABLE MailIndexStates ADD BackfillCompletedAt datetimeoffset NULL;", ct);
+                await ExecuteAsync(connection, "IF COL_LENGTH('MailIndexStates','BackfillPageToken') IS NULL ALTER TABLE MailIndexStates ADD BackfillPageToken nvarchar(4000) NULL;", ct);
+                await ExecuteAsync(connection, "IF COL_LENGTH('MailIndexStates','GmailHistoryId') IS NULL ALTER TABLE MailIndexStates ADD GmailHistoryId nvarchar(128) NULL;", ct);
             }
         }
         finally
