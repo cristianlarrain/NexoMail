@@ -29,6 +29,7 @@ public sealed class GmailMetadataIndexService(
     private const int UnreadDiscoveryLimit = 500;
     private const int GmailListPageMaximum = 500;
     private const int GmailHistoryPageMaximum = 500;
+    private const string GmailHistoryExpiredErrorCode = "history_expired";
     private static readonly TimeSpan SyncLeaseDuration = TimeSpan.FromMinutes(10);
 
     public Task<MailMetadataSyncResult> SyncAsync(int? requestedDays, int? requestedLimitPerAccount, CancellationToken cancellationToken) =>
@@ -316,7 +317,10 @@ public sealed class GmailMetadataIndexService(
         }
         state.LastIndexedAt = now;
         state.LastSyncAttemptAt = now;
-        state.LastSyncErrorCode = null;
+        var preserveHistoryExpiry = string.Equals(state.LastSyncErrorCode, GmailHistoryExpiredErrorCode, StringComparison.Ordinal)
+            && !state.BackfillCompletedAt.HasValue;
+        if (!preserveHistoryExpiry)
+            state.LastSyncErrorCode = null;
         state.WindowDays = days;
         state.IndexedMessageCount = count;
         await database.SaveChangesAsync(cancellationToken);
@@ -442,6 +446,20 @@ public sealed class GmailMetadataIndexService(
         do
         {
             var page = await ListHistoryPageAsync(client, startHistoryId, pageToken, cancellationToken);
+            if (page.IsExpired)
+            {
+                state = await database.MailIndexStates
+                    .SingleAsync(x => x.AccountId == account.Id && x.UserId == userId, cancellationToken);
+                state.GmailHistoryId = null;
+                state.BackfillStartedAt = null;
+                state.BackfillCompletedAt = null;
+                state.BackfillPageToken = null;
+                state.LastSyncAttemptAt = now;
+                state.LastSyncErrorCode = GmailHistoryExpiredErrorCode;
+                await database.SaveChangesAsync(cancellationToken);
+                return (0, 0);
+            }
+
             var deletedIds = page.DeletedMessageIds.ToHashSet(StringComparer.Ordinal);
             var changedIds = page.ChangedMessageIds
                 .Where(id => !deletedIds.Contains(id))
@@ -527,6 +545,8 @@ public sealed class GmailMetadataIndexService(
             url += $"&pageToken={Uri.EscapeDataString(pageToken)}";
 
         using var response = await client.GetAsync(url, cancellationToken);
+        if ((int)response.StatusCode == 404)
+            return new GmailHistoryPage([], [], null, null, true);
         response.EnsureSuccessStatusCode();
         using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
 
@@ -555,7 +575,7 @@ public sealed class GmailMetadataIndexService(
             ? rootHistoryId.GetString()
             : latestEventHistoryId;
 
-        return new GmailHistoryPage(changed.ToArray(), deleted.ToArray(), nextPageToken, historyId);
+        return new GmailHistoryPage(changed.ToArray(), deleted.ToArray(), nextPageToken, historyId, false);
     }
 
     private static void CollectHistoryMessageIds(JsonElement historyEntry, string propertyName, HashSet<string> target)
@@ -788,7 +808,7 @@ public sealed class GmailMetadataIndexService(
 
     private sealed class GmailAuthenticationException(string message) : Exception(message);
     private sealed record FullBackfillPage(IReadOnlyCollection<string> MessageIds, string? NextPageToken);
-    private sealed record GmailHistoryPage(IReadOnlyCollection<string> ChangedMessageIds, IReadOnlyCollection<string> DeletedMessageIds, string? NextPageToken, string? HistoryId);
+    private sealed record GmailHistoryPage(IReadOnlyCollection<string> ChangedMessageIds, IReadOnlyCollection<string> DeletedMessageIds, string? NextPageToken, string? HistoryId, bool IsExpired);
     private sealed record IndexedAddress(string Name, string Address);
     private sealed record IndexedAttachment(string AttachmentId, string FileName, string ContentType, long Size);
     private sealed record IndexedMessage(
