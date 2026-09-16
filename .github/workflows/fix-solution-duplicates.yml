@@ -1,0 +1,128 @@
+name: Fix duplicated solution projects
+
+on:
+  push:
+    branches:
+      - 'feature/unified-inbox-source-of-truth'
+    paths:
+      - '.github/workflows/fix-solution-duplicates.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix-solution:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Confirm duplicate solution entries
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          text = Path('NexoMail.sln').read_text(encoding='utf-8-sig')
+          projects = []
+          for line in text.splitlines():
+              m = re.match(r'^Project\("[^"]+"\) = "([^"]+)", "([^"]+)", "([^"]+)"$', line)
+              if m:
+                  name, path, guid = m.groups()
+                  if path.lower().endswith('.csproj'):
+                      projects.append((name, path.replace('\\', '/').lower(), guid))
+          by_path = {}
+          for item in projects:
+              by_path.setdefault(item[1], []).append(item)
+          duplicates = {path: items for path, items in by_path.items() if len(items) > 1}
+          expected = {
+              'src/backend/nexomail.application/nexomail.application.csproj',
+              'src/backend/nexomail.domain/nexomail.domain.csproj',
+              'src/backend/nexomail.infrastructure/nexomail.infrastructure.csproj',
+          }
+          if set(duplicates) != expected:
+              raise SystemExit(f'Unexpected duplicate set: {duplicates}')
+          print('PASS: confirmed exactly the three duplicated project paths')
+          PY
+
+      - name: Remove duplicate solution entries
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('NexoMail.sln')
+          text = path.read_text(encoding='utf-8-sig')
+          duplicate_guids = {
+              '{0C28D0CB-9BD8-4C22-9740-0722DD399698}',
+              '{389DAF61-9DE0-43D1-854C-6F06027262DA}',
+              '{543692DD-A3D8-49C0-8B1B-92274AC98FFD}',
+          }
+
+          lines = text.splitlines(keepends=True)
+          output = []
+          skip_project_end = False
+          for line in lines:
+              if line.startswith('Project(') and any(guid in line for guid in duplicate_guids):
+                  skip_project_end = True
+                  continue
+              if skip_project_end:
+                  if line.strip() != 'EndProject':
+                      raise SystemExit(f'Unexpected content inside duplicate project block: {line!r}')
+                  skip_project_end = False
+                  continue
+              if any(guid in line for guid in duplicate_guids):
+                  continue
+              output.append(line)
+
+          if skip_project_end:
+              raise SystemExit('Duplicate project block ended unexpectedly.')
+
+          path.write_text(''.join(output), encoding='utf-8')
+          PY
+
+      - name: Verify unique project paths
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          text = Path('NexoMail.sln').read_text(encoding='utf-8-sig')
+          projects = []
+          for line in text.splitlines():
+              m = re.match(r'^Project\("[^"]+"\) = "([^"]+)", "([^"]+)", "([^"]+)"$', line)
+              if m:
+                  name, path, guid = m.groups()
+                  if path.lower().endswith('.csproj'):
+                      projects.append((name, path.replace('\\', '/').lower(), guid))
+          by_path = {}
+          for item in projects:
+              by_path.setdefault(item[1], []).append(item)
+          duplicates = {path: items for path, items in by_path.items() if len(items) > 1}
+          if duplicates:
+              raise SystemExit(f'Duplicate projects remain: {duplicates}')
+          print(f'PASS: {len(projects)} project entries, all paths unique')
+          PY
+
+      - name: Restore solution
+        run: dotnet restore NexoMail.sln
+
+      - name: Build solution
+        run: dotnet build NexoMail.sln --configuration Release --no-restore
+
+      - name: Publish solution repair
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add NexoMail.sln
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix: remove duplicate projects from solution'
+          git push origin HEAD:feature/unified-inbox-source-of-truth
