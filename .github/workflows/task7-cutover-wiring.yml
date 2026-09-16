@@ -1,0 +1,190 @@
+name: Task 7 cutover wiring
+
+on:
+  push:
+    branches:
+      - 'feature/unified-inbox-source-of-truth'
+    paths:
+      - '.github/workflows/task7-cutover-wiring.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  wire-task7:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Wire safe index-read cutover
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/backend/NexoMail.Api/Program.cs')
+          text = path.read_text(encoding='utf-8')
+
+          def replace_once(old, new):
+              global text
+              if old not in text:
+                  raise SystemExit(f'anchor missing: {old[:140]!r}')
+              text = text.replace(old, new, 1)
+
+          # MailIndexMutationService is now registered centrally by MailProviderBetaModule.
+          replace_once(
+              'builder.Services.AddScoped<GmailControlCenterActivityService>();\nbuilder.Services.AddScoped<MailIndexMutationService>();\nMailProviderBetaModule.AddServices(builder.Services, builder.Configuration);',
+              'builder.Services.AddScoped<GmailControlCenterActivityService>();\nMailProviderBetaModule.AddServices(builder.Services, builder.Configuration);')
+
+          replace_once(
+          '''mail.MapPost("/refresh", (NexoMail.Api.MailReadCache cache, IUserContext userContext) =>
+          {
+              cache.Invalidate(userContext.UserId.ToString());
+              return Results.NoContent();
+          });''',
+          '''mail.MapPost("/refresh", async (NexoMailDbContext database, MailIndexMutationService indexMutation, NexoMail.Api.MailReadCache cache, IUserContext userContext, CancellationToken ct) =>
+          {
+              var gmailAccountIds = await database.MailAccounts
+                  .AsNoTracking()
+                  .Where(x => x.UserId == userContext.UserId && x.IsActive && x.Provider == MailProviderType.Gmail)
+                  .Select(x => x.Id)
+                  .ToArrayAsync(ct);
+              foreach (var gmailAccountId in gmailAccountIds)
+              {
+                  await indexMutation.MarkAccountForImmediateSyncAsync(gmailAccountId, ct);
+              }
+              cache.Invalidate(userContext.UserId.ToString());
+              return Results.NoContent();
+          });''')
+
+          old_messages = '''mail.MapGet("/messages", async (IMailGateway gateway, NexoMailDbContext database, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid? accountId, string? folder, int? take, string? cursor, string? search, CancellationToken ct) =>
+          {
+              var normalizedFolder = (folder ?? "inbox").Trim().ToLowerInvariant();
+              var providerFolder = normalizedFolder == "ignored" ? "inbox" : normalizedFolder;
+              var normalizedTake = take ?? 50;
+              var normalizedSearch = search?.Trim() ?? string.Empty;
+              var normalizedCursor = cursor ?? string.Empty;
+              var scope = $"{accountId?.ToString("N") ?? "all"}:{providerFolder}:{normalizedTake}:{normalizedCursor}:{normalizedSearch}";
+              var value = await cache.GetOrCreateAsync(
+                  userContext.UserId.ToString(),
+                  "messages",
+                  scope,
+                  TimeSpan.FromSeconds(45),
+                  token => gateway.GetMessagesAsync(new MailQuery(accountId, providerFolder, normalizedTake, cursor, normalizedSearch), token),
+                  ct);
+              if (normalizedFolder is not ("inbox" or "ignored")) return Results.Ok(value);
+
+              var ignoredQuery = database.IgnoredSenders.AsNoTracking().Where(x => x.UserId == userContext.UserId);
+              if (accountId.HasValue) ignoredQuery = ignoredQuery.Where(x => x.AccountId == accountId.Value);
+              var ignoredRules = await ignoredQuery.Select(x => new { x.AccountId, x.SenderAddress }).ToArrayAsync(ct);
+              var ignored = ignoredRules
+                  .Select(rule => $"{rule.AccountId:N}|{rule.SenderAddress.Trim().ToLowerInvariant()}")
+                  .ToHashSet(StringComparer.Ordinal);
+              bool IsIgnored(MailSummary item) => ignored.Contains($"{item.AccountId:N}|{item.SenderAddress.Trim().ToLowerInvariant()}");
+              var filtered = normalizedFolder == "ignored" ? value.Items.Where(IsIgnored).ToArray() : value.Items.Where(item => !IsIgnored(item)).ToArray();
+              return Results.Ok(new PagedResult<MailSummary>(filtered, value.NextCursor));
+          });'''
+
+          new_messages = '''mail.MapGet("/messages", async (IMailGateway gateway, NexoMailDbContext database, UnifiedInboxQueryService inbox, UnifiedInboxReadinessService readiness, Microsoft.Extensions.Options.IOptions<UnifiedInboxOptions> unifiedInboxOptions, NexoMail.Api.MailReadCache cache, IUserContext userContext, Guid? accountId, string? folder, int? take, string? cursor, string? search, CancellationToken ct) =>
+          {
+              var normalizedFolder = (folder ?? "inbox").Trim().ToLowerInvariant();
+              var normalizedTake = take ?? 50;
+              var normalizedSearch = search?.Trim() ?? string.Empty;
+
+              if (unifiedInboxOptions.Value.IndexReadEnabled)
+              {
+                  var gate = await readiness.GetAsync(ct);
+                  if (!gate.IsReady)
+                  {
+                      return Results.Conflict(new
+                      {
+                          error = "La Bandeja Unificada aún no está lista para leer desde el índice. Completa la sincronización de Gmail y revisa las cuentas de proveedores todavía no incorporados al índice.",
+                          incompleteAccountIds = gate.IncompleteAccountIds,
+                          unsupportedProviderAccountIds = gate.UnsupportedProviderAccountIds
+                      });
+                  }
+
+                  return Results.Ok(await inbox.GetMessagesAsync(
+                      new MailQuery(accountId, normalizedFolder, normalizedTake, cursor, normalizedSearch),
+                      ct));
+              }
+
+              var providerFolder = normalizedFolder == "ignored" ? "inbox" : normalizedFolder;
+              var normalizedCursor = cursor ?? string.Empty;
+              var scope = $"{accountId?.ToString("N") ?? "all"}:{providerFolder}:{normalizedTake}:{normalizedCursor}:{normalizedSearch}";
+              var value = await cache.GetOrCreateAsync(
+                  userContext.UserId.ToString(),
+                  "messages",
+                  scope,
+                  TimeSpan.FromSeconds(45),
+                  token => gateway.GetMessagesAsync(new MailQuery(accountId, providerFolder, normalizedTake, cursor, normalizedSearch), token),
+                  ct);
+              if (normalizedFolder is not ("inbox" or "ignored")) return Results.Ok(value);
+
+              var ignoredQuery = database.IgnoredSenders.AsNoTracking().Where(x => x.UserId == userContext.UserId);
+              if (accountId.HasValue) ignoredQuery = ignoredQuery.Where(x => x.AccountId == accountId.Value);
+              var ignoredRules = await ignoredQuery.Select(x => new { x.AccountId, x.SenderAddress }).ToArrayAsync(ct);
+              var ignored = ignoredRules
+                  .Select(rule => $"{rule.AccountId:N}|{rule.SenderAddress.Trim().ToLowerInvariant()}")
+                  .ToHashSet(StringComparer.Ordinal);
+              bool IsIgnored(MailSummary item) => ignored.Contains($"{item.AccountId:N}|{item.SenderAddress.Trim().ToLowerInvariant()}");
+              var filtered = normalizedFolder == "ignored" ? value.Items.Where(IsIgnored).ToArray() : value.Items.Where(item => !IsIgnored(item)).ToArray();
+              return Results.Ok(new PagedResult<MailSummary>(filtered, value.NextCursor));
+          });
+          mail.MapPost("/messages/resolve", async (MailMessageReference[] references, UnifiedInboxQueryService inbox, CancellationToken ct) =>
+              Results.Ok(await inbox.ResolveAsync(references, ct)));'''
+          replace_once(old_messages, new_messages)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Verify Task 7 source contract
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/backend/NexoMail.Api/Program.cs').read_text(encoding='utf-8')
+          required = [
+              'unifiedInboxOptions.Value.IndexReadEnabled',
+              'var gate = await readiness.GetAsync(ct);',
+              'return Results.Conflict(new',
+              'await inbox.GetMessagesAsync(',
+              'mail.MapPost("/messages/resolve"',
+              'await indexMutation.MarkAccountForImmediateSyncAsync(gmailAccountId, ct);',
+          ]
+          for token in required:
+              if token not in p:
+                  raise SystemExit(f'missing Task 7 contract token: {token}')
+          index_if = p.index('if (unifiedInboxOptions.Value.IndexReadEnabled)')
+          index_call = p.index('await inbox.GetMessagesAsync(', index_if)
+          live_call = p.index('gateway.GetMessagesAsync', index_if)
+          if index_call > live_call:
+              raise SystemExit('Index mode must branch to UnifiedInboxQueryService before provider migration path.')
+          if 'builder.Services.AddScoped<MailIndexMutationService>();' in p:
+              raise SystemExit('MailIndexMutationService must be registered once in MailProviderBetaModule.')
+          print('PASS: Task 7 cutover source contract')
+          PY
+      - name: Restore solution
+        run: dotnet restore NexoMail.sln
+      - name: Build solution
+        run: dotnet build NexoMail.sln --configuration Release --no-restore
+      - name: Run Unified Inbox smoke
+        run: dotnet run --project src/backend/NexoMail.UnifiedInboxSmokeTests/NexoMail.UnifiedInboxSmokeTests.csproj --configuration Release --no-build
+      - name: Run Control Center smoke
+        run: dotnet run --project src/backend/NexoMail.ControlCenterSmokeTests/NexoMail.ControlCenterSmokeTests.csproj --configuration Release
+      - name: Run Nexo Intelligence smoke
+        run: dotnet run --project src/backend/NexoMail.IntelligenceSmokeTests/NexoMail.IntelligenceSmokeTests.csproj --configuration Release
+      - name: Publish Task 7 product wiring
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/backend/NexoMail.Api/Program.cs
+          git diff --cached --quiet && exit 0
+          git commit -m 'feat: gate unified inbox index reads'
+          git push origin HEAD:feature/unified-inbox-source-of-truth
