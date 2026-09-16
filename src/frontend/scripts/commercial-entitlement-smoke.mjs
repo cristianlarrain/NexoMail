@@ -61,7 +61,7 @@ ensure(!commercialSettings.includes('color: var(--muted)') && commercialSettings
   'Plan y uso debe usar el token de texto secundario, no el color de fondo muted, para conservar contraste en modo oscuro.')
 ensure(!commercialBilling.includes('color: var(--muted)') && commercialBilling.includes('color: var(--muted-foreground)'),
   'Los avisos de facturación y prueba deben usar texto secundario legible en modo oscuro.')
-ensure(planPage.includes('activeAdminTrial && <div className="commercial-billing-return"') && !planPage.includes("activeAdminTrial ? `Está probando ${trialName}`"),
+ensure(planPage.includes('activeTemporaryTrial && <div className="commercial-billing-return"') && !planPage.includes("activeTemporaryTrial ? `Está probando ${trialName}`"),
   'La prueba gratuita debe informarse una sola vez en el aviso superior, sin repetirla en el bloque inferior de Plan y uso.')
 
 console.log('PASS: frontend respeta capacidades comerciales configurables')
