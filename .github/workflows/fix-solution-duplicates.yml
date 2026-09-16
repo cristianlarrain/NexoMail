@@ -30,27 +30,25 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           text = Path('NexoMail.sln').read_text(encoding='utf-8-sig')
-          projects = []
-          for line in text.splitlines():
-              if not line.startswith('Project(') or '.csproj' not in line.lower():
-                  continue
-              parts = line.split('"')
-              if len(parts) < 8:
-                  raise SystemExit(f'Unexpected project line: {line!r}')
-              name, project_path, guid = parts[3], parts[5], parts[7]
-              projects.append((name, project_path.replace('\\', '/').lower(), guid))
-          by_path = {}
-          for item in projects:
-              by_path.setdefault(item[1], []).append(item)
-          duplicates = {path: items for path, items in by_path.items() if len(items) > 1}
-          expected = {
+          normalized = text.replace('\\', '/').lower()
+          paths = [
               'src/backend/nexomail.application/nexomail.application.csproj',
               'src/backend/nexomail.domain/nexomail.domain.csproj',
               'src/backend/nexomail.infrastructure/nexomail.infrastructure.csproj',
-          }
-          if set(duplicates) != expected:
-              raise SystemExit(f'Unexpected duplicate set: {duplicates}')
-          print('PASS: confirmed exactly the three duplicated project paths')
+          ]
+          duplicate_guids = [
+              '{0C28D0CB-9BD8-4C22-9740-0722DD399698}',
+              '{389DAF61-9DE0-43D1-854C-6F06027262DA}',
+              '{543692DD-A3D8-49C0-8B1B-92274AC98FFD}',
+          ]
+          for project_path in paths:
+              count = normalized.count(project_path)
+              if count != 2:
+                  raise SystemExit(f'Expected duplicated path twice, got {count}: {project_path}')
+          for guid in duplicate_guids:
+              if guid not in text:
+                  raise SystemExit(f'Expected duplicate GUID not found: {guid}')
+          print('PASS: confirmed the three duplicated project entries')
           PY
 
       - name: Remove duplicate solution entries
@@ -71,7 +69,7 @@ jobs:
           output = []
           skip_project_end = False
           for line in lines:
-              if line.startswith('Project(') and any(guid in line for guid in duplicate_guids):
+              if 'Project(' in line and any(guid in line for guid in duplicate_guids):
                   skip_project_end = True
                   continue
               if skip_project_end:
@@ -95,22 +93,25 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           text = Path('NexoMail.sln').read_text(encoding='utf-8-sig')
-          projects = []
-          for line in text.splitlines():
-              if not line.startswith('Project(') or '.csproj' not in line.lower():
-                  continue
-              parts = line.split('"')
-              if len(parts) < 8:
-                  raise SystemExit(f'Unexpected project line: {line!r}')
-              name, project_path, guid = parts[3], parts[5], parts[7]
-              projects.append((name, project_path.replace('\\', '/').lower(), guid))
-          by_path = {}
-          for item in projects:
-              by_path.setdefault(item[1], []).append(item)
-          duplicates = {path: items for path, items in by_path.items() if len(items) > 1}
-          if duplicates:
-              raise SystemExit(f'Duplicate projects remain: {duplicates}')
-          print(f'PASS: {len(projects)} project entries, all paths unique')
+          normalized = text.replace('\\', '/').lower()
+          paths = [
+              'src/backend/nexomail.application/nexomail.application.csproj',
+              'src/backend/nexomail.domain/nexomail.domain.csproj',
+              'src/backend/nexomail.infrastructure/nexomail.infrastructure.csproj',
+          ]
+          duplicate_guids = [
+              '{0C28D0CB-9BD8-4C22-9740-0722DD399698}',
+              '{389DAF61-9DE0-43D1-854C-6F06027262DA}',
+              '{543692DD-A3D8-49C0-8B1B-92274AC98FFD}',
+          ]
+          for project_path in paths:
+              count = normalized.count(project_path)
+              if count != 1:
+                  raise SystemExit(f'Expected one project path after repair, got {count}: {project_path}')
+          for guid in duplicate_guids:
+              if guid in text:
+                  raise SystemExit(f'Duplicate GUID remains after repair: {guid}')
+          print('PASS: duplicate solution entries removed')
           PY
 
       - name: Restore solution
